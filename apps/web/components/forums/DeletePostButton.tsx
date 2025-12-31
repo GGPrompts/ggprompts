@@ -2,7 +2,7 @@
 
 import { useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
+import { Button } from '@ggprompts/ui'
 import { Trash2, Loader2 } from 'lucide-react'
 import { deletePost } from '@/app/forums/actions'
 

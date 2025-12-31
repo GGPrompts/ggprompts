@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { PromptCard } from './PromptCard'
 import { PromptDetailModal } from './PromptDetailModal'
-import { Button } from '@/components/ui/button'
+import { Button, cn } from '@ggprompts/ui'
 import { Loader2 } from 'lucide-react'
 import { Prompt } from '@/lib/types'
 import { fetchPrompts } from '@/app/prompts/actions'
@@ -14,7 +14,6 @@ import { useAuth } from '@/hooks/useAuth'
 import { getUserInteractionStates } from '@/lib/database/prompt-interactions'
 import { getMatchesForField } from '@/components/ui/search-highlight'
 import { useKeyboardNav } from '@/hooks'
-import { cn } from '@/lib/utils'
 
 // Responsive column breakpoints matching Tailwind classes
 function useResponsiveColumns() {

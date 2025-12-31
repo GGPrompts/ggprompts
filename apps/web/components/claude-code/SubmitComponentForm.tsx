@@ -2,18 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Button, Input, Textarea, Label, Badge, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@ggprompts/ui'
 import { Loader2, ArrowLeft, Sparkles, Bot, Command, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { submitComponent, SubmitComponentData } from '@/app/claude-code/actions'

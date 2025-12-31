@@ -1,7 +1,6 @@
 'use client'
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle, Button } from '@ggprompts/ui'
 import { ForumPost } from '@/lib/types'
 import { MessageSquare, Plus, Clock, ChevronRight } from 'lucide-react'
 import Link from 'next/link'

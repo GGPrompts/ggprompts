@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Button } from '@/components/ui/button'
+import { Button } from '@ggprompts/ui'
 import { Copy, Check } from 'lucide-react'
 import { toast } from 'sonner'
 

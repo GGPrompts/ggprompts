@@ -1,9 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
+import { Avatar, AvatarFallback, AvatarImage, Button, Card, CardContent } from '@ggprompts/ui'
 import { Clock, Trash2, Loader2 } from 'lucide-react'
 import { ForumComment } from '@/lib/types'
 import { deleteComment } from '@/app/forums/actions'

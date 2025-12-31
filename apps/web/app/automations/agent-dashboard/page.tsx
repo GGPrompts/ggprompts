@@ -1,17 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Progress } from '@/components/ui/progress'
-import { Switch } from '@/components/ui/switch'
-import { Textarea } from '@/components/ui/textarea'
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible'
+import { Card, CardContent, CardHeader, CardTitle, Button, Badge, Progress, Switch, Textarea, Collapsible, CollapsibleContent, CollapsibleTrigger } from '@ggprompts/ui'
 import {
   Plus,
   Trash2,

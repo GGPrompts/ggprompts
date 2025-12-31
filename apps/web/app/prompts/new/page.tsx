@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { CreatePromptForm } from '@/components/prompts/CreatePromptForm'
-import { Badge } from '@/components/ui/badge'
+import { Badge } from '@ggprompts/ui'
 import { Sparkles, ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 

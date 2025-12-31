@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useCallback, type KeyboardEvent } from 'react'
-import { Input } from '@/components/ui/input'
+import { Input } from '@ggprompts/ui'
 import { Search } from 'lucide-react'
 
 interface MarketplaceSearchInputProps {

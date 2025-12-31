@@ -1,8 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
+import { Button, Textarea } from '@ggprompts/ui'
 import { StarRating } from './StarRating'
 import { submitReview } from '@/app/claude-code/review-actions'
 import { toast } from 'sonner'

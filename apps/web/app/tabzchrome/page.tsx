@@ -12,8 +12,7 @@ import {
   Check,
   Sparkles,
 } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { Badge, Button } from '@ggprompts/ui'
 import { TabzChromeStatus } from './TabzChromeStatus'
 
 const features = [

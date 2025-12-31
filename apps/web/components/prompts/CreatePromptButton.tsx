@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Button } from '@/components/ui/button'
+import { Button } from '@ggprompts/ui'
 import { useAuth } from '@/hooks/useAuth'
 import { Plus, Loader2 } from 'lucide-react'
 

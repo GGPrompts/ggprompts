@@ -17,9 +17,7 @@ import {
   Trash2,
   Code2,
 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+import { Button, Card, Badge } from '@ggprompts/ui'
 
 // Duration options
 const DURATION_OPTIONS = [

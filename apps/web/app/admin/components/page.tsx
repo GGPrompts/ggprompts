@@ -4,7 +4,7 @@ import { Component, ComponentStatus } from '@/lib/types'
 import { ComponentAdminTable } from './ComponentAdminTable'
 import { SyncButton } from './SyncButton'
 import { ExportButton } from './ExportButton'
-import { Badge } from '@/components/ui/badge'
+import { Badge } from '@ggprompts/ui'
 import { Shield } from 'lucide-react'
 import Link from 'next/link'
 

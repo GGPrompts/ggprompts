@@ -2,12 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { ChevronDown, ChevronUp, Copy, Check, Hash, TextCursorInput, List, Square } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
+import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@ggprompts/ui'
 
 export interface Selector {
   id: string

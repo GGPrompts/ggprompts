@@ -16,11 +16,7 @@ import {
   ChevronUp,
   Loader2,
 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Button, Input, Checkbox, Badge, Tabs, TabsContent, TabsList, TabsTrigger } from '@ggprompts/ui'
 
 interface ResearchResult {
   source: 'web' | 'github' | 'consensus' | 'llm'

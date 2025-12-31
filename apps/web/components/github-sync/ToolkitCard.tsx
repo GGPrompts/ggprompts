@@ -1,7 +1,7 @@
 'use client'
 
 import { ComponentType } from '@/lib/types'
-import { Badge } from '@/components/ui/badge'
+import { Badge } from '@ggprompts/ui'
 import { FloatingCard } from '@/components/ui/floating-card'
 import {
   Sparkles,

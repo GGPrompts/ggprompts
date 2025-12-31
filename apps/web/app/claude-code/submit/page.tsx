@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { SubmitComponentForm } from '@/components/claude-code/SubmitComponentForm'
-import { Badge } from '@/components/ui/badge'
+import { Badge } from '@ggprompts/ui'
 import { Plus } from 'lucide-react'
 
 export default async function SubmitComponentPage() {

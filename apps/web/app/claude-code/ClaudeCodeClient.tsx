@@ -19,14 +19,9 @@ import {
   Star,
   Download,
 } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
+import { Badge, Button, Card, BorderTrail, GlowEffect, cn } from '@ggprompts/ui'
 import { FloatingCard } from '@/components/ui/floating-card'
-import { BorderTrail } from '@/components/ui/border-trail'
-import { GlowEffect } from '@/components/ui/glow-effect'
 import { GitHubCTA } from '@/components/github-sync'
-import { cn } from '@/lib/utils'
 import { Component } from '@/lib/types'
 
 const typeConfig = {

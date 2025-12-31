@@ -3,9 +3,8 @@
 import React from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { cn } from '@/lib/utils'
+import { cn, Badge } from '@ggprompts/ui'
 import { CopyCodeButton } from '@/components/ui/CopyCodeButton'
-import { Badge } from '@/components/ui/badge'
 import { Bot, Sparkles, Command, Webhook, Plug } from 'lucide-react'
 
 // Helper to extract text content from React children

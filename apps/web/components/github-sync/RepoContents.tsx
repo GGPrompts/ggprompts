@@ -14,10 +14,7 @@ import {
   FolderGit2,
   Pencil
 } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { cn } from '@/lib/utils'
+import { Badge, Button, Tooltip, TooltipContent, TooltipTrigger, cn } from '@ggprompts/ui'
 import {
   getRepoContents,
   RepoComponent,

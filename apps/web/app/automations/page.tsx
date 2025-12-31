@@ -15,9 +15,7 @@ import {
   Workflow,
   ArrowRight,
 } from 'lucide-react'
-import { Card } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { cn } from '@/lib/utils'
+import { Card, Badge, cn } from '@ggprompts/ui'
 
 type AutomationStatus = 'available' | 'coming-soon'
 

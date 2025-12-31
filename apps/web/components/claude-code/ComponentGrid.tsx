@@ -9,7 +9,7 @@ import { useRouter } from 'next/navigation'
 import { useFuzzySearch } from '@/hooks/useFuzzySearch'
 import { getMatchesForField } from '@/components/ui/search-highlight'
 import { useKeyboardNav } from '@/hooks'
-import { cn } from '@/lib/utils'
+import { cn } from '@ggprompts/ui'
 
 // Responsive column breakpoints matching Tailwind classes
 function useResponsiveColumns() {

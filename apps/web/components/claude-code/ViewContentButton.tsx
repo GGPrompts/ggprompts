@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Button } from '@/components/ui/button'
+import { Button } from '@ggprompts/ui'
 import { Eye } from 'lucide-react'
 import { ComponentContentModal } from './ComponentContentModal'
 import type { Component } from '@/lib/types'

@@ -16,10 +16,7 @@ import {
   Plus,
   X,
 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { cn } from '@/lib/utils'
+import { Button, Card, Badge, cn } from '@ggprompts/ui'
 
 // Commit types following conventional commits
 const COMMIT_TYPES = [

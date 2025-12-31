@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
+import { Button } from '@ggprompts/ui'
 import { Plus, Check, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { addToToolkit } from '@/app/claude-code/actions'

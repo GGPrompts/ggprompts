@@ -1,6 +1,6 @@
 import { Review } from '@/app/claude-code/review-actions'
 import { StarRating } from './StarRating'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@ggprompts/ui'
 import { formatDistanceToNow } from 'date-fns'
 
 interface ReviewsListProps {

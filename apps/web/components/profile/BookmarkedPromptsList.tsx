@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle, Button } from '@ggprompts/ui'
 import { PromptCard } from '@/components/prompts/PromptCard'
 import { PromptDetailModal } from '@/components/prompts/PromptDetailModal'
 import { Prompt } from '@/lib/types'
@@ -9,7 +9,6 @@ import { Bookmark, Loader2 } from 'lucide-react'
 import { getUserBookmarkedPrompts } from '@/lib/database/prompt-interactions'
 import { useAuth } from '@/hooks/useAuth'
 import Link from 'next/link'
-import { Button } from '@/components/ui/button'
 
 export function BookmarkedPromptsList() {
   const { user } = useAuth()

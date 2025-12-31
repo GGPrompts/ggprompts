@@ -14,9 +14,7 @@ import {
   FolderGit2,
   Package,
 } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { Badge, Button, cn } from '@ggprompts/ui'
 import {
   getRepoContents,
   RepoComponent,

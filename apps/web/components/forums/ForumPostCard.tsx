@@ -1,8 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Card, CardContent, CardHeader, CardTitle, Avatar, AvatarFallback, AvatarImage } from '@ggprompts/ui'
 import { MessageCircle, Clock } from 'lucide-react'
 import { ForumPost } from '@/lib/types'
 

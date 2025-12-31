@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Badge } from '@/components/ui/badge'
+import { Badge } from '@ggprompts/ui'
 import { Newspaper, ArrowRight } from 'lucide-react'
 import latestNews from '@/lib/news/data/latest.json'
 

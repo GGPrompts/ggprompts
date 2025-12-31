@@ -1,8 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle, Button } from '@ggprompts/ui'
 import { PromptCard } from '@/components/prompts/PromptCard'
 import { PromptDetailModal } from '@/components/prompts/PromptDetailModal'
 import { Prompt } from '@/lib/types'

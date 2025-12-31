@@ -5,8 +5,7 @@ import { ThemeProvider } from "@/components/ThemeProvider"
 import { BackgroundProvider } from "@/components/BackgroundProvider"
 import { MasterBackground } from "@/components/MasterBackground"
 import { Navigation } from "@/components/navigation/Navigation"
-import { Toaster } from "@/components/ui/sonner"
-import { TooltipProvider } from "@/components/ui/tooltip"
+import { Toaster, TooltipProvider } from "@ggprompts/ui"
 import { TabzChromeProvider } from "@/hooks/useTabzChrome"
 
 const inter = Inter({

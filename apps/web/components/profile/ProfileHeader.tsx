@@ -1,24 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { Card, CardContent } from '@/components/ui/card'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog'
+import { Card, CardContent, Avatar, AvatarFallback, AvatarImage, Badge, Button, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, cn } from '@ggprompts/ui'
 import { Calendar, Sparkles, Heart, MessageSquare, Edit, Loader2, Check } from 'lucide-react'
 import { Profile } from '@/lib/types'
 import { getDiceBearStyles, generateDiceBearAvatar } from '@/lib/avatar'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import { cn } from '@/lib/utils'
 
 interface ProfileHeaderProps {
   profile: Profile

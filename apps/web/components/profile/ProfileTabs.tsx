@@ -1,6 +1,6 @@
 'use client'
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@ggprompts/ui'
 import { UserPromptsList } from './UserPromptsList'
 import { UserPostsList } from './UserPostsList'
 import { BookmarkedPromptsList } from './BookmarkedPromptsList'

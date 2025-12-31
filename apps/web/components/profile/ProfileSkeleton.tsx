@@ -1,5 +1,4 @@
-import { Skeleton } from '@/components/ui/skeleton'
-import { Card, CardContent } from '@/components/ui/card'
+import { Skeleton, Card, CardContent } from '@ggprompts/ui'
 
 export function ProfileHeaderSkeleton() {
   return (

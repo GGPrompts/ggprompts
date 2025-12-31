@@ -3,9 +3,9 @@
 import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Github, Loader2, Check, AlertCircle, ExternalLink, Settings, AlertTriangle } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import {
+  Button,
+  Badge,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -13,9 +13,9 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/components/ui/dialog'
+  cn,
+} from '@ggprompts/ui'
 import { toast } from 'sonner'
-import { cn } from '@/lib/utils'
 import {
   getGitHubSyncStatus,
   syncToGitHub,
