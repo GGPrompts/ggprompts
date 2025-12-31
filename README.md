@@ -46,6 +46,28 @@ pnpm dev --filter=@ggprompts/web
 - **Auth:** Supabase (GitHub OAuth)
 - **Deployment:** Vercel
 
+## CI & Remote Caching
+
+This repo uses Turborepo remote caching in CI for 60-90% faster builds.
+
+### Setup (one-time)
+
+1. **Get a Turbo token:**
+   ```bash
+   npx turbo login
+   npx turbo link
+   ```
+
+2. **Add GitHub secrets** (Settings → Secrets → Actions):
+   - `TURBO_TOKEN`: Your Vercel/Turbo access token
+   - `TURBO_TEAM`: Your team slug (from `turbo link`)
+
+That's it! CI will now share cached artifacts across runs.
+
+### Local caching
+
+Local builds cache automatically in `node_modules/.cache/turbo`. No setup needed.
+
 ## Progress
 
 See [docs/PROGRESS.md](docs/PROGRESS.md) for migration status.
