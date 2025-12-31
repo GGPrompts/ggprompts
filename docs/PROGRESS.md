@@ -1,6 +1,6 @@
 # GGPrompts Monorepo Migration Progress
 
-**Last Updated:** 2025-12-31 (Wave 2 - kit migrated)
+**Last Updated:** 2025-12-31 (Wave 2 - ui package extracted)
 **Coordinator:** Conductor Agent
 
 ## Overview
@@ -12,7 +12,7 @@ Consolidating 5 Next.js projects into a Turborepo monorepo with shared packages.
 | Phase | Status | Notes |
 |-------|--------|-------|
 | 1. Foundation | ✅ Complete | Monorepo created, audits done |
-| 2. Extract Packages | 🟡 In Progress | @ggprompts/themes merged, ui pending |
+| 2. Extract Packages | 🟡 In Progress | @ggprompts/themes + @ggprompts/ui done |
 | 3. Migrate Apps | 🟡 In Progress | design + styles + kit done, useless pending |
 | 4. Unify | ⚪ Pending | Auth, preferences sync |
 
@@ -32,7 +32,7 @@ Old `GGPrompts` directory archived to `_archive_GGPrompts_2024`.
 | Package | Status | Worker | Notes |
 |---------|--------|--------|-------|
 | @ggprompts/themes | ✅ Complete | themes-worker | 9 themes × 2 modes, 16 files |
-| @ggprompts/ui | ⚪ Pending | - | After themes |
+| @ggprompts/ui | ✅ Complete | ui-worker | 44 components, shadcn/ui + custom |
 | @ggprompts/auth | ⚪ Pending | - | After app migrations |
 | @ggprompts/db | ⚪ Pending | - | After auth |
 | @ggprompts/tabz | ⚪ Pending | - | After apps migrated |
@@ -72,21 +72,19 @@ Old `GGPrompts` directory archived to `_archive_GGPrompts_2024`.
   - Local-only app (not for Vercel deployment)
   - TabzChrome integration, local filesystem access
   - 19 sections, 22 API routes
+- ✅ `packages/ui` extracted with 44 components
+  - Core shadcn: accordion, alert, badge, button, card, dialog, input, etc.
+  - Custom: GlassCard, border-trail, glow-effect, animated-background, etc.
+  - All apps still building successfully
 
 ### Next Tasks
 
 | Task | Priority | Notes |
 |------|----------|-------|
-| Extract @ggprompts/ui package | High | Shared shadcn components from apps/web |
-| Integrate themes into apps | Medium | Update design/styles/kit to use @ggprompts/themes |
+| Integrate @ggprompts/ui into apps | High | Replace local components with package imports |
+| Integrate @ggprompts/themes into apps | Medium | Update design/styles/kit to use shared themes |
 
-### Next Worker Assignment
-
-| Worker | Directory | Task |
-|--------|-----------|------|
-| ui-worker | packages/ui/ | Extract shared shadcn components from apps/web |
-
-**Integration:** After ui package, update each app's imports to use @ggprompts/themes and @ggprompts/ui.
+**Integration:** Update each app's imports to use `@ggprompts/ui` and `@ggprompts/themes`.
 
 ---
 
