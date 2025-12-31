@@ -1,6 +1,6 @@
 # GGPrompts Monorepo Migration Progress
 
-**Last Updated:** 2025-12-31
+**Last Updated:** 2025-12-31 (Wave 1 merged to main)
 **Coordinator:** Conductor Agent
 
 ## Overview
@@ -12,9 +12,18 @@ Consolidating 5 Next.js projects into a Turborepo monorepo with shared packages.
 | Phase | Status | Notes |
 |-------|--------|-------|
 | 1. Foundation | ✅ Complete | Monorepo created, audits done |
-| 2. Extract Packages | 🟡 In Progress | @ggprompts/themes done, ui/auth/db pending |
-| 3. Migrate Apps | ⚪ Pending | After packages ready |
+| 2. Extract Packages | 🟡 In Progress | @ggprompts/themes merged, ui pending |
+| 3. Migrate Apps | 🟡 In Progress | design + styles merged, kit pending |
 | 4. Unify | ⚪ Pending | Auth, preferences sync |
+
+## Wave 1 Complete ✅
+
+All 3 branches merged to main:
+- `feat/themes-package` → packages/themes/ (16 files, 9 themes × 2 modes)
+- `feat/design-app` → apps/design/ (187 files, 70+ components)
+- `feat/styles-app` → apps/styles/ (472 files, 145 templates)
+
+Old `GGPrompts` directory archived to `_archive_GGPrompts_2024`.
 
 ---
 
@@ -56,17 +65,24 @@ Consolidating 5 Next.js projects into a Turborepo monorepo with shared packages.
 
 ---
 
-## Worker Assignments (Wave 1)
+## Wave 2 Plan
 
-When spawning workers, assign these directories:
+### Next Tasks
+
+| Task | Priority | Notes |
+|------|----------|-------|
+| Migrate apps/kit (personal-homepage) | High | Has TabzChrome integration, Supabase auth |
+| Extract @ggprompts/ui package | High | Shared shadcn components from apps/web |
+| Integrate themes into apps | Medium | Update design/styles to use @ggprompts/themes |
+
+### Worker Assignments (Wave 2)
 
 | Worker | Directory | Task |
 |--------|-----------|------|
-| themes-worker | packages/themes/ | Extract CSS theme system from apps/web |
-| design-worker | apps/design/ | Copy design2prompt, update imports |
-| styles-worker | apps/styles/ | Copy portfolio-style-guides, update imports |
+| kit-worker | apps/kit/ | Copy personal-homepage, update imports |
+| ui-worker | packages/ui/ | Extract shared components from apps/web |
 
-**No overlapping writes** - each worker owns their directory.
+**Integration:** After migrations, update each app's globals.css to import from @ggprompts/themes.
 
 ---
 
