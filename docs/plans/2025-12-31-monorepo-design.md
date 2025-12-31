@@ -23,13 +23,13 @@ GGPrompts product suite under ggprompts.com with shared authentication, theming,
 ggprompts/
 ├── apps/
 │   ├── web/          → ggprompts.com (main hub) [MIGRATED]
-│   ├── kit/          → kit.ggprompts.com (personal-homepage)
-│   ├── design/       → design.ggprompts.com (design2prompt)
-│   ├── styles/       → styles.ggprompts.com (portfolio-style-guides)
+│   ├── kit/          → kit.ggprompts.com (personal-homepage) [MIGRATED]
+│   ├── design/       → design.ggprompts.com (design2prompt) [MIGRATED]
+│   ├── styles/       → styles.ggprompts.com (portfolio-style-guides) [MIGRATED]
 │   └── useless/      → useless.io (useless-io)
 ├── packages/
-│   ├── themes/       → Unified 11-theme CSS system
-│   ├── ui/           → Shared shadcn components
+│   ├── themes/       → Unified 9-theme × 2-mode CSS system [DONE]
+│   ├── ui/           → Shared shadcn components [DONE]
 │   ├── auth/         → Shared NextAuth/Supabase auth
 │   ├── db/           → Shared database schema/client
 │   └── tabz/         → TabzChrome integration helpers
@@ -167,15 +167,15 @@ All apps include:
 - [x] Migrate ggprompts-next to apps/web
 - [x] Audit other 4 projects (see docs/audits/)
 
-### Phase 2: Extract Packages (Current)
-- [ ] Extract themes to packages/themes (9 themes × 2 modes)
-- [ ] Extract shared UI to packages/ui
+### Phase 2: Extract Packages ✅
+- [x] Extract themes to packages/themes (9 themes × 2 modes)
+- [x] Extract shared UI to packages/ui (44 components)
 - [ ] Extract auth to packages/auth
 
-### Phase 3: Migrate Apps
-- [ ] Migrate design2prompt (simplest - no auth, no db, no custom backgrounds)
-- [ ] Migrate portfolio-style-guides (no auth, no db, 145 templates)
-- [ ] Migrate personal-homepage (Supabase auth, TabzChrome integration)
+### Phase 3: Migrate Apps (3/4 Done)
+- [x] Migrate design2prompt (simplest - no auth, no db, no custom backgrounds)
+- [x] Migrate portfolio-style-guides (no auth, no db, 145 templates)
+- [x] Migrate personal-homepage (Supabase auth, TabzChrome integration)
 - [ ] Migrate useless-io (Better Auth → decision needed, Drizzle/Neon)
 
 ### Phase 4: Unify
@@ -187,10 +187,11 @@ All apps include:
 ## Tech Stack
 
 - **Framework:** Next.js 16 (App Router, Turbopack)
-- **Styling:** Tailwind CSS v4
+- **Styling:** Tailwind CSS (v4 for web, v3 for design/styles/kit with postcss-import)
 - **Auth:** Supabase Auth (GitHub OAuth)
 - **Database:** Supabase PostgreSQL
-- **Components:** shadcn/ui (Radix + Tailwind)
+- **Components:** shadcn/ui (Radix + Tailwind) via @ggprompts/ui
+- **Themes:** @ggprompts/themes (9 color themes × 2 modes)
 - **Monorepo:** Turborepo + pnpm workspaces
 - **Deployment:** Vercel (per-app)
 

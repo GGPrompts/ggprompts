@@ -65,12 +65,27 @@ packages/
 
 ## @ggprompts/themes
 
+### Status: ✅ Ready
+
+9 color themes × 2 modes, integrated into all 4 apps.
+
 ### Usage
 
+**Tailwind v4 apps (web):**
 ```css
-/* In app's globals.css */
-@import "@ggprompts/themes/base.css";
+@import "tailwindcss";
+@import "@ggprompts/themes";
 ```
+
+**Tailwind v3 apps (design, styles, kit):**
+```css
+@import "@ggprompts/themes";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+```
+Note: Requires `postcss-import` plugin configured before `tailwindcss`.
 
 ```tsx
 // Theme switcher
