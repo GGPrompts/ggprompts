@@ -21,9 +21,9 @@ import {
   File,
   ExternalLink,
 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import {
+  Button,
+  Badge,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -31,7 +31,7 @@ import {
   DialogTitle,
   DialogTrigger,
   DialogFooter,
-} from "@/components/ui/dialog"
+} from "@ggprompts/ui"
 import {
   getContents,
   getFile,

@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { AlertTriangle, Copy, Check, Terminal, ExternalLink } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { Button } from "@ggprompts/ui"
 
 interface LocalOnlyOverlayProps {
   sectionName: string

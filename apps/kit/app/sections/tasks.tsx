@@ -21,19 +21,22 @@ import {
   Github,
   Settings,
 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Card } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
+  Button,
+  Input,
+  Card,
+  Badge,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
   SelectSeparator,
-} from "@/components/ui/select"
+} from "@ggprompts/ui"
 import { getFile, saveFile, type GitHubError } from "@/lib/github"
 import { useAuth } from "@/components/AuthProvider"
 import { AuthModal } from "@/components/AuthModal"

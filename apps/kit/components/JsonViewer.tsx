@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { ChevronRight, ChevronDown, Copy, Check } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@ggprompts/ui"
 
 interface JsonViewerProps {
   data: unknown

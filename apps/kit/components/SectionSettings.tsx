@@ -45,8 +45,7 @@ import {
   AlertCircle,
   Sparkles,
 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Switch } from "@/components/ui/switch"
+import { Button, Switch } from "@ggprompts/ui"
 import {
   useSectionPreferences,
   ToggleableSection,

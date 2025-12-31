@@ -2,20 +2,34 @@
 
 import * as React from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent } from "@/components/ui/card"
-import { Textarea } from "@/components/ui/textarea"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Separator } from "@/components/ui/separator"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import {
+  Button,
+  Badge,
+  Card,
+  CardContent,
+  Textarea,
+  Input,
+  Label,
+  Separator,
+  ScrollArea,
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+  Slider,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@ggprompts/ui"
 import { useAuth } from "@/components/AuthProvider"
-import { Slider } from "@/components/ui/slider"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import {
   MessageSquare, Send, Bot, User, Copy, RotateCw, ThumbsUp, ThumbsDown,
   Settings, ChevronDown, Plus, X, Trash2, Code, CheckCheck,

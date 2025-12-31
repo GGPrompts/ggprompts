@@ -27,12 +27,7 @@ import {
   Sparkles,
   RefreshCw,
 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
-import { Badge } from "@/components/ui/badge"
-import { Card } from "@/components/ui/card"
+import { Button, Input, Label, Switch, Badge, Card } from "@ggprompts/ui"
 import { useAuth } from "@/components/AuthProvider"
 import { useTerminalExtension } from "@/hooks/useTerminalExtension"
 import {

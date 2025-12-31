@@ -30,14 +30,22 @@ import {
   Copy,
   Check,
 } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Separator } from "@/components/ui/separator"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Button,
+  Badge,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+  Input,
+  Label,
+  Separator,
+  ScrollArea,
+} from "@ggprompts/ui"
 import {
   LineChart,
   Line,

@@ -2,8 +2,7 @@
 
 import * as React from "react"
 import { useTerminalExtension } from "@/hooks/useTerminalExtension"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, Button } from "@ggprompts/ui"
 import { RefreshCw, Unplug, Plug2 } from "lucide-react"
 
 interface TabzConnectionStatusProps {

@@ -17,15 +17,15 @@ import {
 } from "lucide-react"
 import { motion } from "framer-motion"
 
-import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import {
+  Button,
+  Card,
+  Badge,
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
-} from "@/components/ui/tabs"
+} from "@ggprompts/ui"
 import {
   LineChart,
   Line,

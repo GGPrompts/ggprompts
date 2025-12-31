@@ -14,9 +14,7 @@ import {
   Clock,
   ExternalLink,
 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button, Badge, Card, CardContent, CardHeader, CardTitle } from "@ggprompts/ui"
 import { useTerminalExtension } from "@/hooks/useTerminalExtension"
 import { getStatusBadge, getGitStatusBadge, type Project } from "@/lib/projects"
 

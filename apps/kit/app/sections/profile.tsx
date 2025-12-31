@@ -21,11 +21,7 @@ import {
   Eye,
   EyeOff,
 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Label } from "@/components/ui/label"
-import { Input } from "@/components/ui/input"
+import { Button, Badge, Avatar, AvatarFallback, AvatarImage, Label, Input } from "@ggprompts/ui"
 import { useAuth } from "@/components/AuthProvider"
 import { AuthModal } from "@/components/AuthModal"
 import { RepoSelector } from "@/components/RepoSelector"

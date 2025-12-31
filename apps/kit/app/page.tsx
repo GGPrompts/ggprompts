@@ -32,20 +32,24 @@ import {
   AlertCircle,
   Sparkles,
 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "@/components/ui/sheet"
-import { VisuallyHidden } from "@radix-ui/react-visually-hidden"
 import {
+  Button,
+  Sheet,
+  SheetContent,
+  SheetTrigger,
+  SheetTitle,
+  SheetDescription,
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip"
+} from "@ggprompts/ui"
+import { VisuallyHidden } from "@radix-ui/react-visually-hidden"
 import { ThemeCustomizer } from "@/components/ThemeCustomizer"
 import { ThemeSettingsPanel } from "@/components/ThemeSettingsPanel"
 import { SectionSettings } from "@/components/SectionSettings"
 import { useAuth } from "@/components/AuthProvider"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@ggprompts/ui"
 import { useSectionPreferences, ToggleableSection, DEFAULT_SECTION_ORDER, DEFAULT_VISIBILITY } from "@/hooks/useSectionPreferences"
 import { useEnvironment, requiresLocalhost } from "@/hooks/useEnvironment"
 import { WorldClocks } from "@/components/WorldClocks"

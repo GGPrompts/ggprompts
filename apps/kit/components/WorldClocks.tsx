@@ -2,20 +2,18 @@
 
 import * as React from "react"
 import { Clock, Plus, X, Settings2, Globe } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
 import {
+  Button,
+  Card,
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@/components/ui/popover"
-import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
+} from "@ggprompts/ui"
 
 // ============================================================================
 // TIMEZONE DATA

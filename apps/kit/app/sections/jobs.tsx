@@ -3,41 +3,38 @@
 import * as React from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Separator } from "@/components/ui/separator"
 import {
+  Button,
+  Badge,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Input,
+  Label,
+  Textarea,
+  ScrollArea,
+  Separator,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
-import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
-import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from "@/components/ui/collapsible"
-import { Checkbox } from "@/components/ui/checkbox"
-import {
+  Checkbox,
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip"
+} from "@ggprompts/ui"
 import {
   Play,
   Plus,

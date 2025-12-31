@@ -1,17 +1,18 @@
 "use client"
 
 import * as React from "react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import {
+  Button,
+  Card,
+  CardContent,
+  ScrollArea,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
+} from "@ggprompts/ui"
 import {
   Play,
   Loader2,

@@ -4,7 +4,7 @@ import * as React from "react"
 import { useParams } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
 import { FolderGit2, RotateCw } from "lucide-react"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@ggprompts/ui"
 import { useAuth } from "@/components/AuthProvider"
 import {
   mergeProjects,

@@ -18,30 +18,26 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import {
+  Button,
+  Input,
+  Textarea,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
-import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip"
-import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
+} from "@ggprompts/ui"
 import { type Project, type ProjectTask, type KanbanColumn } from "@/lib/projects"
 import { useProjectMeta } from "@/hooks/useProjectMeta"
 

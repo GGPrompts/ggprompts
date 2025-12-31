@@ -14,31 +14,30 @@ import {
   Loader2,
   AlertCircle,
 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
+  Button,
+  Input,
+  Badge,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
-import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
-import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip"
+} from "@ggprompts/ui"
 import { useTerminalExtension } from "@/hooks/useTerminalExtension"
 import { type Project, type ProjectCommand } from "@/lib/projects"
 import { useProjectMeta } from "@/hooks/useProjectMeta"

@@ -28,26 +28,29 @@ import {
   Palette,
   ClipboardPaste,
 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Label } from "@/components/ui/label"
 import {
+  Button,
+  Input,
+  Badge,
+  Checkbox,
+  Label,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from "@/components/ui/dialog"
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@ggprompts/ui"
 import {
   ContextMenu,
   ContextMenuContent,
@@ -55,13 +58,6 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { getFile, saveFile, type GitHubError } from "@/lib/github"
 import { useAuth } from "@/components/AuthProvider"
 import { AuthModal } from "@/components/AuthModal"

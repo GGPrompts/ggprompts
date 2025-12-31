@@ -4,9 +4,7 @@ import { Check, Palette, PaintBucket, Layers, Image, Video, X, AlertCircle } fro
 import { useTheme } from '@/components/ThemeProvider'
 import { useBackground, type BackgroundTone } from '@/components/BackgroundProvider'
 import { usePageBackground, type PageBackgroundType } from '@/hooks/usePageBackground'
-import { cn } from '@/lib/utils'
-import { Input } from '@/components/ui/input'
-import { Slider } from '@/components/ui/slider'
+import { cn, Input, Slider } from '@ggprompts/ui'
 
 // Theme color previews (approximate primary colors for each theme)
 const themeColors: Record<string, { bg: string; accent: string; label: string }> = {

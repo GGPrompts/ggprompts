@@ -24,25 +24,23 @@ import {
   Star,
   ArrowDownWideNarrow,
 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Card } from "@/components/ui/card"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import {
+  Button,
+  Badge,
+  Card,
+  ScrollArea,
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@/components/ui/popover"
-import { Input } from "@/components/ui/input"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Separator } from "@/components/ui/separator"
-import {
+  Input,
+  Checkbox,
+  Separator,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
+} from "@ggprompts/ui"
 
 // ============================================================================
 // TYPES

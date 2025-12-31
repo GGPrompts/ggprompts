@@ -49,18 +49,16 @@ import {
   Eye,
   EyeOff,
 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
 import {
+  Button,
+  Input,
+  Badge,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -68,33 +66,28 @@ import {
   DropdownMenuSeparator,
   DropdownMenuCheckboxItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
-import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip"
-import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Card, CardContent } from "@/components/ui/card"
+  Checkbox,
+  Textarea,
+  Label,
+  ScrollArea,
+  Card,
+  CardContent,
+} from "@ggprompts/ui"
 import { useAuth } from "@/components/AuthProvider"
 import { AuthModal } from "@/components/AuthModal"
 import { useTerminalExtension } from "@/hooks/useTerminalExtension"

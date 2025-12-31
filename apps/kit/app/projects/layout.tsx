@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { Button } from "@ggprompts/ui"
 
 export default function ProjectsLayout({
   children,

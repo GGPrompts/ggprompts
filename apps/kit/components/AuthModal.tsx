@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Github, Shield, X, Loader2 } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { Button } from "@ggprompts/ui"
 import { useAuth } from "@/components/AuthProvider"
 import { AUTH_PROVIDERS } from "@/lib/supabase"
 

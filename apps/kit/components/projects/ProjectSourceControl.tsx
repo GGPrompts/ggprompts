@@ -26,24 +26,25 @@ import {
   CheckCircle2,
   Loader2,
 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Checkbox } from "@/components/ui/checkbox"
 import {
+  cn,
+  Button,
+  Input,
+  Badge,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Checkbox,
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from "@/components/ui/collapsible"
-import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { cn } from "@/lib/utils"
+  ScrollArea,
+} from "@ggprompts/ui"
 import type { Project } from "@/lib/projects"
 
 interface GitFile {
