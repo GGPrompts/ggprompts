@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { Home } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button } from '@ggprompts/ui'
 import { ThemeCustomizer } from '@/components/ThemeCustomizer'
 
 export default function StyleguideLayout({

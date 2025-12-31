@@ -31,16 +31,7 @@ import {
   Car,
   Footprints,
 } from "lucide-react"
-import { Card } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Slider } from "@/components/ui/slider"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Separator } from "@/components/ui/separator"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { Card, Button, Badge, Tabs, TabsContent, TabsList, TabsTrigger, Slider, Checkbox, Input, Label, Separator, ScrollArea } from "@ggprompts/ui"
 import {
   LineChart,
   Line,
@@ -50,11 +41,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts"
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/components/ui/hover-card"
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@ggprompts/ui"
 
 // TypeScript Interfaces
 interface Property {

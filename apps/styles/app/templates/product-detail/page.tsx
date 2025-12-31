@@ -7,24 +7,7 @@ import {
   ZoomIn, Minus, Plus, Truck, Shield, RotateCcw, Package,
   ChevronDown, X, Check, MessageSquare, ThumbsUp, AlertCircle
 } from 'lucide-react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Separator } from '@/components/ui/separator'
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { cn } from '@/lib/utils'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, Badge, Button, Separator, Accordion, AccordionContent, AccordionItem, AccordionTrigger, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, cn } from "@ggprompts/ui"
 
 const product = {
   id: 1,

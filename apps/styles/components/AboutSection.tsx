@@ -8,9 +8,7 @@
 
 import { about, pullQuotes } from '@/lib/portfolio-data';
 import { motion } from 'framer-motion';
-import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
+import { Card, Badge, Separator } from '@ggprompts/ui';
 
 export function AboutSection() {
   // Split content into paragraphs

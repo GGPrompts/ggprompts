@@ -34,18 +34,7 @@ import {
   Building,
   Zap,
 } from "lucide-react"
-import { Card } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Slider } from "@/components/ui/slider"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
-import { Separator } from "@/components/ui/separator"
-import { Progress } from "@/components/ui/progress"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Skeleton } from "@/components/ui/skeleton"
+import { Card, Button, Badge, Input, Checkbox, Slider, Tabs, TabsContent, TabsList, TabsTrigger, Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, Separator, Progress, ScrollArea, Skeleton } from "@ggprompts/ui"
 
 // TypeScript Interfaces
 interface Company {

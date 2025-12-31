@@ -36,13 +36,7 @@ import {
   YAxis,
 } from "recharts"
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Progress } from "@/components/ui/progress"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ChartConfig, ChartContainer } from "@/components/ui/chart"
-import { Input } from "@/components/ui/input"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, Badge, Button, Progress, Tabs, TabsContent, TabsList, TabsTrigger, ChartConfig, ChartContainer, Input } from "@ggprompts/ui"
 
 // Status types
 type ServiceStatus = "operational" | "degraded" | "down" | "maintenance"

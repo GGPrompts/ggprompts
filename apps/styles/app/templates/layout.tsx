@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Home, Github } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button } from '@ggprompts/ui'
 import { ThemeCustomizer } from '@/components/ThemeCustomizer'
 
 export default function TemplatesLayout({

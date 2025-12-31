@@ -2,12 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { useBackground, type MediaBackgroundType } from './BackgroundProvider'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Slider } from '@/components/ui/slider'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Button, Input, Label, Slider, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Popover, PopoverContent, PopoverTrigger } from '@ggprompts/ui'
 import { ImageIcon, Video, X, Check } from 'lucide-react'
 
 export function BackgroundMediaSettings() {

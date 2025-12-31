@@ -3,8 +3,7 @@
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { featuredProjects } from '@/lib/projects-data';
-import { Badge } from '@/components/ui/badge';
-import { Card } from '@/components/ui/card';
+import { Badge, Card } from '@ggprompts/ui';
 import { ExternalLink, Github, Star, GitFork, Terminal, Globe } from 'lucide-react';
 
 export function FeaturedProjects() {

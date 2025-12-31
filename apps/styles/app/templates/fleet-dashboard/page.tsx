@@ -38,13 +38,7 @@ import {
   XCircle,
   Zap,
 } from "lucide-react"
-import { Card } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Progress } from "@/components/ui/progress"
-import { Separator } from "@/components/ui/separator"
-import { Input } from "@/components/ui/input"
+import { Card, Button, Badge, Tabs, TabsContent, TabsList, TabsTrigger, Progress, Separator, Input, ScrollArea } from "@ggprompts/ui"
 import {
   LineChart as RechartsLineChart,
   Line,
@@ -62,7 +56,6 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts"
-import { ScrollArea } from "@/components/ui/scroll-area"
 
 // TypeScript Interfaces
 interface Driver {

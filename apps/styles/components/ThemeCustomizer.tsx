@@ -1,19 +1,7 @@
 'use client'
 
 import { Settings, Palette, Layers, PaintBucket } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Button, Popover, PopoverContent, PopoverTrigger, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@ggprompts/ui'
 import { useTheme } from '@/components/ThemeProvider'
 import { useBackground, type BackgroundTone } from '@/components/BackgroundProvider'
 

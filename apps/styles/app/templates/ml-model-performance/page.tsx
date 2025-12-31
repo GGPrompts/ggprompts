@@ -29,12 +29,7 @@ import {
   ThumbsUp,
   ThumbsDown,
 } from "lucide-react"
-import { Card } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Progress } from "@/components/ui/progress"
-import { Separator } from "@/components/ui/separator"
+import { Card, Button, Badge, Tabs, TabsContent, TabsList, TabsTrigger, Progress, Separator } from "@ggprompts/ui"
 import {
   LineChart as RechartsLineChart,
   Line,
@@ -65,14 +60,8 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+} from "@ggprompts/ui"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@ggprompts/ui"
 
 // TypeScript Interfaces
 interface ModelConfig {

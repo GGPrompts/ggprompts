@@ -34,16 +34,7 @@ import {
   Wine,
   X,
 } from "lucide-react"
-import { Card } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Checkbox } from "@/components/ui/checkbox"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Separator } from "@/components/ui/separator"
-import { Progress } from "@/components/ui/progress"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { Card, Button, Badge, Input, Label, Checkbox, RadioGroup, RadioGroupItem, Separator, Progress, ScrollArea } from "@ggprompts/ui"
 
 // TypeScript Interfaces
 interface Hotel {

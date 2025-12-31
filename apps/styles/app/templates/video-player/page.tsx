@@ -40,24 +40,7 @@ import {
   Facebook,
   Send,
 } from "lucide-react"
-import { Card } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Slider } from "@/components/ui/slider"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Separator } from "@/components/ui/separator"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible"
-import { Textarea } from "@/components/ui/textarea"
+import { Card, Button, Badge, Avatar, AvatarFallback, AvatarImage, Slider, ScrollArea, Separator, Popover, PopoverContent, PopoverTrigger, Collapsible, CollapsibleContent, CollapsibleTrigger, Textarea } from "@ggprompts/ui"
 
 // TypeScript Interfaces
 interface Channel {

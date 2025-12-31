@@ -28,13 +28,7 @@ import {
   Clock
 } from "lucide-react"
 
-import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
+import { Card, CardContent, Button, Input, Label, Textarea, Badge, Separator } from "@ggprompts/ui"
 
 // Mock data
 const profile = {

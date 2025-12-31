@@ -3,7 +3,7 @@
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { Github, Linkedin, Mail, Terminal, ExternalLink } from 'lucide-react';
-import { Card } from '@/components/ui/card';
+import { Card } from '@ggprompts/ui';
 
 export function ContactSection() {
   const contactMethods = [

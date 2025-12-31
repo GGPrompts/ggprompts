@@ -6,21 +6,7 @@ import {
   ShoppingCart, Trash2, Plus, Minus, Heart, Gift, Tag, ArrowRight,
   ShoppingBag, Truck, Shield, Clock, AlertCircle, X, Check, Percent
 } from 'lucide-react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Separator } from '@/components/ui/separator'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { cn } from '@/lib/utils'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, Badge, Button, Separator, Input, Label, Switch, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, cn } from "@ggprompts/ui"
 
 interface CartItem {
   id: number

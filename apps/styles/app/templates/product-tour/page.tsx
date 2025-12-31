@@ -34,10 +34,7 @@ import {
   Share2,
 } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
+import { Button, Card, CardContent, Badge, Progress } from "@ggprompts/ui"
 
 // Tour step configuration
 const tourSteps = [

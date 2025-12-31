@@ -28,13 +28,7 @@ import {
   Zap,
 } from "lucide-react"
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Progress } from "@/components/ui/progress"
-import { Input } from "@/components/ui/input"
-import { Separator } from "@/components/ui/separator"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, Badge, Button, Progress, Input, Separator, Tabs, TabsContent, TabsList, TabsTrigger } from "@ggprompts/ui"
 
 // Types
 interface MaintenancePhase {
