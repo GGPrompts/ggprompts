@@ -7,7 +7,7 @@ Shared packages used across apps.
 | Package | Status | Purpose |
 |---------|--------|---------|
 | @ggprompts/themes | ✅ Ready | 9 color themes × 2 modes |
-| @ggprompts/ui | 🚧 Pending | Shared shadcn/ui components |
+| @ggprompts/ui | ✅ Ready | 44 shadcn/ui components, integrated into all apps |
 | @ggprompts/auth | ⚪ Planned | Supabase auth helpers |
 | @ggprompts/db | ⚪ Planned | Database schema/queries |
 | @ggprompts/tabz | ⚪ Planned | TabzChrome integration helpers |
@@ -83,21 +83,25 @@ Terminal, Amber, Carbon, Ocean, Sunset, Forest, Midnight, Neon, Slate
 
 Each has dark/light modes via `data-mode="dark"` or `data-mode="light"`.
 
-## @ggprompts/ui (Planned)
+## @ggprompts/ui
 
-### Purpose
+### Status: ✅ Ready
 
-Shared shadcn/ui components to avoid duplication across apps.
+44 shared shadcn/ui components integrated into all 4 apps.
 
-### Components to Include
+### Components Included
 
-Button, Card, Dialog, Input, Select, Tabs, Badge, Avatar, Dropdown, Sheet, Toast, etc.
+**Core:** Button, Card, Dialog, Input, Select, Tabs, Badge, Avatar, Dropdown, Sheet, Toast, etc.
 
-### Usage (Once Ready)
+**Custom:** GlassCard, border-trail, glow-effect, animated-background, dock, etc.
+
+### Usage
 
 ```tsx
 import { Button, Card, Input } from "@ggprompts/ui"
 ```
+
+**Note:** Some app-specific components remain in `@/components/ui/*` (e.g., page-loader, context-menu for apps/kit).
 
 ## @ggprompts/tabz (Planned)
 

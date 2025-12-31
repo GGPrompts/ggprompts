@@ -37,7 +37,7 @@ React 19 has compatibility issues with some component libraries (cmdk, vaul, sty
 ### Shared Packages
 
 ```typescript
-// When @ggprompts/ui is ready:
+// UI components (integrated into all apps):
 import { Button, Card } from "@ggprompts/ui"
 
 // Theme CSS (import in globals.css):
