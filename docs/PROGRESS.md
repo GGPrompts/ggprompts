@@ -46,7 +46,7 @@ Old `GGPrompts` directory archived to `_archive_GGPrompts_2024`.
 | web | ggprompts-next | ✅ Done | - | Base app |
 | design | design2prompt | ✅ Complete | design-worker | 188 files, 43 dirs |
 | styles | portfolio-style-guides | ✅ Complete | styles-worker | 474 files, 145 templates |
-| kit | personal-homepage | ⚪ Pending | - | Needs themes |
+| kit | personal-homepage | ✅ Complete | manual | 176 files, local-only app |
 | useless | useless-io | ⚪ Pending | - | Auth decision |
 
 ---
@@ -65,15 +65,20 @@ Old `GGPrompts` directory archived to `_archive_GGPrompts_2024`.
 
 ---
 
-## Wave 2 Plan
+## Wave 2 Progress
+
+### Completed
+- ✅ `apps/kit` migrated from personal-homepage (176 files)
+  - Local-only app (not for Vercel deployment)
+  - TabzChrome integration, local filesystem access
+  - 19 sections, 22 API routes
 
 ### Next Tasks
 
 | Task | Priority | Notes |
 |------|----------|-------|
-| Migrate apps/kit (personal-homepage) | High | Has TabzChrome integration, Supabase auth |
 | Extract @ggprompts/ui package | High | Shared shadcn components from apps/web |
-| Integrate themes into apps | Medium | Update design/styles to use @ggprompts/themes |
+| Integrate themes into apps | Medium | Update design/styles/kit to use @ggprompts/themes |
 
 ### Worker Assignments (Wave 2)
 
