@@ -12,7 +12,7 @@ Consolidating 5 Next.js projects into a Turborepo monorepo with shared packages.
 | Phase | Status | Notes |
 |-------|--------|-------|
 | 1. Foundation | ✅ Complete | Monorepo created, audits done |
-| 2. Extract Packages | 🟡 In Progress | Starting with themes |
+| 2. Extract Packages | 🟡 In Progress | @ggprompts/themes done, ui/auth/db pending |
 | 3. Migrate Apps | ⚪ Pending | After packages ready |
 | 4. Unify | ⚪ Pending | Auth, preferences sync |
 
@@ -22,7 +22,7 @@ Consolidating 5 Next.js projects into a Turborepo monorepo with shared packages.
 
 | Package | Status | Worker | Notes |
 |---------|--------|--------|-------|
-| @ggprompts/themes | ⚪ Ready to Start | - | 9 themes × 2 modes |
+| @ggprompts/themes | ✅ Complete | themes-worker | 9 themes × 2 modes, 16 files |
 | @ggprompts/ui | ⚪ Pending | - | After themes |
 | @ggprompts/auth | ⚪ Pending | - | After app migrations |
 | @ggprompts/db | ⚪ Pending | - | After auth |
@@ -35,8 +35,8 @@ Consolidating 5 Next.js projects into a Turborepo monorepo with shared packages.
 | App | Source Repo | Status | Worker | Blockers |
 |-----|-------------|--------|--------|----------|
 | web | ggprompts-next | ✅ Done | - | Base app |
-| design | design2prompt | ⚪ Ready | - | None (no auth/db) |
-| styles | portfolio-style-guides | ⚪ Ready | - | None (no auth/db) |
+| design | design2prompt | ✅ Complete | design-worker | 188 files, 43 dirs |
+| styles | portfolio-style-guides | ✅ Complete | styles-worker | 474 files, 145 templates |
 | kit | personal-homepage | ⚪ Pending | - | Needs themes |
 | useless | useless-io | ⚪ Pending | - | Auth decision |
 
