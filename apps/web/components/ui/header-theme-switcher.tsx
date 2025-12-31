@@ -6,7 +6,7 @@ import { Palette, Check, X, Layers, Image } from 'lucide-react'
 import { useTheme } from '@/components/ThemeProvider'
 import { useBackground, type Background, type BackgroundTone } from '@/components/BackgroundProvider'
 import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
+import { Button } from '@ggprompts/ui'
 
 const themeConfig = [
   { name: 'terminal', label: 'Terminal', color: '#10b981', gradient: ['#10b981', '#06b6d4'] },
