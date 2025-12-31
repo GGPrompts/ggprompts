@@ -1,6 +1,6 @@
 # GGPrompts Monorepo Migration Progress
 
-**Last Updated:** 2025-12-31 (Wave 1 merged to main)
+**Last Updated:** 2025-12-31 (Wave 2 - kit migrated)
 **Coordinator:** Conductor Agent
 
 ## Overview
@@ -13,7 +13,7 @@ Consolidating 5 Next.js projects into a Turborepo monorepo with shared packages.
 |-------|--------|-------|
 | 1. Foundation | ✅ Complete | Monorepo created, audits done |
 | 2. Extract Packages | 🟡 In Progress | @ggprompts/themes merged, ui pending |
-| 3. Migrate Apps | 🟡 In Progress | design + styles merged, kit pending |
+| 3. Migrate Apps | 🟡 In Progress | design + styles + kit done, useless pending |
 | 4. Unify | ⚪ Pending | Auth, preferences sync |
 
 ## Wave 1 Complete ✅
@@ -80,14 +80,13 @@ Old `GGPrompts` directory archived to `_archive_GGPrompts_2024`.
 | Extract @ggprompts/ui package | High | Shared shadcn components from apps/web |
 | Integrate themes into apps | Medium | Update design/styles/kit to use @ggprompts/themes |
 
-### Worker Assignments (Wave 2)
+### Next Worker Assignment
 
 | Worker | Directory | Task |
 |--------|-----------|------|
-| kit-worker | apps/kit/ | Copy personal-homepage, update imports |
-| ui-worker | packages/ui/ | Extract shared components from apps/web |
+| ui-worker | packages/ui/ | Extract shared shadcn components from apps/web |
 
-**Integration:** After migrations, update each app's globals.css to import from @ggprompts/themes.
+**Integration:** After ui package, update each app's imports to use @ggprompts/themes and @ggprompts/ui.
 
 ---
 
