@@ -1,6 +1,6 @@
 # GGPrompts Monorepo Migration Progress
 
-**Last Updated:** 2025-12-31 (Wave 2 - @ggprompts/themes + @ggprompts/ui integrated into all apps)
+**Last Updated:** 2025-12-31 (Wave 2 Complete!)
 **Coordinator:** Conductor Agent
 
 ## Overview
@@ -12,102 +12,128 @@ Consolidating 5 Next.js projects into a Turborepo monorepo with shared packages.
 | Phase | Status | Notes |
 |-------|--------|-------|
 | 1. Foundation | ✅ Complete | Monorepo created, audits done |
-| 2. Extract Packages | 🟡 In Progress | @ggprompts/themes + @ggprompts/ui done |
-| 3. Migrate Apps | 🟡 In Progress | design + styles + kit done, useless pending |
-| 4. Unify | ⚪ Pending | Auth, preferences sync |
-
-## Wave 1 Complete ✅
-
-All 3 branches merged to main:
-- `feat/themes-package` → packages/themes/ (16 files, 9 themes × 2 modes)
-- `feat/design-app` → apps/design/ (187 files, 70+ components)
-- `feat/styles-app` → apps/styles/ (472 files, 145 templates)
-
-Old `GGPrompts` directory archived to `_archive_GGPrompts_2024`.
+| 2. Extract Packages | ✅ Complete | themes, ui, config, tabz extracted |
+| 3. Migrate Apps | ✅ Complete | All 5 apps migrated |
+| 4. Unify | ⚪ Pending | Auth consolidation, preferences sync |
 
 ---
 
-## Package Extraction
+## Current State
 
-| Package | Status | Worker | Notes |
-|---------|--------|--------|-------|
-| @ggprompts/themes | ✅ Complete | themes-worker | 9 themes × 2 modes, 16 files |
-| @ggprompts/ui | ✅ Complete | ui-worker | 44 components, shadcn/ui + custom |
-| @ggprompts/auth | ⚪ Pending | - | After app migrations |
-| @ggprompts/db | ⚪ Pending | - | After auth |
-| @ggprompts/tabz | ⚪ Pending | - | After apps migrated |
+### Apps (5 total)
+
+| App | Package | Port | Status | Notes |
+|-----|---------|------|--------|-------|
+| web | @ggprompts/web | 3000 | ✅ Working | Main site, Supabase auth |
+| design | @ggprompts/design | 3001 | ✅ Working | Design system |
+| kit | @ggprompts/kit | 3002 | ✅ Working | Personal dashboard (local only) |
+| styles | @ggprompts/styles | 3003 | ✅ Working | Template gallery |
+| useless | @ggprompts/useless | 3007 | ✅ Migrated | E-commerce (Better Auth) |
+
+### Packages (7 total)
+
+| Package | Status | Notes |
+|---------|--------|-------|
+| @ggprompts/ui | ✅ Complete | 44 shadcn components |
+| @ggprompts/themes | ✅ Complete | 9 themes x 2 modes |
+| @ggprompts/config | ✅ Complete | Shared ESLint + TypeScript configs |
+| @ggprompts/tabz | ✅ Complete | TabzChrome integration hooks |
+| @ggprompts/auth | ⚪ Placeholder | Future: shared Supabase auth |
+| @ggprompts/db | ⚪ Placeholder | Future: shared Drizzle schemas |
 
 ---
 
-## App Migrations
+## Wave 2 Complete! ✅
 
-| App | Source Repo | Status | Worker | Blockers |
-|-----|-------------|--------|--------|----------|
-| web | ggprompts-next | ✅ Done | - | Base app |
-| design | design2prompt | ✅ Complete | design-worker | 188 files, 43 dirs |
-| styles | portfolio-style-guides | ✅ Complete | styles-worker | 474 files, 145 templates |
-| kit | personal-homepage | ✅ Complete | manual | 176 files, local-only app |
-| useless | useless-io | ⚪ Pending | - | Auth decision |
+### Session Summary (2025-12-31)
+
+**7 major tasks completed:**
+
+1. **Turbo Config Enhancement** (`865c39e`)
+   - Added globalDependencies, inputs exclusions, env tracking
+   - New typecheck task with caching
+
+2. **CSS Consolidation** (`8b27de6`)
+   - Removed duplicate theme CSS from app globals.css
+   - Themes now only in @ggprompts/themes
+
+3. **Radix Deps Cleanup** (`03b6cfa`)
+   - Removed 23 duplicate Radix packages from all apps
+   - **-11,872 lines, 158 files deleted!**
+
+4. **Turborepo Remote Caching** (`26f008a`)
+   - CI workflow with TURBO_TOKEN/TURBO_TEAM
+   - 60-90% faster CI builds
+
+5. **@ggprompts/config Package** (`7c1a5cb`)
+   - Shared ESLint config (eslint/nextjs.js)
+   - Shared TypeScript configs (base.json, nextjs.json)
+   - All apps now extend from shared configs
+
+6. **@ggprompts/tabz Package** (`51661b5`)
+   - useTerminalExtension hook
+   - TabzConnectionStatus component
+   - Selector utilities for MCP automation
+
+7. **useless-io Migration** (`8b54ac6`)
+   - Full e-commerce app: auth, cart, checkout, admin
+   - Gamification system, product reviews
+   - **+33,831 lines, 199 files**
+   - Kept Better Auth (documented difference from Supabase)
+
+---
+
+## Infrastructure
+
+### CI/CD
+- **GitHub Actions:** `.github/workflows/ci.yml`
+- **Turborepo Remote Cache:** Enabled (add secrets to GitHub)
+- **Vercel:** Linked, needs deployment config per app
+
+### Environment Variables
+
+| App | Env File | Required Vars |
+|-----|----------|---------------|
+| web | apps/web/.env.local | SUPABASE_URL, SUPABASE_ANON_KEY |
+| useless | apps/useless/.env | DATABASE_URL, BETTER_AUTH_*, Stripe keys |
+
+---
+
+## Next Steps
+
+### High Priority
+- [ ] Configure Vercel deployments for monorepo (multiple apps)
+- [ ] Set up useless app database (Neon PostgreSQL)
+- [ ] Consolidate auth strategy (Supabase vs Better Auth)
+
+### Medium Priority
+- [ ] Add tests to CI workflow
+- [ ] Extract @ggprompts/auth package (shared Supabase client)
+- [ ] Create @ggprompts/db package (shared Drizzle schemas)
+
+### Low Priority
+- [ ] Documentation improvements
+- [ ] Performance optimization
+- [ ] Add more themes to @ggprompts/themes
 
 ---
 
 ## Key Decisions
 
-1. **Theme System:** 9 color themes × 2 modes (dark/light toggle)
-   - Themes: Terminal, Amber, Carbon, Ocean, Sunset, Forest, Midnight, Neon, Slate
-   - `data-theme="ocean" data-mode="dark"`
+1. **Theme System:** 9 color themes x 2 modes (dark/light)
+   - Terminal, Amber, Carbon, Ocean, Sunset, Forest, Midnight, Neon, Slate
 
-2. **Custom Backgrounds:** Supported in all apps EXCEPT design (clean bg for components)
+2. **Auth Strategy:**
+   - web/design/styles/kit: Supabase Auth
+   - useless: Better Auth (documented, future migration possible)
 
-3. **Auth Strategy:**
-   - ggprompts.com subdomains: Shared Supabase auth
-   - useless.io: TBD (keep Better Auth or migrate)
-
----
-
-## Wave 2 Progress
-
-### Completed
-- ✅ `apps/kit` migrated from personal-homepage (176 files)
-  - Local-only app (not for Vercel deployment)
-  - TabzChrome integration, local filesystem access
-  - 19 sections, 22 API routes
-- ✅ `packages/ui` extracted with 44 components
-  - Core shadcn: accordion, alert, badge, button, card, dialog, input, etc.
-  - Custom: GlassCard, border-trail, glow-effect, animated-background, etc.
-  - All apps still building successfully
-- ✅ **@ggprompts/ui integrated into all 4 apps**
-  - apps/web: 84 files updated
-  - apps/design: 15 files updated
-  - apps/styles: 111 files updated
-  - apps/kit: 38 files updated
-  - Local-only components (page-loader, context-menu, etc.) kept as @/components/ui/*
-- ✅ **@ggprompts/themes integrated into all 4 apps**
-  - All apps now import themes from `@ggprompts/themes` package
-  - apps/web: Uses Tailwind v4 native import
-  - apps/design, styles, kit: Use postcss-import for Tailwind v3 compatibility
-  - App-specific styles (JSON viewer, markdown preview, animations) retained locally
-  - globals.css reduced from ~1000-1700 lines to ~150-750 lines per app
-
-### Next Tasks
-
-| Task | Priority | Notes |
-|------|----------|-------|
-| Cleanup unused local UI components | Low | After verifying all imports work |
-| Migrate useless.io app | Medium | Pending auth decision |
-
-**Next Step:** Review and cleanup unused local components in each app.
+3. **Local-only Apps:** kit is local-only (TabzChrome, filesystem access)
 
 ---
 
 ## Quick Reference
 
 - **Repo:** https://github.com/GGPrompts/ggprompts
-- **Design Doc:** docs/plans/2025-12-31-monorepo-design.md
-- **Audits:** docs/audits/*.md
-- **Source Projects:**
-  - ~/projects/ggprompts-next (already in apps/web)
-  - ~/projects/design2prompt
-  - ~/projects/portfolio-style-guides
-  - ~/projects/personal-homepage
-  - ~/projects/useless-io
+- **Dev:** `npx next dev -p <port>` from app folder
+- **Build:** `pnpm build` from root
+- **Beads:** `bd ready` for next tasks
