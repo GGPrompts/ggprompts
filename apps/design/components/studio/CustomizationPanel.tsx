@@ -3,15 +3,20 @@
 import { Customization } from '@/types/customization';
 import { ComponentDefinition } from '@/lib/component-registry';
 import { colorPresets, PresetKey } from '@/config/presets.config';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
-import { Slider } from '@/components/ui/slider';
-import { Switch } from '@/components/ui/switch';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
-import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
+import {
+  cn,
+  Button,
+  Input,
+  Label,
+  ScrollArea,
+  Separator,
+  Slider,
+  Switch,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@ggprompts/ui';
 import {
   Palette,
   Type,

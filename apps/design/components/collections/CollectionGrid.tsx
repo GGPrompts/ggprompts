@@ -4,9 +4,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Collection } from '@/types/collection';
 import { CollectionCard } from './CollectionCard';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { Badge, Button, Input } from '@ggprompts/ui';
 import { Search, FolderPlus, Tag, X } from 'lucide-react';
 
 type CollectionGridProps = {

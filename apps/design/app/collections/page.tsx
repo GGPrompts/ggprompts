@@ -6,7 +6,6 @@ import { useCollectionStore } from '@/lib/stores/collection-store';
 import { Collection } from '@/types/collection';
 import { CollectionGrid } from '@/components/collections/CollectionGrid';
 import { CreateCollectionDialog } from '@/components/collections/CreateCollectionDialog';
-import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,7 +15,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+  Button,
+} from '@ggprompts/ui';
 import { ArrowLeft, Sparkles, FolderOpen } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';

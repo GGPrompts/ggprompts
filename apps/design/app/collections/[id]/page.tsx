@@ -8,15 +8,6 @@ import { Collection, SavedComponent } from '@/types/collection';
 import { getComponentById } from '@/lib/component-registry';
 import { SavedComponentCard } from '@/components/collections/SavedComponentCard';
 import { CreateCollectionDialog } from '@/components/collections/CreateCollectionDialog';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,7 +17,14 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+  Badge,
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@ggprompts/ui';
 import {
   ArrowLeft,
   Sparkles,

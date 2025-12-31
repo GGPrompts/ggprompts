@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { ComponentDefinition } from '@/lib/component-registry';
 import { Customization } from '@/types/customization';
 import { ComponentPreview } from './ComponentPreview';
-import { Button } from '@/components/ui/button';
+import { Button } from '@ggprompts/ui';
 import { RotateCcw, Eye, Monitor, Sun, Moon, Grid3X3 } from 'lucide-react';
 
 type PreviewBackground = 'neutral' | 'light' | 'dark' | 'checker';

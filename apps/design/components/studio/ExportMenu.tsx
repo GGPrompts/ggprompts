@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { ComponentDefinition } from '@/lib/component-registry';
 import { Customization } from '@/types/customization';
 import { generateClaudePrompt } from '@/lib/ai-targets/claude';
-import { Button } from '@/components/ui/button';
+import { Button } from '@ggprompts/ui';
 import {
   Wand2,
   Copy,

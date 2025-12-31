@@ -9,16 +9,16 @@ import {
   ComponentDefinition,
 } from '@/lib/component-registry';
 import { ComponentCategory } from '@/types/component';
-import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
-import { cn } from '@/lib/utils';
 import {
+  cn,
+  Input,
+  ScrollArea,
+  Separator,
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '@/components/ui/tooltip';
+} from '@ggprompts/ui';
 import {
   Search,
   CreditCard,

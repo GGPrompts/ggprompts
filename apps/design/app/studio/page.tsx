@@ -14,7 +14,7 @@ import { defaultCustomization } from '@/types/customization';
 import { Collection, SavedComponent } from '@/types/collection';
 import { useCollectionStore } from '@/lib/stores/collection-store';
 import { useCustomizationStore } from '@/lib/stores/customization-store';
-import { Button } from '@/components/ui/button';
+import { Button } from '@ggprompts/ui';
 import { MobileDrawer, MobileDrawerHeader, MobileDrawerContent } from '@/components/ui/mobile-drawer';
 import { useIsMobile, useIsTablet } from '@/lib/hooks';
 import {

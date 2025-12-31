@@ -4,15 +4,15 @@ import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { Collection } from '@/types/collection';
 import { getComponentById } from '@/lib/component-registry';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import {
+  Badge,
+  Button,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from '@ggprompts/ui';
 import { Package, Clock, MoreVertical, Edit2, Copy, Trash2 } from 'lucide-react';
 
 type CollectionCardProps = {

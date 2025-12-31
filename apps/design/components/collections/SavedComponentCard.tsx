@@ -3,16 +3,16 @@
 import { motion } from 'framer-motion';
 import { SavedComponent } from '@/types/collection';
 import { getComponentById } from '@/lib/component-registry';
-import { Button } from '@/components/ui/button';
 import {
+  cn,
+  Button,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from '@ggprompts/ui';
 import { Package, MoreVertical, Eye, Copy, Trash2, GripVertical } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
 type SavedComponentCardProps = {
   savedComponent: SavedComponent;

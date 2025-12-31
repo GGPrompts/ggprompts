@@ -5,21 +5,21 @@ import { Collection, SavedComponent } from '@/types/collection';
 import { ComponentDefinition } from '@/lib/component-registry';
 import { Customization } from '@/types/customization';
 import {
+  cn,
+  Button,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
+  Input,
+  Label,
+  ScrollArea,
+  Separator,
+  Textarea,
+} from '@ggprompts/ui';
 import { FolderPlus, Check, Package } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
 type AddToCollectionDialogProps = {
   open: boolean;

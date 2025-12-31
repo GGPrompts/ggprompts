@@ -3,18 +3,18 @@
 import { useState, useEffect } from 'react';
 import { Collection } from '@/types/collection';
 import {
+  Badge,
+  Button,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
+  Input,
+  Label,
+  Textarea,
+} from '@ggprompts/ui';
 import { X } from 'lucide-react';
 
 type CreateCollectionDialogProps = {
