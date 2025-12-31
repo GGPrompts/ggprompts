@@ -1,6 +1,6 @@
 # GGPrompts Monorepo Migration Progress
 
-**Last Updated:** 2025-12-31 (Wave 2 - ui package extracted)
+**Last Updated:** 2025-12-31 (Wave 2 - @ggprompts/ui integrated into all apps)
 **Coordinator:** Conductor Agent
 
 ## Overview
@@ -76,15 +76,21 @@ Old `GGPrompts` directory archived to `_archive_GGPrompts_2024`.
   - Core shadcn: accordion, alert, badge, button, card, dialog, input, etc.
   - Custom: GlassCard, border-trail, glow-effect, animated-background, etc.
   - All apps still building successfully
+- ✅ **@ggprompts/ui integrated into all 4 apps**
+  - apps/web: 84 files updated
+  - apps/design: 15 files updated
+  - apps/styles: 111 files updated
+  - apps/kit: 38 files updated
+  - Local-only components (page-loader, context-menu, etc.) kept as @/components/ui/*
 
 ### Next Tasks
 
 | Task | Priority | Notes |
 |------|----------|-------|
-| Integrate @ggprompts/ui into apps | High | Replace local components with package imports |
-| Integrate @ggprompts/themes into apps | Medium | Update design/styles/kit to use shared themes |
+| Integrate @ggprompts/themes into apps | High | Update design/styles/kit to use shared themes |
+| Cleanup unused local UI components | Low | After verifying all imports work |
 
-**Integration:** Update each app's imports to use `@ggprompts/ui` and `@ggprompts/themes`.
+**Next Step:** Update each app's CSS imports to use `@ggprompts/themes`.
 
 ---
 
