@@ -16,12 +16,7 @@ import {
   Check,
   X,
 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Progress } from '@/components/ui/progress'
-import { Separator } from '@/components/ui/separator'
+import { Button, Input, Label, Checkbox, Progress, Separator } from '@ggprompts/ui'
 import { createClient, AUTH_PROVIDERS } from '@/lib/supabase/client'
 
 export default function SignUpPage() {

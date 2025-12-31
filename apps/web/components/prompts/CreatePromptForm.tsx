@@ -2,25 +2,13 @@
 
 import { useState, useRef, useCallback, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Input, Textarea, Button, Label, Badge, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, cn } from '@ggprompts/ui'
 import { CATEGORIES } from '@/lib/constants/categories'
 import { parseTemplate, isTemplate } from '@/lib/prompt-template'
 import { createPrompt, validatePromptData } from '@/lib/database/prompts'
 import { useAuth } from '@/hooks/useAuth'
 import { toast } from 'sonner'
 import { Plus, Loader2, Sparkles, AlertCircle } from 'lucide-react'
-import { cn } from '@/lib/utils'
 
 interface FormData {
   title: string

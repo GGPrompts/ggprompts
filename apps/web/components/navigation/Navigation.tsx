@@ -3,22 +3,12 @@
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
-import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { cn, Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, Avatar, AvatarFallback, AvatarImage, AnimatedBackground } from '@ggprompts/ui'
 import { HeaderThemeSwitcher } from '@/components/ui/header-theme-switcher'
 import { Sparkles, MessageSquare, User, Menu, Settings, LogOut, Newspaper, Terminal, Bot } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { getAvatarUrl } from '@/lib/avatar'
 import { Logo } from '@/components/Logo'
-import { AnimatedBackground } from '@/components/ui/animated-background'
 import type { User as SupabaseUser } from '@supabase/supabase-js'
 
 interface UserProfile {

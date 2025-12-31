@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { CreatePostForm } from '@/components/forums/CreatePostForm'
-import { Badge } from '@/components/ui/badge'
+import { Badge } from '@ggprompts/ui'
 import { MessageSquare } from 'lucide-react'
 
 export default async function NewPostPage() {

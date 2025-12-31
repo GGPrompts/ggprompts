@@ -2,9 +2,8 @@
 
 import Link from 'next/link'
 import { Component, ComponentType } from '@/lib/types'
-import { Badge } from '@/components/ui/badge'
+import { Badge, Button, Tooltip, TooltipContent, TooltipTrigger } from '@ggprompts/ui'
 import { FloatingCard } from '@/components/ui/floating-card'
-import { Button } from '@/components/ui/button'
 import {
   Sparkles,
   Bot,
@@ -22,11 +21,6 @@ import { useState } from 'react'
 import { ComponentContentModal } from './ComponentContentModal'
 import { InstallPluginButton } from './InstallPluginButton'
 import { SearchHighlight, HighlightMatch } from '@/components/ui/search-highlight'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
 
 const typeConfig: Record<ComponentType, { icon: typeof Sparkles; color: string }> = {
   skill: { icon: Sparkles, color: 'text-purple-500' },

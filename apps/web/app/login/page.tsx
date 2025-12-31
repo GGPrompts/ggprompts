@@ -16,12 +16,7 @@ import {
   Shield,
   Zap,
 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
+import { Button, Input, Label, Checkbox, Badge, Separator } from "@ggprompts/ui"
 import { getSupabase } from "@/lib/supabase/client"
 import { signInWithEmail } from "@/lib/auth/actions"
 

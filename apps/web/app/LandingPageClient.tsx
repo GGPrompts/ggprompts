@@ -3,15 +3,11 @@
 import { useEffect, useState, useRef } from 'react'
 import { motion, useScroll, useTransform, useMotionValue, useSpring } from 'framer-motion'
 import Link from 'next/link'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Badge, BorderTrail, cn } from '@ggprompts/ui'
 import { Sparkles, MessageSquare, Users, Newspaper, ArrowRight, Code, Lightbulb, Palette, Briefcase, Terminal, Zap, TrendingUp } from 'lucide-react'
 import { AnimatedHeroSection } from '@/components/ui/animated-hero-section'
 import { NewsBanner } from '@/components/news-banner'
 import { FloatingCard } from '@/components/ui/floating-card'
-import { BorderTrail } from '@/components/ui/border-trail'
-import { cn } from '@/lib/utils'
 
 const features = [
   {

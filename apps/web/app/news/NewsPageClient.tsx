@@ -4,13 +4,8 @@ import { useState, useEffect, useRef } from 'react'
 import { motion, useScroll, useTransform, useSpring, useMotionValue } from 'framer-motion'
 import Image from 'next/image'
 import Link from 'next/link'
-import { Card } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel'
+import { Card, Badge, Button, Tabs, TabsContent, TabsList, TabsTrigger, Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, cn } from '@ggprompts/ui'
 import { GenerationPromptModal } from './GenerationPromptModal'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Newspaper,
   Sparkles,
@@ -36,7 +31,6 @@ import {
   Play,
   Webhook,
 } from 'lucide-react'
-import { cn } from '@/lib/utils'
 import { type DailyNews, type AiTool } from '@/lib/news/types'
 
 interface NewsPageClientProps {
