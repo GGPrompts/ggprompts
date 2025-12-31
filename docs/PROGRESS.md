@@ -1,6 +1,6 @@
 # GGPrompts Monorepo Migration Progress
 
-**Last Updated:** 2025-12-31 (Wave 2 - @ggprompts/ui integrated into all apps)
+**Last Updated:** 2025-12-31 (Wave 2 - @ggprompts/themes + @ggprompts/ui integrated into all apps)
 **Coordinator:** Conductor Agent
 
 ## Overview
@@ -82,15 +82,21 @@ Old `GGPrompts` directory archived to `_archive_GGPrompts_2024`.
   - apps/styles: 111 files updated
   - apps/kit: 38 files updated
   - Local-only components (page-loader, context-menu, etc.) kept as @/components/ui/*
+- ✅ **@ggprompts/themes integrated into all 4 apps**
+  - All apps now import themes from `@ggprompts/themes` package
+  - apps/web: Uses Tailwind v4 native import
+  - apps/design, styles, kit: Use postcss-import for Tailwind v3 compatibility
+  - App-specific styles (JSON viewer, markdown preview, animations) retained locally
+  - globals.css reduced from ~1000-1700 lines to ~150-750 lines per app
 
 ### Next Tasks
 
 | Task | Priority | Notes |
 |------|----------|-------|
-| Integrate @ggprompts/themes into apps | High | Update design/styles/kit to use shared themes |
 | Cleanup unused local UI components | Low | After verifying all imports work |
+| Migrate useless.io app | Medium | Pending auth decision |
 
-**Next Step:** Update each app's CSS imports to use `@ggprompts/themes`.
+**Next Step:** Review and cleanup unused local components in each app.
 
 ---
 
