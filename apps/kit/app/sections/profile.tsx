@@ -25,7 +25,7 @@ import { Button, Badge, Avatar, AvatarFallback, AvatarImage, Label, Input } from
 import { useAuth } from "@/components/AuthProvider"
 import { AuthModal } from "@/components/AuthModal"
 import { RepoSelector } from "@/components/RepoSelector"
-import { useTerminalExtension } from "@/hooks/useTerminalExtension"
+import { useTerminalExtension } from "@ggprompts/tabz"
 
 interface SyncStatus {
   lastSync: string | null

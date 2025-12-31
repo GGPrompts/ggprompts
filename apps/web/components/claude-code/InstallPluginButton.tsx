@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, Tooltip, TooltipContent, TooltipTrigger } from '@ggprompts/ui'
 import { Terminal, Copy, Check, Loader2 } from 'lucide-react'
-import { useTabzChrome, PluginScope } from '@/hooks/useTabzChrome'
+import { useTabzChrome, type PluginScope } from '@ggprompts/tabz'
 import { toast } from 'sonner'
 
 interface InstallPluginButtonProps {

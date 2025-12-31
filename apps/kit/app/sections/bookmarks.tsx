@@ -61,7 +61,7 @@ import {
 import { getFile, saveFile, type GitHubError } from "@/lib/github"
 import { useAuth } from "@/components/AuthProvider"
 import { AuthModal } from "@/components/AuthModal"
-import { useTerminalExtension } from "@/hooks/useTerminalExtension"
+import { useTerminalExtension } from "@ggprompts/tabz"
 import { Github, User } from "lucide-react"
 import { toast } from "sonner"
 

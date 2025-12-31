@@ -29,7 +29,7 @@ import {
 } from "lucide-react"
 import { Button, Input, Label, Switch, Badge, Card } from "@ggprompts/ui"
 import { useAuth } from "@/components/AuthProvider"
-import { useTerminalExtension } from "@/hooks/useTerminalExtension"
+import { useTerminalExtension } from "@ggprompts/tabz"
 import {
   useSectionPreferences,
   ToggleableSection,

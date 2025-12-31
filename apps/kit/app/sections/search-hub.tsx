@@ -27,7 +27,7 @@ import {
   Check,
 } from "lucide-react"
 import { Input, Button, Badge } from "@ggprompts/ui"
-import { TabzConnectionStatus } from "@/components/TabzConnectionStatus"
+import { TabzConnectionStatus } from "@ggprompts/tabz"
 
 // ============================================================================
 // TYPES

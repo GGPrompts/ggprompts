@@ -38,7 +38,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@ggprompts/ui"
-import { useTerminalExtension } from "@/hooks/useTerminalExtension"
+import { useTerminalExtension } from "@ggprompts/tabz"
 import { type Project, type ProjectCommand } from "@/lib/projects"
 import { useProjectMeta } from "@/hooks/useProjectMeta"
 

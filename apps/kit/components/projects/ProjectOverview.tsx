@@ -15,7 +15,7 @@ import {
   ExternalLink,
 } from "lucide-react"
 import { Button, Badge, Card, CardContent, CardHeader, CardTitle } from "@ggprompts/ui"
-import { useTerminalExtension } from "@/hooks/useTerminalExtension"
+import { useTerminalExtension } from "@ggprompts/tabz"
 import { getStatusBadge, getGitStatusBadge, type Project } from "@/lib/projects"
 
 interface ProjectOverviewProps {

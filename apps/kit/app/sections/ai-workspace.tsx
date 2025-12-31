@@ -40,8 +40,7 @@ import {
 import { useQuery } from "@tanstack/react-query"
 import { useSearchParams } from "next/navigation"
 import { useAllProjectsMeta } from "@/hooks/useProjectMeta"
-import { useTabzBridge } from "@/hooks/useTabzBridge"
-import { TabzConnectionStatus } from "@/components/TabzConnectionStatus"
+import { useTabzBridge, TabzConnectionStatus } from "@ggprompts/tabz"
 import { mergeProjects, type Project, type LocalProject, type GitHubRepo } from "@/lib/projects"
 import {
   type MessageRole,
