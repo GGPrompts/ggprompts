@@ -6,7 +6,7 @@ import { BackgroundProvider } from "@/components/BackgroundProvider"
 import { MasterBackground } from "@/components/MasterBackground"
 import { Navigation } from "@/components/navigation/Navigation"
 import { Toaster, TooltipProvider } from "@ggprompts/ui"
-import { TabzChromeProvider } from "@/hooks/useTabzChrome"
+import { TabzChromeProvider } from "@ggprompts/tabz"
 
 const inter = Inter({
   subsets: ["latin"],

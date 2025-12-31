@@ -90,7 +90,7 @@ import {
 } from "@ggprompts/ui"
 import { useAuth } from "@/components/AuthProvider"
 import { AuthModal } from "@/components/AuthModal"
-import { useTerminalExtension } from "@/hooks/useTerminalExtension"
+import { useTerminalExtension } from "@ggprompts/tabz"
 import { toast } from "sonner"
 import {
   mergeProjects,
