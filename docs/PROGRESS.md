@@ -1,6 +1,6 @@
 # GGPrompts Monorepo Migration Progress
 
-**Last Updated:** 2025-12-31 (Wave 3 In Progress)
+**Last Updated:** 2026-01-01 (Wave 3 Complete!)
 **Coordinator:** Conductor Agent
 
 ## Overview
@@ -101,31 +101,49 @@ Consolidating 5 Next.js projects into a Turborepo monorepo with shared packages.
 
 ---
 
-## Wave 3 Progress
+## Wave 3 Complete! ✅
 
-### Completed (2025-12-31)
+### Session Summary (2026-01-01)
 
-8. **Vercel Deployments** (`12b5138`)
-   - 4 apps linked and configured
+**5 major tasks completed:**
+
+8. **Vercel Deployments** (`12b5138`, `a9c4a06`)
+   - Web app deploying successfully to Vercel
    - Per-app vercel.json with turbo build commands
    - `docs/VERCEL.md` deployment guide
+   - Fixed: filter build to single app (`--filter=@ggprompts/web`)
 
 9. **Useless App Database** (`a045a4f`)
    - Drizzle migrations for 14 tables
    - Neon PostgreSQL connection configured
    - .env with DATABASE_URL ready
 
+10. **CI Test Infrastructure** (`29cd4e7`)
+    - Vitest configured with root + package configs
+    - 6 tests for @ggprompts/ui cn() utility
+    - `pnpm test` works, CI workflow runs tests
+
+11. **CI Fixes** (`148792a`)
+    - Fixed pnpm version conflict (use packageManager field)
+
+12. **Vercel Env Vars**
+    - DATABASE_URL, BETTER_AUTH_SECRET, BETTER_AUTH_URL configured
+    - Ready for useless app deployment
+
 ---
 
 ## Next Steps
 
 ### High Priority
-- [x] Configure Vercel deployments for monorepo (multiple apps) ✅
+- [x] Configure Vercel deployments for monorepo ✅
 - [x] Set up useless app database (Neon PostgreSQL) ✅
-- [ ] Consolidate auth strategy (Supabase vs Better Auth)
+- [x] Add tests to CI workflow ✅
+- [ ] Deploy design app to Vercel (`ggprompts-hqg`)
+- [ ] Deploy styles app to Vercel (`ggprompts-2po`)
 
 ### Medium Priority
-- [ ] Add tests to CI workflow
+- [ ] Deploy useless app to Vercel (`ggprompts-whh`) - requires Neon DB setup
+- [ ] Consolidate auth strategy (Supabase vs Better Auth)
 - [ ] Extract @ggprompts/auth package (shared Supabase client)
 - [ ] Create @ggprompts/db package (shared Drizzle schemas)
 
