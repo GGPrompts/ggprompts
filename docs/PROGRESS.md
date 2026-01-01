@@ -1,6 +1,6 @@
 # GGPrompts Monorepo Migration Progress
 
-**Last Updated:** 2025-12-31 (Wave 2 Complete!)
+**Last Updated:** 2025-12-31 (Wave 3 In Progress)
 **Coordinator:** Conductor Agent
 
 ## Overview
@@ -88,7 +88,9 @@ Consolidating 5 Next.js projects into a Turborepo monorepo with shared packages.
 ### CI/CD
 - **GitHub Actions:** `.github/workflows/ci.yml`
 - **Turborepo Remote Cache:** Enabled (add secrets to GitHub)
-- **Vercel:** Linked, needs deployment config per app
+- **Vercel:** ✅ Configured! See `docs/VERCEL.md` for deployment guide
+  - 4 apps linked: web, design, styles, useless
+  - kit skipped (local-only)
 
 ### Environment Variables
 
@@ -99,11 +101,27 @@ Consolidating 5 Next.js projects into a Turborepo monorepo with shared packages.
 
 ---
 
+## Wave 3 Progress
+
+### Completed (2025-12-31)
+
+8. **Vercel Deployments** (`12b5138`)
+   - 4 apps linked and configured
+   - Per-app vercel.json with turbo build commands
+   - `docs/VERCEL.md` deployment guide
+
+9. **Useless App Database** (`a045a4f`)
+   - Drizzle migrations for 14 tables
+   - Neon PostgreSQL connection configured
+   - .env with DATABASE_URL ready
+
+---
+
 ## Next Steps
 
 ### High Priority
-- [ ] Configure Vercel deployments for monorepo (multiple apps)
-- [ ] Set up useless app database (Neon PostgreSQL)
+- [x] Configure Vercel deployments for monorepo (multiple apps) ✅
+- [x] Set up useless app database (Neon PostgreSQL) ✅
 - [ ] Consolidate auth strategy (Supabase vs Better Auth)
 
 ### Medium Priority
