@@ -317,7 +317,10 @@ var Tracker = (function () {
       filterType: rawInst.filterType || 'none',
       filterFreq: (rawInst.filterFreq !== undefined) ? rawInst.filterFreq : 2000,
       filterQ: (rawInst.filterQ !== undefined) ? rawInst.filterQ : 1,
-      volume: (rawInst.volume !== undefined) ? rawInst.volume : (rawInst.vol !== undefined ? rawInst.vol : 0.8)
+      volume: (rawInst.volume !== undefined) ? rawInst.volume : (rawInst.vol !== undefined ? rawInst.vol : 0.8),
+      fmRatio: (rawInst.fmRatio !== undefined) ? rawInst.fmRatio : 2,
+      fmDepth: (rawInst.fmDepth !== undefined) ? rawInst.fmDepth : 200,
+      fmWave: rawInst.fmWave || 'sine'
     };
   }
 
@@ -836,7 +839,7 @@ var Tracker = (function () {
     // Instruments: keep playback-essential fields with compact keys
     for (var i = 0; i < song.instruments.length; i++) {
       var src = song.instruments[i];
-      compact.instruments.push({
+      var ci = {
         wave: src.wave,
         detune: src.detune || 0,
         detuneOsc: src.detuneOsc || false,
@@ -849,7 +852,14 @@ var Tracker = (function () {
         filterType: src.filterType || 'none',
         filterFreq: src.filterFreq || 2000,
         filterQ: src.filterQ || 1
-      });
+      };
+      // Only include FM params for FM instruments
+      if (src.wave === 'fm') {
+        ci.fmRatio = src.fmRatio !== undefined ? src.fmRatio : 2;
+        ci.fmDepth = src.fmDepth !== undefined ? src.fmDepth : 200;
+        ci.fmWave = src.fmWave || 'sine';
+      }
+      compact.instruments.push(ci);
     }
 
     // Patterns: notes as arrays [midi, inst] or null

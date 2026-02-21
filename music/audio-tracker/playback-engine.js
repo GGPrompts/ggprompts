@@ -89,6 +89,122 @@ var ChipPlayer = (function () {
       src.connect(dest);
       src.start(time);
       src.stop(endTime);
+    } else if (wave === "pluck") {
+      // Karplus-Strong plucked string (self-contained, fire-and-forget)
+      var period = 1 / freq;
+      var burstDur = 0.02;
+      var brightness = inst.filterFreq || 4000;
+
+      var burstLen = Math.ceil(ctx.sampleRate * (burstDur + 0.01));
+      var burstBuf = ctx.createBuffer(1, burstLen, ctx.sampleRate);
+      var burstData = burstBuf.getChannelData(0);
+      for (var bi = 0; bi < burstLen; bi++) burstData[bi] = Math.random() * 2 - 1;
+
+      var burstSrc = ctx.createBufferSource();
+      burstSrc.buffer = burstBuf;
+
+      var pluckDelay = ctx.createDelay(1);
+      pluckDelay.delayTime.setValueAtTime(period, time);
+
+      var fbGain = ctx.createGain();
+      fbGain.gain.setValueAtTime(0.996, time);
+      fbGain.gain.linearRampToValueAtTime(0, endTime);
+
+      var fbFilter = ctx.createBiquadFilter();
+      fbFilter.type = "lowpass";
+      fbFilter.frequency.setValueAtTime(brightness, time);
+      fbFilter.Q.setValueAtTime(0.5, time);
+
+      burstSrc.connect(pluckDelay);
+      pluckDelay.connect(fbFilter);
+      fbFilter.connect(fbGain);
+      fbGain.connect(pluckDelay);
+      fbGain.connect(dest);
+
+      burstSrc.start(time);
+      burstSrc.stop(time + burstDur);
+
+      // Optional detuned 2nd pluck
+      if (inst.detuneOsc && inst.detuneAmount) {
+        var freq2p = freq * Math.pow(2, inst.detuneAmount / 1200);
+        var burstBuf2 = ctx.createBuffer(1, burstLen, ctx.sampleRate);
+        var bd2 = burstBuf2.getChannelData(0);
+        for (var bi2 = 0; bi2 < burstLen; bi2++) bd2[bi2] = Math.random() * 2 - 1;
+
+        var burstSrc2 = ctx.createBufferSource();
+        burstSrc2.buffer = burstBuf2;
+
+        var pluckDelay2 = ctx.createDelay(1);
+        pluckDelay2.delayTime.setValueAtTime(1 / freq2p, time);
+
+        var fbGain2 = ctx.createGain();
+        fbGain2.gain.setValueAtTime(0.996, time);
+        fbGain2.gain.linearRampToValueAtTime(0, endTime);
+
+        var fbFilter2 = ctx.createBiquadFilter();
+        fbFilter2.type = "lowpass";
+        fbFilter2.frequency.setValueAtTime(brightness, time);
+        fbFilter2.Q.setValueAtTime(0.5, time);
+
+        burstSrc2.connect(pluckDelay2);
+        pluckDelay2.connect(fbFilter2);
+        fbFilter2.connect(fbGain2);
+        fbGain2.connect(pluckDelay2);
+        fbGain2.connect(dest);
+
+        burstSrc2.start(time);
+        burstSrc2.stop(time + burstDur);
+      }
+    } else if (wave === "fm") {
+      // FM synthesis (carrier + modulator, fire-and-forget)
+      var fmRatio = inst.fmRatio !== undefined ? inst.fmRatio : 2;
+      var fmDepth = inst.fmDepth !== undefined ? inst.fmDepth : 200;
+      var fmWave = inst.fmWave || "sine";
+
+      var fmCarrier = ctx.createOscillator();
+      fmCarrier.type = "sine";
+      fmCarrier.frequency.setValueAtTime(freq, time);
+
+      var fmMod = ctx.createOscillator();
+      fmMod.type = fmWave;
+      fmMod.frequency.setValueAtTime(freq * fmRatio, time);
+
+      var fmModGain = ctx.createGain();
+      fmModGain.gain.setValueAtTime(fmDepth, time);
+
+      fmMod.connect(fmModGain);
+      fmModGain.connect(fmCarrier.frequency);
+      fmCarrier.connect(dest);
+
+      fmCarrier.start(time);
+      fmCarrier.stop(endTime);
+      fmMod.start(time);
+      fmMod.stop(endTime);
+
+      // Optional detuned 2nd FM voice
+      if (inst.detuneOsc && inst.detuneAmount) {
+        var fmCarrier2 = ctx.createOscillator();
+        fmCarrier2.type = "sine";
+        fmCarrier2.frequency.setValueAtTime(freq, time);
+        fmCarrier2.detune.setValueAtTime(inst.detuneAmount, time);
+
+        var fmMod2 = ctx.createOscillator();
+        fmMod2.type = fmWave;
+        fmMod2.frequency.setValueAtTime(freq * fmRatio, time);
+        fmMod2.detune.setValueAtTime(inst.detuneAmount, time);
+
+        var fmModGain2 = ctx.createGain();
+        fmModGain2.gain.setValueAtTime(fmDepth, time);
+
+        fmMod2.connect(fmModGain2);
+        fmModGain2.connect(fmCarrier2.frequency);
+        fmCarrier2.connect(dest);
+
+        fmCarrier2.start(time);
+        fmCarrier2.stop(endTime);
+        fmMod2.start(time);
+        fmMod2.stop(endTime);
+      }
     } else {
       // Primary oscillator
       var osc = ctx.createOscillator();

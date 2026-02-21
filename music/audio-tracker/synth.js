@@ -160,9 +160,15 @@ var Synth = (function () {
     var freq = midiToFreq(midiNote);
     var wave = instrument.wave || "square";
 
-    // Don't use noteOn for noise — use triggerNoise instead
+    // Dispatch to specialized synth engines
     if (wave === "noise") {
       return triggerNoise(ch, instrument, t);
+    }
+    if (wave === "pluck") {
+      return triggerPluck(ch, midiNote, instrument, t);
+    }
+    if (wave === "fm") {
+      return triggerFM(ch, midiNote, instrument, t);
     }
 
     // ADSR gain node
@@ -228,6 +234,62 @@ var Synth = (function () {
     handle.released = true;
 
     var t = time || ctx.currentTime;
+
+    // --- Pluck voices: kill the feedback loop ---
+    if (handle.type === "pluck") {
+      var fadeTime = quickCut ? 0.003 : 0.05;
+      handle.feedbackGain.gain.cancelScheduledValues(t);
+      handle.feedbackGain.gain.setValueAtTime(handle.feedbackGain.gain.value, t);
+      handle.feedbackGain.gain.linearRampToValueAtTime(0, t + fadeTime);
+      if (handle.feedbackGain2) {
+        handle.feedbackGain2.gain.cancelScheduledValues(t);
+        handle.feedbackGain2.gain.setValueAtTime(handle.feedbackGain2.gain.value, t);
+        handle.feedbackGain2.gain.linearRampToValueAtTime(0, t + fadeTime);
+      }
+      handle.envGain.gain.cancelScheduledValues(t);
+      handle.envGain.gain.setValueAtTime(handle.envGain.gain.value, t);
+      handle.envGain.gain.linearRampToValueAtTime(0, t + fadeTime + 0.01);
+      return;
+    }
+
+    // --- FM voices: release envelope then stop oscillators ---
+    if (handle.type === "fm") {
+      var releaseDur;
+      if (quickCut) {
+        var gf = handle.envGain.gain;
+        gf.cancelScheduledValues(t);
+        gf.setValueAtTime(gf.value, t);
+        gf.linearRampToValueAtTime(0, t + 0.003);
+        releaseDur = 0.003;
+      } else {
+        releaseDur = applyRelease(handle.envGain, handle.instrument, t);
+      }
+      var fmStopTime = t + releaseDur + 0.01;
+
+      handle.carrier.stop(fmStopTime);
+      handle.modulator.stop(fmStopTime);
+      if (handle.carrier2) handle.carrier2.stop(fmStopTime);
+      if (handle.modulator2) handle.modulator2.stop(fmStopTime);
+
+      var fmCleanup = (fmStopTime - ctx.currentTime + 0.05) * 1000;
+      if (fmCleanup < 50) fmCleanup = 50;
+      setTimeout(function () {
+        try {
+          handle.carrier.disconnect();
+          handle.modulator.disconnect();
+          handle.modGain.disconnect();
+          if (handle.carrier2) handle.carrier2.disconnect();
+          if (handle.modulator2) handle.modulator2.disconnect();
+          if (handle.modGain2) handle.modGain2.disconnect();
+          if (handle.filter) handle.filter.disconnect();
+          handle.envGain.disconnect();
+        } catch (e) {}
+        removeVoice(handle);
+      }, fmCleanup);
+      return;
+    }
+
+    // --- Tone voices (original behavior) ---
     var releaseDur;
     if (quickCut) {
       var g = handle.envGain.gain;
@@ -337,6 +399,252 @@ var Synth = (function () {
     return handle;
   }
 
+  /**
+   * triggerPluck — Karplus-Strong plucked string synthesis.
+   * Noise burst → delay line (tuned to pitch) → lowpass → feedback loop.
+   */
+  function triggerPluck(channel, midiNote, instrument, time) {
+    if (!ctx) return null;
+
+    var ch = clampChannel(channel);
+    var t = time || ctx.currentTime;
+    var freq = midiToFreq(midiNote);
+    var vol = instrument.volume !== undefined ? instrument.volume : 0.8;
+
+    // Delay period = 1/freq (tuned delay line)
+    var period = 1 / freq;
+
+    // Noise burst duration — short excitation
+    var burstDur = 0.02;
+
+    // Feedback filter cutoff controls brightness (reuse filterFreq)
+    var brightness = instrument.filterFreq || 4000;
+
+    // ADSR-derived total sustain time (pluck decays naturally, but we
+    // use release as a rough guide for how long the feedback sustains)
+    var decayTime = (instrument.decay || 0.1) + (instrument.release || 0.15) + 1.5;
+    var totalDur = burstDur + decayTime + 0.5;
+
+    // Envelope gain
+    var envGain = ctx.createGain();
+    envGain.gain.setValueAtTime(vol, t);
+
+    // Noise burst source
+    var burstBuffer = createNoiseBuffer(burstDur + 0.01);
+    var burstSource = ctx.createBufferSource();
+    burstSource.buffer = burstBuffer;
+
+    // Delay line (tuned to pitch)
+    var delay = ctx.createDelay(1);
+    delay.delayTime.setValueAtTime(period, t);
+
+    // Feedback gain (controls sustain length)
+    var feedbackGain = ctx.createGain();
+    feedbackGain.gain.setValueAtTime(0.996, t);
+
+    // Feedback lowpass filter (controls brightness/damping)
+    var feedbackFilter = ctx.createBiquadFilter();
+    feedbackFilter.type = "lowpass";
+    feedbackFilter.frequency.setValueAtTime(brightness, t);
+    feedbackFilter.Q.setValueAtTime(0.5, t);
+
+    // Signal chain: burst → delay → feedbackFilter → feedbackGain → delay (loop)
+    //                                                            └→ envGain → output
+    burstSource.connect(delay);
+    delay.connect(feedbackFilter);
+    feedbackFilter.connect(feedbackGain);
+    feedbackGain.connect(delay);       // feedback loop
+    feedbackGain.connect(envGain);     // output tap
+
+    // Optional detuned 2nd pluck for chorus/12-string effect
+    var delay2 = null, feedbackGain2 = null, feedbackFilter2 = null, burstSource2 = null;
+    if (instrument.detuneOsc) {
+      var d2 = instrument.detuneAmount || 7;
+      var freq2 = freq * Math.pow(2, d2 / 1200);
+      var period2 = 1 / freq2;
+
+      var burstBuffer2 = createNoiseBuffer(burstDur + 0.01);
+      burstSource2 = ctx.createBufferSource();
+      burstSource2.buffer = burstBuffer2;
+
+      delay2 = ctx.createDelay(1);
+      delay2.delayTime.setValueAtTime(period2, t);
+
+      feedbackGain2 = ctx.createGain();
+      feedbackGain2.gain.setValueAtTime(0.996, t);
+
+      feedbackFilter2 = ctx.createBiquadFilter();
+      feedbackFilter2.type = "lowpass";
+      feedbackFilter2.frequency.setValueAtTime(brightness, t);
+      feedbackFilter2.Q.setValueAtTime(0.5, t);
+
+      burstSource2.connect(delay2);
+      delay2.connect(feedbackFilter2);
+      feedbackFilter2.connect(feedbackGain2);
+      feedbackGain2.connect(delay2);
+      feedbackGain2.connect(envGain);
+
+      burstSource2.start(t);
+      burstSource2.stop(t + burstDur);
+    }
+
+    // Optional instrument filter (on the output)
+    var filter = null;
+    if (instrument.filterType && instrument.filterType !== "none") {
+      filter = createFilter(instrument, t);
+      envGain.connect(filter);
+      filter.connect(channelGains[ch]);
+    } else {
+      envGain.connect(channelGains[ch]);
+    }
+
+    burstSource.start(t);
+    burstSource.stop(t + burstDur);
+
+    // Schedule natural decay: ramp feedback to 0
+    feedbackGain.gain.linearRampToValueAtTime(0, t + decayTime);
+    if (feedbackGain2) {
+      feedbackGain2.gain.linearRampToValueAtTime(0, t + decayTime);
+    }
+
+    var handle = {
+      type: "pluck",
+      burstSource: burstSource,
+      burstSource2: burstSource2,
+      delay: delay,
+      delay2: delay2,
+      feedbackGain: feedbackGain,
+      feedbackGain2: feedbackGain2,
+      feedbackFilter: feedbackFilter,
+      feedbackFilter2: feedbackFilter2,
+      filter: filter,
+      envGain: envGain,
+      instrument: instrument,
+      channel: ch,
+      startTime: t,
+      released: false,
+      decayTime: decayTime
+    };
+
+    activeVoices.push(handle);
+
+    // Auto-cleanup after decay
+    setTimeout(function () {
+      try {
+        burstSource.disconnect();
+        if (burstSource2) burstSource2.disconnect();
+        delay.disconnect();
+        if (delay2) delay2.disconnect();
+        feedbackGain.disconnect();
+        if (feedbackGain2) feedbackGain2.disconnect();
+        feedbackFilter.disconnect();
+        if (feedbackFilter2) feedbackFilter2.disconnect();
+        if (filter) filter.disconnect();
+        envGain.disconnect();
+      } catch (e) {}
+      removeVoice(handle);
+    }, (totalDur + 0.1) * 1000);
+
+    return handle;
+  }
+
+  /**
+   * triggerFM — FM (Frequency Modulation) synthesis.
+   * Modulator oscillator modulates carrier frequency at audio rate.
+   */
+  function triggerFM(channel, midiNote, instrument, time) {
+    if (!ctx) return null;
+
+    var ch = clampChannel(channel);
+    var t = time || ctx.currentTime;
+    var freq = midiToFreq(midiNote);
+
+    var fmRatio = instrument.fmRatio !== undefined ? instrument.fmRatio : 2;
+    var fmDepth = instrument.fmDepth !== undefined ? instrument.fmDepth : 200;
+    var fmWave = instrument.fmWave || "sine";
+
+    // ADSR gain node
+    var envGain = ctx.createGain();
+    applyADSR(envGain, instrument, t);
+
+    // Carrier oscillator (always sine for clean FM)
+    var carrier = ctx.createOscillator();
+    carrier.type = "sine";
+    carrier.frequency.setValueAtTime(freq, t);
+
+    // Modulator oscillator
+    var modulator = ctx.createOscillator();
+    modulator.type = fmWave;
+    modulator.frequency.setValueAtTime(freq * fmRatio, t);
+
+    // Modulation depth gain (Hz of frequency deviation)
+    var modGain = ctx.createGain();
+    modGain.gain.setValueAtTime(fmDepth, t);
+
+    // FM routing: modulator → modGain → carrier.frequency
+    modulator.connect(modGain);
+    modGain.connect(carrier.frequency);
+
+    // Optional detuned 2nd FM voice for chorus
+    var carrier2 = null, modulator2 = null, modGain2 = null;
+    if (instrument.detuneOsc) {
+      var d2 = instrument.detuneAmount || 7;
+
+      carrier2 = ctx.createOscillator();
+      carrier2.type = "sine";
+      carrier2.frequency.setValueAtTime(freq, t);
+      carrier2.detune.setValueAtTime(d2, t);
+
+      modulator2 = ctx.createOscillator();
+      modulator2.type = fmWave;
+      modulator2.frequency.setValueAtTime(freq * fmRatio, t);
+      modulator2.detune.setValueAtTime(d2, t);
+
+      modGain2 = ctx.createGain();
+      modGain2.gain.setValueAtTime(fmDepth, t);
+
+      modulator2.connect(modGain2);
+      modGain2.connect(carrier2.frequency);
+    }
+
+    // Optional filter
+    var filter = createFilter(instrument, t);
+    var target = filter || envGain;
+
+    carrier.connect(target);
+    if (carrier2) carrier2.connect(target);
+
+    if (filter) {
+      filter.connect(envGain);
+    }
+
+    envGain.connect(channelGains[ch]);
+
+    carrier.start(t);
+    modulator.start(t);
+    if (carrier2) carrier2.start(t);
+    if (modulator2) modulator2.start(t);
+
+    var handle = {
+      type: "fm",
+      carrier: carrier,
+      modulator: modulator,
+      modGain: modGain,
+      carrier2: carrier2,
+      modulator2: modulator2,
+      modGain2: modGain2,
+      filter: filter,
+      envGain: envGain,
+      instrument: instrument,
+      channel: ch,
+      startTime: t,
+      released: false
+    };
+
+    activeVoices.push(handle);
+    return handle;
+  }
+
   function setMasterVolume(v) {
     if (masterGain) {
       masterGain.gain.setValueAtTime(
@@ -371,6 +679,24 @@ var Synth = (function () {
         } else if (h.type === "noise") {
           h.source.stop();
           h.source.disconnect();
+        } else if (h.type === "pluck") {
+          h.burstSource.disconnect();
+          if (h.burstSource2) h.burstSource2.disconnect();
+          h.delay.disconnect();
+          if (h.delay2) h.delay2.disconnect();
+          h.feedbackGain.disconnect();
+          if (h.feedbackGain2) h.feedbackGain2.disconnect();
+          h.feedbackFilter.disconnect();
+          if (h.feedbackFilter2) h.feedbackFilter2.disconnect();
+        } else if (h.type === "fm") {
+          h.carrier.stop();
+          h.carrier.disconnect();
+          h.modulator.stop();
+          h.modulator.disconnect();
+          h.modGain.disconnect();
+          if (h.carrier2) { h.carrier2.stop(); h.carrier2.disconnect(); }
+          if (h.modulator2) { h.modulator2.stop(); h.modulator2.disconnect(); }
+          if (h.modGain2) h.modGain2.disconnect();
         }
         if (h.filter) h.filter.disconnect();
         h.envGain.disconnect();
@@ -406,6 +732,8 @@ var Synth = (function () {
     noteOn: noteOn,
     noteOff: noteOff,
     triggerNoise: triggerNoise,
+    triggerPluck: triggerPluck,
+    triggerFM: triggerFM,
     setMasterVolume: setMasterVolume,
     setChannelVolume: setChannelVolume,
     dispose: dispose,

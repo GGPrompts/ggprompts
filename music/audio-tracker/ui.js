@@ -418,7 +418,7 @@ var UI = (function () {
     html += '<label>Name: <input type="text" id="inst-name" value="'
           + (inst.name || '').replace(/"/g, '&quot;') + '"></label> ';
     html += '<label>Wave: <select id="inst-wave">';
-    var waves = ['square', 'triangle', 'sawtooth', 'sine', 'noise', 'pulse25', 'pulse12'];
+    var waves = ['square', 'triangle', 'sawtooth', 'sine', 'noise', 'pulse25', 'pulse12', 'pluck', 'fm'];
     for (var w = 0; w < waves.length; w++) {
       var wsel = (inst.wave === waves[w]) ? ' selected' : '';
       html += '<option value="' + waves[w] + '"' + wsel + '>' + waves[w] + '</option>';
@@ -453,6 +453,21 @@ var UI = (function () {
     html += '</select></label> ';
     html += '<label>Freq: <input type="number" id="inst-filterfreq" min="20" max="20000" value="' + (inst.filterFreq || 2000) + '"></label> ';
     html += '<label>Q: <input type="number" id="inst-filterq" min="0.1" max="30" step="0.1" value="' + (inst.filterQ || 1) + '"></label>';
+    html += '</div>';
+
+    // FM parameters (only visible when wave === 'fm')
+    var fmDisplay = (inst.wave === 'fm') ? '' : ' style="display:none"';
+    html += '<div class="inst-row" id="fm-params"' + fmDisplay + '>';
+    html += '<label>FM Ratio: <input type="number" id="inst-fmratio" min="0.1" max="16" step="0.1" value="' + (inst.fmRatio !== undefined ? inst.fmRatio : 2) + '"></label> ';
+    html += '<label>FM Depth: <input type="number" id="inst-fmdepth" min="0" max="2000" step="10" value="' + (inst.fmDepth !== undefined ? inst.fmDepth : 200) + '"></label> ';
+    html += '<label>Mod Wave: <select id="inst-fmwave">';
+    var fmWaves = ['sine', 'square', 'triangle', 'sawtooth'];
+    var curFmWave = inst.fmWave || 'sine';
+    for (var fw = 0; fw < fmWaves.length; fw++) {
+      var fwsel = (curFmWave === fmWaves[fw]) ? ' selected' : '';
+      html += '<option value="' + fmWaves[fw] + '"' + fwsel + '>' + fmWaves[fw] + '</option>';
+    }
+    html += '</select></label>';
     html += '</div>';
 
     // Volume
@@ -514,6 +529,20 @@ var UI = (function () {
     bindInstSelect('inst-filtertype', 'filterType');
     bindInstNumber('inst-filterfreq', 'filterFreq');
     bindInstNumber('inst-filterq', 'filterQ');
+    bindInstNumber('inst-fmratio', 'fmRatio');
+    bindInstNumber('inst-fmdepth', 'fmDepth');
+    bindInstSelect('inst-fmwave', 'fmWave');
+
+    // Toggle FM params visibility when wave type changes
+    var waveSelect = document.getElementById('inst-wave');
+    if (waveSelect) {
+      waveSelect.addEventListener('change', function () {
+        var fmParams = document.getElementById('fm-params');
+        if (fmParams) {
+          fmParams.style.display = (this.value === 'fm') ? '' : 'none';
+        }
+      });
+    }
   }
 
   function bindInstInput(id, prop, type) {

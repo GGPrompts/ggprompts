@@ -158,6 +158,127 @@ const Presets = {
       filterType: "none",
       filterFreq: 2000, filterQ: 1,
       volume: 0.5
+    },
+
+    // --- Plucked Strings (Karplus-Strong) -----------------------------------
+
+    { // 13
+      name: "Acoustic Pluck",
+      wave: "pluck",
+      detune: 0,
+      detuneOsc: false,
+      detuneAmount: 0,
+      attack: 0.001, decay: 0.3, sustain: 0.0, release: 0.2,
+      filterType: "none",
+      filterFreq: 5000, filterQ: 1,
+      volume: 0.8
+    },
+    { // 14
+      name: "Nylon Guitar",
+      wave: "pluck",
+      detune: 0,
+      detuneOsc: false,
+      detuneAmount: 0,
+      attack: 0.001, decay: 0.4, sustain: 0.0, release: 0.25,
+      filterType: "none",
+      filterFreq: 2500, filterQ: 1,
+      volume: 0.75
+    },
+    { // 15
+      name: "Harp",
+      wave: "pluck",
+      detune: 0,
+      detuneOsc: false,
+      detuneAmount: 0,
+      attack: 0.001, decay: 0.6, sustain: 0.0, release: 0.4,
+      filterType: "none",
+      filterFreq: 6000, filterQ: 1,
+      volume: 0.7
+    },
+    { // 16
+      name: "Pizzicato",
+      wave: "pluck",
+      detune: 0,
+      detuneOsc: false,
+      detuneAmount: 0,
+      attack: 0.001, decay: 0.08, sustain: 0.0, release: 0.05,
+      filterType: "none",
+      filterFreq: 3500, filterQ: 1,
+      volume: 0.85
+    },
+    { // 17
+      name: "12-String",
+      wave: "pluck",
+      detune: 0,
+      detuneOsc: true,
+      detuneAmount: 8,
+      attack: 0.001, decay: 0.35, sustain: 0.0, release: 0.25,
+      filterType: "none",
+      filterFreq: 5000, filterQ: 1,
+      volume: 0.75
+    },
+
+    // --- FM Synthesis --------------------------------------------------------
+
+    { // 18
+      name: "FM Electric Piano",
+      wave: "fm",
+      detune: 0,
+      detuneOsc: false,
+      detuneAmount: 0,
+      attack: 0.005, decay: 0.4, sustain: 0.3, release: 0.3,
+      filterType: "none",
+      filterFreq: 2000, filterQ: 1,
+      volume: 0.7,
+      fmRatio: 1, fmDepth: 150, fmWave: "sine"
+    },
+    { // 19
+      name: "FM Bells",
+      wave: "fm",
+      detune: 0,
+      detuneOsc: false,
+      detuneAmount: 0,
+      attack: 0.001, decay: 0.8, sustain: 0.0, release: 0.5,
+      filterType: "none",
+      filterFreq: 2000, filterQ: 1,
+      volume: 0.6,
+      fmRatio: 3.5, fmDepth: 500, fmWave: "sine"
+    },
+    { // 20
+      name: "FM Metallic Lead",
+      wave: "fm",
+      detune: 0,
+      detuneOsc: false,
+      detuneAmount: 0,
+      attack: 0.01, decay: 0.15, sustain: 0.5, release: 0.12,
+      filterType: "none",
+      filterFreq: 2000, filterQ: 1,
+      volume: 0.7,
+      fmRatio: 2, fmDepth: 400, fmWave: "sine"
+    },
+    { // 21
+      name: "FM Bass",
+      wave: "fm",
+      detune: 0,
+      detuneOsc: false,
+      detuneAmount: 0,
+      attack: 0.005, decay: 0.2, sustain: 0.5, release: 0.1,
+      filterType: "lowpass",
+      filterFreq: 1200, filterQ: 2,
+      volume: 0.85,
+      fmRatio: 1, fmDepth: 80, fmWave: "sine"
+    },
+    { // 22
+      name: "FM Vibraphone",
+      wave: "fm",
+      detune: 0,
+      detuneOsc: true,
+      detuneAmount: 5,
+      attack: 0.002, decay: 0.6, sustain: 0.1, release: 0.4,
+      filterType: "none",
+      filterFreq: 2000, filterQ: 1,
+      volume: 0.65,
+      fmRatio: 3, fmDepth: 250, fmWave: "sine"
     }
   ],
 
