@@ -235,9 +235,17 @@ var Synth = (function () {
 
     var t = time || ctx.currentTime;
 
-    // --- Pluck voices: kill the feedback loop and clean up ---
+    // --- Pluck voices: release envelope, kill feedback, and clean up ---
     if (handle.type === "pluck") {
-      var fadeTime = quickCut ? 0.003 : 0.05;
+      var fadeTime;
+      if (quickCut) {
+        fadeTime = 0.003;
+        handle.envGain.gain.cancelScheduledValues(t);
+        handle.envGain.gain.setValueAtTime(handle.envGain.gain.value, t);
+        handle.envGain.gain.linearRampToValueAtTime(0, t + fadeTime);
+      } else {
+        fadeTime = applyRelease(handle.envGain, handle.instrument, t);
+      }
       handle.feedbackGain.gain.cancelScheduledValues(t);
       handle.feedbackGain.gain.setValueAtTime(handle.feedbackGain.gain.value, t);
       handle.feedbackGain.gain.linearRampToValueAtTime(0, t + fadeTime);
@@ -246,9 +254,6 @@ var Synth = (function () {
         handle.feedbackGain2.gain.setValueAtTime(handle.feedbackGain2.gain.value, t);
         handle.feedbackGain2.gain.linearRampToValueAtTime(0, t + fadeTime);
       }
-      handle.envGain.gain.cancelScheduledValues(t);
-      handle.envGain.gain.setValueAtTime(handle.envGain.gain.value, t);
-      handle.envGain.gain.linearRampToValueAtTime(0, t + fadeTime + 0.01);
 
       // Disconnect all nodes after fade completes to prevent voice pile-up
       var pluckCleanup = (t + fadeTime + 0.06 - ctx.currentTime) * 1000;
@@ -431,7 +436,6 @@ var Synth = (function () {
     var ch = clampChannel(channel);
     var t = time || ctx.currentTime;
     var freq = midiToFreq(midiNote);
-    var vol = instrument.volume !== undefined ? instrument.volume : 0.8;
 
     // Delay period = 1/freq (tuned delay line)
     var period = 1 / freq;
@@ -447,9 +451,9 @@ var Synth = (function () {
     var decayTime = (instrument.decay || 0.1) + (instrument.release || 0.15) + 1.5;
     var totalDur = burstDur + decayTime + 0.5;
 
-    // Envelope gain
+    // Envelope gain with ADSR (matches ChipPlayer behavior)
     var envGain = ctx.createGain();
-    envGain.gain.setValueAtTime(vol, t);
+    applyADSR(envGain, instrument, t);
 
     // Noise burst source
     var burstBuffer = createNoiseBuffer(burstDur + 0.01);
