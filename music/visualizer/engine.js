@@ -327,7 +327,8 @@ window.Visualizer = (function () {
     var loopStart = s.loopStartSeq || 0;
 
     // Short mode: cap at shortEndSeq so analysis only covers the trimmed song
-    if (s.shortEndSeq != null && s.shortEndSeq < loopEnd) {
+    // Videos can set window.noShortMode = true to play the full song (narrative arcs)
+    if (s.shortEndSeq != null && s.shortEndSeq < loopEnd && !window.noShortMode) {
       loopEnd = s.shortEndSeq;
       // Trim timeline, energy, sectionChanges to only cover rows up to loopEnd
       var trimmedRows = 0;
@@ -554,7 +555,7 @@ window.Visualizer = (function () {
       // and instruments with short keys (a, d, s, r, vol).
       if (window.ChipPlayer) {
         ChipPlayer.load(buildChipPlayerSong(songJSON));
-        ChipPlayer.setShortMode(songJSON.shortEndSeq != null);
+        ChipPlayer.setShortMode(songJSON.shortEndSeq != null && !window.noShortMode);
       }
 
       // Re-init current renderer with new analysis
