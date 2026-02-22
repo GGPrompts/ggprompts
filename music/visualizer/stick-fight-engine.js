@@ -36,6 +36,10 @@
             legSpread:  0,     // 0..1  stance width
             kneeL:      0,     // -1..1 knee offset (negative = forward)
             kneeR:      0,
+            torsoTwist: 0,     // -1..1  shoulder twist around spine axis
+            hipShift:   0,     // -1..1  lateral hip displacement
+            headTilt:   0,     // -1..1  head tilt left/right
+            headBob:    0,     // -1..1  head nod up/down
             swordAngle: 0,     // radians, if the figure holds a weapon
             swordLen:   0      // 0 = no sword, fraction of figH
         };
@@ -329,21 +333,25 @@
                 - rightLift * liftAmount * 0.7
         };
 
-        // ── Hip (with pelvis sway) ───────────────────────────────
+        // ── Hip (with pelvis sway + hipShift) ─────────────────────
         var hipY = kneeBaseY - thigh + bounceOff + gaitBounce;
-        var hip = { x: leanOff + pelvisSwayPx, y: hipY };
+        var hipShiftPx = p.hipShift * fH * 0.05;
+        var hip = { x: leanOff + pelvisSwayPx + hipShiftPx, y: hipY };
 
         // ── Neck ─────────────────────────────────────────────────
         var neckY = hipY - torsoLen;
         var neck = { x: leanOff * 1.2 + pelvisSwayPx * 0.3, y: neckY };
 
-        // Head
-        var head = { x: leanOff * 1.3 + pelvisSwayPx * 0.2, y: neckY - neckLen - headR };
+        // Head (with headTilt + headBob)
+        var headTiltPx = p.headTilt * fH * 0.04;
+        var headBobPx  = p.headBob  * fH * 0.03;
+        var head = { x: leanOff * 1.3 + pelvisSwayPx * 0.2 + headTiltPx, y: neckY - neckLen - headR + headBobPx };
 
-        // ── Shoulders (with counter-rotation) ────────────────────
+        // ── Shoulders (with counter-rotation + torsoTwist) ────────
+        var twistPx = p.torsoTwist * shouldW * 0.5;
         var shY = neckY + neckLen * 0.3;
-        var shoulderL = { x: neck.x - shouldW, y: shY + shoulderTwistPx };
-        var shoulderR = { x: neck.x + shouldW, y: shY - shoulderTwistPx };
+        var shoulderL = { x: neck.x - shouldW + twistPx, y: shY + shoulderTwistPx };
+        var shoulderR = { x: neck.x + shouldW - twistPx, y: shY - shoulderTwistPx };
 
         // Arms — angles from straight-down (0 = hanging), negative = forward/up
         var laAng = p.armLAngle;
