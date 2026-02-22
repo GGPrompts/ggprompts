@@ -297,8 +297,8 @@
             lastX:       opts.x || 0,  // previous frame x for velocity computation
             gaitPhase:   0,       // 0..1 gait cycle position
             gaitInfluence: 0,     // 0..1 blend weight (fades in/out with velocity)
-            plantFootLX: 0,       // world-x of left foot plant position
-            plantFootRX: 0,       // world-x of right foot plant position
+            plantFootLX: opts.x || 0,  // world-x of left foot plant position
+            plantFootRX: opts.x || 0,  // world-x of right foot plant position
 
             // stance / handedness
             weaponHand:  opts.weaponHand || 'left',   // 'left' or 'right' — which hand holds the weapon
@@ -398,9 +398,15 @@
             var leftPlanting  = sinPhase < -0.05;
             var rightPlanting = sinPhase >  0.05;
 
+            // Max correction distance — prevents extreme stretching from
+            // stale plant positions (e.g. after resize or scene teleport)
+            var maxPlant = fH * 0.3;
+
             if (leftPlanting) {
                 // Correct ankle local-x so world-x stays at plantFootLX
                 var desiredLocalLX = fig.plantFootLX - fig.x;
+                if (desiredLocalLX < -maxPlant) desiredLocalLX = -maxPlant;
+                if (desiredLocalLX >  maxPlant) desiredLocalLX =  maxPlant;
                 ankleL.x = ankleL.x * (1 - gi) + desiredLocalLX * gi;
             } else {
                 // Foot is swinging — update plant position for when it next lands
@@ -409,6 +415,8 @@
 
             if (rightPlanting) {
                 var desiredLocalRX = fig.plantFootRX - fig.x;
+                if (desiredLocalRX < -maxPlant) desiredLocalRX = -maxPlant;
+                if (desiredLocalRX >  maxPlant) desiredLocalRX =  maxPlant;
                 ankleR.x = ankleR.x * (1 - gi) + desiredLocalRX * gi;
             } else {
                 fig.plantFootRX = fig.x + ankleR.x;
@@ -418,14 +426,12 @@
         // ── Knees ────────────────────────────────────────────────
         var kneeBaseY = -shin + bounceOff + gaitBounce;
         var kneeL = {
-            x: ankleL.x * 0.6 + leanOff * 0.3 + p.kneeL * fH * 0.06 * facing
-                + leftSwingFwd * strideAmount * 0.6 * strideDir * gi,
+            x: ankleL.x * 0.6 + leanOff * 0.3 + p.kneeL * fH * 0.06 * facing,
             y: kneeBaseY + Math.abs(p.kneeL) * fH * 0.03
                 - leftLift * liftAmount * 0.7
         };
         var kneeR = {
-            x: ankleR.x * 0.6 + leanOff * 0.3 + p.kneeR * fH * 0.06 * facing
-                + rightSwingFwd * strideAmount * 0.6 * strideDir * gi,
+            x: ankleR.x * 0.6 + leanOff * 0.3 + p.kneeR * fH * 0.06 * facing,
             y: kneeBaseY + Math.abs(p.kneeR) * fH * 0.03
                 - rightLift * liftAmount * 0.7
         };
