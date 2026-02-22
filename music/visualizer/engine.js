@@ -326,6 +326,22 @@ window.Visualizer = (function () {
     var loopEnd = s.loopEndSeq != null ? s.loopEndSeq : s.seq.length;
     var loopStart = s.loopStartSeq || 0;
 
+    // Short mode: cap at shortEndSeq so analysis only covers the trimmed song
+    if (s.shortEndSeq != null && s.shortEndSeq < loopEnd) {
+      loopEnd = s.shortEndSeq;
+      // Trim timeline, energy, sectionChanges to only cover rows up to loopEnd
+      var trimmedRows = 0;
+      for (var ti = 0; ti < loopEnd; ti++) {
+        var tPatIdx = s.seq[ti][0];
+        var tPat = s.patterns[tPatIdx];
+        trimmedRows += tPat ? tPat.len || 16 : 16;
+      }
+      timeline = timeline.slice(0, trimmedRows);
+      energy = energy.slice(0, trimmedRows);
+      sectionChanges = sectionChanges.filter(function (r) { return r < trimmedRows; });
+      totalRows = trimmedRows;
+    }
+
     return {
       pitchRange: { min: minMidi, max: maxMidi, span: maxMidi - minMidi || 1 },
       channelRoles: channelRoles,
@@ -538,6 +554,7 @@ window.Visualizer = (function () {
       // and instruments with short keys (a, d, s, r, vol).
       if (window.ChipPlayer) {
         ChipPlayer.load(buildChipPlayerSong(songJSON));
+        ChipPlayer.setShortMode(songJSON.shortEndSeq != null);
       }
 
       // Re-init current renderer with new analysis

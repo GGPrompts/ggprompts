@@ -16,6 +16,8 @@ var ChipPlayer = (function () {
   var nextNoteTime = 0;
   var seqIndex = 0;
   var rowIndex = 0;
+  var shortMode = false;
+  var onEndCallback = null;
 
   var SCHEDULE_AHEAD = 0.1;   // seconds to schedule ahead
   var TIMER_INTERVAL = 25;    // ms between scheduler ticks
@@ -307,6 +309,12 @@ var ChipPlayer = (function () {
     }
   }
 
+  function stopInternal() {
+    if (!playing) return;
+    playing = false;
+    if (timerID) { clearInterval(timerID); timerID = null; }
+  }
+
   function advanceWithLoop() {
     rowIndex++;
     var seqRow = song.seq[seqIndex];
@@ -315,6 +323,12 @@ var ChipPlayer = (function () {
     if (rowIndex >= patLen) {
       rowIndex = 0;
       seqIndex++;
+      // Check shortEndSeq BEFORE normal loop logic
+      if (shortMode && song.shortEndSeq != null && seqIndex >= song.shortEndSeq) {
+        stopInternal();
+        if (onEndCallback) onEndCallback();
+        return;
+      }
       var loopEnd = song.loopEndSeq != null ? song.loopEndSeq : song.seq.length;
       var loopStart = song.loopStartSeq || 0;
       if (seqIndex >= loopEnd) {
@@ -389,9 +403,7 @@ var ChipPlayer = (function () {
     },
 
     stop: function () {
-      if (!playing) return;
-      playing = false;
-      if (timerID) { clearInterval(timerID); timerID = null; }
+      stopInternal();
     },
 
     setVolume: function (v) {
@@ -400,6 +412,10 @@ var ChipPlayer = (function () {
 
     isPlaying: function () {
       return playing;
-    }
+    },
+
+    setShortMode: function (enabled) { shortMode = !!enabled; },
+
+    onEnd: function (cb) { onEndCallback = cb; }
   };
 })();
