@@ -235,7 +235,7 @@ var Synth = (function () {
 
     var t = time || ctx.currentTime;
 
-    // --- Pluck voices: kill the feedback loop ---
+    // --- Pluck voices: kill the feedback loop and clean up ---
     if (handle.type === "pluck") {
       var fadeTime = quickCut ? 0.003 : 0.05;
       handle.feedbackGain.gain.cancelScheduledValues(t);
@@ -249,6 +249,28 @@ var Synth = (function () {
       handle.envGain.gain.cancelScheduledValues(t);
       handle.envGain.gain.setValueAtTime(handle.envGain.gain.value, t);
       handle.envGain.gain.linearRampToValueAtTime(0, t + fadeTime + 0.01);
+
+      // Disconnect all nodes after fade completes to prevent voice pile-up
+      var pluckCleanup = (t + fadeTime + 0.06 - ctx.currentTime) * 1000;
+      if (pluckCleanup < 50) pluckCleanup = 50;
+      setTimeout(function () {
+        try {
+          handle.burstSource.disconnect();
+          if (handle.burstSource2) handle.burstSource2.disconnect();
+          handle.delay.disconnect();
+          if (handle.delay2) handle.delay2.disconnect();
+          handle.feedbackGain.disconnect();
+          if (handle.feedbackGain2) handle.feedbackGain2.disconnect();
+          handle.feedbackFilter.disconnect();
+          if (handle.feedbackFilter2) handle.feedbackFilter2.disconnect();
+          if (handle.bodyLow) handle.bodyLow.disconnect();
+          if (handle.bodyMid) handle.bodyMid.disconnect();
+          if (handle.bodyAir) handle.bodyAir.disconnect();
+          if (handle.filter) handle.filter.disconnect();
+          handle.envGain.disconnect();
+        } catch (e) {}
+        removeVoice(handle);
+      }, pluckCleanup);
       return;
     }
 
@@ -488,14 +510,38 @@ var Synth = (function () {
       burstSource2.stop(t + burstDur);
     }
 
+    // Body resonance filters for warmth (peaking EQ)
+    var bodyLow = ctx.createBiquadFilter();
+    bodyLow.type = "peaking";
+    bodyLow.frequency.setValueAtTime(190, t);
+    bodyLow.Q.setValueAtTime(1.5, t);
+    bodyLow.gain.setValueAtTime(4, t);
+
+    var bodyMid = ctx.createBiquadFilter();
+    bodyMid.type = "peaking";
+    bodyMid.frequency.setValueAtTime(820, t);
+    bodyMid.Q.setValueAtTime(1.2, t);
+    bodyMid.gain.setValueAtTime(3, t);
+
+    var bodyAir = ctx.createBiquadFilter();
+    bodyAir.type = "peaking";
+    bodyAir.frequency.setValueAtTime(2800, t);
+    bodyAir.Q.setValueAtTime(1.0, t);
+    bodyAir.gain.setValueAtTime(2, t);
+
+    // Chain: envGain → bodyLow → bodyMid → bodyAir → output
+    envGain.connect(bodyLow);
+    bodyLow.connect(bodyMid);
+    bodyMid.connect(bodyAir);
+
     // Optional instrument filter (on the output)
     var filter = null;
     if (instrument.filterType && instrument.filterType !== "none") {
       filter = createFilter(instrument, t);
-      envGain.connect(filter);
+      bodyAir.connect(filter);
       filter.connect(channelGains[ch]);
     } else {
-      envGain.connect(channelGains[ch]);
+      bodyAir.connect(channelGains[ch]);
     }
 
     burstSource.start(t);
@@ -517,6 +563,9 @@ var Synth = (function () {
       feedbackGain2: feedbackGain2,
       feedbackFilter: feedbackFilter,
       feedbackFilter2: feedbackFilter2,
+      bodyLow: bodyLow,
+      bodyMid: bodyMid,
+      bodyAir: bodyAir,
       filter: filter,
       envGain: envGain,
       instrument: instrument,
@@ -539,6 +588,9 @@ var Synth = (function () {
         if (feedbackGain2) feedbackGain2.disconnect();
         feedbackFilter.disconnect();
         if (feedbackFilter2) feedbackFilter2.disconnect();
+        bodyLow.disconnect();
+        bodyMid.disconnect();
+        bodyAir.disconnect();
         if (filter) filter.disconnect();
         envGain.disconnect();
       } catch (e) {}
@@ -688,6 +740,9 @@ var Synth = (function () {
           if (h.feedbackGain2) h.feedbackGain2.disconnect();
           h.feedbackFilter.disconnect();
           if (h.feedbackFilter2) h.feedbackFilter2.disconnect();
+          if (h.bodyLow) h.bodyLow.disconnect();
+          if (h.bodyMid) h.bodyMid.disconnect();
+          if (h.bodyAir) h.bodyAir.disconnect();
         } else if (h.type === "fm") {
           h.carrier.stop();
           h.carrier.disconnect();

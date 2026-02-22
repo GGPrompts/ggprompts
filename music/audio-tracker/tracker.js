@@ -146,9 +146,12 @@ var Tracker = (function () {
     if (rawCell === null || rawCell === undefined) return out;
 
     if (Array.isArray(rawCell)) {
+      // Compact format: [midi, inst, dur, vel]
+      // (ChipPlayer uses cell[2]=duration, cell[3]=velocity)
       if (rawCell.length > 0) out.note = rawCell[0];
       if (rawCell.length > 1) out.inst = rawCell[1];
-      if (rawCell.length > 2) out.vol = rawCell[2];
+      if (rawCell.length > 2) out._dur = rawCell[2] || 0;
+      if (rawCell.length > 3 && rawCell[3] != null) out.vol = rawCell[3];
       return normalizeCell(out);
     }
 
@@ -169,6 +172,8 @@ var Tracker = (function () {
       out.inst = (inst === undefined || inst === null) ? 0 : inst;
       out.vol = (vol === undefined) ? null : vol;
       out.fx = fx || null;
+      // Preserve compact-format duration
+      if (rawCell._dur !== undefined) out._dur = rawCell._dur;
     }
 
     if (out.note !== null) out.note = toInt(out.note, null);
@@ -293,6 +298,14 @@ var Tracker = (function () {
       } else {
         for (var r2 = 0; r2 < len && r2 < rawChannel.length; r2++) {
           rows[r2] = normalizeCell(rawChannel[r2]);
+          // Auto-place note-off from compact format duration
+          var cell = rows[r2];
+          if (cell.note !== null && cell.note >= 0 && cell._dur > 0) {
+            var offRow = r2 + cell._dur;
+            if (offRow >= 0 && offRow < len && rows[offRow].note === null) {
+              rows[offRow] = { note: -1, inst: cell.inst, vol: null, fx: null };
+            }
+          }
         }
       }
 

@@ -115,11 +115,33 @@ var ChipPlayer = (function () {
       fbFilter.frequency.setValueAtTime(brightness, time);
       fbFilter.Q.setValueAtTime(0.5, time);
 
+      // Body resonance filters for warmth
+      var bodyLow = ctx.createBiquadFilter();
+      bodyLow.type = "peaking";
+      bodyLow.frequency.setValueAtTime(190, time);
+      bodyLow.Q.setValueAtTime(1.5, time);
+      bodyLow.gain.setValueAtTime(4, time);
+
+      var bodyMid = ctx.createBiquadFilter();
+      bodyMid.type = "peaking";
+      bodyMid.frequency.setValueAtTime(820, time);
+      bodyMid.Q.setValueAtTime(1.2, time);
+      bodyMid.gain.setValueAtTime(3, time);
+
+      var bodyAir = ctx.createBiquadFilter();
+      bodyAir.type = "peaking";
+      bodyAir.frequency.setValueAtTime(2800, time);
+      bodyAir.Q.setValueAtTime(1.0, time);
+      bodyAir.gain.setValueAtTime(2, time);
+
       burstSrc.connect(pluckDelay);
       pluckDelay.connect(fbFilter);
       fbFilter.connect(fbGain);
       fbGain.connect(pluckDelay);
-      fbGain.connect(dest);
+      fbGain.connect(bodyLow);
+      bodyLow.connect(bodyMid);
+      bodyMid.connect(bodyAir);
+      bodyAir.connect(dest);
 
       burstSrc.start(time);
       burstSrc.stop(time + burstDur);
@@ -150,7 +172,7 @@ var ChipPlayer = (function () {
         pluckDelay2.connect(fbFilter2);
         fbFilter2.connect(fbGain2);
         fbGain2.connect(pluckDelay2);
-        fbGain2.connect(dest);
+        fbGain2.connect(bodyLow);
 
         burstSrc2.start(time);
         burstSrc2.stop(time + burstDur);
