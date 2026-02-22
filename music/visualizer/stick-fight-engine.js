@@ -122,6 +122,18 @@
         return cur + (tgt - cur) * (1 - Math.exp(-speed * dt));
     }
 
+    // ── Locomotion constants ────────────────────────────────────────
+    var GAIT = {
+        velocityThreshold: 2,     // px/s below which gait influence fades out
+        velocityFadeRange: 20,    // px/s range over which gait blends in (threshold to threshold+range)
+        strideLength:      0.45,  // fraction of figH per full gait cycle
+        pelvisSwayAmount:  0.018, // fraction of figH for lateral hip offset
+        shoulderTwistAmount: 0.012, // fraction of figH for shoulder y offset
+        legLiftHeight:     0.06,  // fraction of figH for swing foot lift
+        kneeForward:       0.12,  // fraction of figH for knee forward push
+        footPlantBlend:    12     // lerp speed for foot-plant correction
+    };
+
     // ── Create figure ─────────────────────────────────────────────────
     function create(opts) {
         opts = opts || {};
@@ -144,6 +156,14 @@
             // mode: 'pose' or 'ragdoll'
             mode: 'pose',
             ragdoll: null,
+
+            // locomotion state
+            velocity:    0,       // current lateral velocity (px/s), computed each frame
+            lastX:       opts.x || 0,  // previous frame x for velocity computation
+            gaitPhase:   0,       // 0..1 gait cycle position
+            gaitInfluence: 0,     // 0..1 blend weight (fades in/out with velocity)
+            plantFootLX: 0,       // world-x of left foot plant position
+            plantFootRX: 0,       // world-x of right foot plant position
 
             // combat state
             hp:          opts.hp || 100,
@@ -177,36 +197,114 @@
         // Leg spread in pixels
         var spread = p.legSpread * fH * 0.15;
 
-        // Ankles at y=0
-        var ankleL = { x: -spread - fH * 0.02, y: 0 };
-        var ankleR = { x:  spread + fH * 0.02, y: 0 };
+        // ── Locomotion gait computation ──────────────────────────
+        // gaitInfluence is 0 when stationary, blending to 1 at speed.
+        // When 0, all gait offsets are zero → identical to old behavior.
+        var gi = fig.gaitInfluence || 0;
+        var phase = fig.gaitPhase || 0;
+        var twoPi = Math.PI * 2;
 
-        // Knees
-        var kneeBaseY = -shin + bounceOff;
+        // Sine waves for gait cycle
+        // phase 0..1 maps to one full stride (two steps).
+        // Left foot plants during phase 0..0.5, right during 0.5..1.
+        var sinPhase  = Math.sin(phase * twoPi);       // oscillates +-1
+        var cosPhase  = Math.cos(phase * twoPi);       // for secondary motion
+        var sinHalf   = Math.sin(phase * twoPi * 2);   // double-frequency for vertical bob
+
+        // Movement direction: +1 if moving in facing dir, -1 if backing up
+        var moveDir = (fig.velocity || 0) >= 0 ? 1 : -1;
+        // Flip stride direction based on actual movement vs facing
+        var strideDir = facing * moveDir;
+
+        // Per-foot stride offsets (forward/back from neutral ankle position)
+        // Left foot: forward during phase 0.25, back during 0.75
+        // Right foot: opposite (forward during 0.75, back during 0.25)
+        var strideAmount = GAIT.kneeForward * fH * gi;
+        var liftAmount   = GAIT.legLiftHeight * fH * gi;
+
+        // Left foot: sinPhase positive = forward swing, negative = planted
+        var leftSwingFwd  =  sinPhase;   // +1 at phase=0.25, -1 at phase=0.75
+        var rightSwingFwd = -sinPhase;   // opposite
+
+        // Foot lift: only when swinging forward (positive half of sin)
+        // Use sin^2 for smoother lift shape, only during swing
+        var leftLift  = Math.max(0, sinPhase)  * Math.max(0, sinPhase);
+        var rightLift = Math.max(0, -sinPhase) * Math.max(0, -sinPhase);
+
+        // Pelvis lateral sway: shift over the planted foot
+        var pelvisSwayPx = GAIT.pelvisSwayAmount * fH * gi * sinPhase;
+
+        // Shoulder counter-rotation: opposite to pelvis
+        var shoulderTwistPx = GAIT.shoulderTwistAmount * fH * gi * sinPhase;
+
+        // Vertical bob from gait (subtle, double-frequency)
+        var gaitBounce = -Math.abs(sinHalf) * 0.015 * fH * gi;
+
+        // ── Base ankle positions ─────────────────────────────────
+        var ankleL = {
+            x: -spread - fH * 0.02 + leftSwingFwd  * strideAmount * strideDir,
+            y: 0 - leftLift * liftAmount
+        };
+        var ankleR = {
+            x:  spread + fH * 0.02 + rightSwingFwd * strideAmount * strideDir,
+            y: 0 - rightLift * liftAmount
+        };
+
+        // ── Anti-slide: foot planting ────────────────────────────
+        // During each foot's plant phase, lock its world-x to where it
+        // first touched down, then express that as a local offset.
+        if (gi > 0.01) {
+            // Left foot plants when sinPhase < 0 (phase 0.5..1.0 region)
+            var leftPlanting  = sinPhase < -0.05;
+            var rightPlanting = sinPhase >  0.05;
+
+            if (leftPlanting) {
+                // Correct ankle local-x so world-x stays at plantFootLX
+                var desiredLocalLX = fig.plantFootLX - fig.x;
+                ankleL.x = ankleL.x * (1 - gi) + desiredLocalLX * gi;
+            } else {
+                // Foot is swinging — update plant position for when it next lands
+                fig.plantFootLX = fig.x + ankleL.x;
+            }
+
+            if (rightPlanting) {
+                var desiredLocalRX = fig.plantFootRX - fig.x;
+                ankleR.x = ankleR.x * (1 - gi) + desiredLocalRX * gi;
+            } else {
+                fig.plantFootRX = fig.x + ankleR.x;
+            }
+        }
+
+        // ── Knees ────────────────────────────────────────────────
+        var kneeBaseY = -shin + bounceOff + gaitBounce;
         var kneeL = {
-            x: ankleL.x * 0.6 + leanOff * 0.3 + p.kneeL * fH * 0.06 * facing,
+            x: ankleL.x * 0.6 + leanOff * 0.3 + p.kneeL * fH * 0.06 * facing
+                + leftSwingFwd * strideAmount * 0.6 * strideDir * gi,
             y: kneeBaseY + Math.abs(p.kneeL) * fH * 0.03
+                - leftLift * liftAmount * 0.7
         };
         var kneeR = {
-            x: ankleR.x * 0.6 + leanOff * 0.3 + p.kneeR * fH * 0.06 * facing,
+            x: ankleR.x * 0.6 + leanOff * 0.3 + p.kneeR * fH * 0.06 * facing
+                + rightSwingFwd * strideAmount * 0.6 * strideDir * gi,
             y: kneeBaseY + Math.abs(p.kneeR) * fH * 0.03
+                - rightLift * liftAmount * 0.7
         };
 
-        // Hip
-        var hipY = kneeBaseY - thigh + bounceOff;
-        var hip = { x: leanOff, y: hipY };
+        // ── Hip (with pelvis sway) ───────────────────────────────
+        var hipY = kneeBaseY - thigh + bounceOff + gaitBounce;
+        var hip = { x: leanOff + pelvisSwayPx, y: hipY };
 
-        // Neck
+        // ── Neck ─────────────────────────────────────────────────
         var neckY = hipY - torsoLen;
-        var neck = { x: leanOff * 1.2, y: neckY };
+        var neck = { x: leanOff * 1.2 + pelvisSwayPx * 0.3, y: neckY };
 
         // Head
-        var head = { x: leanOff * 1.3, y: neckY - neckLen - headR };
+        var head = { x: leanOff * 1.3 + pelvisSwayPx * 0.2, y: neckY - neckLen - headR };
 
-        // Shoulders
+        // ── Shoulders (with counter-rotation) ────────────────────
         var shY = neckY + neckLen * 0.3;
-        var shoulderL = { x: neck.x - shouldW, y: shY };
-        var shoulderR = { x: neck.x + shouldW, y: shY };
+        var shoulderL = { x: neck.x - shouldW, y: shY + shoulderTwistPx };
+        var shoulderR = { x: neck.x + shouldW, y: shY - shoulderTwistPx };
 
         // Arms — angles from straight-down (0 = hanging), negative = forward/up
         var laAng = p.armLAngle;
@@ -344,6 +442,32 @@
             if (fig.ragdoll) stepRagdoll(fig.ragdoll, dt);
             return;
         }
+
+        // ── Locomotion: compute velocity and advance gait ──
+        var dx = fig.x - fig.lastX;
+        fig.velocity = dt > 0 ? dx / dt : 0;
+        fig.lastX = fig.x;
+
+        var absVel = Math.abs(fig.velocity);
+        var threshold = GAIT.velocityThreshold;
+        var fadeRange = GAIT.velocityFadeRange;
+
+        // Compute target gait influence (0..1 blend)
+        var targetInfluence = 0;
+        if (absVel > threshold) {
+            targetInfluence = Math.min((absVel - threshold) / fadeRange, 1);
+        }
+        // Smooth the influence to avoid popping
+        fig.gaitInfluence = lerpExp(fig.gaitInfluence, targetInfluence, 8, dt);
+
+        // Advance gait phase proportional to distance traveled
+        if (fig.gaitInfluence > 0.01) {
+            var stridePixels = GAIT.strideLength * fig.figH;
+            var distThisFrame = Math.abs(dx);
+            fig.gaitPhase += distThisFrame / stridePixels;
+            fig.gaitPhase -= Math.floor(fig.gaitPhase); // wrap to 0..1
+        }
+
         // Drive attack animation if active
         if (fig.attacking) {
             updateAttack(fig, dt);
@@ -1122,6 +1246,7 @@
         BONE:       BONE,
         POSES:      POSES,
         MOVES:      MOVES,
+        GAIT:       GAIT,
 
         create:         create,
         computeJoints:  computeJoints,
