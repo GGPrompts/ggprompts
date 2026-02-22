@@ -77,7 +77,7 @@
         var lightningTimer = 0;
         var lightningFreeze = 0;   // freeze-frame alpha
 
-        // Sparks from sword clash
+        // Sparks from sword clash (now driven by onContact)
         var sparks = [];
 
         // Fencer state (StickFight figures)
@@ -94,9 +94,23 @@
         var titleAlpha = 0;
         var titleTarget = 0;
 
-        // Thunder rumble visual (screen shake)
-        var shakeX = 0, shakeY = 0;
-        var shakeIntensity = 0;
+        // Screen shake (engine-managed)
+        var shakeObj = null;
+        // Lightning shake (separate from combat shake, for thunder)
+        var thunderShakeIntensity = 0;
+        var thunderShakeX = 0, thunderShakeY = 0;
+
+        // ── Choreography state ──
+        var activeChoreo = null;       // current StickFight.choreograph() object
+        var choreoPool = {};           // section name → array of sequence templates
+        var lastChoreoSection = '';     // track section changes for launching new choreographies
+        var beatAccum = 0;             // beat counter within current section
+
+        // Denouement tracking
+        var ragdolled = false;
+
+        // Contact callback registered flag
+        var contactRegistered = false;
 
         // ── Helpers ──
 
@@ -124,6 +138,109 @@
             if (seqIndex <= 47) return 'finale';
             if (seqIndex <= 49) return 'denouement';
             return 'denouement';
+        }
+
+        // ── Choreography sequence templates ──
+        // Each is an array of steps for StickFight.choreograph().
+        // beat values are relative to the start of the choreography.
+        // attacker: 'A' or 'B', move: StickFight.MOVES key, defender: pose name
+        function buildChoreoPool() {
+            choreoPool = {
+                // Bout 1: cautious probing — alternating slashes with blocks, wide spacing
+                bout1: [
+                    [
+                        { beat: 0, attacker: 'A', move: 'slash', defender: 'block' },
+                        { beat: 2, spacing: true },
+                        { beat: 4, attacker: 'B', move: 'slash', defender: 'block' },
+                        { beat: 6, spacing: true }
+                    ],
+                    [
+                        { beat: 0, attacker: 'B', move: 'lunge', defender: 'block' },
+                        { beat: 2, attacker: 'A', move: 'slash', result: 'whiff' },
+                        { beat: 4, spacing: true },
+                        { beat: 6, attacker: 'A', move: 'lunge', defender: 'block' }
+                    ],
+                    [
+                        { beat: 0, attacker: 'A', move: 'lunge', defender: 'block' },
+                        { beat: 3, attacker: 'B', move: 'slash', defender: 'recoil' },
+                        { beat: 5, spacing: true },
+                        { beat: 7, attacker: 'A', move: 'slash', defender: 'block' }
+                    ]
+                ],
+                // Bout 2: aggressive exchanges — faster tempo, more hits landing
+                bout2: [
+                    [
+                        { beat: 0, attacker: 'A', move: 'slash', defender: 'block' },
+                        { beat: 1, attacker: 'B', move: 'lunge', defender: 'recoil' },
+                        { beat: 2, attacker: 'A', move: 'lunge', defender: 'block' },
+                        { beat: 3, spacing: true }
+                    ],
+                    [
+                        { beat: 0, attacker: 'B', move: 'slash', defender: 'block' },
+                        { beat: 1, attacker: 'B', move: 'lunge', result: 'hit' },
+                        { beat: 2, attacker: 'A', move: 'slash', defender: 'recoil' },
+                        { beat: 3, attacker: 'A', move: 'slash', defender: 'block' }
+                    ],
+                    [
+                        { beat: 0, attacker: 'A', move: 'lunge', defender: 'block' },
+                        { beat: 1, attacker: 'A', move: 'slash', result: 'hit' },
+                        { beat: 2, spacing: true },
+                        { beat: 3, attacker: 'B', move: 'lunge', defender: 'block' }
+                    ]
+                ],
+                // Finale: furious simultaneous attacks — every beat is action
+                finale: [
+                    [
+                        { beat: 0, attacker: 'A', move: 'slash', defender: 'block' },
+                        { beat: 0.5, attacker: 'B', move: 'slash', defender: 'block' },
+                        { beat: 1, attacker: 'A', move: 'lunge', result: 'hit' },
+                        { beat: 1.5, attacker: 'B', move: 'lunge', defender: 'recoil' }
+                    ],
+                    [
+                        { beat: 0, attacker: 'B', move: 'lunge', defender: 'block' },
+                        { beat: 0.5, attacker: 'A', move: 'slash', result: 'hit' },
+                        { beat: 1, attacker: 'B', move: 'slash', defender: 'recoil' },
+                        { beat: 1.5, attacker: 'A', move: 'lunge', defender: 'block' }
+                    ],
+                    [
+                        { beat: 0, attacker: 'A', move: 'lunge', result: 'hit' },
+                        { beat: 0.5, attacker: 'B', move: 'slash', result: 'hit' },
+                        { beat: 1, attacker: 'A', move: 'slash', defender: 'block' },
+                        { beat: 1.5, attacker: 'B', move: 'lunge', result: 'hit' }
+                    ],
+                    [
+                        { beat: 0, attacker: 'A', move: 'slash', defender: 'block' },
+                        { beat: 0.5, attacker: 'A', move: 'lunge', result: 'hit' },
+                        { beat: 1, attacker: 'B', move: 'slash', defender: 'block' },
+                        { beat: 1.5, attacker: 'B', move: 'lunge', result: 'hit' }
+                    ]
+                ]
+            };
+        }
+
+        // Pick a random sequence from the pool for a given section
+        function pickChoreoSequence(section) {
+            var pool = choreoPool[section];
+            if (!pool || pool.length === 0) return null;
+            return pool[Math.floor(Math.random() * pool.length)];
+        }
+
+        // Launch a new choreography for the current section
+        function launchChoreography(section, beatDuration) {
+            var seq = pickChoreoSequence(section);
+            if (!seq) return;
+
+            // Reset HP to prevent actual ragdoll from combat damage during bouts
+            // (we control ragdoll manually in denouement)
+            fencerA.hp = 100;
+            fencerB.hp = 100;
+
+            // Clear any in-progress attacks so new choreography can start clean
+            fencerA.attacking = null;
+            fencerB.attacking = null;
+
+            activeChoreo = StickFight.choreograph(fencerA, fencerB, seq);
+            activeChoreo.beatDuration = beatDuration;
         }
 
         // ── Rain system ──
@@ -204,7 +321,7 @@
                 lightningBolts.push(createBolt(x, -10, roofY + rand(-20, 30)));
             }
             flashAlpha = Math.max(flashAlpha, rand(0.15, 0.4));
-            shakeIntensity = Math.max(shakeIntensity, rand(2, 6));
+            thunderShakeIntensity = Math.max(thunderShakeIntensity, rand(2, 6));
         }
 
         function updateLightning(dt) {
@@ -239,7 +356,7 @@
             }
         }
 
-        // ── Spark system (sword clashes) ──
+        // ── Spark system (sword clashes — now contact-driven) ──
         function emitSparks(x, y, count) {
             for (var i = 0; i < count; i++) {
                 var angle = rand(-Math.PI, Math.PI);
@@ -398,7 +515,7 @@
             if (flashAlphaVal < 0.05) return;
             if (fig.mode === 'ragdoll') return;
             var joints = StickFight.computeJoints(fig);
-            var hand = joints.handL;
+            var hand = (fig.weaponHand === 'right') ? joints.handR : joints.handL;
             if (fig.params.swordLen > 0) {
                 var sLen = fig.params.swordLen * fig.figH;
                 var sAng = fig.params.swordAngle;
@@ -424,42 +541,55 @@
             fig.x = lerpExp(fig.x, targetX, 6, dt);
         }
 
-        // Denouement tracking
-        var ragdolled = false;
+        // Guard pose helper (used for non-combat sections)
+        function setFencerGuard(fig, armExt, lean, swordAng, legSpr) {
+            if (fig.mode === 'ragdoll') return;
+            StickFight.setPose(fig, 'guard');
+            StickFight.setTarget(fig, 'lean', lean);
+            StickFight.setTarget(fig, 'swordAngle', swordAng);
+            StickFight.setTarget(fig, 'legSpread', legSpr);
+        }
 
-        function choreographBeat(beat, energy, seqIdx) {
-            var beatMod = beat % 8;
-            var isClash = false;
+        // ── Beat handler: manages choreography lifecycle ──
+        function handleBeat(beat, energy, seqIdx) {
+            beatAccum++;
 
+            // Non-combat sections use direct pose control
             if (sectionMood === 'storm') {
+                activeChoreo = null;
                 setFencerGuard(fencerA, 0.3, 0, -0.3, 0.3);
                 stanceA = 0;
                 setFencerGuard(fencerB, 0.3, 0, -0.3, 0.3);
                 stanceB = 0;
-                return false;
+                return;
             }
 
             if (sectionMood === 'salute') {
+                activeChoreo = null;
                 StickFight.setPose(fencerA, 'salute');
                 StickFight.setTarget(fencerA, 'swordAngle', -1.2);
                 stanceA = 0;
                 StickFight.setPose(fencerB, 'salute');
                 StickFight.setTarget(fencerB, 'swordAngle', -1.2);
                 stanceB = 0;
-                return false;
+                return;
             }
 
             if (sectionMood === 'interlude') {
+                activeChoreo = null;
                 setFencerGuard(fencerA, 0.4, -0.2, -0.2, 0.2);
                 stanceA = 0;
                 setFencerGuard(fencerB, 0.4, -0.2, -0.2, 0.2);
                 stanceB = 0;
-                return false;
+                return;
             }
 
             if (sectionMood === 'denouement') {
+                activeChoreo = null;
                 if (!ragdolled) {
-                    // Fencer B loses — ragdoll with impulse away from A
+                    // Fencer B loses — final lunge from A
+                    StickFight.attack(fencerA, 'lunge', fencerB);
+                    // Ragdoll B with impulse away from A
                     StickFight.goRagdoll(fencerB, roofY, fencerB.facing * -200, -300);
                     ragdolled = true;
                 }
@@ -467,69 +597,66 @@
                 StickFight.setPose(fencerA, 'salute');
                 StickFight.setTarget(fencerA, 'swordAngle', -1.0);
                 stanceA = 0;
-                return false;
+                return;
             }
 
-            // Active bouts
-            var aggression = sectionMood === 'bout1' ? 0.5 : sectionMood === 'bout2' ? 0.7 : 0.95;
-            var tempo = sectionMood === 'finale' ? 2 : sectionMood === 'bout2' ? 4 : 8;
+            // ── Active combat sections: bout1, bout2, finale ──
+            // Compute beat duration from analysis
+            var beatDur = analysis ? analysis.secondsPerBeat : 0.25;
 
-            if (beatMod % tempo === 0 || (energy > 0.6 && beatMod % 2 === 0)) {
-                var aAttacks = (beat % (tempo * 2)) < tempo;
+            // Launch new choreography when current one finishes or on section change
+            if (!activeChoreo || !activeChoreo.isActive || sectionMood !== lastChoreoSection) {
+                lastChoreoSection = sectionMood;
+                var section = sectionMood;
+                // Map 'lightning' to bout2-style sequences
+                if (section === 'lightning') section = 'bout2';
+                launchChoreography(section, beatDur);
+            }
 
-                if (energy > 0.8 && sectionMood === 'finale') {
-                    setFencerLunge(fencerA, aggression);
-                    setFencerLunge(fencerB, aggression);
-                    isClash = true;
-                } else if (aAttacks) {
-                    setFencerLunge(fencerA, aggression);
-                    setFencerParry(fencerB, aggression);
-                    attackFlashA = 0.8;
-                } else {
-                    setFencerParry(fencerA, aggression);
-                    setFencerLunge(fencerB, aggression);
-                    attackFlashB = 0.8;
-                }
+            // Update stance offsets based on who is attacking
+            if (fencerA.attacking) {
+                stanceA = 0.6;
+                attackFlashA = 0.8;
             } else {
-                var gi = 0.4 + energy * 0.2;
-                setFencerGuard(fencerA, gi, rand(-0.1, 0.1), rand(-0.4, -0.1), 0.4);
-                setFencerGuard(fencerB, gi, rand(-0.1, 0.1), rand(-0.4, -0.1), 0.4);
+                stanceA = lerpExp(stanceA, 0, 4, beatDur);
+            }
+            if (fencerB.attacking) {
+                stanceB = 0.6;
+                attackFlashB = 0.8;
+            } else {
+                stanceB = lerpExp(stanceB, 0, 4, beatDur);
+            }
+        }
+
+        // ── Contact callback (registered once via StickFight.onContact) ──
+        function onContactHandler(contact, attacker, target) {
+            // Spawn sparks at the actual contact point
+            var sparkCount = Math.floor(10 + contact.strength * 20);
+            emitSparks(contact.point.x, contact.point.y, sparkCount);
+
+            // Attack flash on the attacker
+            if (attacker === fencerA) {
+                attackFlashA = Math.max(attackFlashA, 0.6 + contact.strength * 0.4);
+            } else {
+                attackFlashB = Math.max(attackFlashB, 0.6 + contact.strength * 0.4);
             }
 
-            return isClash;
-        }
+            // Flash overlay proportional to hit strength
+            flashAlpha = Math.max(flashAlpha, 0.05 + contact.strength * 0.15);
 
-        // Map old fencer params to StickFight pose targets
-        function setFencerLunge(fig, intensity) {
-            if (fig.mode === 'ragdoll') return;
-            StickFight.setPose(fig, 'lunge');
-            StickFight.setTarget(fig, 'swordAngle', -0.1 + rand(-0.15, 0.15));
-            StickFight.setTarget(fig, 'legSpread', 0.5 + intensity * 0.4);
-            StickFight.setTarget(fig, 'lean', 0.4 + intensity * 0.4);
-            if (fig === fencerA) stanceA = 0.5 + intensity * 0.5;
-            else stanceB = 0.5 + intensity * 0.5;
-        }
+            // HitStop: 2-3 frames of freeze on both fencers for clash feel
+            var stopFrames = contact.strength > 0.7 ? 3 : 2;
+            StickFight.hitStop(attacker, stopFrames);
+            StickFight.hitStop(target, stopFrames);
 
-        function setFencerParry(fig, intensity) {
-            if (fig.mode === 'ragdoll') return;
-            StickFight.setPose(fig, 'block');
-            var parryType = Math.random();
-            var sAng;
-            if (parryType < 0.33) sAng = -0.8 + rand(-0.2, 0.2);
-            else if (parryType < 0.66) sAng = 0.3 + rand(-0.2, 0.2);
-            else sAng = -0.3 + rand(-0.3, 0.3);
-            StickFight.setTarget(fig, 'swordAngle', sAng);
-            StickFight.setTarget(fig, 'legSpread', 0.2 + intensity * 0.1);
-            if (fig === fencerA) stanceA = -0.2 - intensity * 0.2;
-            else stanceB = -0.2 - intensity * 0.2;
-        }
+            // Screen shake on heavy hits via engine API
+            var shakeStrength = 2 + contact.strength * 5;
+            var shakeDur = 0.15 + contact.strength * 0.1;
+            shakeObj = StickFight.screenShake(shakeStrength, shakeDur);
 
-        function setFencerGuard(fig, armExt, lean, swordAng, legSpr) {
-            if (fig.mode === 'ragdoll') return;
-            StickFight.setPose(fig, 'guard');
-            StickFight.setTarget(fig, 'lean', lean);
-            StickFight.setTarget(fig, 'swordAngle', swordAng);
-            StickFight.setTarget(fig, 'legSpread', legSpr);
+            // Prevent actual HP-based ragdoll during bouts (we control that in denouement)
+            attacker.hp = 100;
+            target.hp = 100;
         }
 
         // ── Sky gradient ──
@@ -609,7 +736,8 @@
             fencerA = StickFight.create({
                 x: fencerBaseXA, y: roofY,
                 figH: figH, facing: 1,
-                color: FENCER_A_COLOR, poseSpeed: 10
+                color: FENCER_A_COLOR, poseSpeed: 10,
+                weaponHand: 'left', leadSide: 'left'
             });
             fencerA.params.swordLen = 0.35;
             fencerA.targets.swordLen = 0.35;
@@ -617,7 +745,8 @@
             fencerB = StickFight.create({
                 x: fencerBaseXB, y: roofY,
                 figH: figH, facing: -1,
-                color: FENCER_B_COLOR, poseSpeed: 10
+                color: FENCER_B_COLOR, poseSpeed: 10,
+                weaponHand: 'right', leadSide: 'right'
             });
             fencerB.params.swordLen = 0.35;
             fencerB.targets.swordLen = 0.35;
@@ -626,6 +755,24 @@
             attackFlashA = 0; attackFlashB = 0;
             ragdolled = false;
 
+            // Register contact callback once
+            if (!contactRegistered) {
+                StickFight.onContact(onContactHandler);
+                contactRegistered = true;
+            }
+
+            // Build choreography sequence pool
+            buildChoreoPool();
+            activeChoreo = null;
+            lastChoreoSection = '';
+            beatAccum = 0;
+
+            // Screen shake state
+            shakeObj = null;
+            thunderShakeIntensity = 0;
+            thunderShakeX = 0;
+            thunderShakeY = 0;
+
             initRain();
             initClouds();
 
@@ -633,9 +780,6 @@
             sparks = [];
             beatPulse = 0;
             flashAlpha = 0;
-            shakeIntensity = 0;
-            shakeX = 0;
-            shakeY = 0;
             lightningFreeze = 0;
             lastSeqIndex = -1;
             titleAlpha = 0;
@@ -698,11 +842,10 @@
             rainIntensity = lerpExp(rainIntensity, targetRain, 3, dt);
 
             // ── Beat detection ──
-            var isClash = false;
             if (frameData.beatChanged) {
 
-                // Choreograph fencer moves
-                isClash = choreographBeat(beat, energy, seqIdx);
+                // Handle choreography and poses on beat
+                handleBeat(beat, energy, seqIdx);
 
                 // Lightning on high energy beats
                 if (energy > 0.5 && Math.random() < energy * 0.4) {
@@ -714,37 +857,42 @@
                     flashAlpha = Math.max(flashAlpha, 0.2);
                 }
 
-                // Sword clash sparks
-                if (isClash || (energy > 0.4 && sectionMood !== 'storm' && sectionMood !== 'interlude' && sectionMood !== 'denouement')) {
-                    var clashX = (fencerA.x + fencerB.x) * 0.5;
-                    var clashY = roofY - H * 0.2;
-                    var sparkCount = isClash ? 25 : Math.floor(8 + energy * 15);
-                    emitSparks(clashX, clashY, sparkCount);
-
-                    if (isClash) {
-                        flashAlpha = Math.max(flashAlpha, 0.1 + energy * 0.15);
-                        shakeIntensity = Math.max(shakeIntensity, 3 + energy * 4);
-                    }
-                }
-
                 // Freeze frame on section changes
                 if (seqIdx !== lastSeqIndex - 1 && (sectionMood === 'finale' || sectionMood === 'lightning')) {
                     lightningFreeze = 0.3;
                 }
             }
 
+            // ── Advance active choreography each frame ──
+            if (activeChoreo && activeChoreo.isActive) {
+                StickFight.advanceChoreography(activeChoreo, dt);
+            }
+
             // ── Decay ──
             flashAlpha *= Math.exp(-5 * dt);
             lightningFreeze *= Math.exp(-3 * dt);
-            shakeIntensity *= Math.exp(-6 * dt);
+            thunderShakeIntensity *= Math.exp(-6 * dt);
 
-            // Screen shake
-            if (shakeIntensity > 0.1) {
-                shakeX = (Math.random() - 0.5) * shakeIntensity * 2;
-                shakeY = (Math.random() - 0.5) * shakeIntensity * 2;
+            // ── Compute combined screen shake ──
+            // Thunder shake (lightning-triggered, manual decay)
+            if (thunderShakeIntensity > 0.1) {
+                thunderShakeX = (Math.random() - 0.5) * thunderShakeIntensity * 2;
+                thunderShakeY = (Math.random() - 0.5) * thunderShakeIntensity * 2;
             } else {
-                shakeX = 0; shakeY = 0;
+                thunderShakeX = 0; thunderShakeY = 0;
             }
+
+            // Combat shake (engine-managed via StickFight.screenShake)
+            var combatShakeX = 0, combatShakeY = 0;
+            if (shakeObj && shakeObj.active) {
+                StickFight.updateShake(shakeObj, dt);
+                combatShakeX = shakeObj.x;
+                combatShakeY = shakeObj.y;
+            }
+
+            // Combined shake offset
+            var totalShakeX = thunderShakeX + combatShakeX;
+            var totalShakeY = thunderShakeY + combatShakeY;
 
             // Title visibility
             if (sectionMood === 'storm' || sectionMood === 'salute') {
@@ -778,7 +926,7 @@
 
             // ── Draw scene (back to front) ──
             ctx.save();
-            ctx.translate(shakeX, shakeY);
+            ctx.translate(totalShakeX, totalShakeY);
 
             // 1. Sky
             drawSky(ctx, lightningIntensity);

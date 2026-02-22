@@ -77,10 +77,11 @@
         var flashAlpha = 0;
         var shakeX = 0, shakeY = 0;
         var shakeIntensity = 0;
-        var sectionMood = 'intro'; // intro, waltz, disturbance, escalation, buildup, brawl, peak, stunned, sheepish, ending, silent
+        var sectionMood = 'intro';
         var lastSeqIndex = -1;
         var titleAlpha = 0;
         var titleTarget = 0;
+        var contactRegistered = false;
 
         // Tavern geometry
         var floorY = 0;
@@ -92,17 +93,52 @@
         var patrons = [];
         var NUM_PAIRS = 4;
 
+        // ── Choreography state ──
+        var activeChoreos = [];   // active StickFight choreography objects
+        var beatDuration = 0.35;  // seconds per choreography beat (tuned to song tempo)
+        var choreoTimer = 0;      // cooldown between launching new choreographies
+        var lastBeat = -1;
+
+        // ── Choreography sequences ──
+        // Quick scuffle: jab-jab exchange, both return to guard
+        var SEQ_QUICK_SCUFFLE = [
+            { beat: 0, attacker: 'A', move: 'punch_r', defender: 'block' },
+            { beat: 1, attacker: 'B', move: 'punch_l', defender: 'recoil' },
+            { beat: 2, attacker: 'A', move: 'punch_l', result: 'whiff' },
+            { beat: 3, spacing: true }
+        ];
+
+        // Big haymaker exchange: wind-up, big swing, counter
+        var SEQ_HAYMAKER = [
+            { beat: 0, attacker: 'A', move: 'grab', defender: 'guard' },
+            { beat: 2, attacker: 'A', move: 'haymaker', defender: 'recoil' },
+            { beat: 4, attacker: 'B', move: 'uppercut', defender: 'recoil' },
+            { beat: 6, spacing: true }
+        ];
+
+        // Group melee: rapid back-and-forth chaos
+        var SEQ_MELEE = [
+            { beat: 0, attacker: 'A', move: 'punch_r', defender: 'recoil' },
+            { beat: 1, attacker: 'B', move: 'kick_high', defender: 'recoil' },
+            { beat: 2, attacker: 'A', move: 'uppercut', defender: 'block' },
+            { beat: 3, attacker: 'B', move: 'haymaker', defender: 'recoil' },
+            { beat: 4, attacker: 'A', move: 'punch_l', result: 'whiff' },
+            { beat: 5, spacing: true }
+        ];
+
+        var CHOREO_SEQUENCES = [SEQ_QUICK_SCUFFLE, SEQ_HAYMAKER, SEQ_MELEE];
+
         // ── Flying objects ──
-        var flyingObjects = []; // {type:'mug'|'chair'|'table', x, y, vx, vy, rot, rotSpeed, life}
+        var flyingObjects = [];
 
         // ── Dust clouds ──
-        var dustClouds = []; // {x, y, r, alpha, dr}
+        var dustClouds = [];
 
         // ── Impact stars ──
-        var impactStars = []; // {x, y, alpha, size, angle}
+        var impactStars = [];
 
         // ── Candle flickering ──
-        var candleFlicker = [0, 0, 0, 0, 0]; // random flicker values for 5 candles
+        var candleFlicker = [0, 0, 0, 0, 0];
 
         // ── Patron creation ──
         function createPatron(x, y, colorIdx, pairId, isLeader, figH) {
@@ -129,11 +165,16 @@
             fig.throwArm = 0;
             fig.hitStun = 0;
             fig.sheepish = 0;
+            fig.inChoreo = false;   // true when participating in a choreography
+            // Role: 'fighter' or 'cowerer' — assigned when brawl starts
+            fig.brawlRole = 'fighter';
+            fig.cowerPhase = Math.random() * Math.PI * 2;
             return fig;
         }
 
         function initPatrons() {
             patrons = [];
+            activeChoreos = [];
             var figH = H * 0.28;
             var spacing = Math.min(W * 0.7 / (NUM_PAIRS + 1), figH * 1.8);
             var startX = (W - spacing * (NUM_PAIRS + 1)) * 0.5;
@@ -144,6 +185,74 @@
                 patrons.push(createPatron(cx - pairOffset, cy, i * 2, i, true, figH));
                 patrons.push(createPatron(cx + pairOffset, cy, i * 2 + 1, i, false, figH));
             }
+            // Assign roles: pair 1 (indices 2,3) cowers, rest fight
+            // During peak, even cowerers might get knocked around
+            patrons[2].brawlRole = 'cowerer';
+            patrons[3].brawlRole = 'cowerer';
+        }
+
+        // ── Register contact callback (once) ──
+        function registerContactCallback() {
+            if (contactRegistered) return;
+            contactRegistered = true;
+            StickFight.onContact(function(contact, attacker, target) {
+                // Spawn impact star at actual hit point
+                spawnImpactStar(contact.point.x, contact.point.y);
+                // Spawn dust at feet level below the hit
+                spawnDust(contact.point.x, floorY - 5);
+                // Hit-stop both figures for impact feel
+                StickFight.hitStop(attacker, 3);
+                StickFight.hitStop(target, 4);
+                // Screen flash proportional to strength
+                flashAlpha = Math.max(flashAlpha, 0.06 + contact.strength * 0.12);
+                // Bump shake
+                shakeIntensity = Math.max(shakeIntensity, 3 + contact.strength * 6);
+                // Visual hit stun on target patron
+                if (target.hitStun !== undefined) {
+                    target.hitStun = 1.0 + contact.strength * 0.5;
+                }
+            });
+        }
+
+        // ── Launch a choreography between two patrons ──
+        function launchChoreo(figA, figB, sequence) {
+            if (figA.inChoreo || figB.inChoreo) return;
+
+            // Face each other
+            figA.facing = figA.x < figB.x ? 1 : -1;
+            figB.facing = figB.x < figA.x ? 1 : -1;
+
+            // Move them to fighting distance
+            var midX = (figA.x + figB.x) * 0.5;
+            var fightDist = figA.figH * 0.35;
+            figA.x = midX - fightDist;
+            figB.x = midX + fightDist;
+
+            // Set HP high so they do not ragdoll from choreography damage
+            figA.hp = 9999;
+            figB.hp = 9999;
+
+            var choreo = StickFight.choreograph(figA, figB, sequence);
+            choreo.beatDuration = beatDuration;
+            activeChoreos.push(choreo);
+            figA.inChoreo = true;
+            figB.inChoreo = true;
+        }
+
+        // ── Pick a random sequence, optionally weighted by intensity ──
+        function pickSequence(mood) {
+            if (mood === 'peak') {
+                // Prefer melee and haymaker during peak
+                return Math.random() > 0.3 ? SEQ_MELEE : SEQ_HAYMAKER;
+            }
+            if (mood === 'brawl') {
+                var r = Math.random();
+                if (r < 0.4) return SEQ_QUICK_SCUFFLE;
+                if (r < 0.7) return SEQ_HAYMAKER;
+                return SEQ_MELEE;
+            }
+            // Escalation/buildup: quick scuffles only
+            return SEQ_QUICK_SCUFFLE;
         }
 
         // ── Section mapping ──
@@ -418,10 +527,13 @@
                 ctx.fill();
             }
 
+            // Cowering patron: hands over head, wide eyes
+            var isCowering = p.brawlRole === 'cowerer' && (sectionMood === 'brawl' || sectionMood === 'peak' || sectionMood === 'buildup');
+
             // Face - simple dots for eyes
             ctx.globalAlpha = 1;
             ctx.fillStyle = p.color;
-            var eyeSize = headR * 0.12;
+            var eyeSize = isCowering ? headR * 0.16 : headR * 0.12;
             ctx.beginPath();
             ctx.arc(headX - headR * 0.25, headY - headR * 0.1, eyeSize, 0, Math.PI * 2);
             ctx.arc(headX + headR * 0.25, headY - headR * 0.1, eyeSize, 0, Math.PI * 2);
@@ -437,9 +549,13 @@
             if (p.sheepish > 0.3) {
                 ctx.moveTo(headX - headR * 0.2, headY + headR * 0.25);
                 ctx.lineTo(headX + headR * 0.2, headY + headR * 0.25);
+            } else if (isCowering) {
+                // Open mouth, scared
+                ctx.arc(headX, headY + headR * 0.2, headR * 0.15, 0, Math.PI * 2);
             } else if (p.hitStun > 0) {
                 ctx.arc(headX, headY + headR * 0.2, headR * 0.12, 0, Math.PI * 2);
-            } else if (p.throwTimer > 0) {
+            } else if (p.throwTimer > 0 || p.attacking) {
+                // Aggressive grimace
                 ctx.moveTo(headX - headR * 0.2, headY + headR * 0.15);
                 ctx.lineTo(headX, headY + headR * 0.25);
                 ctx.lineTo(headX + headR * 0.2, headY + headR * 0.15);
@@ -606,9 +722,13 @@
 
             initPatrons();
             initTables();
+            registerContactCallback();
             flyingObjects = [];
             dustClouds = [];
             impactStars = [];
+            activeChoreos = [];
+            choreoTimer = 0;
+            lastBeat = -1;
             beatPulse = 0;
             flashAlpha = 0;
             shakeIntensity = 0;
@@ -618,6 +738,11 @@
             sectionMood = 'intro';
             titleAlpha = 0;
             titleTarget = 0;
+
+            // Compute beatDuration from analysis if available
+            if (anal && anal.secondsPerBeat) {
+                beatDuration = anal.secondsPerBeat;
+            }
         }
 
         // ── Resize ──
@@ -630,6 +755,39 @@
 
             initPatrons();
             initTables();
+        }
+
+        // ── Try to start new choreographies between available fighter pairs ──
+        function tryLaunchChoreos(mood) {
+            // Collect available fighters (not in a choreography, role=fighter)
+            var available = [];
+            for (var i = 0; i < patrons.length; i++) {
+                if (!patrons[i].inChoreo && patrons[i].brawlRole === 'fighter') {
+                    available.push(patrons[i]);
+                }
+            }
+
+            // Pair up nearby fighters
+            while (available.length >= 2) {
+                var a = available.shift();
+                // Find closest remaining
+                var bestIdx = 0;
+                var bestDist = Infinity;
+                for (var j = 0; j < available.length; j++) {
+                    var d = Math.abs(a.x - available[j].x);
+                    if (d < bestDist) {
+                        bestDist = d;
+                        bestIdx = j;
+                    }
+                }
+                var b = available.splice(bestIdx, 1)[0];
+                var seq = pickSequence(mood);
+                launchChoreo(a, b, seq);
+
+                // In brawl, launch at most 2 choreographies at once; in peak, up to 3
+                if (mood === 'peak' && activeChoreos.length >= 3) break;
+                if (mood !== 'peak' && activeChoreos.length >= 2) break;
+            }
         }
 
         // ── Main render ──
@@ -675,10 +833,13 @@
                 lastSeqIndex = seqIdx;
             }
 
+            var brawlActive = sectionMood === 'brawl' || sectionMood === 'peak';
+            var preBrawl = sectionMood === 'escalation' || sectionMood === 'buildup';
+
             // ── Beat pulse ──
             if (frameData.beatChanged) {
 
-                // Spawn objects based on section
+                // Spawn objects based on section (kept from original)
                 if (sectionMood === 'disturbance' && Math.random() > 0.7) {
                     spawnFlyingObject('mug');
                 }
@@ -704,13 +865,12 @@
                     spawnFlyingObject('mug');
                     spawnDust(W * 0.1 + Math.random() * W * 0.8, floorY - 30);
                     spawnDust(W * 0.1 + Math.random() * W * 0.8, floorY - 10);
-                    // Impact stars
-                    spawnImpactStar(W * 0.1 + Math.random() * W * 0.8, floorY - H * 0.1 - Math.random() * H * 0.3);
+                    // Flash on peak beats
                     flashAlpha = Math.max(flashAlpha, 0.08 + energy * 0.1);
                 }
 
                 // Table flipping in brawl
-                if ((sectionMood === 'brawl' || sectionMood === 'peak') && Math.random() > 0.6) {
+                if (brawlActive && Math.random() > 0.6) {
                     for (var tfi = 0; tfi < tables.length; tfi++) {
                         if (!tables[tfi].flipped && Math.random() > 0.5) {
                             tables[tfi].flipped = true;
@@ -727,21 +887,23 @@
                     }
                 }
 
-                // Patron behaviors on beat
-                for (var pi = 0; pi < patrons.length; pi++) {
-                    var pat = patrons[pi];
+                // ── Launch choreographies on beat ──
+                if (brawlActive || preBrawl) {
+                    choreoTimer -= beatDuration;
+                    if (choreoTimer <= 0) {
+                        tryLaunchChoreos(sectionMood);
+                        // Cooldown: fewer beats between launches during peak
+                        choreoTimer = sectionMood === 'peak' ? beatDuration * 2
+                            : sectionMood === 'brawl' ? beatDuration * 3
+                            : beatDuration * 5;
+                    }
+                }
 
-                    if (sectionMood === 'brawl' || sectionMood === 'peak') {
-                        if (Math.random() > 0.4) {
-                            pat.throwTimer = 0.5;
-                            pat.throwArm = 1;
-                        }
-                        if (Math.random() > 0.5) {
-                            pat.hitStun = 1.5;
-                            spawnImpactStar(pat.x, pat.y - pat.figH * 0.5);
-                        }
-                    } else if (sectionMood === 'escalation' || sectionMood === 'buildup') {
-                        if (Math.random() > 0.7) {
+                // Escalation: occasional individual shoves (not full choreo)
+                if (preBrawl) {
+                    for (var pi = 0; pi < patrons.length; pi++) {
+                        var pat = patrons[pi];
+                        if (!pat.inChoreo && pat.brawlRole === 'fighter' && Math.random() > 0.7) {
                             pat.throwTimer = 0.4;
                             pat.throwArm = 0.8;
                         }
@@ -749,6 +911,24 @@
                 }
             }
             flashAlpha *= Math.exp(-5 * dt);
+
+            // ── Advance active choreographies ──
+            for (var ci = activeChoreos.length - 1; ci >= 0; ci--) {
+                var choreo = activeChoreos[ci];
+                StickFight.advanceChoreography(choreo, dt);
+
+                if (!choreo.isActive) {
+                    // Choreography finished — release patrons
+                    choreo.figA.inChoreo = false;
+                    choreo.figB.inChoreo = false;
+                    choreo.figA.attacking = null;
+                    choreo.figB.attacking = null;
+                    // Return to guard for recovery phase
+                    StickFight.setPose(choreo.figA, 'guard');
+                    StickFight.setPose(choreo.figB, 'guard');
+                    activeChoreos.splice(ci, 1);
+                }
+            }
 
             // ── Screen shake ──
             var shakeTarget = 0;
@@ -770,7 +950,7 @@
 
             // ── Update patrons ──
             var waltzSpeed = 2.5;
-            var brawlMode = sectionMood === 'brawl' || sectionMood === 'peak' || sectionMood === 'buildup';
+            var brawlMode = brawlActive || sectionMood === 'buildup';
             var sheepishMode = sectionMood === 'sheepish' || sectionMood === 'ending';
 
             for (var ui = 0; ui < patrons.length; ui++) {
@@ -781,7 +961,8 @@
                 p.waltzPhase += waltzSpeed * dt;
 
                 if (sheepishMode) {
-                    // Sheepish: slower, tighter waltz
+                    // Sheepish: slower, tighter waltz — all patrons recover
+                    p.inChoreo = false;
                     p.sheepish = lerpExp(p.sheepish, 1, 2, dt);
                     var slowFactor = 0.4;
                     var pairOffset = p.isLeader ? 0 : Math.PI;
@@ -794,26 +975,51 @@
                     StickFight.setTarget(p, 'legSpread', 0.1 + Math.abs(Math.sin(p.legPhase)) * 0.05);
                     StickFight.setTarget(p, 'armLAngle', Math.sin(p.waltzPhase * slowFactor) * 0.2);
                     StickFight.setTarget(p, 'armRAngle', -Math.sin(p.waltzPhase * slowFactor) * 0.15);
+                } else if (brawlMode && p.inChoreo) {
+                    // In choreography — the engine drives poses via attack().
+                    // Just add subtle foot shuffling when not mid-attack.
+                    if (!p.attacking) {
+                        p.legPhase += 6 * dt;
+                        StickFight.setTarget(p, 'bounce', Math.sin(p.legPhase) * 0.15 * intensity);
+                    }
+                } else if (brawlMode && p.brawlRole === 'cowerer') {
+                    // Cowering patron: backs toward bar, arms up, ducking
+                    p.sheepish = 0;
+                    p.cowerPhase += dt * 3;
+                    var cowerTarget = barX - p.figH * 0.5;
+                    p.x = lerpExp(p.x, cowerTarget + Math.sin(p.cowerPhase) * p.figH * 0.1, 2, dt);
+                    p.y = lerpExp(p.y, p.baseY, 3, dt);
+                    p.facing = -1; // face away from bar
+
+                    StickFight.setPose(p, 'block');
+                    StickFight.setTarget(p, 'bounce', -0.15 + Math.sin(p.cowerPhase * 2) * 0.05);
+                    StickFight.setTarget(p, 'armLAngle', -1.3);
+                    StickFight.setTarget(p, 'armRAngle', -1.3);
+                    StickFight.setTarget(p, 'elbowLBend', 0.7);
+                    StickFight.setTarget(p, 'elbowRBend', 0.7);
+                    StickFight.setTarget(p, 'headBob', -0.3);
+
+                    // Occasionally flinch when something flies by
+                    if (frameData.beatChanged && Math.random() > 0.6) {
+                        p.hitStun = 0.3;
+                        StickFight.setPose(p, 'recoil');
+                    }
                 } else if (brawlMode) {
-                    // Brawl: chaotic movement
+                    // Fighter not currently in choreo: idle guard, shifting weight
                     p.sheepish = 0;
                     var chaos = intensity;
-                    p.x = p.baseX + Math.sin(p.waltzPhase * 3 + ui) * p.waltzRadius * chaos * 2;
-                    p.y = p.baseY + Math.cos(p.waltzPhase * 2.5 + ui * 0.7) * p.figH * 0.04 * chaos;
-                    p.legPhase += 8 * chaos * dt;
+                    p.x = lerpExp(p.x, p.baseX + Math.sin(p.waltzPhase * 3 + ui) * p.waltzRadius * chaos * 1.5, 4, dt);
+                    p.y = lerpExp(p.y, p.baseY + Math.cos(p.waltzPhase * 2.5 + ui * 0.7) * p.figH * 0.03 * chaos, 4, dt);
+                    p.legPhase += 6 * chaos * dt;
 
-                    // Brawl poses
-                    if (p.throwTimer > 0) {
-                        StickFight.setPose(p, 'punch');
-                        StickFight.setTarget(p, 'lean', 0.5 * p.throwArm);
-                    } else if (p.hitStun > 0) {
+                    if (p.hitStun > 0) {
                         StickFight.setPose(p, 'recoil');
                     } else {
                         StickFight.setPose(p, 'guard');
-                        StickFight.setTarget(p, 'bounce', Math.sin(p.legPhase) * 0.3 * chaos);
-                        StickFight.setTarget(p, 'armLAngle', Math.sin(p.waltzPhase * 4 + ui) * 1.2 * chaos);
-                        StickFight.setTarget(p, 'armRAngle', Math.sin(p.waltzPhase * 4 + ui + 1) * 1.0 * chaos);
-                        StickFight.setTarget(p, 'legSpread', 0.2 + chaos * 0.2);
+                        StickFight.setTarget(p, 'bounce', Math.sin(p.legPhase) * 0.2 * chaos);
+                        StickFight.setTarget(p, 'armLAngle', -0.8 + Math.sin(p.waltzPhase * 2 + ui) * 0.3 * chaos);
+                        StickFight.setTarget(p, 'armRAngle', -0.8 + Math.sin(p.waltzPhase * 2 + ui + 1) * 0.25 * chaos);
+                        StickFight.setTarget(p, 'legSpread', 0.25 + chaos * 0.1);
                     }
                 } else {
                     // Normal waltz
@@ -830,13 +1036,24 @@
                     StickFight.setTarget(p, 'legSpread', 0.1 + Math.abs(Math.sin(p.legPhase)) * 0.1);
                 }
 
-                // Update figure via engine
+                // Update figure via engine (handles attack animations + pose lerp)
                 StickFight.updateFigure(p, dt);
 
                 // Decay timers
                 p.throwTimer = Math.max(0, p.throwTimer - dt);
                 p.throwArm = lerpExp(p.throwArm, p.throwTimer > 0 ? 1 : 0, 8, dt);
                 p.hitStun = Math.max(0, p.hitStun - dt * 0.7);
+            }
+
+            // ── Clear all choreographies when leaving brawl ──
+            if (sheepishMode || sectionMood === 'intro' || sectionMood === 'waltz') {
+                for (var cci = 0; cci < activeChoreos.length; cci++) {
+                    activeChoreos[cci].figA.inChoreo = false;
+                    activeChoreos[cci].figB.inChoreo = false;
+                    activeChoreos[cci].figA.attacking = null;
+                    activeChoreos[cci].figB.attacking = null;
+                }
+                activeChoreos = [];
             }
 
             // ── Update flying objects ──
@@ -937,12 +1154,12 @@
             // Impact stars
             ctx.fillStyle = COL.star;
             for (var isi = 0; isi < impactStars.length; isi++) {
-                var is = impactStars[isi];
+                var iStar = impactStars[isi];
                 ctx.save();
-                ctx.globalAlpha = is.alpha;
-                ctx.translate(is.x, is.y);
-                ctx.rotate(is.angle);
-                drawStar(ctx, 0, 0, is.size, 4);
+                ctx.globalAlpha = iStar.alpha;
+                ctx.translate(iStar.x, iStar.y);
+                ctx.rotate(iStar.angle);
+                drawStar(ctx, 0, 0, iStar.size, 4);
                 ctx.restore();
             }
 
