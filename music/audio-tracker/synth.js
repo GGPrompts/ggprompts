@@ -42,45 +42,6 @@ var Synth = (function () {
     return buffer;
   }
 
-  function clamp(value, min, max) {
-    return Math.max(min, Math.min(max, value));
-  }
-
-  /**
-   * createPluckExcitationBuffer — shaped burst for less robotic plucks.
-   * Uses a bright/dark tilt, pick-position comb notch, and fast burst envelope.
-   */
-  function createPluckExcitationBuffer(duration, freq, brightness, pickPos) {
-    var sampleRate = ctx.sampleRate;
-    var length = Math.max(1, Math.ceil(sampleRate * duration));
-    var buffer = ctx.createBuffer(1, length, sampleRate);
-    var data = buffer.getChannelData(0);
-
-    var cutoff = clamp(brightness || 4000, 250, 12000);
-    var alpha = cutoff / (cutoff + sampleRate); // one-pole smoothing
-    var brightMix = clamp((cutoff - 500) / 7000, 0, 1);
-    var periodSamples = clamp(Math.floor(sampleRate / Math.max(30, freq)), 2, sampleRate);
-    var pickDelay = clamp(Math.floor(periodSamples * (pickPos || 0.22)), 1, periodSamples - 1);
-    var low = 0;
-    var envRate = 7.5 + (1 - brightMix) * 1.5;
-
-    for (var i = 0; i < length; i++) {
-      var white = Math.random() * 2 - 1;
-      low += alpha * (white - low);
-      var high = white - low;
-      var sample = low * (1 - brightMix) + high * brightMix;
-
-      // Pick-position notch: subtract delayed copy for string-like character.
-      if (i >= pickDelay) sample -= 0.45 * data[i - pickDelay];
-
-      var x = i / length;
-      var env = Math.exp(-x * envRate) * (1 - x);
-      data[i] = sample * env;
-    }
-
-    return buffer;
-  }
-
   function removeVoice(handle) {
     var idx = activeVoices.indexOf(handle);
     if (idx !== -1) {
@@ -90,15 +51,6 @@ var Synth = (function () {
 
   function clampChannel(ch) {
     return Math.max(0, Math.min(3, ch | 0));
-  }
-
-  function getChannelVoice(channel) {
-    var ch = clampChannel(channel);
-    for (var i = activeVoices.length - 1; i >= 0; i--) {
-      var v = activeVoices[i];
-      if (v.channel === ch && !v.released) return v;
-    }
-    return null;
   }
 
   // ---- Public API ----
@@ -213,12 +165,6 @@ var Synth = (function () {
       return triggerNoise(ch, instrument, t);
     }
     if (wave === "pluck") {
-      if (instrument.legato) {
-        var prev = getChannelVoice(ch);
-        if (prev && prev.type === "pluck" && !prev.released) {
-          return retunePluck(prev, midiNote, instrument, t);
-        }
-      }
       return triggerPluck(ch, midiNote, instrument, t);
     }
     if (wave === "fm") {
@@ -289,7 +235,7 @@ var Synth = (function () {
 
     var t = time || ctx.currentTime;
 
-    // --- Pluck voices: kill the feedback loop, then disconnect ---
+    // --- Pluck voices: kill the feedback loop ---
     if (handle.type === "pluck") {
       var fadeTime = quickCut ? 0.003 : 0.05;
       handle.feedbackGain.gain.cancelScheduledValues(t);
@@ -303,29 +249,6 @@ var Synth = (function () {
       handle.envGain.gain.cancelScheduledValues(t);
       handle.envGain.gain.setValueAtTime(handle.envGain.gain.value, t);
       handle.envGain.gain.linearRampToValueAtTime(0, t + fadeTime + 0.01);
-
-      // Disconnect nodes shortly after fade completes to free resources.
-      // Without this, zombie delay lines accumulate until the original
-      // auto-cleanup timeout fires (~2.5s), causing distortion in
-      // pluck-heavy songs.
-      var pluckCleanup = (t + fadeTime + 0.06 - ctx.currentTime) * 1000;
-      if (pluckCleanup < 50) pluckCleanup = 50;
-      setTimeout(function () {
-        try {
-          handle.delay.disconnect();
-          if (handle.delay2) handle.delay2.disconnect();
-          handle.feedbackGain.disconnect();
-          if (handle.feedbackGain2) handle.feedbackGain2.disconnect();
-          handle.feedbackFilter.disconnect();
-          if (handle.feedbackFilter2) handle.feedbackFilter2.disconnect();
-          if (handle.bodyLow) handle.bodyLow.disconnect();
-          if (handle.bodyMid) handle.bodyMid.disconnect();
-          if (handle.bodyAir) handle.bodyAir.disconnect();
-          if (handle.filter) handle.filter.disconnect();
-          handle.envGain.disconnect();
-        } catch (e) {}
-        removeVoice(handle);
-      }, pluckCleanup);
       return;
     }
 
@@ -477,52 +400,6 @@ var Synth = (function () {
   }
 
   /**
-   * retunePluck — retune an existing pluck voice for legato (hammer-on/pull-off).
-   * Slides the delay line(s) to the new pitch over ~20ms and resets the decay.
-   */
-  function retunePluck(handle, midiNote, instrument, time) {
-    var freq = midiToFreq(midiNote);
-    var period = 1 / freq;
-    var t = time || ctx.currentTime;
-    var slideTime = 0.02; // 20ms pitch slide
-
-    // Retune primary delay line
-    handle.delay.delayTime.cancelScheduledValues(t);
-    handle.delay.delayTime.setValueAtTime(handle.delay.delayTime.value, t);
-    handle.delay.delayTime.exponentialRampToValueAtTime(period, t + slideTime);
-
-    // Retune secondary delay line (detuneOsc) if present
-    if (handle.delay2) {
-      var d2 = instrument.detuneAmount || 7;
-      var freq2 = freq * Math.pow(2, d2 / 1200);
-      var period2 = 1 / freq2;
-      handle.delay2.delayTime.cancelScheduledValues(t);
-      handle.delay2.delayTime.setValueAtTime(handle.delay2.delayTime.value, t);
-      handle.delay2.delayTime.exponentialRampToValueAtTime(period2, t + slideTime);
-    }
-
-    // Reset feedback decay: cancel pending ramp, restart from current value
-    var decayTime = (instrument.decay || 0.1) + (instrument.release || 0.15) + 1.5;
-    var fg = handle.feedbackGain.gain;
-    fg.cancelScheduledValues(t);
-    fg.setValueAtTime(fg.value, t);
-    fg.linearRampToValueAtTime(0, t + decayTime);
-
-    if (handle.feedbackGain2) {
-      var fg2 = handle.feedbackGain2.gain;
-      fg2.cancelScheduledValues(t);
-      fg2.setValueAtTime(fg2.value, t);
-      fg2.linearRampToValueAtTime(0, t + decayTime);
-    }
-
-    // Update handle metadata
-    handle.decayTime = decayTime;
-    handle.instrument = instrument;
-
-    return handle;
-  }
-
-  /**
    * triggerPluck — Karplus-Strong plucked string synthesis.
    * Noise burst → delay line (tuned to pitch) → lowpass → feedback loop.
    */
@@ -534,37 +411,26 @@ var Synth = (function () {
     var freq = midiToFreq(midiNote);
     var vol = instrument.volume !== undefined ? instrument.volume : 0.8;
 
-    var baseBrightness = instrument.filterFreq || 4000;
-    var brightness = clamp(
-      baseBrightness * (0.92 + Math.random() * 0.16),
-      400,
-      12000
-    );
+    // Delay period = 1/freq (tuned delay line)
     var period = 1 / freq;
-    var burstDur = 0.016 + Math.random() * 0.006;
-    var pickPos = 0.18 + Math.random() * 0.12;
 
-    // Higher notes damp faster to reduce metallic/robotic ring.
-    var release = instrument.release || 0.15;
-    var decay = instrument.decay || 0.1;
-    var sustain = instrument.sustain !== undefined ? instrument.sustain : 0.0;
-    var pitchNorm = clamp((freq - 110) / 880, 0, 1);
-    var feedbackAmt = 0.9945 + Math.min(0.0015, release * 0.003 + sustain * 0.001);
-    feedbackAmt -= pitchNorm * 0.004;
-    feedbackAmt += (Math.random() * 0.0012 - 0.0006);
-    feedbackAmt = clamp(feedbackAmt, 0.9875, 0.9972);
+    // Noise burst duration — short excitation
+    var burstDur = 0.02;
 
-    // ADSR-inspired total sustain estimate; feedback amount extends/reduces tail.
-    var decayTime = decay + release + 1.2 + (feedbackAmt - 0.99) * 12;
-    if (decayTime < 0.5) decayTime = 0.5;
+    // Feedback filter cutoff controls brightness (reuse filterFreq)
+    var brightness = instrument.filterFreq || 4000;
+
+    // ADSR-derived total sustain time (pluck decays naturally, but we
+    // use release as a rough guide for how long the feedback sustains)
+    var decayTime = (instrument.decay || 0.1) + (instrument.release || 0.15) + 1.5;
     var totalDur = burstDur + decayTime + 0.5;
 
     // Envelope gain
     var envGain = ctx.createGain();
-    envGain.gain.setValueAtTime(vol * (0.94 + Math.random() * 0.12), t);
+    envGain.gain.setValueAtTime(vol, t);
 
     // Noise burst source
-    var burstBuffer = createPluckExcitationBuffer(burstDur + 0.01, freq, brightness, pickPos);
+    var burstBuffer = createNoiseBuffer(burstDur + 0.01);
     var burstSource = ctx.createBufferSource();
     burstSource.buffer = burstBuffer;
 
@@ -574,13 +440,13 @@ var Synth = (function () {
 
     // Feedback gain (controls sustain length)
     var feedbackGain = ctx.createGain();
-    feedbackGain.gain.setValueAtTime(feedbackAmt, t);
+    feedbackGain.gain.setValueAtTime(0.996, t);
 
     // Feedback lowpass filter (controls brightness/damping)
     var feedbackFilter = ctx.createBiquadFilter();
     feedbackFilter.type = "lowpass";
     feedbackFilter.frequency.setValueAtTime(brightness, t);
-    feedbackFilter.Q.setValueAtTime(0.55, t);
+    feedbackFilter.Q.setValueAtTime(0.5, t);
 
     // Signal chain: burst → delay → feedbackFilter → feedbackGain → delay (loop)
     //                                                            └→ envGain → output
@@ -596,13 +462,8 @@ var Synth = (function () {
       var d2 = instrument.detuneAmount || 7;
       var freq2 = freq * Math.pow(2, d2 / 1200);
       var period2 = 1 / freq2;
-      var brightness2 = clamp(brightness * (0.9 + Math.random() * 0.08), 350, 11000);
-      var burstBuffer2 = createPluckExcitationBuffer(
-        burstDur + 0.01,
-        freq2,
-        brightness2,
-        pickPos + 0.03
-      );
+
+      var burstBuffer2 = createNoiseBuffer(burstDur + 0.01);
       burstSource2 = ctx.createBufferSource();
       burstSource2.buffer = burstBuffer2;
 
@@ -610,11 +471,11 @@ var Synth = (function () {
       delay2.delayTime.setValueAtTime(period2, t);
 
       feedbackGain2 = ctx.createGain();
-      feedbackGain2.gain.setValueAtTime(clamp(feedbackAmt - 0.0015, 0.986, 0.996), t);
+      feedbackGain2.gain.setValueAtTime(0.996, t);
 
       feedbackFilter2 = ctx.createBiquadFilter();
       feedbackFilter2.type = "lowpass";
-      feedbackFilter2.frequency.setValueAtTime(brightness2, t);
+      feedbackFilter2.frequency.setValueAtTime(brightness, t);
       feedbackFilter2.Q.setValueAtTime(0.5, t);
 
       burstSource2.connect(delay2);
@@ -627,38 +488,14 @@ var Synth = (function () {
       burstSource2.stop(t + burstDur);
     }
 
-    // Subtle body resonance to sound less synthetic.
-    var bodyLow = ctx.createBiquadFilter();
-    bodyLow.type = "peaking";
-    bodyLow.frequency.setValueAtTime(190, t);
-    bodyLow.Q.setValueAtTime(0.9, t);
-    bodyLow.gain.setValueAtTime(2.2, t);
-
-    var bodyMid = ctx.createBiquadFilter();
-    bodyMid.type = "peaking";
-    bodyMid.frequency.setValueAtTime(820, t);
-    bodyMid.Q.setValueAtTime(1.1, t);
-    bodyMid.gain.setValueAtTime(1.4, t);
-
-    var bodyAir = ctx.createBiquadFilter();
-    bodyAir.type = "peaking";
-    bodyAir.frequency.setValueAtTime(2800, t);
-    bodyAir.Q.setValueAtTime(1.0, t);
-    bodyAir.gain.setValueAtTime(-1.4, t);
-
-    envGain.connect(bodyLow);
-    bodyLow.connect(bodyMid);
-    bodyMid.connect(bodyAir);
-
     // Optional instrument filter (on the output)
     var filter = null;
-    var outputNode = bodyAir;
     if (instrument.filterType && instrument.filterType !== "none") {
       filter = createFilter(instrument, t);
-      outputNode.connect(filter);
+      envGain.connect(filter);
       filter.connect(channelGains[ch]);
     } else {
-      outputNode.connect(channelGains[ch]);
+      envGain.connect(channelGains[ch]);
     }
 
     burstSource.start(t);
@@ -680,9 +517,6 @@ var Synth = (function () {
       feedbackGain2: feedbackGain2,
       feedbackFilter: feedbackFilter,
       feedbackFilter2: feedbackFilter2,
-      bodyLow: bodyLow,
-      bodyMid: bodyMid,
-      bodyAir: bodyAir,
       filter: filter,
       envGain: envGain,
       instrument: instrument,
@@ -705,9 +539,6 @@ var Synth = (function () {
         if (feedbackGain2) feedbackGain2.disconnect();
         feedbackFilter.disconnect();
         if (feedbackFilter2) feedbackFilter2.disconnect();
-        bodyLow.disconnect();
-        bodyMid.disconnect();
-        bodyAir.disconnect();
         if (filter) filter.disconnect();
         envGain.disconnect();
       } catch (e) {}
@@ -857,9 +688,6 @@ var Synth = (function () {
           if (h.feedbackGain2) h.feedbackGain2.disconnect();
           h.feedbackFilter.disconnect();
           if (h.feedbackFilter2) h.feedbackFilter2.disconnect();
-          if (h.bodyLow) h.bodyLow.disconnect();
-          if (h.bodyMid) h.bodyMid.disconnect();
-          if (h.bodyAir) h.bodyAir.disconnect();
         } else if (h.type === "fm") {
           h.carrier.stop();
           h.carrier.disconnect();
@@ -906,8 +734,6 @@ var Synth = (function () {
     triggerNoise: triggerNoise,
     triggerPluck: triggerPluck,
     triggerFM: triggerFM,
-    retunePluck: retunePluck,
-    getChannelVoice: getChannelVoice,
     setMasterVolume: setMasterVolume,
     setChannelVolume: setChannelVolume,
     dispose: dispose,
