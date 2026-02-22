@@ -292,15 +292,23 @@ StickFight.drawAll(ctx, [a, b]);
 
 | Function | Description |
 |----------|-------------|
-| `create(opts)` | New figure. Options: `x, y, figH, facing (1/-1), color, lineWidth, poseSpeed` |
+| `create(opts)` | New figure. Options: `x, y, figH, facing (1/-1), color, lineWidth, poseSpeed, weaponHand, leadSide` |
 | `setPose(fig, name)` | Set targets from named pose library |
 | `setTarget(fig, key, val)` | Override a single target parameter |
 | `computeJoints(fig)` | Returns 13 joint positions (relative to feet at 0,0) |
 | `drawFigure(ctx, fig, joints?)` | Draw one figure (joints computed if omitted) |
-| `updateFigure(fig, dt)` | Lerp params toward targets (or step ragdoll) |
+| `updateFigure(fig, dt)` | Lerp params toward targets (or step ragdoll). Also tracks velocity for gait. |
 | `updateAll(figs, dt)` | Batch update |
 | `drawAll(ctx, figs)` | Batch draw (auto-handles pose vs ragdoll mode) |
 | `goRagdoll(fig, groundY, impulseX, impulseY)` | Switch to Verlet ragdoll physics |
+| `attack(attacker, moveName, target)` | Start a combat move with hit detection |
+| `choreograph(figA, figB, sequence)` | Create a scripted exchange sequence |
+| `advanceChoreography(choreo, dt)` | Step choreography forward |
+| `hitStop(fig, frames)` | Freeze pose lerp for N frames (impact freeze) |
+| `screenShake(intensity, duration)` | Create shake object for canvas offset |
+| `updateShake(shake, dt)` | Step shake decay, read `shake.x`/`shake.y` |
+| `freezeFrame(figs, duration)` | Pause all figures temporarily |
+| `onContact(callback)` | Register hit callback: `fn(contact, attacker, target)` |
 | `lerpExp(cur, tgt, speed, dt)` | Exponential lerp helper |
 | `defaultParams()` | Fresh pose parameter object |
 
@@ -319,6 +327,10 @@ fig.targets          — target pose parameters (set by setPose/setTarget)
 fig.poseSpeed        — lerp speed (default 10, higher = snappier)
 fig.mode             — 'pose' or 'ragdoll'
 fig.ragdoll          — Verlet state (null until goRagdoll called)
+fig.weaponHand       — 'left' (default) or 'right' — which hand draws the weapon
+fig.leadSide         — 'left' (default) or 'right' — forward foot/hand in stance
+fig.velocity         — computed lateral velocity in px/s (read-only, set by updateFigure)
+fig.lastContact      — last hit contact event or null (set by combat system)
 ```
 
 ### Pose Parameters
@@ -336,6 +348,10 @@ All params are numbers, lerped smoothly each frame:
 | `legSpread` | 0..1 | Stance width |
 | `kneeL` | -1..1 | Left knee offset (negative = forward) |
 | `kneeR` | -1..1 | Right knee offset |
+| `torsoTwist` | -1..1 | Shoulder rotation around spine (positive = left shoulder forward) |
+| `hipShift` | -1..1 | Lateral hip displacement |
+| `headTilt` | -1..1 | Head tilt left/right |
+| `headBob` | -1..1 | Head nod up/down |
 | `swordAngle` | radians | Weapon angle (only drawn if swordLen > 0) |
 | `swordLen` | 0..1 | Weapon length as fraction of figH (0 = no weapon) |
 
@@ -385,15 +401,34 @@ StickFight.goRagdoll(fig, groundY, impulseX, impulseY);
 
 ### Weapons
 
-Figures can hold a sword/weapon drawn from `handL`:
+Figures can hold a sword/weapon. Set `weaponHand` on create, and initialize both params and targets for `swordLen` and `swordAngle`:
 
 ```js
-fig.params.swordLen = 0.35;    // set both current and target
-fig.targets.swordLen = 0.35;   // (fraction of figH)
-StickFight.setTarget(fig, 'swordAngle', -0.2);  // angle in radians
+var fig = StickFight.create({ x: 100, y: 400, figH: 120, facing: 1, weaponHand: 'left' });
+fig.params.swordLen = 0.35;      // MUST set both params AND targets
+fig.targets.swordLen = 0.35;
+fig.params.swordAngle = -0.8;    // MUST set both — prevents lerp from 0 on first frames
+fig.targets.swordAngle = -0.8;
 ```
 
-The engine draws the blade (silver) with a guard crossbar (figure color). For attack flash effects (glow on sword tip), handle that in your renderer — see `fencing-match-in-a-thunderstorm-video.html` for the pattern.
+The engine draws the blade (silver) from the weapon hand with a guard crossbar (figure color). For attack flash effects (glow on sword tip), handle that in your renderer — see `fencing-match-in-a-thunderstorm-video.html` for the pattern.
+
+### Stance & Handedness
+
+Figures have `weaponHand` ('left'/'right') and `leadSide` ('left'/'right'). Attack moves auto-mirror based on `leadSide` — a `slash` animates the lead arm regardless of which side leads. The engine's `mirrorKeyframes()` handles L↔R swapping.
+
+```js
+// Orthodox fencer (left lead, left weapon)
+var fencerA = StickFight.create({ weaponHand: 'left', leadSide: 'left', ... });
+// Southpaw opponent (right lead, right weapon)
+var fencerB = StickFight.create({ weaponHand: 'right', leadSide: 'right', ... });
+```
+
+### Locomotion
+
+Figures automatically animate a walk/run gait when moved laterally. The engine tracks `fig.velocity` from frame-to-frame `fig.x` changes and drives foot-plant, pelvis sway, and shoulder counter-rotation. No video code changes needed — just update `fig.x` and the gait activates.
+
+Tunable via `StickFight.GAIT` (velocityThreshold, strideLength, pelvisSwayAmount, etc.).
 
 ### Coordinate System
 
@@ -410,6 +445,21 @@ The engine draws the blade (silver) with a guard crossbar (figure color). For at
 - **Multiple figures**: pass arrays to `updateAll` / `drawAll`. Create as many as you need.
 - **Scene-specific drawing** (hair, clothing, faces, glow effects) stays in the video renderer — the engine just draws the skeleton.
 - **Position movement**: update `fig.x` directly in your renderer (the engine doesn't move figures laterally).
+
+### Pitfalls — Common Bugs to Avoid
+
+**Always set `swordAngle` in every pose/move a weapon-wielding figure can transition through.** If a MOVE's keyframes don't include `swordAngle`, the target stays at whatever the previous move left it. When the arm moves to a new position but the sword angle is stale, the blade extends in the wrong direction — often backward off-screen. Every MOVE that a sword-wielding figure might use (slash, lunge, block, etc.) must include `swordAngle` keyframes that track the arm position.
+
+**Always set both `params` AND `targets` for `swordLen` and `swordAngle` at init.** If you only set `targets`, the params start at 0 and lerp toward the target over the first few frames, causing a visible glitch where the sword pops from nothing or from angle 0.
+
+**Always animate both arms in weapon MOVES.** If a MOVE only sets keyframes for the weapon arm (e.g., `armLAngle`), the off-hand arm stays at its previous position and looks broken/dangling. Fencing moves should set the rear arm to a proper counterbalance position (swept back during lunges, held up during guard).
+
+**Canvas `arc()` wraps the wrong way for `facing = -1`.** When using `ctx.arc(x, y, r, startAngle, endAngle)` for slash trails or sweep effects, and the angles include `* fig.facing`, the arc will take the long way around (~263° instead of ~97°) for left-facing figures. Always pass `fig.facing < 0` as the `anticlockwise` parameter:
+```js
+ctx.arc(hand.x, hand.y, radius, startAng, endAng, fig.facing < 0);
+```
+
+**Use `StickFight.onContact()` for impact FX, not beat events.** Spawning sparks/blood at fixed midpoints or on every beat looks like pantomime. Register a contact callback and spawn FX at `contact.point` for precise, believable impacts.
 
 ### Positioning — Think in Body Lengths, Not Screen Fractions
 
@@ -440,11 +490,11 @@ Use `Math.min(figH * factor, W * fraction)` so layout works on both narrow and u
 
 | Video | Pattern |
 |-------|---------|
-| `fencing-match-in-a-thunderstorm-video.html` | 2 armed fencers, pose choreography + ragdoll |
+| `fencing-match-in-a-thunderstorm-video.html` | 2 armed fencers, choreograph() + attack() + onContact() sparks |
 | `through-the-fire-and-flames-video.html` | 2 warriors + dragon, full combat + gore |
 | `system-infection-video.html` | Hero vs enemy waves, arena combat + boss fights |
 | `the-duel-at-worlds-end-video.html` | 2 musicians on cliff, performance poses |
-| `tavern-brawl-crescendo-video.html` | Patron pairs, waltz → brawl choreography |
+| `tavern-brawl-crescendo-video.html` | Patron pairs, choreograph() + pairwise combat + onContact() FX |
 | `hollow-choir-ascendant-video.html` | Ritual procession figures |
 | `wap-video.html` | Pole + floor dancers, club performance |
 | `survivors-*-video.html` (4 videos) | Single survivor figure, poses only |
