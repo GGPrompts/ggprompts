@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fur Elise — Music Video</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,500;1,300&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="video-base-styles.css">
+    <style>
+        :root {
+            --vid-bg: #060810;
+            --vid-bg-rgb: 6,8,16;
+            --vid-font: 'Cormorant Garamond', serif;
+            --vid-accent: #b8c8ff;
+            --vid-accent-r: 184;
+            --vid-accent-g: 200;
+            --vid-accent-b: 255;
+            --vid-title-spacing: 0.2em;
+        }
+    </style>
+</head>
+<body>
+    <a href="music-videos/index.html" class="back-link">&larr; Music Videos</a>
+    <canvas id="viz-canvas"></canvas>
+    <div class="play-overlay" id="play-overlay">
+        <div class="play-title">Fur Elise</div>
+        <div class="play-sub">moonlit garden with fireflies and night-blooming flowers</div>
+        <div class="play-btn"></div>
+    </div>
+
+    <script src="../audio-tracker/playback-engine.js"></script>
+    <script src="engine.js"></script>
+    <script src="video-utils.js"></script>
+    <script src="base-renderer.js"></script>
+    <script>
+    // -- Fur Elise Video Renderer: Moonlit Garden --
+    (function() {
+        "use strict";
+
+        var W = 0, H = 0;
+        var analysis = null;
+
+        // -- Palette --
+        var MOONLIGHT = '#b8c8ff';
+        var MOON_GLOW = '#dde4ff';
+        var PETAL_COLORS = ['#e8a0c8','#c87898','#d4a0d0','#f0b0d8','#c890b8','#e0c0e0'];
+        var FIREFLY_COLORS = ['#ffe8a0','#ffd060','#ffec80','#fff4c0','#ffe070','#ffc840'];
+        var LEAF_COLORS = ['#1a3820','#1e4428','#224e30','#2a5838','#184020','#2e6040'];
+        var WATERCOLOR_WASHES = ['#1a1830','#201840','#182038','#281848','#1e2040','#221838'];
+
+        // -- State --
+        var beatPulse = 0;
+        var flashAlpha = 0;
+        var globalTime = 0;
+        var lastSeqIndex = -1;
+
+        // Scene elements
+        var fireflies = [];
+        var petals = [];
+        var flowers = [];
+        var stars = [];
+        var trailParticles = [];
+        var watercolorBlobs = [];
+
+        // Moon
+        var moonX = 0, moonY = 0, moonRadius = 0;
+        var moonGlow = 0;
+
+        // Ground
+        var groundY = 0;
+        var hillPoints = [];
+
+        // Section tracking
+        var sectionIntensity = 0;
+        var targetIntensity = 0;
+
+        // Title
+        var titleAlpha = 0;
+        var titleTarget = 0;
+
+        // -- Firefly --
+        function createFirefly() {
+            return {
+                x: rand(0, W),
+                y: rand(groundY - H * 0.6, groundY - 20),
+                baseX: 0,
+                baseY: 0,
+                vx: rand(-15, 15),
+                vy: rand(-10, 10),
+                size: rand(1.5, 3.5),
+                phase: rand(0, Math.PI * 2),
+                pulseSpeed: rand(1.5, 3.5),
+                brightness: rand(0.3, 0.8),
+                colorIdx: randInt(0, 5),
+                trail: [],
+                trailTimer: 0
+            };
+        }
+
+        // -- Petal --
+        function createPetal(fromFlower) {
+            var x = fromFlower ? fromFlower.x : rand(0, W);
+            var y = fromFlower ? fromFlower.y - fromFlower.size * 0.5 : rand(-20, H * 0.3);
+            return {
+                x: x,
+                y: y,
+                vx: rand(-20, 20),
+                vy: rand(10, 40),
+                rotation: rand(0, Math.PI * 2),
+                rotSpeed: rand(-2, 2),
+                size: rand(3, 8),
+                alpha: rand(0.3, 0.7),
+                colorIdx: randInt(0, 5),
+                wobblePhase: rand(0, Math.PI * 2),
+                life: 1.0
+            };
+        }
+
+        // -- Flower --
+        function createFlower(x) {
+            return {
+                x: x,
+                y: groundY,
+                size: rand(12, 28),
+                stemHeight: rand(40, 90),
+                petalCount: randInt(5, 8),
+                openness: 0,
+                targetOpenness: 0,
+                phase: rand(0, Math.PI * 2),
+                colorIdx: randInt(0, 5),
+                swayPhase: rand(0, Math.PI * 2),
+                glowAlpha: 0,
+                innerGlow: rand(0.1, 0.3)
+            };
+        }
+
+        // -- Star --
+        function createStar() {
+            return {
+                x: rand(0, W),
+                y: rand(0, groundY * 0.5),
+                size: rand(0.5, 2),
+                phase: rand(0, Math.PI * 2),
+                twinkleSpeed: rand(0.5, 2),
+                brightness: rand(0.2, 0.7)
+            };
+        }
+
+        // -- Watercolor blob --
+        function createWatercolorBlob() {
+            return {
+                x: rand(0, W),
+                y: rand(0, H),
+                radius: rand(60, 200),
+                colorIdx: randInt(0, 5),
+                alpha: 0,
+                targetAlpha: 0,
+                driftX: rand(-5, 5),
+                driftY: rand(-3, 3),
+                phase: rand(0, Math.PI * 2)
+            };
+        }
+
+        // -- Trail particle (follows lead voice) --
+        function createTrailParticle(x, y) {
+            return {
+                x: x,
+                y: y,
+                vx: rand(-8, 8),
+                vy: rand(-15, -5),
+                size: rand(1, 3),
+                alpha: rand(0.4, 0.8),
+                life: 1.0,
+                decay: rand(0.5, 1.5)
+            };
+        }
+
+        // -- Generate rolling hills --
+        function generateHills() {
+            hillPoints = [];
+            var segments = 40;
+            for (var i = 0; i <= segments; i++) {
+                var t = i / segments;
+                var x = t * W;
+                var hillH = Math.sin(t * Math.PI * 2.5) * H * 0.04
+                          + Math.sin(t * Math.PI * 5.3 + 1.2) * H * 0.02
+                          + Math.sin(t * Math.PI * 1.1 + 0.5) * H * 0.03;
+                hillPoints.push({ x: x, y: groundY + hillH });
+            }
+        }
+
+        // -- Section mapping --
+        function mapIntensity(seqIndex) {
+            if (seqIndex <= 1) return 0.15;
+            if (seqIndex <= 3) return 0.3;
+            if (seqIndex <= 5) return 0.5;
+            if (seqIndex <= 8) return 0.7;
+            if (seqIndex <= 11) return 0.85;
+            if (seqIndex <= 14) return 1.0;
+            if (seqIndex <= 17) return 0.85;
+            if (seqIndex <= 20) return 0.65;
+            if (seqIndex <= 23) return 0.45;
+            if (seqIndex <= 26) return 0.25;
+            return 0.1;
+        }
+
+        // -- Draw sky gradient --
+        function drawSky(ctx, energy) {
+            var grad = ctx.createLinearGradient(0, 0, 0, groundY);
+            var intensity = sectionIntensity;
+            // Deep night sky with subtle purple
+            grad.addColorStop(0, '#060810');
+            grad.addColorStop(0.3, lerp_color_hex('#080c18', '#0e1228', intensity));
+            grad.addColorStop(0.7, lerp_color_hex('#0a1020', '#141a38', intensity));
+            grad.addColorStop(1, lerp_color_hex('#0c1428', '#1a2248', intensity));
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, W, groundY + 10);
+
+            // Ground
+            var gGrad = ctx.createLinearGradient(0, groundY - 10, 0, H);
+            gGrad.addColorStop(0, '#0a1818');
+            gGrad.addColorStop(0.3, '#081210');
+            gGrad.addColorStop(1, '#040808');
+            ctx.fillStyle = gGrad;
+            ctx.fillRect(0, groundY - 10, W, H - groundY + 10);
+        }
+
+        function lerp_color_hex(hex1, hex2, t) {
+            var c1 = hexToRgb(hex1), c2 = hexToRgb(hex2);
+            var r = Math.round(lerp(c1.r, c2.r, t));
+            var g = Math.round(lerp(c1.g, c2.g, t));
+            var b = Math.round(lerp(c1.b, c2.b, t));
+            return 'rgb(' + r + ',' + g + ',' + b + ')';
+        }
+
+        // -- Draw hills --
+        function drawHills(ctx, energy) {
+            if (hillPoints.length < 2) return;
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(0, H);
+            for (var i = 0; i < hillPoints.length; i++) {
+                var sway = Math.sin(globalTime * 0.3 + hillPoints[i].x * 0.005) * 2;
+                ctx.lineTo(hillPoints[i].x, hillPoints[i].y + sway);
+            }
+            ctx.lineTo(W, H);
+            ctx.closePath();
+
+            var grad = ctx.createLinearGradient(0, groundY - 20, 0, H);
+            grad.addColorStop(0, '#0c1c14');
+            grad.addColorStop(0.5, '#081410');
+            grad.addColorStop(1, '#040a08');
+            ctx.fillStyle = grad;
+            ctx.fill();
+            ctx.restore();
+        }
+
+        // -- Draw moon --
+        function drawMoon(ctx, energy) {
+            var glow = 0.3 + sectionIntensity * 0.4 + beatPulse * 0.15;
+            moonGlow = lerpExp(moonGlow, glow, 3, 1/60);
+
+            ctx.save();
+
+            // Outer glow
+            var outerR = moonRadius * (3 + moonGlow * 2);
+            var grad1 = ctx.createRadialGradient(moonX, moonY, moonRadius * 0.5, moonX, moonY, outerR);
+            grad1.addColorStop(0, rgba(MOONLIGHT, 0.08 + moonGlow * 0.04));
+            grad1.addColorStop(0.4, rgba(MOONLIGHT, 0.03 + moonGlow * 0.02));
+            grad1.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = grad1;
+            ctx.fillRect(moonX - outerR, moonY - outerR, outerR * 2, outerR * 2);
+
+            // Moon body
+            var grad2 = ctx.createRadialGradient(
+                moonX - moonRadius * 0.2, moonY - moonRadius * 0.2, 0,
+                moonX, moonY, moonRadius
+            );
+            grad2.addColorStop(0, MOON_GLOW);
+            grad2.addColorStop(0.7, MOONLIGHT);
+            grad2.addColorStop(1, rgba(MOONLIGHT, 0.6));
+            ctx.fillStyle = grad2;
+            ctx.shadowBlur = 40 + moonGlow * 30;
+            ctx.shadowColor = MOONLIGHT;
+            ctx.beginPath();
+            ctx.arc(moonX, moonY, moonRadius, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        // -- Draw stars --
+        function drawStars(ctx) {
+            ctx.save();
+            for (var i = 0; i < stars.length; i++) {
+                var s = stars[i];
+                var twinkle = 0.3 + Math.sin(s.phase + globalTime * s.twinkleSpeed) * 0.3;
+                var alpha = s.brightness * twinkle * (0.5 + sectionIntensity * 0.5);
+                ctx.fillStyle = rgba(MOONLIGHT, alpha);
+                ctx.shadowBlur = 3;
+                ctx.shadowColor = MOONLIGHT;
+                ctx.beginPath();
+                ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+
+        // -- Draw watercolor washes --
+        function drawWatercolor(ctx, energy) {
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            for (var i = 0; i < watercolorBlobs.length; i++) {
+                var blob = watercolorBlobs[i];
+                if (blob.alpha < 0.005) continue;
+
+                var col = WATERCOLOR_WASHES[blob.colorIdx];
+                var grad = ctx.createRadialGradient(
+                    blob.x, blob.y, 0,
+                    blob.x, blob.y, blob.radius
+                );
+                grad.addColorStop(0, rgba(col, blob.alpha * 0.6));
+                grad.addColorStop(0.5, rgba(col, blob.alpha * 0.3));
+                grad.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.fillStyle = grad;
+                ctx.fillRect(
+                    blob.x - blob.radius, blob.y - blob.radius,
+                    blob.radius * 2, blob.radius * 2
+                );
+            }
+            ctx.restore();
+        }
+
+        // -- Draw flower --
+        function drawFlower(ctx, f, energy) {
+            var sway = Math.sin(globalTime * 0.8 + f.swayPhase) * 3 * (1 + energy * 0.5);
+            var col = PETAL_COLORS[f.colorIdx];
+
+            ctx.save();
+            ctx.translate(f.x + sway, f.y);
+
+            // Stem
+            var stemTopX = sway * 0.5;
+            var stemTopY = -f.stemHeight;
+            ctx.strokeStyle = '#1a4020';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.quadraticCurveTo(sway * 0.3, -f.stemHeight * 0.5, stemTopX, stemTopY);
+            ctx.stroke();
+
+            // Flower head
+            ctx.translate(stemTopX, stemTopY);
+
+            if (f.openness > 0.05) {
+                // Glow behind flower
+                if (f.glowAlpha > 0.01) {
+                    ctx.save();
+                    ctx.shadowBlur = 15 + energy * 20;
+                    ctx.shadowColor = col;
+                    ctx.fillStyle = rgba(col, f.glowAlpha * 0.3);
+                    ctx.beginPath();
+                    ctx.arc(0, 0, f.size * f.openness * 1.2, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                }
+
+                // Petals
+                var petalSize = f.size * f.openness;
+                for (var p = 0; p < f.petalCount; p++) {
+                    var angle = (p / f.petalCount) * Math.PI * 2 + f.phase;
+                    var px = Math.cos(angle) * petalSize * 0.5;
+                    var py = Math.sin(angle) * petalSize * 0.5;
+
+                    ctx.save();
+                    ctx.translate(px, py);
+                    ctx.rotate(angle);
+
+                    ctx.fillStyle = rgba(col, 0.4 + f.openness * 0.3);
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, petalSize * 0.45, petalSize * 0.2, 0, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Inner highlight
+                    ctx.fillStyle = rgba('#ffffff', 0.08 + f.glowAlpha * 0.15);
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, petalSize * 0.2, petalSize * 0.08, 0, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.restore();
+                }
+
+                // Center
+                ctx.fillStyle = rgba('#ffe880', 0.3 + f.innerGlow + f.glowAlpha * 0.3);
+                ctx.shadowBlur = 5 + energy * 8;
+                ctx.shadowColor = '#ffe880';
+                ctx.beginPath();
+                ctx.arc(0, 0, petalSize * 0.15, 0, Math.PI * 2);
+                ctx.fill();
+            } else {
+                // Bud
+                ctx.fillStyle = rgba(col, 0.3);
+                ctx.beginPath();
+                ctx.ellipse(0, 0, f.size * 0.15, f.size * 0.25, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            ctx.restore();
+        }
+
+        // -- Draw firefly --
+        function drawFirefly(ctx, ff, energy) {
+            var pulse = 0.3 + Math.sin(ff.phase) * 0.3 + beatPulse * 0.2;
+            var alpha = ff.brightness * pulse * (0.5 + sectionIntensity * 0.5);
+            var col = FIREFLY_COLORS[ff.colorIdx];
+
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+
+            // Trail
+            if (ff.trail.length > 1) {
+                ctx.lineWidth = ff.size * 0.5;
+                for (var t = 1; t < ff.trail.length; t++) {
+                    var trailAlpha = (t / ff.trail.length) * alpha * 0.3;
+                    ctx.strokeStyle = rgba(col, trailAlpha);
+                    ctx.beginPath();
+                    ctx.moveTo(ff.trail[t - 1].x, ff.trail[t - 1].y);
+                    ctx.lineTo(ff.trail[t].x, ff.trail[t].y);
+                    ctx.stroke();
+                }
+            }
+
+            // Glow
+            var glowR = ff.size * (3 + pulse * 2 + energy * 2);
+            var grad = ctx.createRadialGradient(ff.x, ff.y, 0, ff.x, ff.y, glowR);
+            grad.addColorStop(0, rgba(col, alpha * 0.8));
+            grad.addColorStop(0.3, rgba(col, alpha * 0.3));
+            grad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(ff.x - glowR, ff.y - glowR, glowR * 2, glowR * 2);
+
+            // Core
+            ctx.fillStyle = rgba('#ffffff', alpha * 0.9);
+            ctx.beginPath();
+            ctx.arc(ff.x, ff.y, ff.size * 0.6, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        // -- Draw falling petals --
+        function drawPetals(ctx) {
+            ctx.save();
+            for (var i = 0; i < petals.length; i++) {
+                var p = petals[i];
+                var col = PETAL_COLORS[p.colorIdx];
+
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                ctx.rotate(p.rotation);
+                ctx.globalAlpha = p.alpha * p.life;
+                ctx.fillStyle = col;
+                ctx.beginPath();
+                ctx.ellipse(0, 0, p.size, p.size * 0.4, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+            ctx.restore();
+        }
+
+        // -- Draw trail particles (lead voice) --
+        function drawTrailParticles(ctx) {
+            if (trailParticles.length === 0) return;
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            for (var i = 0; i < trailParticles.length; i++) {
+                var tp = trailParticles[i];
+                var col = MOONLIGHT;
+                ctx.fillStyle = rgba(col, tp.alpha * tp.life);
+                ctx.shadowBlur = 4;
+                ctx.shadowColor = col;
+                ctx.beginPath();
+                ctx.arc(tp.x, tp.y, tp.size * tp.life, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+
+        // -- Draw moonlight beams --
+        function drawMoonbeams(ctx, energy) {
+            if (sectionIntensity < 0.2) return;
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            var beamCount = 5;
+            for (var i = 0; i < beamCount; i++) {
+                var angle = (i / beamCount) * 0.6 - 0.3 + Math.sin(globalTime * 0.2 + i * 1.5) * 0.05;
+                var beamLen = H * 1.2;
+                var bx = moonX + Math.sin(angle) * beamLen;
+                var by = moonY + Math.cos(angle) * beamLen;
+
+                var grad = ctx.createLinearGradient(moonX, moonY, bx, by);
+                var beamAlpha = (0.01 + energy * 0.015 + beatPulse * 0.008) * sectionIntensity;
+                grad.addColorStop(0, rgba(MOONLIGHT, beamAlpha * 0.5));
+                grad.addColorStop(0.3, rgba(MOONLIGHT, beamAlpha));
+                grad.addColorStop(1, 'rgba(0,0,0,0)');
+
+                ctx.strokeStyle = grad;
+                ctx.lineWidth = 20 + Math.sin(globalTime * 0.5 + i) * 8;
+                ctx.beginPath();
+                ctx.moveTo(moonX, moonY);
+                ctx.lineTo(bx, by);
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        // -- Draw flash overlay --
+        function drawFlash(ctx) {
+            if (flashAlpha < 0.005) return;
+            ctx.save();
+            var grad = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.max(W, H) * 0.5);
+            grad.addColorStop(0, rgba(MOONLIGHT, flashAlpha * 0.15));
+            grad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, W, H);
+            ctx.restore();
+        }
+
+        // -- Title --
+        function drawTitle(ctx) {
+            if (titleAlpha < 0.01) return;
+
+            var fontSize = Math.max(16, Math.min(W * 0.035, 44));
+            ctx.save();
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.font = '300 ' + fontSize + 'px "Cormorant Garamond", serif';
+
+            var text = 'Fur Elise';
+            var y = H * 0.1;
+
+            ctx.globalAlpha = titleAlpha * 0.4;
+            ctx.shadowColor = MOONLIGHT;
+            ctx.shadowBlur = 50;
+            ctx.fillStyle = MOONLIGHT;
+            ctx.fillText(text, W / 2, y);
+
+            ctx.globalAlpha = titleAlpha;
+            ctx.shadowBlur = 20;
+            ctx.fillStyle = '#e8eeff';
+            ctx.fillText(text, W / 2, y);
+
+            // Subtitle
+            ctx.font = '300 italic ' + (fontSize * 0.4) + 'px "Cormorant Garamond", serif';
+            ctx.globalAlpha = titleAlpha * 0.5;
+            ctx.shadowBlur = 10;
+            ctx.fillStyle = rgba(MOONLIGHT, 0.6);
+            ctx.fillText('Ludwig van Beethoven', W / 2, y + fontSize * 0.7);
+
+            ctx.restore();
+        }
+
+        // -- Map lead note to firefly target position --
+        function leadNoteToPosition(note) {
+            if (!note) return null;
+            var nx = W * 0.15 + note.normalized * W * 0.7;
+            var ny = groundY - H * 0.15 - note.normalized * H * 0.4;
+            return { x: nx, y: ny };
+        }
+
+        // ---- INIT ----
+        function init(ctx, width, height, anal) {
+            W = width; H = height;
+            analysis = anal;
+            globalTime = 0;
+            beatPulse = 0;
+            flashAlpha = 0;
+            lastSeqIndex = -1;
+            sectionIntensity = 0.15;
+            targetIntensity = 0.15;
+            titleAlpha = 0;
+            titleTarget = 0;
+            moonGlow = 0.3;
+
+            groundY = H * 0.78;
+            moonX = W * 0.75;
+            moonY = H * 0.15;
+            moonRadius = Math.min(W, H) * 0.05;
+
+            generateHills();
+
+            // Fireflies
+            fireflies = [];
+            for (var i = 0; i < 40; i++) fireflies.push(createFirefly());
+
+            // Flowers
+            flowers = [];
+            var flowerCount = 15;
+            for (var f = 0; f < flowerCount; f++) {
+                var fx = W * 0.05 + (f / flowerCount) * W * 0.9 + rand(-20, 20);
+                flowers.push(createFlower(fx));
+            }
+
+            // Stars
+            stars = [];
+            for (var s = 0; s < 80; s++) stars.push(createStar());
+
+            // Watercolor blobs
+            watercolorBlobs = [];
+            for (var w = 0; w < 6; w++) watercolorBlobs.push(createWatercolorBlob());
+
+            petals = [];
+            trailParticles = [];
+        }
+
+        // ---- RESIZE ----
+        function resize(width, height) {
+            W = width; H = height;
+            groundY = H * 0.78;
+            moonX = W * 0.75;
+            moonY = H * 0.15;
+            moonRadius = Math.min(W, H) * 0.05;
+            generateHills();
+        }
+
+        // ---- RENDER ----
+        function render(frameData) {
+            var ctx = frameData.ctx;
+            var dt = frameData.dt || 1/60;
+            var cursor = frameData.cursor;
+            beatPulse = frameData.beatPulse;
+
+            globalTime += dt;
+
+            // -- Idle state --
+            if (!cursor) {
+                drawSky(ctx, 0);
+                drawStars(ctx);
+                drawMoon(ctx, 0);
+                drawHills(ctx, 0);
+                // A few idle fireflies
+                for (var idf = 0; idf < 8; idf++) {
+                    var ff = fireflies[idf];
+                    ff.phase += dt * ff.pulseSpeed;
+                    ff.x += Math.sin(ff.phase * 0.3) * 8 * dt;
+                    ff.y += Math.cos(ff.phase * 0.4) * 5 * dt;
+                    drawFirefly(ctx, ff, 0.1);
+                }
+                return;
+            }
+
+            var seqIdx = cursor.seqIndex;
+            var energy = analysis ? (analysis.energy[cursor.timelineIndex] || 0) : 0;
+            var currentNotes = frameData.currentNotes || [];
+
+            // -- Section transitions --
+            if (seqIdx !== lastSeqIndex) {
+                lastSeqIndex = seqIdx;
+                targetIntensity = mapIntensity(seqIdx);
+
+                // Open flowers on section changes based on intensity
+                for (var fi = 0; fi < flowers.length; fi++) {
+                    var flowerThreshold = fi / flowers.length;
+                    flowers[fi].targetOpenness = targetIntensity > flowerThreshold ? clamp01(targetIntensity) : 0;
+                }
+            }
+            sectionIntensity = lerpExp(sectionIntensity, targetIntensity, 2, dt);
+
+            // -- Beat effects --
+            if (frameData.beatChanged) {
+                flashAlpha = 0.06 + energy * 0.12;
+
+                // Burst fireflies outward
+                for (var bf = 0; bf < fireflies.length; bf++) {
+                    fireflies[bf].vx += rand(-20, 20) * energy;
+                    fireflies[bf].vy += rand(-15, 5) * energy;
+                }
+
+                // Spawn petals from open flowers
+                if (energy > 0.3 && sectionIntensity > 0.3) {
+                    var petalBurst = Math.floor(energy * 4);
+                    for (var pb = 0; pb < petalBurst; pb++) {
+                        var srcFlower = pickRandom(flowers);
+                        if (srcFlower.openness > 0.3 && petals.length < 60) {
+                            petals.push(createPetal(srcFlower));
+                        }
+                    }
+                }
+
+                // Flower glow pulse on beat
+                for (var fg = 0; fg < flowers.length; fg++) {
+                    if (flowers[fg].openness > 0.2) {
+                        flowers[fg].glowAlpha = 0.3 + energy * 0.5;
+                    }
+                }
+
+                // Watercolor wash pulse
+                var wIdx = randInt(0, watercolorBlobs.length - 1);
+                watercolorBlobs[wIdx].targetAlpha = 0.04 + energy * 0.08;
+
+                // Title visibility
+                titleTarget = (sectionIntensity > 0.6) ? 1 : 0;
+            }
+            flashAlpha *= Math.exp(-4 * dt);
+            titleAlpha = lerpExp(titleAlpha, titleTarget, 2.5, dt);
+
+            // -- Lead voice trail --
+            var leadNote = null;
+            if (analysis && analysis.channelRoles) {
+                for (var ch = 0; ch < currentNotes.length; ch++) {
+                    if (currentNotes[ch] && analysis.channelRoles[ch] === 'lead') {
+                        leadNote = currentNotes[ch];
+                        break;
+                    }
+                }
+            }
+            if (!leadNote && currentNotes[0]) leadNote = currentNotes[0];
+
+            var leadPos = leadNoteToPosition(leadNote);
+            if (leadPos && sectionIntensity > 0.2) {
+                // Spawn trail particles at lead position
+                if (Math.random() < 0.4 + energy * 0.4) {
+                    trailParticles.push(createTrailParticle(leadPos.x, leadPos.y));
+                }
+                // Attract nearest fireflies toward lead
+                for (var lf = 0; lf < Math.min(8, fireflies.length); lf++) {
+                    var ffDist = Math.hypot(fireflies[lf].x - leadPos.x, fireflies[lf].y - leadPos.y);
+                    if (ffDist < 200) {
+                        fireflies[lf].vx += (leadPos.x - fireflies[lf].x) * 0.5 * dt;
+                        fireflies[lf].vy += (leadPos.y - fireflies[lf].y) * 0.5 * dt;
+                    }
+                }
+            }
+
+            // -- Update fireflies --
+            for (var uf = 0; uf < fireflies.length; uf++) {
+                var fly = fireflies[uf];
+                fly.phase += dt * fly.pulseSpeed;
+
+                // Gentle wandering
+                fly.vx += (rand(-1, 1) * 30 - fly.vx * 0.5) * dt;
+                fly.vy += (rand(-1, 1) * 20 - fly.vy * 0.3) * dt;
+
+                fly.x += fly.vx * dt;
+                fly.y += fly.vy * dt;
+
+                // Boundaries
+                if (fly.x < -20) fly.x = W + 10;
+                if (fly.x > W + 20) fly.x = -10;
+                if (fly.y < groundY - H * 0.7) fly.vy += 5 * dt;
+                if (fly.y > groundY - 10) fly.vy -= 10 * dt;
+
+                // Trail
+                fly.trailTimer += dt;
+                if (fly.trailTimer > 0.05) {
+                    fly.trailTimer = 0;
+                    fly.trail.push({ x: fly.x, y: fly.y });
+                    if (fly.trail.length > 8) fly.trail.shift();
+                }
+            }
+
+            // -- Update petals --
+            for (var up = petals.length - 1; up >= 0; up--) {
+                var pet = petals[up];
+                pet.x += pet.vx * dt + Math.sin(pet.wobblePhase + globalTime * 2) * 10 * dt;
+                pet.y += pet.vy * dt;
+                pet.rotation += pet.rotSpeed * dt;
+                pet.life -= dt * 0.3;
+                if (pet.life <= 0 || pet.y > H + 20) {
+                    petals.splice(up, 1);
+                }
+            }
+
+            // -- Update flowers --
+            for (var ufl = 0; ufl < flowers.length; ufl++) {
+                var fl = flowers[ufl];
+                fl.openness = lerpExp(fl.openness, fl.targetOpenness, 1.5, dt);
+                fl.swayPhase += dt;
+                fl.glowAlpha *= Math.exp(-3 * dt);
+            }
+
+            // -- Update trail particles --
+            for (var utp = trailParticles.length - 1; utp >= 0; utp--) {
+                var tp = trailParticles[utp];
+                tp.x += tp.vx * dt;
+                tp.y += tp.vy * dt;
+                tp.life -= dt * tp.decay;
+                if (tp.life <= 0) {
+                    trailParticles.splice(utp, 1);
+                }
+            }
+
+            // -- Update watercolor blobs --
+            for (var uw = 0; uw < watercolorBlobs.length; uw++) {
+                var blob = watercolorBlobs[uw];
+                blob.alpha = lerpExp(blob.alpha, blob.targetAlpha, 2, dt);
+                blob.targetAlpha *= Math.exp(-1.5 * dt);
+                blob.x += blob.driftX * dt;
+                blob.y += blob.driftY * dt;
+                blob.phase += dt * 0.3;
+                // Wrap
+                if (blob.x < -blob.radius) blob.x = W + blob.radius * 0.5;
+                if (blob.x > W + blob.radius) blob.x = -blob.radius * 0.5;
+            }
+
+            // ========== DRAW ==========
+
+            // 1. Sky and ground
+            drawSky(ctx, energy);
+
+            // 2. Stars
+            drawStars(ctx);
+
+            // 3. Watercolor washes (behind everything)
+            drawWatercolor(ctx, energy);
+
+            // 4. Moonlight beams
+            drawMoonbeams(ctx, energy);
+
+            // 5. Moon
+            drawMoon(ctx, energy);
+
+            // 6. Hills
+            drawHills(ctx, energy);
+
+            // 7. Flowers
+            for (var df = 0; df < flowers.length; df++) {
+                drawFlower(ctx, flowers[df], energy);
+            }
+
+            // 8. Trail particles (lead voice)
+            drawTrailParticles(ctx);
+
+            // 9. Petals
+            drawPetals(ctx);
+
+            // 10. Fireflies
+            var activeFireflies = Math.floor(5 + sectionIntensity * 35);
+            for (var dff = 0; dff < Math.min(activeFireflies, fireflies.length); dff++) {
+                drawFirefly(ctx, fireflies[dff], energy);
+            }
+
+            // 11. Flash overlay
+            drawFlash(ctx);
+
+            // 12. Title
+            drawTitle(ctx);
+
+            // 13. Intro/outro fade
+            if (sectionIntensity < 0.2) {
+                var fadeAlpha = (0.2 - sectionIntensity) * 3;
+                ctx.save();
+                ctx.fillStyle = 'rgba(6,8,16,' + clamp01(fadeAlpha * 0.4) + ')';
+                ctx.fillRect(0, 0, W, H);
+                ctx.restore();
+            }
+        }
+
+        BaseRenderer('fur-elise-video', 'Fur Elise - Moonlit Garden', {
+            beatDecay: 6,
+            init: init,
+            render: render,
+            resize: resize
+        });
+    })();
+
+    // -- Page bootstrap --
+    (function() {
+        var canvas = document.getElementById('viz-canvas');
+        var overlay = document.getElementById('play-overlay');
+
+        Visualizer.init(canvas);
+        Visualizer.setRenderer('fur-elise-video');
+
+        function loadAndPlay(json) {
+            Visualizer.loadSong(json);
+            Visualizer.play();
+        }
+
+        function fetchSong() {
+            var url = '../audio-tracker/songs/fur-elise.json';
+            if (window.fetch && location.protocol !== 'file:') {
+                return fetch(url).then(function(r) { return r.json(); });
+            }
+            return new Promise(function(resolve, reject) {
+                var xhr = new XMLHttpRequest();
+                xhr.open('GET', url, true);
+                xhr.onload = function() {
+                    if (xhr.status === 200 || xhr.status === 0) {
+                        resolve(JSON.parse(xhr.responseText));
+                    } else {
+                        reject(new Error('XHR failed: ' + xhr.status));
+                    }
+                };
+                xhr.onerror = function() { reject(new Error('XHR error')); };
+                xhr.send();
+            });
+        }
+
+        overlay.addEventListener('click', function() {
+            overlay.classList.add('hidden');
+            fetchSong().then(loadAndPlay).catch(function(err) {
+                console.error('Failed to load song:', err);
+                overlay.classList.remove('hidden');
+            });
+        });
+
+        if (new URLSearchParams(window.location.search).get('autoplay') === '1') {
+            overlay.click();
+        }
+
+        canvas.addEventListener('click', function() {
+            if (overlay.classList.contains('hidden')) {
+                if (Visualizer.isPlaying()) {
+                    Visualizer.stop();
+                } else {
+                    Visualizer.play();
+                }
+            }
+        });
+    })();
+    </script>
+</body>
+</html>

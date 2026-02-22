@@ -1,0 +1,1128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tokyo Midnight — Music Video</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;700&family=Playfair+Display:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="video-base-styles.css">
+    <style>
+        :root {
+            --vid-bg: #080412;
+            --vid-bg-rgb: 8,4,18;
+            --vid-font: 'Playfair Display', serif;
+            --vid-accent: #e84a72;
+            --vid-accent-r: 232;
+            --vid-accent-g: 74;
+            --vid-accent-b: 114;
+            --vid-title-min: 20px;
+            --vid-title-max: 50px;
+            --vid-title-spacing: 0.15em;
+            --vid-sub-alpha: 0.4;
+            --vid-sub-font: 'Noto Sans JP', sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <a href="music-videos/index.html" class="back-link">&larr; Music Videos</a>
+    <canvas id="viz-canvas"></canvas>
+    <div class="play-overlay" id="play-overlay">
+        <div class="play-title">Tokyo Midnight</div>
+        <div class="play-sub">late-night jazz bar in the rain</div>
+        <div class="play-btn"></div>
+    </div>
+
+    <script src="../audio-tracker/playback-engine.js"></script>
+    <script src="engine.js"></script>
+    <script src="video-utils.js"></script>
+    <script src="base-renderer.js"></script>
+    <script>
+    // ── Tokyo Midnight Video Renderer ─────────────────────────────────
+    (function() {
+        "use strict";
+
+        var W = 0, H = 0;
+        var analysis = null;
+
+        // ── Palette ──
+        var BG_DEEP     = '#080412';
+        var NEON_PINK    = '#e84a72';
+        var NEON_BLUE    = '#4a9de8';
+        var NEON_CYAN    = '#3de8d4';
+        var NEON_AMBER   = '#e8a84a';
+        var WARM_DIM     = '#6b3a28';
+        var BAR_WOOD     = '#1a0e08';
+        var GLASS_TINT   = '#182838';
+        var RAIN_COLOR   = '#8ab8e0';
+        var SMOKE_WARM   = '#3a2818';
+
+        // ── Kanji for neon signs ──
+        var KANJI = [
+            '\u30B8\u30E3\u30BA',   // Jazz
+            '\u30D0\u30FC',         // Bar
+            '\u591C',               // Night
+            '\u97F3\u697D',         // Music
+            '\u6708',               // Moon
+            '\u96E8'                // Rain
+        ];
+
+        // ── Layout ──
+        var FLOOR_Y   = 0.80;
+        var CEILING_Y = 0.10;
+        var BAR_TOP   = 0.72;
+        var WINDOW_TOP = 0.08;
+        var WINDOW_BOT = 0.68;
+
+        // ── State ──
+        var floorY = 0, ceilingY = 0, barTopY = 0;
+        var beatPulse = 0;
+        var lastSeqIndex = -1;
+        var sectionMood = 'intro';
+
+        // Rain
+        var raindrops = [];
+        var MAX_RAIN = 300;
+        var rainStreaks = []; // streaks on window glass
+
+        // Neon signs
+        var neonSigns = [];
+
+        // Bokeh lights (city background)
+        var bokehLights = [];
+
+        // Smoke particles
+        var smokeParticles = [];
+        var MAX_SMOKE = 80;
+
+        // Vibraphone sparkles (floating notes)
+        var sparkles = [];
+        var MAX_SPARKLES = 40;
+
+        // Bass light strips
+        var bassStrips = [];
+        var bassGlow = 0;
+
+        // Musicians
+        var musicians = [];
+
+        // Title
+        var titleAlpha = 0;
+        var titleTarget = 0;
+
+        // Fades
+        var introFade = 0;
+        var outroFade = 1;
+
+        // Ambient
+        var ambientFlicker = 0;
+        var neonPhase = 0;
+
+        // ── Section mapping ──
+        // 0-3: Intro, 4-7: A melody, 8-11: B bridge, 12-13: A' return,
+        // 14-17: Solo, 18-21: C full band, 22-24: Outro
+        function mapSection(seqIdx) {
+            if (seqIdx <= 1) return 'intro';
+            if (seqIdx <= 3) return 'intro_groove';
+            if (seqIdx <= 7) return 'melody';
+            if (seqIdx <= 11) return 'bridge';
+            if (seqIdx <= 13) return 'return';
+            if (seqIdx <= 17) return 'solo';
+            if (seqIdx <= 21) return 'peak';
+            if (seqIdx <= 23) return 'outro';
+            return 'fade';
+        }
+
+        // ── Init systems ──
+        function initRain() {
+            raindrops = [];
+            for (var i = 0; i < MAX_RAIN; i++) {
+                raindrops.push(makeRaindrop());
+            }
+            // Window streaks
+            rainStreaks = [];
+            for (var j = 0; j < 40; j++) {
+                rainStreaks.push({
+                    x: Math.random(),
+                    y: Math.random() * 0.5,
+                    len: 0.05 + Math.random() * 0.15,
+                    speed: 0.02 + Math.random() * 0.04,
+                    width: 0.5 + Math.random() * 1.5,
+                    alpha: 0.05 + Math.random() * 0.15,
+                    wobble: Math.random() * Math.PI * 2
+                });
+            }
+        }
+
+        function makeRaindrop() {
+            return {
+                x: Math.random() * 1.2 - 0.1,
+                y: -Math.random(),
+                speed: 0.8 + Math.random() * 1.2,
+                len: 8 + Math.random() * 20,
+                alpha: 0.1 + Math.random() * 0.25,
+                wind: -0.05 - Math.random() * 0.1
+            };
+        }
+
+        function initBokeh() {
+            bokehLights = [];
+            var colors = [NEON_PINK, NEON_BLUE, NEON_CYAN, NEON_AMBER, '#ffffff', '#e84ae8'];
+            for (var i = 0; i < 60; i++) {
+                bokehLights.push({
+                    x: Math.random(),
+                    y: WINDOW_TOP + Math.random() * (WINDOW_BOT - WINDOW_TOP) * 0.8,
+                    r: 3 + Math.random() * 18,
+                    color: pickRandom(colors),
+                    alpha: 0.05 + Math.random() * 0.2,
+                    pulse: Math.random() * Math.PI * 2,
+                    pulseSpeed: 0.5 + Math.random() * 2
+                });
+            }
+        }
+
+        function initNeonSigns() {
+            neonSigns = [];
+            var colors = [NEON_PINK, NEON_BLUE, NEON_CYAN, NEON_AMBER];
+            for (var i = 0; i < 4; i++) {
+                neonSigns.push({
+                    text: KANJI[i],
+                    x: 0.1 + i * 0.22 + (Math.random() - 0.5) * 0.05,
+                    y: WINDOW_TOP + 0.05 + Math.random() * 0.15,
+                    color: colors[i],
+                    size: 0.03 + Math.random() * 0.02,
+                    flicker: Math.random() * Math.PI * 2,
+                    flickerSpeed: 3 + Math.random() * 5,
+                    vertical: Math.random() > 0.5
+                });
+            }
+        }
+
+        function initMusicians() {
+            // Silhouetted combo: piano, bass, vibes, drums
+            musicians = [
+                { type: 'bass',   x: 0.18, phase: 0,    bobAmp: 0.4 },
+                { type: 'piano',  x: 0.32, phase: 0.5,  bobAmp: 0.25 },
+                { type: 'vibes',  x: 0.48, phase: 0.75, bobAmp: 0.35 },
+                { type: 'drums',  x: 0.60, phase: 0.25, bobAmp: 0.3 }
+            ];
+        }
+
+        function initBassStrips() {
+            bassStrips = [];
+            var numStrips = 8;
+            for (var i = 0; i < numStrips; i++) {
+                bassStrips.push({
+                    x: i / numStrips,
+                    width: 1 / numStrips * 0.7,
+                    phase: i * Math.PI / numStrips,
+                    color: i % 2 === 0 ? NEON_PINK : NEON_AMBER
+                });
+            }
+        }
+
+        // ── Smoke ──
+        function spawnSmoke(x, y, vx, vy) {
+            if (smokeParticles.length >= MAX_SMOKE) return;
+            smokeParticles.push({
+                x: x, y: y,
+                vx: vx + (Math.random() - 0.5) * 6,
+                vy: vy - 8 - Math.random() * 12,
+                size: 3 + Math.random() * 5,
+                alpha: 0.15 + Math.random() * 0.15,
+                life: 1.0,
+                decay: 0.15 + Math.random() * 0.2,
+                curl: (Math.random() - 0.5) * 2
+            });
+        }
+
+        function updateSmoke(dt) {
+            for (var i = smokeParticles.length - 1; i >= 0; i--) {
+                var p = smokeParticles[i];
+                p.vx += Math.sin(p.y * 0.015 + p.curl) * 0.2;
+                p.vy *= 0.97;
+                p.x += p.vx * dt;
+                p.y += p.vy * dt;
+                p.size += dt * 3;
+                p.life -= p.decay * dt;
+                if (p.life <= 0) smokeParticles.splice(i, 1);
+            }
+        }
+
+        function drawSmoke(ctx) {
+            for (var i = 0; i < smokeParticles.length; i++) {
+                var p = smokeParticles[i];
+                var a = p.alpha * p.life * introFade * outroFade;
+                if (a < 0.005) continue;
+                var grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size);
+                grad.addColorStop(0, 'rgba(60,40,30,' + (a * 0.5) + ')');
+                grad.addColorStop(0.5, 'rgba(40,25,18,' + (a * 0.25) + ')');
+                grad.addColorStop(1, 'rgba(20,12,8,0)');
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // ── Sparkles (vibraphone notes) ──
+        function spawnSparkle(x, y) {
+            if (sparkles.length >= MAX_SPARKLES) return;
+            sparkles.push({
+                x: x, y: y,
+                vx: (Math.random() - 0.5) * 30,
+                vy: -20 - Math.random() * 40,
+                size: 1.5 + Math.random() * 3,
+                alpha: 0.6 + Math.random() * 0.4,
+                life: 1.0,
+                decay: 0.4 + Math.random() * 0.6,
+                color: Math.random() > 0.5 ? NEON_CYAN : '#ffffff'
+            });
+        }
+
+        function updateSparkles(dt) {
+            for (var i = sparkles.length - 1; i >= 0; i--) {
+                var s = sparkles[i];
+                s.vy += 15 * dt; // gentle gravity
+                s.x += s.vx * dt;
+                s.y += s.vy * dt;
+                s.life -= s.decay * dt;
+                s.size *= (1 - 0.3 * dt);
+                if (s.life <= 0 || s.size < 0.3) sparkles.splice(i, 1);
+            }
+        }
+
+        function drawSparkles(ctx) {
+            ctx.save();
+            for (var i = 0; i < sparkles.length; i++) {
+                var s = sparkles[i];
+                var a = s.alpha * s.life * introFade * outroFade;
+                if (a < 0.01) continue;
+                ctx.globalAlpha = a;
+                ctx.fillStyle = s.color;
+                ctx.shadowColor = s.color;
+                ctx.shadowBlur = 8;
+                ctx.beginPath();
+                ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+                ctx.fill();
+                // Cross sparkle
+                if (s.size > 1.5) {
+                    ctx.globalAlpha = a * 0.5;
+                    ctx.strokeStyle = s.color;
+                    ctx.lineWidth = 0.5;
+                    ctx.beginPath();
+                    ctx.moveTo(s.x - s.size * 2, s.y);
+                    ctx.lineTo(s.x + s.size * 2, s.y);
+                    ctx.moveTo(s.x, s.y - s.size * 2);
+                    ctx.lineTo(s.x, s.y + s.size * 2);
+                    ctx.stroke();
+                }
+            }
+            ctx.restore();
+        }
+
+        // ── Draw rain ──
+        function updateRain(dt, energy) {
+            for (var i = 0; i < raindrops.length; i++) {
+                var d = raindrops[i];
+                d.y += d.speed * dt;
+                d.x += d.wind * dt;
+                if (d.y > 1.1) {
+                    raindrops[i] = makeRaindrop();
+                    raindrops[i].y = -0.05;
+                }
+            }
+            // Window streaks
+            for (var j = 0; j < rainStreaks.length; j++) {
+                var s = rainStreaks[j];
+                s.y += s.speed * dt;
+                s.wobble += dt * 2;
+                if (s.y > WINDOW_BOT + 0.1) {
+                    s.y = WINDOW_TOP - 0.05;
+                    s.x = Math.random();
+                }
+            }
+        }
+
+        function drawRain(ctx) {
+            ctx.save();
+            ctx.lineCap = 'round';
+            var fade = introFade * outroFade;
+            for (var i = 0; i < raindrops.length; i++) {
+                var d = raindrops[i];
+                var px = d.x * W;
+                var py = d.y * H;
+                ctx.globalAlpha = d.alpha * fade * 0.4;
+                ctx.strokeStyle = RAIN_COLOR;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(px, py);
+                ctx.lineTo(px + d.wind * d.len * 0.5, py + d.len);
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        function drawWindowStreaks(ctx) {
+            ctx.save();
+            var fade = introFade * outroFade;
+            for (var i = 0; i < rainStreaks.length; i++) {
+                var s = rainStreaks[i];
+                var sx = s.x * W + Math.sin(s.wobble) * 2;
+                var sy = s.y * H;
+                var ey = (s.y + s.len) * H;
+                ctx.globalAlpha = s.alpha * fade;
+                ctx.strokeStyle = 'rgba(138,184,224,0.3)';
+                ctx.lineWidth = s.width;
+                ctx.beginPath();
+                ctx.moveTo(sx, sy);
+                // Slightly wobbly streak
+                var mid = (sy + ey) * 0.5;
+                ctx.quadraticCurveTo(sx + Math.sin(s.wobble * 1.3) * 3, mid, sx + Math.sin(s.wobble * 0.7) * 2, ey);
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        // ── Bokeh city lights ──
+        function drawBokeh(ctx, energy, time) {
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            var fade = introFade * outroFade;
+
+            for (var i = 0; i < bokehLights.length; i++) {
+                var b = bokehLights[i];
+                var bx = b.x * W;
+                var by = b.y * H;
+                var pulse = 0.6 + 0.4 * Math.sin(time * b.pulseSpeed + b.pulse);
+                var a = b.alpha * pulse * fade * (0.5 + energy * 0.5);
+                if (a < 0.005) continue;
+
+                var rgb = hexToRgb(b.color);
+                var grad = ctx.createRadialGradient(bx, by, 0, bx, by, b.r * (1 + energy * 0.3));
+                grad.addColorStop(0, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + a + ')');
+                grad.addColorStop(0.4, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + (a * 0.4) + ')');
+                grad.addColorStop(1, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0)');
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.arc(bx, by, b.r * (1 + energy * 0.3), 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+
+        // ── Neon kanji reflections on glass ──
+        function drawNeonSigns(ctx, time, energy) {
+            ctx.save();
+            var fade = introFade * outroFade;
+            var winT = H * WINDOW_TOP;
+            var winB = H * WINDOW_BOT;
+
+            for (var i = 0; i < neonSigns.length; i++) {
+                var n = neonSigns[i];
+                var flicker = 0.5 + 0.5 * Math.sin(time * n.flickerSpeed + n.flicker);
+                // Occasional stutter
+                if (Math.sin(time * 17 + i * 3.7) > 0.92) flicker *= 0.2;
+
+                var a = (0.4 + energy * 0.3) * flicker * fade;
+                if (a < 0.01) continue;
+
+                var nx = n.x * W;
+                var ny = n.y * H;
+                var fontSize = Math.max(14, n.size * H);
+
+                ctx.font = '700 ' + fontSize + 'px "Noto Sans JP", sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+
+                var rgb = hexToRgb(n.color);
+
+                // Glow
+                ctx.globalAlpha = a * 0.6;
+                ctx.shadowColor = n.color;
+                ctx.shadowBlur = 25 + energy * 15;
+                ctx.fillStyle = n.color;
+
+                if (n.vertical) {
+                    // Draw characters vertically
+                    var chars = n.text.split('');
+                    for (var c = 0; c < chars.length; c++) {
+                        ctx.fillText(chars[c], nx, ny + c * fontSize * 1.2);
+                    }
+                } else {
+                    ctx.fillText(n.text, nx, ny);
+                }
+
+                // Reflected version (dimmer, below, distorted)
+                ctx.globalAlpha = a * 0.15;
+                ctx.shadowBlur = 40;
+                var refY = ny + (winB - ny) * 0.4 + Math.sin(time * 0.8 + i) * 3;
+                ctx.save();
+                ctx.translate(nx, refY);
+                ctx.scale(1.05, -0.6);
+                if (n.vertical) {
+                    var chars2 = n.text.split('');
+                    for (var c2 = 0; c2 < chars2.length; c2++) {
+                        ctx.fillText(chars2[c2], 0, c2 * fontSize * 1.2);
+                    }
+                } else {
+                    ctx.fillText(n.text, 0, 0);
+                }
+                ctx.restore();
+            }
+            ctx.restore();
+        }
+
+        // ── Window (rain-streaked glass with city beyond) ──
+        function drawWindow(ctx, energy, time) {
+            var winT = H * WINDOW_TOP;
+            var winB = H * WINDOW_BOT;
+            var winW = W;
+
+            ctx.save();
+            // Clip to window area
+            ctx.beginPath();
+            ctx.rect(0, winT, winW, winB - winT);
+            ctx.clip();
+
+            // Dark city sky gradient
+            var skyGrad = ctx.createLinearGradient(0, winT, 0, winB);
+            skyGrad.addColorStop(0, '#04020a');
+            skyGrad.addColorStop(0.3, '#0a0618');
+            skyGrad.addColorStop(0.7, '#100820');
+            skyGrad.addColorStop(1, '#0c0614');
+            ctx.fillStyle = skyGrad;
+            ctx.fillRect(0, winT, winW, winB - winT);
+
+            // Bokeh city lights
+            drawBokeh(ctx, energy, time);
+
+            // Neon kanji signs
+            drawNeonSigns(ctx, time, energy);
+
+            // Rain streaks on glass
+            drawWindowStreaks(ctx);
+
+            // Glass tint overlay
+            ctx.globalAlpha = 0.08;
+            ctx.fillStyle = GLASS_TINT;
+            ctx.fillRect(0, winT, winW, winB - winT);
+
+            ctx.restore();
+
+            // Window frame (bottom edge)
+            ctx.strokeStyle = '#2a1a12';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(0, winB);
+            ctx.lineTo(W, winB);
+            ctx.stroke();
+
+            // Vertical window dividers
+            ctx.strokeStyle = '#1e1410';
+            ctx.lineWidth = 2;
+            var dividers = [0.25, 0.5, 0.75];
+            for (var i = 0; i < dividers.length; i++) {
+                var dx = W * dividers[i];
+                ctx.beginPath();
+                ctx.moveTo(dx, winT);
+                ctx.lineTo(dx, winB);
+                ctx.stroke();
+            }
+        }
+
+        // ── Interior walls and ceiling ──
+        function drawInterior(ctx, energy) {
+            ctx.save();
+
+            // Ceiling area above window
+            var ceilGrad = ctx.createLinearGradient(0, 0, 0, H * WINDOW_TOP);
+            ceilGrad.addColorStop(0, '#060310');
+            ceilGrad.addColorStop(1, '#0a0616');
+            ctx.fillStyle = ceilGrad;
+            ctx.fillRect(0, 0, W, H * WINDOW_TOP);
+
+            // Floor area
+            var flGrad = ctx.createLinearGradient(0, barTopY, 0, H);
+            flGrad.addColorStop(0, '#0e0818');
+            flGrad.addColorStop(0.3, '#080412');
+            flGrad.addColorStop(1, '#040208');
+            ctx.fillStyle = flGrad;
+            ctx.fillRect(0, barTopY, W, H - barTopY);
+
+            // Bar counter top
+            ctx.fillStyle = BAR_WOOD;
+            ctx.fillRect(0, barTopY, W, 6);
+
+            // Bar counter edge highlight
+            var barAlpha = 0.1 + energy * 0.08 + beatPulse * 0.05;
+            ctx.strokeStyle = 'rgba(232,74,114,' + barAlpha + ')';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(0, barTopY);
+            ctx.lineTo(W, barTopY);
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        // ── Bass light strips along bar ──
+        function drawBassStrips(ctx, energy, time) {
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            var fade = introFade * outroFade;
+            var stripH = 4;
+            var stripY = barTopY + 2;
+
+            for (var i = 0; i < bassStrips.length; i++) {
+                var s = bassStrips[i];
+                var pulse = 0.2 + 0.8 * Math.pow(Math.max(0, Math.sin(time * 2 + s.phase)), 2);
+                var intensity = (0.1 + bassGlow * 0.6 + energy * 0.3) * pulse * fade;
+                if (intensity < 0.01) continue;
+
+                var sx = s.x * W;
+                var sw = s.width * W;
+                var rgb = hexToRgb(s.color);
+
+                var grad = ctx.createLinearGradient(sx, stripY, sx, stripY + stripH * 3);
+                grad.addColorStop(0, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + intensity + ')');
+                grad.addColorStop(1, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0)');
+                ctx.fillStyle = grad;
+                ctx.fillRect(sx, stripY, sw, stripH * 3);
+
+                // Bright top line
+                ctx.fillStyle = 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + (intensity * 0.8) + ')';
+                ctx.fillRect(sx, stripY, sw, 2);
+            }
+            ctx.restore();
+        }
+
+        // ── Musician silhouettes ──
+        function drawMusician(ctx, type, x, y, h, bob, energy, bp) {
+            ctx.save();
+            ctx.translate(x, y + bob);
+            var s = h / 100;
+
+            ctx.fillStyle = 'rgba(6,3,12,0.92)';
+            ctx.strokeStyle = 'rgba(6,3,12,0.92)';
+            ctx.lineWidth = 2 * s;
+            ctx.lineCap = 'round';
+
+            if (type === 'bass') {
+                // Standing bass player with upright bass
+                ctx.beginPath();
+                ctx.ellipse(0, -55 * s, 10 * s, 14 * s, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(0, -75 * s, 8 * s, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(-3 * s, -42 * s); ctx.lineTo(-6 * s, 0);
+                ctx.moveTo(3 * s, -42 * s); ctx.lineTo(8 * s, 0);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(-8 * s, -60 * s); ctx.lineTo(-20 * s, -50 * s);
+                ctx.moveTo(8 * s, -60 * s); ctx.lineTo(15 * s, -45 * s);
+                ctx.stroke();
+                // Upright bass
+                ctx.beginPath();
+                ctx.ellipse(-22 * s, -35 * s, 12 * s, 20 * s, 0.1, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(-22 * s, -55 * s); ctx.lineTo(-18 * s, -90 * s);
+                ctx.stroke();
+                // Glow on beat
+                if (bp > 0.2) {
+                    ctx.globalAlpha = bp * 0.25 * energy;
+                    ctx.strokeStyle = NEON_AMBER;
+                    ctx.lineWidth = 1.5 * s;
+                    ctx.beginPath();
+                    ctx.ellipse(-22 * s, -35 * s, 13 * s, 21 * s, 0.1, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+            } else if (type === 'piano') {
+                // Rhodes player seated
+                ctx.beginPath();
+                ctx.ellipse(0, -40 * s, 10 * s, 12 * s, -0.1, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(4 * s, -58 * s, 8 * s, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(-5 * s, -28 * s); ctx.lineTo(-8 * s, -10 * s); ctx.lineTo(-4 * s, 0);
+                ctx.moveTo(5 * s, -28 * s); ctx.lineTo(8 * s, -10 * s); ctx.lineTo(12 * s, 0);
+                ctx.stroke();
+                var armBob = Math.sin(bp * Math.PI) * 3 * s * energy;
+                ctx.beginPath();
+                ctx.moveTo(-8 * s, -42 * s); ctx.lineTo(-18 * s, -30 * s + armBob);
+                ctx.moveTo(8 * s, -42 * s); ctx.lineTo(20 * s, -30 * s - armBob);
+                ctx.stroke();
+                // Rhodes keyboard
+                ctx.fillRect(14 * s, -38 * s, 28 * s, 12 * s);
+                if (bp > 0.1) {
+                    ctx.globalAlpha = bp * 0.35 * energy;
+                    ctx.fillStyle = NEON_AMBER;
+                    ctx.fillRect(14 * s, -28 * s, 28 * s, 2 * s);
+                }
+            } else if (type === 'vibes') {
+                // Vibraphone player standing
+                ctx.beginPath();
+                ctx.ellipse(0, -52 * s, 10 * s, 14 * s, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(-1 * s, -72 * s, 8 * s, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(-4 * s, -38 * s); ctx.lineTo(-6 * s, 0);
+                ctx.moveTo(4 * s, -38 * s); ctx.lineTo(7 * s, 0);
+                ctx.stroke();
+                // Arms with mallets
+                var mSwing = Math.sin(bp * Math.PI * 2) * 6 * s * energy;
+                ctx.beginPath();
+                ctx.moveTo(-8 * s, -55 * s); ctx.lineTo(-16 * s, -35 * s + mSwing);
+                ctx.lineTo(-18 * s, -28 * s + mSwing);
+                ctx.moveTo(8 * s, -55 * s); ctx.lineTo(14 * s, -33 * s - mSwing);
+                ctx.lineTo(16 * s, -26 * s - mSwing);
+                ctx.stroke();
+                // Vibraphone bars
+                ctx.fillRect(-20 * s, -22 * s, 36 * s, 6 * s);
+                // Legs of vibraphone
+                ctx.beginPath();
+                ctx.moveTo(-18 * s, -16 * s); ctx.lineTo(-16 * s, 0);
+                ctx.moveTo(14 * s, -16 * s); ctx.lineTo(12 * s, 0);
+                ctx.stroke();
+                // Sparkle on beat
+                if (bp > 0.15 && energy > 0.15) {
+                    ctx.globalAlpha = bp * 0.5 * energy;
+                    ctx.fillStyle = NEON_CYAN;
+                    ctx.shadowColor = NEON_CYAN;
+                    ctx.shadowBlur = 10;
+                    var noteR = (2 + energy * 3) * s;
+                    ctx.beginPath();
+                    ctx.arc(-2 * s + mSwing, -26 * s, noteR, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            } else if (type === 'drums') {
+                // Brush drummer seated
+                ctx.beginPath();
+                ctx.ellipse(0, -38 * s, 10 * s, 12 * s, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(0, -56 * s, 8 * s, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(-6 * s, -26 * s); ctx.lineTo(-10 * s, 0);
+                ctx.moveTo(6 * s, -26 * s); ctx.lineTo(10 * s, 0);
+                ctx.stroke();
+                var bSwing = Math.sin(bp * Math.PI * 2) * 6 * s * energy;
+                ctx.beginPath();
+                ctx.moveTo(-8 * s, -42 * s); ctx.lineTo(-18 * s + bSwing, -25 * s);
+                ctx.moveTo(8 * s, -42 * s); ctx.lineTo(16 * s - bSwing, -22 * s);
+                ctx.stroke();
+                // Kit
+                ctx.beginPath();
+                ctx.ellipse(-18 * s, -18 * s, 10 * s, 3 * s, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(2 * s, -18 * s, 10 * s, 4 * s, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(20 * s, -22 * s, 12 * s, 3 * s, 0.2, 0, Math.PI * 2);
+                ctx.fill();
+                if (bp > 0.3) {
+                    ctx.globalAlpha = bp * 0.2;
+                    ctx.strokeStyle = NEON_AMBER;
+                    ctx.lineWidth = 1 * s;
+                    ctx.beginPath();
+                    ctx.ellipse(20 * s, -22 * s, 14 * s, 4 * s, 0.2, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+            }
+            ctx.restore();
+        }
+
+        function drawMusicians(ctx, energy, time) {
+            var musH = (floorY - ceilingY) * 0.55;
+            var baseY = floorY;
+
+            for (var i = 0; i < musicians.length; i++) {
+                var m = musicians[i];
+                var bob = Math.sin(time * 1.3 + m.phase) * 3 * (0.2 + energy * m.bobAmp);
+                var scale = m.type === 'vibes' ? 0.95 : (m.type === 'drums' ? 0.8 : (m.type === 'piano' ? 0.85 : 1.0));
+                drawMusician(ctx, m.type, W * m.x, baseY, musH * scale, bob, energy, beatPulse);
+            }
+        }
+
+        // ── Ambient warm lighting ──
+        function drawAmbientLighting(ctx, energy) {
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            var fade = introFade * outroFade;
+
+            // Warm overhead glow
+            var lampX = W * 0.38;
+            var lampY = H * WINDOW_TOP + 15;
+            var lampI = (0.04 + energy * 0.03 + ambientFlicker * 0.015) * fade;
+
+            var lampGrad = ctx.createRadialGradient(lampX, lampY, 0, lampX, lampY, H * 0.5);
+            lampGrad.addColorStop(0, 'rgba(200,120,60,' + lampI + ')');
+            lampGrad.addColorStop(0.4, 'rgba(150,70,30,' + (lampI * 0.3) + ')');
+            lampGrad.addColorStop(1, 'rgba(60,20,10,0)');
+            ctx.fillStyle = lampGrad;
+            ctx.fillRect(0, 0, W, H);
+
+            // Neon spill from window
+            var neonI = (0.02 + energy * 0.015) * fade;
+            var neonGrad = ctx.createLinearGradient(0, H * WINDOW_BOT, 0, H);
+            neonGrad.addColorStop(0, 'rgba(232,74,114,' + (neonI * 1.5) + ')');
+            neonGrad.addColorStop(0.5, 'rgba(74,157,232,' + (neonI * 0.5) + ')');
+            neonGrad.addColorStop(1, 'rgba(20,10,30,0)');
+            ctx.fillStyle = neonGrad;
+            ctx.fillRect(0, H * WINDOW_BOT, W, H * 0.3);
+
+            ctx.restore();
+        }
+
+        // ── Pendant lamps ──
+        function drawLamps(ctx, energy) {
+            ctx.save();
+            var fade = introFade * outroFade;
+            var lamps = [
+                { x: W * 0.15, w: 16 },
+                { x: W * 0.38, w: 20 },
+                { x: W * 0.62, w: 16 },
+                { x: W * 0.85, w: 14 }
+            ];
+
+            for (var i = 0; i < lamps.length; i++) {
+                var lx = lamps[i].x;
+                var lw = lamps[i].w;
+
+                // Cord
+                ctx.strokeStyle = '#1a0e08';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(lx, 0);
+                ctx.lineTo(lx, ceilingY + 12);
+                ctx.stroke();
+
+                // Paper shade (Japanese style)
+                ctx.fillStyle = '#140c06';
+                ctx.beginPath();
+                ctx.ellipse(lx, ceilingY + 20, lw * 0.6, 10, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Warm glow
+                var glowA = (0.12 + energy * 0.08 + ambientFlicker * 0.04) * fade;
+                ctx.fillStyle = 'rgba(200,130,60,' + glowA + ')';
+                ctx.beginPath();
+                ctx.arc(lx, ceilingY + 20, 5, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Glow cone
+                ctx.globalAlpha = glowA * 0.15;
+                ctx.fillStyle = '#c8823c';
+                ctx.beginPath();
+                ctx.moveTo(lx - lw * 0.4, ceilingY + 28);
+                ctx.lineTo(lx - lw * 1.5, floorY);
+                ctx.lineTo(lx + lw * 1.5, floorY);
+                ctx.lineTo(lx + lw * 0.4, ceilingY + 28);
+                ctx.closePath();
+                ctx.fill();
+                ctx.globalAlpha = 1;
+            }
+            ctx.restore();
+        }
+
+        // ── Title ──
+        function drawTitle(ctx) {
+            if (titleAlpha < 0.01) return;
+
+            ctx.save();
+            var fontSize = Math.max(16, Math.min(W * 0.04, 46));
+            ctx.font = '700 ' + fontSize + 'px "Playfair Display", serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+
+            var tx = W * 0.5;
+            var ty = H * 0.05;
+
+            // Neon glow
+            ctx.globalAlpha = titleAlpha * 0.4;
+            ctx.shadowColor = NEON_PINK;
+            ctx.shadowBlur = 40;
+            ctx.fillStyle = NEON_PINK;
+            ctx.fillText('TOKYO MIDNIGHT', tx, ty);
+
+            ctx.globalAlpha = titleAlpha;
+            ctx.shadowBlur = 20;
+            ctx.fillText('TOKYO MIDNIGHT', tx, ty);
+
+            // Subtitle
+            ctx.font = '300 ' + (fontSize * 0.35) + 'px "Noto Sans JP", sans-serif';
+            ctx.globalAlpha = titleAlpha * 0.5;
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = NEON_CYAN;
+            ctx.fillStyle = NEON_CYAN;
+            ctx.fillText('\u6DF1\u591C\u306E\u6771\u4EAC', tx, ty + fontSize * 0.55);
+
+            ctx.restore();
+        }
+
+        // ── Vignette ──
+        function drawVignette(ctx) {
+            var vigGrad = ctx.createRadialGradient(
+                W * 0.4, H * 0.45, W * 0.12,
+                W * 0.5, H * 0.5, W * 0.75
+            );
+            vigGrad.addColorStop(0, 'rgba(8,4,18,0)');
+            vigGrad.addColorStop(1, 'rgba(8,4,18,' + (0.45 * outroFade + (1 - outroFade) * 0.92) + ')');
+            ctx.fillStyle = vigGrad;
+            ctx.fillRect(0, 0, W, H);
+        }
+
+        // ── Init ──
+        function init(ctx, width, height, anal) {
+            W = width; H = height;
+            analysis = anal;
+            floorY = H * FLOOR_Y;
+            ceilingY = H * CEILING_Y;
+            barTopY = H * BAR_TOP;
+
+            initRain();
+            initBokeh();
+            initNeonSigns();
+            initMusicians();
+            initBassStrips();
+
+            smokeParticles = [];
+            sparkles = [];
+            beatPulse = 0;
+            bassGlow = 0;
+            lastSeqIndex = -1;
+            sectionMood = 'intro';
+            titleAlpha = 0;
+            titleTarget = 0;
+            introFade = 0;
+            outroFade = 1;
+            ambientFlicker = 0;
+            neonPhase = 0;
+        }
+
+        // ── Resize ──
+        function resize(width, height) {
+            W = width; H = height;
+            floorY = H * FLOOR_Y;
+            ceilingY = H * CEILING_Y;
+            barTopY = H * BAR_TOP;
+        }
+
+        // ── Main render ──
+        function render(frameData) {
+            var ctx = frameData.ctx;
+            var dt = frameData.dt || 1/60;
+            var cursor = frameData.cursor;
+            beatPulse = frameData.beatPulse;
+
+            // Background
+            ctx.fillStyle = BG_DEEP;
+            ctx.fillRect(0, 0, W, H);
+
+            if (!cursor) {
+                introFade = lerpExp(introFade, 0.35, 2, dt);
+                drawInterior(ctx, 0);
+                drawWindow(ctx, 0.1, 0);
+                drawLamps(ctx, 0.1);
+                return;
+            }
+
+            var seqIdx = cursor.seqIndex;
+            var energy = analysis ? (analysis.energy[cursor.timelineIndex] || 0) : 0;
+            var elapsed = cursor.elapsed || 0;
+            var currentNotes = frameData.currentNotes || [];
+
+            // ── Section transitions ──
+            var newSection = mapSection(seqIdx);
+            if (seqIdx !== lastSeqIndex) {
+                sectionMood = newSection;
+                lastSeqIndex = seqIdx;
+            }
+
+            // ── Fades ──
+            if (sectionMood === 'intro') {
+                introFade = Math.min(1, introFade + dt * 0.2);
+            } else {
+                introFade = Math.min(1, introFade + dt * 0.5);
+            }
+
+            if (sectionMood === 'fade') {
+                outroFade = Math.max(0, outroFade - dt * 0.15);
+            } else {
+                outroFade = 1;
+            }
+
+            // ── Beat events ──
+            if (frameData.beatChanged) {
+                // Smoke from musicians
+                var smokeCount = Math.floor(1 + energy * 2);
+                for (var si = 0; si < smokeCount; si++) {
+                    var sx = W * (0.15 + Math.random() * 0.5);
+                    var sy = floorY - (floorY - barTopY) * (0.1 + Math.random() * 0.5);
+                    spawnSmoke(sx, sy, (Math.random() - 0.5) * 4, -3 - energy * 8);
+                }
+
+                // Vibraphone sparkles when vibes channel active
+                if (currentNotes[0]) {
+                    var vibeX = W * musicians[2].x;
+                    var vibeY = floorY - (floorY - ceilingY) * 0.3;
+                    var sparkCount = Math.floor(2 + energy * 4);
+                    for (var sp = 0; sp < sparkCount; sp++) {
+                        spawnSparkle(
+                            vibeX + (Math.random() - 0.5) * 60,
+                            vibeY + (Math.random() - 0.5) * 30
+                        );
+                    }
+                }
+            }
+
+            // ── Bass glow tracking ──
+            if (currentNotes[2]) {
+                bassGlow = lerpExp(bassGlow, 1, 12, dt);
+            } else {
+                bassGlow = lerpExp(bassGlow, 0, 4, dt);
+            }
+
+            // ── Ambient flicker ──
+            ambientFlicker = Math.sin(elapsed * 3.2) * 0.3 + Math.sin(elapsed * 7.8) * 0.2;
+            neonPhase += dt;
+
+            // ── Update systems ──
+            updateRain(dt, energy);
+            updateSmoke(dt);
+            updateSparkles(dt);
+
+            // ── Title logic ──
+            if (sectionMood === 'intro' || sectionMood === 'intro_groove') {
+                titleTarget = 1;
+            } else if (sectionMood === 'solo') {
+                titleTarget = 0.6;
+            } else if (sectionMood === 'fade') {
+                titleTarget = 0.8;
+            } else {
+                titleTarget = 0;
+            }
+            titleAlpha = lerpExp(titleAlpha, titleTarget, 3, dt);
+
+            // ── Draw scene (back to front) ──
+
+            // 1. Interior structure
+            drawInterior(ctx, energy);
+
+            // 2. Window (city lights, neon, rain streaks)
+            drawWindow(ctx, energy, elapsed);
+
+            // 3. Rain (outside, over window)
+            drawRain(ctx);
+
+            // 4. Ambient lighting
+            drawAmbientLighting(ctx, energy);
+
+            // 5. Pendant lamps
+            drawLamps(ctx, energy);
+
+            // 6. Smoke (behind musicians)
+            drawSmoke(ctx);
+
+            // 7. Musicians
+            drawMusicians(ctx, energy, elapsed);
+
+            // 8. Bass light strips along bar
+            drawBassStrips(ctx, energy, elapsed);
+
+            // 9. Vibraphone sparkles
+            drawSparkles(ctx);
+
+            // 10. Title
+            drawTitle(ctx);
+
+            // 11. Vignette
+            drawVignette(ctx);
+
+            // 12. Beat flash
+            if (beatPulse > 0.3) {
+                ctx.save();
+                ctx.globalAlpha = (beatPulse - 0.3) * 0.06 * energy * introFade * outroFade;
+                ctx.fillStyle = NEON_PINK;
+                ctx.globalCompositeOperation = 'lighter';
+                ctx.fillRect(0, 0, W, H);
+                ctx.restore();
+            }
+        }
+
+        BaseRenderer('tokyo-midnight-video', 'Tokyo Midnight Jazz Bar', {
+            beatDecay: 7,
+            init: init,
+            render: render,
+            resize: resize
+        });
+    })();
+
+    // ── Page bootstrap ──
+    (function() {
+        var canvas = document.getElementById('viz-canvas');
+        var overlay = document.getElementById('play-overlay');
+
+        Visualizer.init(canvas);
+        Visualizer.setRenderer('tokyo-midnight-video');
+
+        function loadAndPlay(json) {
+            Visualizer.loadSong(json);
+            Visualizer.play();
+        }
+
+        function fetchSong() {
+            var url = '../audio-tracker/songs/tokyo-midnight.json';
+            if (window.fetch && location.protocol !== 'file:') {
+                return fetch(url).then(function(r) { return r.json(); });
+            }
+            return new Promise(function(resolve, reject) {
+                var xhr = new XMLHttpRequest();
+                xhr.open('GET', url, true);
+                xhr.onload = function() {
+                    if (xhr.status === 200 || xhr.status === 0) {
+                        resolve(JSON.parse(xhr.responseText));
+                    } else {
+                        reject(new Error('XHR failed: ' + xhr.status));
+                    }
+                };
+                xhr.onerror = function() { reject(new Error('XHR error')); };
+                xhr.send();
+            });
+        }
+
+        overlay.addEventListener('click', function() {
+            overlay.classList.add('hidden');
+            fetchSong().then(loadAndPlay).catch(function(err) {
+                console.error('Failed to load song:', err);
+                overlay.classList.remove('hidden');
+            });
+        });
+
+        if (new URLSearchParams(window.location.search).get('autoplay') === '1') {
+            overlay.click();
+        }
+
+        canvas.addEventListener('click', function() {
+            if (overlay.classList.contains('hidden')) {
+                if (Visualizer.isPlaying()) {
+                    Visualizer.stop();
+                } else {
+                    Visualizer.play();
+                }
+            }
+        });
+    })();
+    </script>
+</body>
+</html>

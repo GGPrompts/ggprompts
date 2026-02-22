@@ -1,0 +1,1250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Greensleeves — Music Video</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=IM+Fell+English+SC&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="video-base-styles.css">
+    <style>
+        :root {
+            --vid-bg: #0e0a05;
+            --vid-bg-rgb: 14,10,5;
+            --vid-font: 'IM Fell English SC', serif;
+            --vid-accent: #c8a23c;
+            --vid-accent-r: 200;
+            --vid-accent-g: 162;
+            --vid-accent-b: 60;
+            --vid-overlay-alpha: 0.93;
+            --vid-title-spacing: 0.1em;
+            --vid-sub-alpha: 0.5;
+        }
+    </style>
+</head>
+<body>
+    <a href="music-videos/index.html" class="back-link">&larr; Music Videos</a>
+    <canvas id="viz-canvas"></canvas>
+    <div class="play-overlay" id="play-overlay">
+        <div class="play-title">Greensleeves</div>
+        <div class="play-sub">an illuminated manuscript comes to life</div>
+        <div class="play-btn"></div>
+    </div>
+
+    <script src="../audio-tracker/playback-engine.js"></script>
+    <script src="engine.js"></script>
+    <script src="video-utils.js"></script>
+    <script src="base-renderer.js"></script>
+    <script>
+    // ── Greensleeves Video Renderer ─────────────────────────────────────
+    (function() {
+        "use strict";
+
+        var W = 0, H = 0;
+        var analysis = null;
+
+        // ── Palette ──
+        var PARCHMENT = [235, 220, 185];
+        var PARCHMENT_DARK = [180, 160, 120];
+        var GOLD = [200, 162, 60];
+        var GOLD_BRIGHT = [255, 215, 80];
+        var DEEP_GREEN = [30, 80, 45];
+        var GARDEN_GREEN = [50, 120, 60];
+        var IVY_GREEN = [35, 90, 50];
+        var CRIMSON = [160, 30, 40];
+        var ROYAL_BLUE = [40, 50, 130];
+        var BURGUNDY = [100, 20, 35];
+        var SKY_BLUE = [120, 150, 200];
+        var CASTLE_STONE = [140, 130, 110];
+        var CASTLE_DARK = [80, 70, 55];
+
+        // ── State ──
+        var beatPulse = 0;
+        var flashAlpha = 0;
+        var introFadeIn = 0;
+        var outroFadeOut = 1;
+        var lastSeqIndex = -1;
+        var sectionMood = 'intro';
+        var waltzBeat = 0; // 0, 1, 2 for 3/4 time
+
+        // Border decoration
+        var borderW = 0;
+        var vines = [];
+        var vineGrowth = 0; // 0-1
+
+        // Garden scene
+        var gardenFlowers = [];
+        var gardenTrees = [];
+        var goldLeafParticles = [];
+        var stars = [];
+        var courtlyFigures = [];
+
+        // Castle elements
+        var castleY = 0;
+        var bannerSway = 0;
+
+        // Title
+        var titleAlpha = 0;
+        var titleTarget = 0;
+
+        // Waltz sway (global scene sway for 3/4 feel)
+        var waltzPhase = 0;
+        var waltzSway = 0;
+
+        // Illumination glow centers
+        var glowCenters = [];
+
+        // ── Helpers ──
+        function lerpColor(c1, c2, t) {
+            return [
+                Math.round(lerp(c1[0], c2[0], t)),
+                Math.round(lerp(c1[1], c2[1], t)),
+                Math.round(lerp(c1[2], c2[2], t))
+            ];
+        }
+        function rgbStr(c) { return 'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')'; }
+        function rgbaStr(c, a) { return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + a + ')'; }
+
+        function stableRand(seed) {
+            var x = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
+            return x - Math.floor(x);
+        }
+
+        // ── Section mapping ──
+        function mapSection(seqIdx) {
+            if (seqIdx <= 2) return 'intro';
+            if (seqIdx <= 8) return 'verse1';
+            if (seqIdx <= 14) return 'chorus1';
+            if (seqIdx <= 20) return 'verse2';
+            if (seqIdx <= 26) return 'chorus2';
+            if (seqIdx <= 32) return 'bridge';
+            if (seqIdx <= 37) return 'finale';
+            return 'outro';
+        }
+
+        // ── Init functions ──
+
+        function initVines() {
+            vines = [];
+            // Left border vines
+            for (var i = 0; i < 12; i++) {
+                vines.push({
+                    side: 'left',
+                    startY: H * 0.05 + (i / 12) * H * 0.9,
+                    maxReach: rand(borderW * 0.3, borderW * 0.9),
+                    curveFreq: rand(0.01, 0.03),
+                    leaves: Math.floor(rand(2, 5)),
+                    phase: rand(0, Math.PI * 2),
+                    speed: rand(0.5, 1.5)
+                });
+            }
+            // Right border vines
+            for (var j = 0; j < 12; j++) {
+                vines.push({
+                    side: 'right',
+                    startY: H * 0.05 + (j / 12) * H * 0.9,
+                    maxReach: rand(borderW * 0.3, borderW * 0.9),
+                    curveFreq: rand(0.01, 0.03),
+                    leaves: Math.floor(rand(2, 5)),
+                    phase: rand(0, Math.PI * 2),
+                    speed: rand(0.5, 1.5)
+                });
+            }
+            // Top and bottom
+            for (var k = 0; k < 8; k++) {
+                vines.push({
+                    side: 'top',
+                    startX: W * 0.1 + (k / 8) * W * 0.8,
+                    maxReach: rand(borderW * 0.3, borderW * 0.8),
+                    curveFreq: rand(0.01, 0.03),
+                    leaves: Math.floor(rand(2, 4)),
+                    phase: rand(0, Math.PI * 2),
+                    speed: rand(0.5, 1.5)
+                });
+                vines.push({
+                    side: 'bottom',
+                    startX: W * 0.1 + (k / 8) * W * 0.8,
+                    maxReach: rand(borderW * 0.3, borderW * 0.8),
+                    curveFreq: rand(0.01, 0.03),
+                    leaves: Math.floor(rand(2, 4)),
+                    phase: rand(0, Math.PI * 2),
+                    speed: rand(0.5, 1.5)
+                });
+            }
+        }
+
+        function initGardenFlowers() {
+            gardenFlowers = [];
+            var gardenY = H * 0.72;
+            for (var i = 0; i < 30; i++) {
+                gardenFlowers.push({
+                    x: borderW + rand(0.05, 0.95) * (W - borderW * 2),
+                    y: gardenY + rand(0, H * 0.18),
+                    size: rand(4, 12),
+                    petals: randInt(4, 8),
+                    color: pickRandom([CRIMSON, [200, 100, 150], [255, 200, 50], [180, 80, 180], [255, 150, 80]]),
+                    phase: rand(0, Math.PI * 2),
+                    swaySpeed: rand(1, 3),
+                    stemH: rand(15, 35)
+                });
+            }
+        }
+
+        function initTrees() {
+            gardenTrees = [];
+            var numTrees = 5;
+            for (var i = 0; i < numTrees; i++) {
+                gardenTrees.push({
+                    x: borderW + W * 0.1 + (i / (numTrees - 1)) * (W - borderW * 2) * 0.8,
+                    y: H * 0.55,
+                    trunkH: rand(H * 0.12, H * 0.2),
+                    canopyR: rand(H * 0.06, H * 0.1),
+                    sway: rand(0, Math.PI * 2)
+                });
+            }
+        }
+
+        function initGoldLeafParticles() {
+            goldLeafParticles = [];
+            for (var i = 0; i < 60; i++) {
+                goldLeafParticles.push({
+                    x: rand(borderW, W - borderW),
+                    y: rand(borderW, H - borderW),
+                    vx: rand(-8, 8),
+                    vy: rand(-15, 5),
+                    size: rand(2, 5),
+                    alpha: 0,
+                    targetAlpha: 0,
+                    rotation: rand(0, Math.PI * 2),
+                    rotSpeed: rand(-2, 2),
+                    life: 0,
+                    maxLife: rand(1, 3)
+                });
+            }
+        }
+
+        function initStars() {
+            stars = [];
+            for (var i = 0; i < 40; i++) {
+                stars.push({
+                    x: borderW + rand(0, W - borderW * 2),
+                    y: borderW + rand(0, H * 0.35),
+                    size: rand(0.5, 2),
+                    twinkle: rand(0, Math.PI * 2),
+                    speed: rand(0.5, 2)
+                });
+            }
+        }
+
+        function initCourtlyFigures() {
+            courtlyFigures = [];
+            // Lady and Lord pair
+            var centerX = W * 0.5;
+            var groundY = H * 0.68;
+            courtlyFigures.push({
+                type: 'lady',
+                x: centerX - W * 0.08,
+                baseX: centerX - W * 0.08,
+                y: groundY,
+                scale: 1,
+                swayPhase: 0,
+                color: CRIMSON,
+                dressColor: DEEP_GREEN,
+                active: false
+            });
+            courtlyFigures.push({
+                type: 'lord',
+                x: centerX + W * 0.08,
+                baseX: centerX + W * 0.08,
+                y: groundY,
+                scale: 1,
+                swayPhase: Math.PI,
+                color: ROYAL_BLUE,
+                dressColor: BURGUNDY,
+                active: false
+            });
+            // Background courtiers
+            for (var i = 0; i < 4; i++) {
+                courtlyFigures.push({
+                    type: i % 2 === 0 ? 'lady' : 'lord',
+                    x: centerX + (i - 1.5) * W * 0.12,
+                    baseX: centerX + (i - 1.5) * W * 0.12,
+                    y: groundY + rand(5, 20),
+                    scale: rand(0.5, 0.7),
+                    swayPhase: rand(0, Math.PI * 2),
+                    color: pickRandom([CRIMSON, ROYAL_BLUE, BURGUNDY, [80, 60, 100]]),
+                    dressColor: pickRandom([DEEP_GREEN, [60, 40, 80], [100, 60, 40], [40, 60, 100]]),
+                    active: false
+                });
+            }
+        }
+
+        function initGlowCenters() {
+            glowCenters = [];
+            // Corner illuminations
+            glowCenters.push({ x: borderW * 0.5, y: borderW * 0.5, r: borderW * 1.5, alpha: 0 });
+            glowCenters.push({ x: W - borderW * 0.5, y: borderW * 0.5, r: borderW * 1.5, alpha: 0 });
+            glowCenters.push({ x: borderW * 0.5, y: H - borderW * 0.5, r: borderW * 1.5, alpha: 0 });
+            glowCenters.push({ x: W - borderW * 0.5, y: H - borderW * 0.5, r: borderW * 1.5, alpha: 0 });
+        }
+
+        // ── Drawing functions ──
+
+        function drawParchmentBackground(ctx, energy) {
+            // Base parchment
+            var grad = ctx.createRadialGradient(W * 0.5, H * 0.5, 0, W * 0.5, H * 0.5, W * 0.7);
+            grad.addColorStop(0, rgbStr(PARCHMENT));
+            grad.addColorStop(0.7, rgbStr(PARCHMENT_DARK));
+            grad.addColorStop(1, rgbStr([140, 120, 85]));
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, W, H);
+
+            // Parchment texture (subtle noise via overlapping rects)
+            ctx.save();
+            ctx.globalAlpha = 0.03;
+            for (var i = 0; i < 30; i++) {
+                var tx = stableRand(i * 3.7) * W;
+                var ty = stableRand(i * 5.3 + 1) * H;
+                var tw = stableRand(i * 2.1 + 2) * W * 0.3 + 20;
+                var th = stableRand(i * 4.9 + 3) * H * 0.2 + 10;
+                ctx.fillStyle = stableRand(i * 7.1) > 0.5 ? '#a08050' : '#d4c4a0';
+                ctx.fillRect(tx, ty, tw, th);
+            }
+            ctx.restore();
+        }
+
+        function drawSkyScene(ctx, energy, elapsed) {
+            var sceneX = borderW;
+            var sceneY = borderW;
+            var sceneW = W - borderW * 2;
+            var sceneH = H - borderW * 2;
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(sceneX, sceneY, sceneW, sceneH);
+            ctx.clip();
+
+            // Sky gradient
+            var skyGrad = ctx.createLinearGradient(sceneX, sceneY, sceneX, sceneY + sceneH * 0.5);
+            var isNight = sectionMood === 'bridge' || sectionMood === 'outro';
+            if (isNight) {
+                skyGrad.addColorStop(0, '#0a1028');
+                skyGrad.addColorStop(0.5, '#1a2040');
+                skyGrad.addColorStop(1, '#2a3050');
+            } else {
+                var topColor = lerpColor([60, 90, 160], [80, 120, 200], energy);
+                skyGrad.addColorStop(0, rgbStr(topColor));
+                skyGrad.addColorStop(0.5, rgbStr(SKY_BLUE));
+                skyGrad.addColorStop(1, rgbStr([180, 200, 220]));
+            }
+            ctx.fillStyle = skyGrad;
+            ctx.fillRect(sceneX, sceneY, sceneW, sceneH * 0.55);
+
+            // Stars (night sections)
+            if (isNight) {
+                for (var i = 0; i < stars.length; i++) {
+                    var s = stars[i];
+                    s.twinkle += s.speed * 0.02;
+                    var a = 0.6 * (0.4 + 0.6 * Math.abs(Math.sin(s.twinkle)));
+                    ctx.globalAlpha = a * introFadeIn * outroFadeOut;
+                    ctx.fillStyle = '#ffe8b0';
+                    ctx.beginPath();
+                    ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.globalAlpha = 1;
+            }
+
+            // Garden ground
+            var groundY = sceneY + sceneH * 0.55;
+            var groundGrad = ctx.createLinearGradient(sceneX, groundY, sceneX, sceneY + sceneH);
+            groundGrad.addColorStop(0, rgbStr(GARDEN_GREEN));
+            groundGrad.addColorStop(0.3, rgbStr(DEEP_GREEN));
+            groundGrad.addColorStop(1, rgbStr([20, 50, 30]));
+            ctx.fillStyle = groundGrad;
+            ctx.fillRect(sceneX, groundY, sceneW, sceneH - (groundY - sceneY));
+
+            ctx.restore();
+        }
+
+        function drawCastle(ctx, energy, elapsed) {
+            var sceneX = borderW;
+            var sceneY = borderW;
+            var sceneW = W - borderW * 2;
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(sceneX, sceneY, sceneW, H - borderW * 2);
+            ctx.clip();
+
+            castleY = sceneY + H * 0.15;
+            var castleW = sceneW * 0.5;
+            var castleX = sceneX + (sceneW - castleW) * 0.5;
+            var towerW = castleW * 0.12;
+            var towerH = H * 0.22;
+            var wallH = H * 0.15;
+
+            ctx.globalAlpha = introFadeIn * outroFadeOut * 0.85;
+
+            // Towers
+            ctx.fillStyle = rgbStr(CASTLE_STONE);
+            // Left tower
+            ctx.fillRect(castleX, castleY - towerH + wallH, towerW, towerH);
+            // Right tower
+            ctx.fillRect(castleX + castleW - towerW, castleY - towerH + wallH, towerW, towerH);
+
+            // Tower tops (crenellations)
+            var crenW = towerW / 4;
+            for (var c = 0; c < 4; c++) {
+                if (c % 2 === 0) {
+                    ctx.fillRect(castleX + c * crenW, castleY - towerH + wallH - crenW, crenW, crenW);
+                    ctx.fillRect(castleX + castleW - towerW + c * crenW, castleY - towerH + wallH - crenW, crenW, crenW);
+                }
+            }
+
+            // Tower roofs (pointed)
+            ctx.fillStyle = rgbStr(CRIMSON);
+            ctx.beginPath();
+            ctx.moveTo(castleX - 2, castleY - towerH + wallH - crenW);
+            ctx.lineTo(castleX + towerW * 0.5, castleY - towerH + wallH - crenW - towerW * 0.8);
+            ctx.lineTo(castleX + towerW + 2, castleY - towerH + wallH - crenW);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(castleX + castleW - towerW - 2, castleY - towerH + wallH - crenW);
+            ctx.lineTo(castleX + castleW - towerW * 0.5, castleY - towerH + wallH - crenW - towerW * 0.8);
+            ctx.lineTo(castleX + castleW + 2, castleY - towerH + wallH - crenW);
+            ctx.closePath();
+            ctx.fill();
+
+            // Wall
+            ctx.fillStyle = rgbStr(CASTLE_STONE);
+            ctx.fillRect(castleX + towerW, castleY, castleW - towerW * 2, wallH);
+
+            // Wall crenellations
+            var wallCrenW = (castleW - towerW * 2) / 12;
+            for (var wc = 0; wc < 12; wc++) {
+                if (wc % 2 === 0) {
+                    ctx.fillRect(castleX + towerW + wc * wallCrenW, castleY - wallCrenW, wallCrenW, wallCrenW);
+                }
+            }
+
+            // Gate arch
+            var gateW = castleW * 0.12;
+            var gateH = wallH * 0.6;
+            var gateX = castleX + castleW * 0.5 - gateW * 0.5;
+            var gateY = castleY + wallH - gateH;
+            ctx.fillStyle = rgbStr(CASTLE_DARK);
+            ctx.fillRect(gateX, gateY + gateW * 0.5, gateW, gateH - gateW * 0.5);
+            ctx.beginPath();
+            ctx.arc(gateX + gateW * 0.5, gateY + gateW * 0.5, gateW * 0.5, Math.PI, 0);
+            ctx.fill();
+
+            // Windows
+            ctx.fillStyle = rgbStr([220, 200, 100]);
+            var windowGlow = 0.4 + energy * 0.3 + beatPulse * 0.2;
+            ctx.globalAlpha = introFadeIn * outroFadeOut * windowGlow;
+            var winSize = wallH * 0.08;
+            // Tower windows
+            for (var tw = 0; tw < 3; tw++) {
+                var wy = castleY - towerH + wallH + towerH * 0.2 + tw * towerH * 0.25;
+                ctx.beginPath();
+                ctx.arc(castleX + towerW * 0.5, wy, winSize, Math.PI, 0);
+                ctx.fillRect(castleX + towerW * 0.5 - winSize, wy, winSize * 2, winSize * 1.5);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(castleX + castleW - towerW * 0.5, wy, winSize, Math.PI, 0);
+                ctx.fillRect(castleX + castleW - towerW * 0.5 - winSize, wy, winSize * 2, winSize * 1.5);
+                ctx.fill();
+            }
+            // Wall windows
+            for (var ww = 0; ww < 3; ww++) {
+                var wwx = castleX + towerW + (castleW - towerW * 2) * (0.25 + ww * 0.25);
+                ctx.beginPath();
+                ctx.arc(wwx, castleY + wallH * 0.3, winSize, Math.PI, 0);
+                ctx.fillRect(wwx - winSize, castleY + wallH * 0.3, winSize * 2, winSize * 1.5);
+                ctx.fill();
+            }
+
+            // Banners
+            bannerSway = Math.sin(elapsed * 1.5 + waltzPhase) * 0.15;
+            ctx.globalAlpha = introFadeIn * outroFadeOut * 0.9;
+            var bannerColors = [CRIMSON, ROYAL_BLUE, DEEP_GREEN];
+            for (var bi = 0; bi < 3; bi++) {
+                var bx = castleX + towerW + (castleW - towerW * 2) * (0.25 + bi * 0.25);
+                var by = castleY - 5;
+                var bw = wallCrenW * 1.2;
+                var bh = wallH * 0.35;
+                ctx.fillStyle = rgbStr(bannerColors[bi]);
+                ctx.save();
+                ctx.translate(bx, by);
+                ctx.rotate(bannerSway * (bi === 1 ? -1 : 1));
+                ctx.fillRect(-bw * 0.5, 0, bw, bh);
+                // Banner tip
+                ctx.beginPath();
+                ctx.moveTo(-bw * 0.5, bh);
+                ctx.lineTo(0, bh + bw * 0.4);
+                ctx.lineTo(bw * 0.5, bh);
+                ctx.closePath();
+                ctx.fill();
+                ctx.restore();
+            }
+
+            ctx.restore();
+        }
+
+        function drawTrees(ctx, energy, elapsed) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(borderW, borderW, W - borderW * 2, H - borderW * 2);
+            ctx.clip();
+
+            ctx.globalAlpha = introFadeIn * outroFadeOut * 0.9;
+            for (var i = 0; i < gardenTrees.length; i++) {
+                var t = gardenTrees[i];
+                var sway = Math.sin(elapsed * 0.5 + t.sway + waltzPhase * 0.3) * 3 * (1 + energy * 0.5);
+
+                // Trunk
+                ctx.fillStyle = '#4a3520';
+                ctx.fillRect(t.x - 3, t.y - t.trunkH, 6, t.trunkH);
+
+                // Canopy (layered circles for medieval tree look)
+                var cx = t.x + sway;
+                var cy = t.y - t.trunkH;
+                for (var layer = 0; layer < 3; layer++) {
+                    var lr = t.canopyR * (1 - layer * 0.2);
+                    var ly = cy - layer * t.canopyR * 0.3;
+                    var greenShade = lerpColor(DEEP_GREEN, GARDEN_GREEN, layer * 0.3 + energy * 0.2);
+                    ctx.fillStyle = rgbStr(greenShade);
+                    ctx.beginPath();
+                    ctx.arc(cx, ly, lr, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+            ctx.restore();
+        }
+
+        function drawFlowers(ctx, energy, elapsed) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(borderW, borderW, W - borderW * 2, H - borderW * 2);
+            ctx.clip();
+
+            ctx.globalAlpha = introFadeIn * outroFadeOut;
+            for (var i = 0; i < gardenFlowers.length; i++) {
+                var f = gardenFlowers[i];
+                var sway = Math.sin(elapsed * f.swaySpeed + f.phase + waltzPhase) * 3 * (1 + energy * 0.5);
+
+                // Stem
+                ctx.strokeStyle = rgbStr(IVY_GREEN);
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(f.x, f.y);
+                ctx.quadraticCurveTo(f.x + sway * 0.5, f.y - f.stemH * 0.5, f.x + sway, f.y - f.stemH);
+                ctx.stroke();
+
+                // Flower head
+                var fx = f.x + sway;
+                var fy = f.y - f.stemH;
+                var fSize = f.size * (1 + beatPulse * 0.15);
+                ctx.fillStyle = rgbaStr(f.color, 0.8 + energy * 0.2);
+                for (var p = 0; p < f.petals; p++) {
+                    var angle = (p / f.petals) * Math.PI * 2 + elapsed * 0.2;
+                    var px = fx + Math.cos(angle) * fSize * 0.5;
+                    var py = fy + Math.sin(angle) * fSize * 0.5;
+                    ctx.beginPath();
+                    ctx.arc(px, py, fSize * 0.35, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                // Center
+                ctx.fillStyle = '#f0d060';
+                ctx.beginPath();
+                ctx.arc(fx, fy, fSize * 0.2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+
+        function drawCourtlyFigure(ctx, fig, energy, elapsed) {
+            if (!fig.active) return;
+
+            var x = fig.x;
+            var y = fig.y;
+            var sc = fig.scale;
+            var figH = H * 0.12 * sc;
+            var headR = figH * 0.09;
+
+            // Waltz sway
+            var sway = Math.sin(waltzPhase + fig.swayPhase) * 5 * sc * (0.5 + energy * 0.5);
+            x += sway;
+
+            ctx.save();
+            ctx.globalAlpha = introFadeIn * outroFadeOut * (0.7 + sc * 0.3);
+
+            if (fig.type === 'lady') {
+                // Lady: triangular dress, narrow shoulders
+                // Dress
+                ctx.fillStyle = rgbStr(fig.dressColor);
+                ctx.beginPath();
+                ctx.moveTo(x - figH * 0.02, y - figH * 0.55);
+                ctx.lineTo(x - figH * 0.25, y);
+                ctx.lineTo(x + figH * 0.25, y);
+                ctx.lineTo(x + figH * 0.02, y - figH * 0.55);
+                ctx.closePath();
+                ctx.fill();
+
+                // Bodice accent
+                ctx.fillStyle = rgbStr(fig.color);
+                ctx.fillRect(x - figH * 0.05, y - figH * 0.6, figH * 0.1, figH * 0.15);
+
+                // Head
+                ctx.fillStyle = '#e8d0b0';
+                ctx.beginPath();
+                ctx.arc(x, y - figH * 0.7, headR, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Hennin (pointed hat)
+                ctx.fillStyle = rgbStr(fig.color);
+                ctx.beginPath();
+                ctx.moveTo(x - headR * 0.8, y - figH * 0.72);
+                ctx.lineTo(x + headR * 0.3, y - figH * 0.98);
+                ctx.lineTo(x + headR * 0.8, y - figH * 0.72);
+                ctx.closePath();
+                ctx.fill();
+
+                // Veil
+                ctx.strokeStyle = rgbaStr([255, 255, 255], 0.3);
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(x + headR * 0.3, y - figH * 0.98);
+                ctx.quadraticCurveTo(x + figH * 0.15 + sway * 0.5, y - figH * 0.8, x + figH * 0.08, y - figH * 0.6);
+                ctx.stroke();
+            } else {
+                // Lord: tunic and hose
+                // Legs
+                ctx.fillStyle = rgbStr(CASTLE_DARK);
+                ctx.fillRect(x - figH * 0.06, y - figH * 0.3, figH * 0.05, figH * 0.3);
+                ctx.fillRect(x + figH * 0.01, y - figH * 0.3, figH * 0.05, figH * 0.3);
+
+                // Tunic
+                ctx.fillStyle = rgbStr(fig.color);
+                ctx.beginPath();
+                ctx.moveTo(x - figH * 0.1, y - figH * 0.6);
+                ctx.lineTo(x - figH * 0.13, y - figH * 0.28);
+                ctx.lineTo(x + figH * 0.13, y - figH * 0.28);
+                ctx.lineTo(x + figH * 0.1, y - figH * 0.6);
+                ctx.closePath();
+                ctx.fill();
+
+                // Belt
+                ctx.fillStyle = rgbStr(GOLD);
+                ctx.fillRect(x - figH * 0.12, y - figH * 0.35, figH * 0.24, figH * 0.02);
+
+                // Head
+                ctx.fillStyle = '#e8d0b0';
+                ctx.beginPath();
+                ctx.arc(x, y - figH * 0.7, headR, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Hat/cap
+                ctx.fillStyle = rgbStr(fig.dressColor);
+                ctx.beginPath();
+                ctx.arc(x, y - figH * 0.73, headR * 1.1, Math.PI, 0);
+                ctx.fill();
+            }
+
+            // Arms (sway with waltz)
+            var armAngle = Math.sin(waltzPhase + fig.swayPhase + 0.5) * 0.3;
+            ctx.strokeStyle = rgbStr(fig.type === 'lady' ? fig.dressColor : fig.color);
+            ctx.lineWidth = figH * 0.03;
+            ctx.beginPath();
+            ctx.moveTo(x - figH * 0.1, y - figH * 0.55);
+            ctx.lineTo(x - figH * 0.2 + sway * 0.3, y - figH * (0.4 + armAngle * 0.1));
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(x + figH * 0.1, y - figH * 0.55);
+            ctx.lineTo(x + figH * 0.2 + sway * 0.3, y - figH * (0.4 - armAngle * 0.1));
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        function drawTapestryBorder(ctx, energy, elapsed) {
+            ctx.save();
+
+            // Border background
+            ctx.fillStyle = rgbStr([40, 25, 15]);
+            // Top
+            ctx.fillRect(0, 0, W, borderW);
+            // Bottom
+            ctx.fillRect(0, H - borderW, W, borderW);
+            // Left
+            ctx.fillRect(0, 0, borderW, H);
+            // Right
+            ctx.fillRect(W - borderW, 0, borderW, H);
+
+            // Inner border accent line
+            ctx.strokeStyle = rgbStr(GOLD);
+            ctx.lineWidth = 2;
+            ctx.globalAlpha = 0.6 + beatPulse * 0.3;
+            ctx.strokeRect(borderW - 2, borderW - 2, W - borderW * 2 + 4, H - borderW * 2 + 4);
+
+            // Outer border accent
+            ctx.globalAlpha = 0.3 + beatPulse * 0.2;
+            ctx.strokeRect(2, 2, W - 4, H - 4);
+
+            // ── Knotwork pattern along borders ──
+            ctx.globalAlpha = (0.5 + energy * 0.3) * introFadeIn * outroFadeOut;
+            ctx.strokeStyle = rgbStr(GOLD);
+            ctx.lineWidth = 1.5;
+
+            // Repeating interlace along top and bottom
+            var knotSpacing = borderW * 0.8;
+            var knotR = borderW * 0.15;
+            // Top border knotwork
+            for (var kx = borderW; kx < W - borderW; kx += knotSpacing) {
+                var ky = borderW * 0.5;
+                ctx.beginPath();
+                ctx.arc(kx, ky, knotR, 0, Math.PI * 2);
+                ctx.stroke();
+                // Cross links
+                if (kx + knotSpacing * 0.5 < W - borderW) {
+                    ctx.beginPath();
+                    ctx.moveTo(kx + knotR, ky);
+                    ctx.lineTo(kx + knotSpacing - knotR, ky);
+                    ctx.stroke();
+                }
+            }
+            // Bottom border knotwork
+            for (var bkx = borderW; bkx < W - borderW; bkx += knotSpacing) {
+                var bky = H - borderW * 0.5;
+                ctx.beginPath();
+                ctx.arc(bkx, bky, knotR, 0, Math.PI * 2);
+                ctx.stroke();
+                if (bkx + knotSpacing * 0.5 < W - borderW) {
+                    ctx.beginPath();
+                    ctx.moveTo(bkx + knotR, bky);
+                    ctx.lineTo(bkx + knotSpacing - knotR, bky);
+                    ctx.stroke();
+                }
+            }
+            // Left border knotwork
+            for (var lky = borderW; lky < H - borderW; lky += knotSpacing) {
+                var lkx = borderW * 0.5;
+                ctx.beginPath();
+                ctx.arc(lkx, lky, knotR, 0, Math.PI * 2);
+                ctx.stroke();
+                if (lky + knotSpacing * 0.5 < H - borderW) {
+                    ctx.beginPath();
+                    ctx.moveTo(lkx, lky + knotR);
+                    ctx.lineTo(lkx, lky + knotSpacing - knotR);
+                    ctx.stroke();
+                }
+            }
+            // Right border knotwork
+            for (var rky = borderW; rky < H - borderW; rky += knotSpacing) {
+                var rkx = W - borderW * 0.5;
+                ctx.beginPath();
+                ctx.arc(rkx, rky, knotR, 0, Math.PI * 2);
+                ctx.stroke();
+                if (rky + knotSpacing * 0.5 < H - borderW) {
+                    ctx.beginPath();
+                    ctx.moveTo(rkx, rky + knotR);
+                    ctx.lineTo(rkx, rky + knotSpacing - knotR);
+                    ctx.stroke();
+                }
+            }
+
+            ctx.restore();
+        }
+
+        function drawVines(ctx, energy, elapsed) {
+            if (vineGrowth < 0.01) return;
+
+            ctx.save();
+            ctx.globalAlpha = introFadeIn * outroFadeOut * clamp01(vineGrowth);
+
+            for (var i = 0; i < vines.length; i++) {
+                var v = vines[i];
+                var reach = v.maxReach * vineGrowth;
+                var sway = Math.sin(elapsed * v.speed + v.phase) * 3 * (1 + energy * 0.3);
+
+                ctx.strokeStyle = rgbStr(IVY_GREEN);
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+
+                if (v.side === 'left') {
+                    ctx.moveTo(borderW, v.startY);
+                    var tipX = borderW - reach * 0.2;
+                    ctx.quadraticCurveTo(borderW * 0.5 + sway, v.startY - reach * 0.3, tipX, v.startY - reach * 0.1);
+                    ctx.stroke();
+                    // Leaves
+                    for (var li = 0; li < v.leaves; li++) {
+                        var lt = (li + 1) / (v.leaves + 1);
+                        var lx = lerp(borderW, tipX, lt) + sway * lt;
+                        var ly = v.startY - reach * 0.1 * lt + Math.sin(lt * 3 + v.phase) * 5;
+                        drawLeaf(ctx, lx, ly, 4 + energy * 2, elapsed * 0.5 + v.phase + li);
+                    }
+                } else if (v.side === 'right') {
+                    ctx.moveTo(W - borderW, v.startY);
+                    var rtipX = W - borderW + reach * 0.2;
+                    ctx.quadraticCurveTo(W - borderW * 0.5 + sway, v.startY - reach * 0.3, rtipX, v.startY - reach * 0.1);
+                    ctx.stroke();
+                    for (var rli = 0; rli < v.leaves; rli++) {
+                        var rlt = (rli + 1) / (v.leaves + 1);
+                        var rlx = lerp(W - borderW, rtipX, rlt) + sway * rlt;
+                        var rly = v.startY - reach * 0.1 * rlt + Math.sin(rlt * 3 + v.phase + rli) * 5;
+                        drawLeaf(ctx, rlx, rly, 4 + energy * 2, elapsed * 0.5 + v.phase + rli);
+                    }
+                } else if (v.side === 'top') {
+                    ctx.moveTo(v.startX, borderW);
+                    ctx.quadraticCurveTo(v.startX + sway, borderW * 0.5, v.startX + sway * 2, borderW * 0.2);
+                    ctx.stroke();
+                    for (var tli = 0; tli < v.leaves; tli++) {
+                        var tlt = (tli + 1) / (v.leaves + 1);
+                        drawLeaf(ctx, v.startX + sway * tlt, borderW * (1 - tlt * 0.5), 3 + energy * 1.5, elapsed * 0.5 + v.phase + tli);
+                    }
+                } else {
+                    ctx.moveTo(v.startX, H - borderW);
+                    ctx.quadraticCurveTo(v.startX + sway, H - borderW * 0.5, v.startX + sway * 2, H - borderW * 0.2);
+                    ctx.stroke();
+                    for (var bli = 0; bli < v.leaves; bli++) {
+                        var blt = (bli + 1) / (v.leaves + 1);
+                        drawLeaf(ctx, v.startX + sway * blt, H - borderW * (1 - blt * 0.5), 3 + energy * 1.5, elapsed * 0.5 + v.phase + bli);
+                    }
+                }
+            }
+
+            ctx.restore();
+        }
+
+        function drawLeaf(ctx, x, y, size, angle) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(angle);
+            ctx.fillStyle = rgbStr(IVY_GREEN);
+            ctx.beginPath();
+            ctx.moveTo(0, -size);
+            ctx.quadraticCurveTo(size * 0.6, -size * 0.3, 0, size * 0.3);
+            ctx.quadraticCurveTo(-size * 0.6, -size * 0.3, 0, -size);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+        }
+
+        function drawGoldLeafParticles(ctx, energy, dt) {
+            ctx.save();
+            for (var i = 0; i < goldLeafParticles.length; i++) {
+                var p = goldLeafParticles[i];
+                if (p.alpha < 0.01 && p.targetAlpha < 0.01) continue;
+
+                p.life += dt;
+                p.x += p.vx * dt;
+                p.y += p.vy * dt;
+                p.rotation += p.rotSpeed * dt;
+                p.alpha += (p.targetAlpha - p.alpha) * (1 - Math.exp(-5 * dt));
+
+                if (p.life > p.maxLife) {
+                    p.targetAlpha = 0;
+                    if (p.alpha < 0.02) {
+                        p.life = 0;
+                        p.alpha = 0;
+                        p.targetAlpha = 0;
+                    }
+                }
+
+                // Wrap
+                if (p.x < borderW) p.x = W - borderW;
+                if (p.x > W - borderW) p.x = borderW;
+                if (p.y < borderW) p.y = H - borderW;
+                if (p.y > H - borderW) p.y = borderW;
+
+                ctx.globalAlpha = p.alpha * introFadeIn * outroFadeOut;
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                ctx.rotate(p.rotation);
+
+                // Gold leaf shape (diamond)
+                ctx.fillStyle = rgbStr(lerpColor(GOLD, GOLD_BRIGHT, Math.sin(p.rotation) * 0.5 + 0.5));
+                ctx.beginPath();
+                ctx.moveTo(0, -p.size);
+                ctx.lineTo(p.size * 0.5, 0);
+                ctx.lineTo(0, p.size);
+                ctx.lineTo(-p.size * 0.5, 0);
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.restore();
+            }
+            ctx.restore();
+        }
+
+        function spawnGoldBurst(count) {
+            var spawned = 0;
+            for (var i = 0; i < goldLeafParticles.length && spawned < count; i++) {
+                var p = goldLeafParticles[i];
+                if (p.alpha < 0.05 && p.targetAlpha < 0.05) {
+                    p.x = rand(borderW + 20, W - borderW - 20);
+                    p.y = rand(borderW + 20, H - borderW - 20);
+                    p.vx = rand(-30, 30);
+                    p.vy = rand(-40, 10);
+                    p.size = rand(2, 6);
+                    p.alpha = 0;
+                    p.targetAlpha = rand(0.4, 0.9);
+                    p.rotation = rand(0, Math.PI * 2);
+                    p.rotSpeed = rand(-3, 3);
+                    p.life = 0;
+                    p.maxLife = rand(1.5, 3);
+                    spawned++;
+                }
+            }
+        }
+
+        function drawGoldGlowCorners(ctx, energy) {
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            for (var i = 0; i < glowCenters.length; i++) {
+                var g = glowCenters[i];
+                g.alpha = g.alpha * 0.95 + beatPulse * 0.2;
+                if (g.alpha < 0.01) continue;
+
+                var grad = ctx.createRadialGradient(g.x, g.y, 0, g.x, g.y, g.r);
+                grad.addColorStop(0, rgbaStr(GOLD, g.alpha * 0.3 * introFadeIn * outroFadeOut));
+                grad.addColorStop(0.5, rgbaStr(GOLD, g.alpha * 0.1 * introFadeIn * outroFadeOut));
+                grad.addColorStop(1, rgbaStr(GOLD, 0));
+                ctx.fillStyle = grad;
+                ctx.fillRect(g.x - g.r, g.y - g.r, g.r * 2, g.r * 2);
+            }
+            ctx.restore();
+        }
+
+        function drawIlluminatedLetter(ctx, letter, x, y, size, energy) {
+            ctx.save();
+            ctx.globalAlpha = introFadeIn * outroFadeOut * (0.6 + energy * 0.4);
+
+            // Gold background square
+            ctx.fillStyle = rgbaStr(GOLD, 0.15 + beatPulse * 0.1);
+            var pad = size * 0.3;
+            ctx.fillRect(x - pad, y - size - pad, size + pad * 2, size + pad * 2);
+
+            // Border
+            ctx.strokeStyle = rgbStr(GOLD);
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(x - pad, y - size - pad, size + pad * 2, size + pad * 2);
+
+            // Letter
+            ctx.font = '700 ' + size + 'px "IM Fell English SC", serif';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'bottom';
+            ctx.fillStyle = rgbStr(CRIMSON);
+            ctx.shadowColor = rgbStr(GOLD);
+            ctx.shadowBlur = 8 + beatPulse * 10;
+            ctx.fillText(letter, x, y);
+
+            ctx.restore();
+        }
+
+        function drawTitle(ctx, elapsed) {
+            if (titleAlpha < 0.01) return;
+            ctx.save();
+
+            var fontSize = Math.max(14, Math.min(W * 0.03, 36));
+            ctx.font = '700 ' + fontSize + 'px "IM Fell English SC", serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+
+            var y = borderW + H * 0.08;
+            var text = 'GREENSLEEVES';
+
+            // Gold glow
+            ctx.shadowColor = rgbStr(GOLD);
+            ctx.shadowBlur = 30 + beatPulse * 20;
+            ctx.globalAlpha = titleAlpha * 0.7 * introFadeIn * outroFadeOut;
+            ctx.fillStyle = rgbStr(GOLD);
+            ctx.fillText(text, W * 0.5, y);
+
+            // Main text
+            ctx.shadowBlur = 15;
+            ctx.globalAlpha = titleAlpha * introFadeIn * outroFadeOut;
+            ctx.fillStyle = '#fff5e0';
+            ctx.fillText(text, W * 0.5, y);
+
+            ctx.restore();
+        }
+
+        function drawFlash(ctx) {
+            if (flashAlpha < 0.01) return;
+            ctx.save();
+            ctx.globalAlpha = flashAlpha;
+            ctx.fillStyle = rgbStr(GOLD_BRIGHT);
+            ctx.fillRect(0, 0, W, H);
+            ctx.restore();
+        }
+
+        function drawVignette(ctx) {
+            ctx.save();
+            var grad = ctx.createRadialGradient(W * 0.5, H * 0.5, W * 0.2, W * 0.5, H * 0.5, W * 0.7);
+            grad.addColorStop(0, 'rgba(0,0,0,0)');
+            grad.addColorStop(1, 'rgba(0,0,0,0.35)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, W, H);
+            ctx.restore();
+        }
+
+        // ── Init ──
+        function init(ctx, width, height, anal) {
+            W = width; H = height;
+            analysis = anal;
+            borderW = Math.max(30, Math.min(W, H) * 0.06);
+
+            initVines();
+            initGardenFlowers();
+            initTrees();
+            initGoldLeafParticles();
+            initStars();
+            initCourtlyFigures();
+            initGlowCenters();
+
+            beatPulse = 0;
+            flashAlpha = 0;
+            introFadeIn = 0;
+            outroFadeOut = 1;
+            lastSeqIndex = -1;
+            sectionMood = 'intro';
+            vineGrowth = 0;
+            waltzPhase = 0;
+            waltzBeat = 0;
+            titleAlpha = 0;
+            titleTarget = 0;
+        }
+
+        // ── Resize ──
+        function resize(width, height) {
+            W = width; H = height;
+            borderW = Math.max(30, Math.min(W, H) * 0.06);
+            initVines();
+            initGardenFlowers();
+            initTrees();
+            initStars();
+            initCourtlyFigures();
+            initGlowCenters();
+        }
+
+        // ── Main render ──
+        function render(frameData) {
+            var ctx = frameData.ctx;
+            var dt = frameData.dt || 1/60;
+            var cursor = frameData.cursor;
+            beatPulse = frameData.beatPulse;
+
+            // Background parchment
+            drawParchmentBackground(ctx, 0);
+
+            if (!cursor) {
+                // Idle state: parchment with border
+                drawSkyScene(ctx, 0, 0);
+                drawCastle(ctx, 0, 0);
+                drawTapestryBorder(ctx, 0, 0);
+                drawVignette(ctx);
+                return;
+            }
+
+            var beat = cursor.beat;
+            var seqIdx = cursor.seqIndex;
+            var energy = analysis ? (analysis.energy[cursor.timelineIndex] || 0) : 0;
+            var elapsed = cursor.elapsed;
+
+            // ── Waltz timing (3/4 feel) ──
+            // 110 BPM, rpb=4, so beats come at 110/60 Hz
+            // For waltz sway, use a sine at 1/3 of the beat frequency
+            waltzPhase = elapsed * (110 / 60) * Math.PI * 2 / 3;
+            waltzSway = Math.sin(waltzPhase);
+
+            // Track waltz beat position (0,1,2)
+            if (frameData.beatChanged) {
+                waltzBeat = (waltzBeat + 1) % 3;
+            }
+
+            // ── Section transitions ──
+            var newSection = mapSection(seqIdx);
+            if (seqIdx !== lastSeqIndex) {
+                if (newSection !== sectionMood) {
+                    // Section changed
+                    if (newSection === 'chorus1' || newSection === 'chorus2' || newSection === 'finale') {
+                        flashAlpha = 0.12;
+                        spawnGoldBurst(15);
+                    }
+                }
+                sectionMood = newSection;
+                lastSeqIndex = seqIdx;
+            }
+
+            // ── Intro fade ──
+            if (sectionMood === 'intro') {
+                introFadeIn = Math.min(1, introFadeIn + dt * 0.3);
+            } else if (sectionMood === 'outro') {
+                introFadeIn = 1;
+                outroFadeOut = Math.max(0, outroFadeOut - dt * 0.15);
+            } else {
+                introFadeIn = 1;
+                outroFadeOut = 1;
+            }
+
+            // ── Vine growth ──
+            var vineTarget = 0;
+            if (sectionMood === 'intro') vineTarget = 0.3;
+            else if (sectionMood === 'verse1') vineTarget = 0.6;
+            else if (sectionMood === 'chorus1') vineTarget = 0.85;
+            else vineTarget = 1;
+            vineGrowth += (vineTarget - vineGrowth) * (1 - Math.exp(-2 * dt));
+
+            // ── Figure activation ──
+            var activeFigs = 0;
+            if (sectionMood === 'verse1' || sectionMood === 'verse2') activeFigs = 2;
+            else if (sectionMood === 'chorus1' || sectionMood === 'chorus2' || sectionMood === 'bridge' || sectionMood === 'finale') activeFigs = 6;
+            else if (sectionMood === 'outro') activeFigs = 2;
+            for (var fi = 0; fi < courtlyFigures.length; fi++) {
+                courtlyFigures[fi].active = fi < activeFigs;
+            }
+
+            // ── Beat effects ──
+            if (frameData.beatChanged) {
+                // Gold bursts on strong beats (waltzBeat 0 = downbeat)
+                if (waltzBeat === 0) {
+                    spawnGoldBurst(5 + Math.floor(energy * 8));
+                    if (energy > 0.5) {
+                        flashAlpha = Math.max(flashAlpha, 0.04 + energy * 0.04);
+                    }
+                }
+            }
+            flashAlpha *= Math.exp(-5 * dt);
+
+            // ── Title ──
+            titleTarget = (sectionMood === 'chorus1' || sectionMood === 'chorus2' || sectionMood === 'finale') ? 1 : 0;
+            titleAlpha += (titleTarget - titleAlpha) * (1 - Math.exp(-3 * dt));
+
+            // ── Draw scene (back to front) ──
+
+            // 1. Parchment background (already drawn above)
+
+            // 2. Sky and garden ground
+            drawSkyScene(ctx, energy, elapsed);
+
+            // 3. Castle
+            drawCastle(ctx, energy, elapsed);
+
+            // 4. Trees
+            drawTrees(ctx, energy, elapsed);
+
+            // 5. Flowers
+            drawFlowers(ctx, energy, elapsed);
+
+            // 6. Courtly figures
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(borderW, borderW, W - borderW * 2, H - borderW * 2);
+            ctx.clip();
+            for (var ci = courtlyFigures.length - 1; ci >= 0; ci--) {
+                drawCourtlyFigure(ctx, courtlyFigures[ci], energy, elapsed);
+            }
+            ctx.restore();
+
+            // 7. Illuminated letter (in corners during verses)
+            if (sectionMood === 'verse1' || sectionMood === 'chorus1') {
+                var letterSize = Math.min(borderW * 0.8, 40);
+                drawIlluminatedLetter(ctx, 'G', borderW + 8, borderW + letterSize + 8, letterSize, energy);
+            } else if (sectionMood === 'verse2' || sectionMood === 'chorus2') {
+                var letterSize2 = Math.min(borderW * 0.8, 40);
+                drawIlluminatedLetter(ctx, 'A', W - borderW - letterSize2 - 8, borderW + letterSize2 + 8, letterSize2, energy);
+            }
+
+            // 8. Tapestry border
+            drawTapestryBorder(ctx, energy, elapsed);
+
+            // 9. Vines growing from border
+            drawVines(ctx, energy, elapsed);
+
+            // 10. Gold leaf particles
+            drawGoldLeafParticles(ctx, energy, dt);
+
+            // 11. Gold glow in corners
+            drawGoldGlowCorners(ctx, energy);
+
+            // 12. Title
+            drawTitle(ctx, elapsed);
+
+            // 13. Vignette
+            drawVignette(ctx);
+
+            // 14. Flash
+            drawFlash(ctx);
+        }
+
+        BaseRenderer('greensleeves-video', 'Greensleeves', {
+            beatDecay: 6,
+            init: init,
+            render: render,
+            resize: resize
+        });
+    })();
+
+    // ── Page bootstrap ──
+    (function() {
+        var canvas = document.getElementById('viz-canvas');
+        var overlay = document.getElementById('play-overlay');
+
+        Visualizer.init(canvas);
+        Visualizer.setRenderer('greensleeves-video');
+
+        function loadAndPlay(json) {
+            Visualizer.loadSong(json);
+            Visualizer.play();
+        }
+
+        function fetchSong() {
+            var url = '../audio-tracker/songs/greensleeves.json';
+            if (window.fetch && location.protocol !== 'file:') {
+                return fetch(url).then(function(r) { return r.json(); });
+            }
+            return new Promise(function(resolve, reject) {
+                var xhr = new XMLHttpRequest();
+                xhr.open('GET', url, true);
+                xhr.onload = function() {
+                    if (xhr.status === 200 || xhr.status === 0) {
+                        resolve(JSON.parse(xhr.responseText));
+                    } else {
+                        reject(new Error('XHR failed: ' + xhr.status));
+                    }
+                };
+                xhr.onerror = function() { reject(new Error('XHR error')); };
+                xhr.send();
+            });
+        }
+
+        overlay.addEventListener('click', function() {
+            overlay.classList.add('hidden');
+            fetchSong().then(loadAndPlay).catch(function(err) {
+                console.error('Failed to load song:', err);
+                overlay.classList.remove('hidden');
+            });
+        });
+
+        if (new URLSearchParams(window.location.search).get('autoplay') === '1') {
+            overlay.click();
+        }
+
+        canvas.addEventListener('click', function() {
+            if (overlay.classList.contains('hidden')) {
+                if (Visualizer.isPlaying()) {
+                    Visualizer.stop();
+                } else {
+                    Visualizer.play();
+                }
+            }
+        });
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ode to Joy — Music Video</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Press+Start+2P&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="video-base-styles.css">
+    <style>
+        :root {
+            --vid-bg: #0a0818;
+            --vid-bg-rgb: 10,8,24;
+            --vid-font: 'Cinzel', serif;
+            --vid-accent: #ffd700;
+            --vid-accent-r: 255;
+            --vid-accent-g: 215;
+            --vid-accent-b: 0;
+            --vid-title-spacing: 0.15em;
+        }
+        .play-title {
+            text-shadow:
+                0 0 30px rgba(255, 215, 0, 0.7),
+                0 0 60px rgba(255, 215, 0, 0.3),
+                0 2px 0 #b8860b;
+        }
+    </style>
+</head>
+<body>
+    <a href="music-videos/index.html" class="back-link">&larr; Music Videos</a>
+    <canvas id="viz-canvas"></canvas>
+    <div class="play-overlay" id="play-overlay">
+        <div class="play-title">Ode to Joy</div>
+        <div class="play-sub">a triumphant pixel parade</div>
+        <div class="play-btn"></div>
+    </div>
+
+    <script src="../audio-tracker/playback-engine.js"></script>
+    <script src="engine.js"></script>
+    <script src="video-utils.js"></script>
+    <script src="base-renderer.js"></script>
+    <script>
+    // ── Ode to Joy Video Renderer ──────────────────────────────────────
+    (function() {
+        "use strict";
+
+        var W = 0, H = 0;
+        var analysis = null;
+
+        // ── Palette ──
+        var GOLD = '#ffd700';
+        var GOLD_LIGHT = '#fff4b0';
+        var GOLD_DARK = '#b8860b';
+        var CRIMSON = '#dc143c';
+        var ROYAL_BLUE = '#2a47b0';
+        var IVORY = '#fffff0';
+        var DEEP_BG = '#0a0818';
+        var NAVY = '#141030';
+
+        var CONFETTI_COLORS = [
+            '#ffd700', '#ff6347', '#4169e1', '#32cd32', '#ff69b4',
+            '#00ced1', '#ff8c00', '#9370db', '#ffffff', '#dc143c'
+        ];
+
+        var BANNER_COLORS = [CRIMSON, ROYAL_BLUE, GOLD, '#2e8b57', '#8b008b'];
+
+        // ── State ──
+        var beatPulse = 0;
+        var flashAlpha = 0;
+        var elapsed = 0;
+
+        // Marchers
+        var marchers = [];
+        var MAX_MARCHERS = 80;
+        var marchOffset = 0;
+
+        // Confetti
+        var confetti = [];
+        var MAX_CONFETTI = 200;
+
+        // Light rays
+        var rays = [];
+        var rayIntensity = 0;
+
+        // Fireworks
+        var fireworks = [];
+        var MAX_FIREWORKS = 30;
+        var fireworkParticles = [];
+        var MAX_FW_PARTICLES = 400;
+
+        // Banners
+        var banners = [];
+
+        // Scene progression
+        var scenePhase = 0; // 0=intro, 1=build, 2=march, 3=crescendo, 4=finale
+        var sceneAlpha = 0;
+        var groundY = 0;
+
+        // Stars
+        var stars = [];
+
+        // ── Helpers ──
+        function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+
+        function pixelRect(ctx, x, y, w, h) {
+            ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
+        }
+
+        // ── Star field ──
+        function initStars() {
+            stars = [];
+            for (var i = 0; i < 80; i++) {
+                stars.push({
+                    x: Math.random() * W,
+                    y: Math.random() * H * 0.55,
+                    size: 1 + Math.random() * 2,
+                    twinkle: Math.random() * Math.PI * 2,
+                    speed: 0.5 + Math.random() * 1.5
+                });
+            }
+        }
+
+        function drawStars(ctx, dt, energy) {
+            for (var i = 0; i < stars.length; i++) {
+                var s = stars[i];
+                s.twinkle += dt * (2 + energy * 3);
+                var alpha = 0.2 + Math.sin(s.twinkle) * 0.3 + energy * 0.2;
+                ctx.fillStyle = 'rgba(255,255,240,' + clamp(alpha, 0, 1) + ')';
+                pixelRect(ctx, s.x, s.y, s.size, s.size);
+            }
+        }
+
+        // ── Marcher (pixel figure) ──
+        function createMarcher(x, row, type) {
+            var baseH = Math.min(W, H) * 0.06;
+            return {
+                x: x,
+                baseY: groundY - row * baseH * 0.3,
+                y: groundY - row * baseH * 0.3,
+                row: row,
+                type: type, // 0=soldier, 1=flag, 2=drummer, 3=trumpeter
+                size: baseH * (0.7 + Math.random() * 0.3),
+                phase: Math.random() * Math.PI * 2,
+                color: type === 1 ? CRIMSON : (type === 2 ? ROYAL_BLUE : GOLD_DARK),
+                hatColor: type === 0 ? GOLD : (type === 1 ? CRIMSON : ROYAL_BLUE),
+                active: false,
+                fadeIn: 0,
+                marchDir: (row % 2 === 0) ? 1 : -1,
+                bounceAmp: 2 + Math.random() * 2
+            };
+        }
+
+        function drawMarcher(ctx, m, beat, energy) {
+            if (m.fadeIn < 0.01) return;
+            var s = m.size;
+            var bounce = Math.sin(m.phase) * m.bounceAmp * energy;
+            var mx = m.x;
+            var my = m.y + bounce;
+
+            ctx.save();
+            ctx.globalAlpha = clamp(m.fadeIn, 0, 1);
+
+            // Body
+            ctx.fillStyle = m.color;
+            pixelRect(ctx, mx - s * 0.15, my - s * 0.5, s * 0.3, s * 0.4);
+
+            // Legs (marching)
+            var legPhase = m.phase * 2;
+            var legSpread = Math.sin(legPhase) * s * 0.1;
+            ctx.fillStyle = '#222';
+            pixelRect(ctx, mx - s * 0.1 + legSpread, my - s * 0.1, s * 0.08, s * 0.2);
+            pixelRect(ctx, mx + s * 0.02 - legSpread, my - s * 0.1, s * 0.08, s * 0.2);
+
+            // Head
+            ctx.fillStyle = '#ffe0c0';
+            pixelRect(ctx, mx - s * 0.08, my - s * 0.65, s * 0.16, s * 0.14);
+
+            // Hat
+            ctx.fillStyle = m.hatColor;
+            pixelRect(ctx, mx - s * 0.12, my - s * 0.78, s * 0.24, s * 0.14);
+            pixelRect(ctx, mx - s * 0.04, my - s * 0.85, s * 0.08, s * 0.08);
+
+            // Type-specific: flag
+            if (m.type === 1) {
+                ctx.fillStyle = GOLD;
+                pixelRect(ctx, mx + s * 0.15, my - s * 0.9, s * 0.04, s * 0.8);
+                // Flag cloth
+                var flagWave = Math.sin(m.phase * 1.5) * s * 0.05;
+                ctx.fillStyle = CRIMSON;
+                pixelRect(ctx, mx + s * 0.19, my - s * 0.88 + flagWave, s * 0.2, s * 0.15);
+                ctx.fillStyle = GOLD;
+                pixelRect(ctx, mx + s * 0.19, my - s * 0.73 + flagWave, s * 0.2, s * 0.04);
+            }
+
+            // Type-specific: drummer
+            if (m.type === 2) {
+                ctx.fillStyle = '#8b4513';
+                var drumBeat = beatPulse > 0.5 ? -s * 0.02 : 0;
+                pixelRect(ctx, mx - s * 0.12, my - s * 0.35 + drumBeat, s * 0.24, s * 0.12);
+                ctx.fillStyle = IVORY;
+                pixelRect(ctx, mx - s * 0.1, my - s * 0.34 + drumBeat, s * 0.2, s * 0.02);
+            }
+
+            // Type-specific: trumpeter
+            if (m.type === 3) {
+                ctx.fillStyle = GOLD;
+                var trumpetWave = energy > 0.5 ? Math.sin(m.phase * 3) * s * 0.02 : 0;
+                pixelRect(ctx, mx + s * 0.15, my - s * 0.55 + trumpetWave, s * 0.2, s * 0.04);
+                pixelRect(ctx, mx + s * 0.33, my - s * 0.58 + trumpetWave, s * 0.06, s * 0.1);
+            }
+
+            ctx.restore();
+        }
+
+        // ── Confetti ──
+        function spawnConfetti(x, y, count) {
+            for (var i = 0; i < count && confetti.length < MAX_CONFETTI; i++) {
+                var angle = Math.random() * Math.PI * 2;
+                var speed = 80 + Math.random() * 250;
+                confetti.push({
+                    x: x, y: y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed - 150,
+                    life: 1.0,
+                    size: 3 + Math.random() * 5,
+                    color: pickRandom(CONFETTI_COLORS),
+                    rot: Math.random() * Math.PI * 2,
+                    rotSpeed: (Math.random() - 0.5) * 8,
+                    flutter: Math.random() * Math.PI * 2
+                });
+            }
+        }
+
+        function drawConfetti(ctx, dt) {
+            for (var i = confetti.length - 1; i >= 0; i--) {
+                var c = confetti[i];
+                c.x += c.vx * dt;
+                c.vy += 120 * dt; // gravity
+                c.y += c.vy * dt;
+                c.vx += Math.sin(c.flutter) * 40 * dt; // wind flutter
+                c.flutter += dt * 5;
+                c.rot += c.rotSpeed * dt;
+                c.life -= dt * 0.6;
+
+                if (c.life <= 0 || c.y > H + 10) {
+                    confetti.splice(i, 1);
+                    continue;
+                }
+
+                ctx.save();
+                ctx.translate(c.x, c.y);
+                ctx.rotate(c.rot);
+                ctx.globalAlpha = clamp(c.life, 0, 1);
+                ctx.fillStyle = c.color;
+                // Rectangular confetti that flutters
+                var squeeze = Math.abs(Math.cos(c.flutter * 2));
+                pixelRect(ctx, -c.size / 2 * squeeze, -c.size / 4, c.size * squeeze, c.size / 2);
+                ctx.restore();
+            }
+        }
+
+        // ── Light rays ──
+        function initRays() {
+            rays = [];
+            for (var i = 0; i < 12; i++) {
+                rays.push({
+                    angle: (i / 12) * Math.PI * 2,
+                    width: 0.04 + Math.random() * 0.06,
+                    speed: 0.1 + Math.random() * 0.2,
+                    length: 0.5 + Math.random() * 0.5
+                });
+            }
+        }
+
+        function drawLightRays(ctx, intensity, dt) {
+            if (intensity < 0.01) return;
+            var cx = W * 0.5;
+            var cy = H * 0.25;
+            var maxLen = Math.max(W, H) * 1.2;
+
+            ctx.save();
+            ctx.globalAlpha = intensity * 0.35;
+            ctx.globalCompositeOperation = 'lighter';
+
+            for (var i = 0; i < rays.length; i++) {
+                var r = rays[i];
+                r.angle += r.speed * dt;
+                var len = maxLen * r.length * (0.6 + intensity * 0.4);
+                var halfW = r.width * maxLen * 0.5;
+
+                var cos = Math.cos(r.angle);
+                var sin = Math.sin(r.angle);
+
+                ctx.beginPath();
+                ctx.moveTo(cx, cy);
+                ctx.lineTo(cx + cos * len - sin * halfW, cy + sin * len + cos * halfW);
+                ctx.lineTo(cx + cos * len + sin * halfW, cy + sin * len - cos * halfW);
+                ctx.closePath();
+
+                var grad = ctx.createLinearGradient(cx, cy, cx + cos * len, cy + sin * len);
+                grad.addColorStop(0, rgba(GOLD, 0.6));
+                grad.addColorStop(0.5, rgba(GOLD_LIGHT, 0.2));
+                grad.addColorStop(1, 'rgba(255,244,176,0)');
+                ctx.fillStyle = grad;
+                ctx.fill();
+            }
+
+            ctx.restore();
+        }
+
+        // ── Fireworks ──
+        function launchFirework() {
+            if (fireworks.length >= MAX_FIREWORKS) return;
+            fireworks.push({
+                x: W * 0.15 + Math.random() * W * 0.7,
+                y: H,
+                targetY: H * 0.1 + Math.random() * H * 0.3,
+                vy: -400 - Math.random() * 200,
+                color: pickRandom(CONFETTI_COLORS),
+                trail: [],
+                exploded: false,
+                life: 1.0
+            });
+        }
+
+        function updateFireworks(dt) {
+            for (var i = fireworks.length - 1; i >= 0; i--) {
+                var fw = fireworks[i];
+                if (!fw.exploded) {
+                    fw.y += fw.vy * dt;
+                    fw.trail.push({ x: fw.x, y: fw.y, a: 1 });
+                    if (fw.trail.length > 8) fw.trail.shift();
+
+                    if (fw.y <= fw.targetY) {
+                        fw.exploded = true;
+                        // Spawn particles
+                        var count = 30 + randInt(0, 20);
+                        for (var j = 0; j < count && fireworkParticles.length < MAX_FW_PARTICLES; j++) {
+                            var angle = (j / count) * Math.PI * 2 + rand(-0.1, 0.1);
+                            var speed = 100 + rand(0, 200);
+                            fireworkParticles.push({
+                                x: fw.x, y: fw.y,
+                                vx: Math.cos(angle) * speed,
+                                vy: Math.sin(angle) * speed,
+                                life: 1.0,
+                                color: fw.color,
+                                size: 2 + Math.random() * 3
+                            });
+                        }
+                    }
+                } else {
+                    fw.life -= dt * 2;
+                    if (fw.life <= 0) {
+                        fireworks.splice(i, 1);
+                    }
+                }
+            }
+
+            // Update particles
+            for (var pi = fireworkParticles.length - 1; pi >= 0; pi--) {
+                var p = fireworkParticles[pi];
+                p.x += p.vx * dt;
+                p.vy += 100 * dt; // gravity
+                p.y += p.vy * dt;
+                p.vx *= Math.exp(-1.5 * dt);
+                p.life -= dt * 1.2;
+                if (p.life <= 0) {
+                    fireworkParticles.splice(pi, 1);
+                }
+            }
+        }
+
+        function drawFireworks(ctx) {
+            // Trails
+            for (var i = 0; i < fireworks.length; i++) {
+                var fw = fireworks[i];
+                if (fw.exploded) continue;
+                for (var t = 0; t < fw.trail.length; t++) {
+                    var tr = fw.trail[t];
+                    ctx.fillStyle = rgba(GOLD_LIGHT, (t / fw.trail.length) * 0.8);
+                    pixelRect(ctx, tr.x - 1, tr.y - 1, 3, 3);
+                }
+                // Rocket head
+                ctx.fillStyle = GOLD_LIGHT;
+                pixelRect(ctx, fw.x - 2, fw.y - 2, 4, 4);
+            }
+
+            // Particles
+            for (var pi = 0; pi < fireworkParticles.length; pi++) {
+                var p = fireworkParticles[pi];
+                ctx.save();
+                ctx.globalAlpha = clamp(p.life, 0, 1);
+                ctx.fillStyle = p.color;
+                ctx.shadowColor = p.color;
+                ctx.shadowBlur = 4;
+                pixelRect(ctx, p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+                ctx.restore();
+            }
+        }
+
+        // ── Banners ──
+        function initBanners() {
+            banners = [];
+            var count = 5 + randInt(0, 3);
+            for (var i = 0; i < count; i++) {
+                banners.push({
+                    x: W * (0.1 + (i / count) * 0.8),
+                    y: H * 0.08,
+                    width: W * 0.08 + rand(0, W * 0.04),
+                    height: H * 0.12 + rand(0, H * 0.05),
+                    color: pickRandom(BANNER_COLORS),
+                    wave: rand(0, Math.PI * 2),
+                    waveSpeed: 1.5 + rand(0, 1.5),
+                    fadeIn: 0
+                });
+            }
+        }
+
+        function drawBanners(ctx, dt, energy) {
+            for (var i = 0; i < banners.length; i++) {
+                var b = banners[i];
+                if (scenePhase < 3) {
+                    b.fadeIn = lerpExp(b.fadeIn, scenePhase >= 2 ? 1 : 0, 2, dt);
+                } else {
+                    b.fadeIn = 1;
+                }
+                if (b.fadeIn < 0.01) continue;
+
+                b.wave += b.waveSpeed * dt;
+                var waveOff = Math.sin(b.wave) * 5;
+
+                ctx.save();
+                ctx.globalAlpha = b.fadeIn * 0.85;
+
+                // Banner pole
+                ctx.fillStyle = GOLD;
+                pixelRect(ctx, b.x - 2, b.y - b.height * 0.2, 4, b.height * 1.3);
+
+                // Banner cloth with wave
+                ctx.fillStyle = b.color;
+                ctx.beginPath();
+                ctx.moveTo(b.x + 2, b.y);
+                ctx.lineTo(b.x + b.width + waveOff, b.y + b.height * 0.1);
+                ctx.lineTo(b.x + b.width + waveOff * 0.5, b.y + b.height);
+                ctx.lineTo(b.x + 2, b.y + b.height * 0.9);
+                ctx.closePath();
+                ctx.fill();
+
+                // Gold trim
+                ctx.strokeStyle = GOLD;
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // Ornament on top
+                ctx.fillStyle = GOLD;
+                ctx.beginPath();
+                ctx.arc(b.x, b.y - b.height * 0.2, 4 + beatPulse * 2, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.restore();
+            }
+        }
+
+        // ── Ground / horizon ──
+        function drawGround(ctx, energy) {
+            // Gradient ground
+            var grd = ctx.createLinearGradient(0, groundY, 0, H);
+            grd.addColorStop(0, '#1a1538');
+            grd.addColorStop(0.3, '#12102a');
+            grd.addColorStop(1, '#080614');
+            ctx.fillStyle = grd;
+            ctx.fillRect(0, groundY, W, H - groundY);
+
+            // Ground line glow
+            ctx.strokeStyle = rgba(GOLD, 0.3 + energy * 0.3 + beatPulse * 0.2);
+            ctx.lineWidth = 2;
+            ctx.shadowColor = GOLD;
+            ctx.shadowBlur = 10 + beatPulse * 15;
+            ctx.beginPath();
+            ctx.moveTo(0, groundY);
+            ctx.lineTo(W, groundY);
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            // Cobblestone hints
+            ctx.fillStyle = 'rgba(255,215,0,0.04)';
+            for (var i = 0; i < 30; i++) {
+                var bx = (i * W / 30 + marchOffset * 20) % W;
+                pixelRect(ctx, bx, groundY + 4 + (i % 3) * 8, W / 35, 3);
+            }
+        }
+
+        // ── Scene phase detection ──
+        function detectScene(cursor, energy) {
+            if (!cursor) return 0;
+            var progress = cursor.elapsed / (analysis ? analysis.totalDuration : 90);
+            if (progress < 0.08) return 0;      // intro
+            if (progress < 0.25) return 1;       // build - first voices
+            if (progress < 0.55) return 2;       // march - full formation
+            if (progress < 0.82) return 3;       // crescendo - rays + confetti
+            return 4;                             // finale - fireworks + banners
+        }
+
+        // ── Title overlay ──
+        var titleFade = 0;
+        function drawTitle(ctx, dt) {
+            if (scenePhase === 0) {
+                titleFade = Math.min(1, titleFade + dt * 1.2);
+            } else if (scenePhase === 1) {
+                titleFade = Math.max(0, titleFade - dt * 0.8);
+            } else {
+                titleFade = 0;
+            }
+            if (titleFade < 0.01) return;
+
+            ctx.save();
+            ctx.globalAlpha = titleFade;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+
+            // Main title
+            var fontSize = Math.max(20, Math.min(W * 0.06, 60));
+            ctx.font = '900 ' + fontSize + 'px Cinzel, serif';
+            ctx.fillStyle = GOLD;
+            ctx.shadowColor = GOLD;
+            ctx.shadowBlur = 20 + beatPulse * 20;
+            ctx.fillText('ODE TO JOY', W / 2, H * 0.35);
+
+            // Subtitle
+            var subSize = Math.max(10, fontSize * 0.35);
+            ctx.font = subSize + 'px "Press Start 2P", monospace';
+            ctx.fillStyle = rgba(IVORY, 0.6);
+            ctx.shadowBlur = 0;
+            ctx.fillText('BEETHOVEN', W / 2, H * 0.35 + fontSize * 0.9);
+
+            ctx.restore();
+        }
+
+        // ── Section text flash ──
+        var sectionText = '';
+        var sectionTextAlpha = 0;
+
+        function flashSectionText(text) {
+            sectionText = text;
+            sectionTextAlpha = 1.5;
+        }
+
+        function drawSectionText(ctx, dt) {
+            if (sectionTextAlpha < 0.01) return;
+            sectionTextAlpha = Math.max(0, sectionTextAlpha - dt * 0.7);
+
+            ctx.save();
+            ctx.globalAlpha = clamp(sectionTextAlpha, 0, 1);
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            var fontSize = Math.max(14, Math.min(W * 0.04, 44));
+            ctx.font = '700 ' + fontSize + 'px Cinzel, serif';
+            ctx.fillStyle = GOLD_LIGHT;
+            ctx.shadowColor = GOLD;
+            ctx.shadowBlur = 15;
+            ctx.fillText(sectionText, W / 2, H * 0.18);
+            ctx.restore();
+        }
+
+        // ── Populate marchers ──
+        function populateMarchers() {
+            marchers = [];
+            var cols = Math.floor(W / (Math.min(W, H) * 0.08));
+            cols = Math.min(cols, 14);
+            var rows = 5;
+            var spacing = W / (cols + 1);
+
+            for (var r = 0; r < rows; r++) {
+                for (var c = 0; c < cols; c++) {
+                    if (marchers.length >= MAX_MARCHERS) break;
+                    var type = 0;
+                    if (c === 0 || c === cols - 1) type = 1; // flags on edges
+                    else if (r === 0 && c % 3 === 1) type = 3; // trumpeters front
+                    else if (r === 1 && c % 4 === 2) type = 2; // drummers
+                    var mx = spacing * (c + 1);
+                    marchers.push(createMarcher(mx, r, type));
+                }
+            }
+        }
+
+        // ── Init ──
+        function init(ctx, w, h, anal) {
+            W = w; H = h;
+            analysis = anal;
+            beatPulse = 0;
+            flashAlpha = 0;
+            elapsed = 0;
+            scenePhase = 0;
+            sceneAlpha = 0;
+            titleFade = 0;
+            sectionTextAlpha = 0;
+            marchOffset = 0;
+            rayIntensity = 0;
+
+            groundY = H * 0.72;
+
+            marchers = [];
+            confetti = [];
+            fireworks = [];
+            fireworkParticles = [];
+
+            initStars();
+            initRays();
+            initBanners();
+            populateMarchers();
+        }
+
+        // ── Resize ──
+        function resize(w, h) {
+            W = w; H = h;
+            groundY = H * 0.72;
+            initStars();
+            initBanners();
+            populateMarchers();
+        }
+
+        // ── Track last scene for transitions ──
+        var lastScene = -1;
+        var beatCount = 0;
+
+        // ── Main Render ──
+        function render(frameData) {
+            var ctx = frameData.ctx;
+            var dt = frameData.dt || 1 / 60;
+            var cursor = frameData.cursor;
+            beatPulse = frameData.beatPulse;
+
+            // Background
+            ctx.fillStyle = DEEP_BG;
+            ctx.fillRect(0, 0, W, H);
+
+            if (!cursor) {
+                drawStars(ctx, dt, 0);
+                drawGround(ctx, 0);
+                return;
+            }
+
+            elapsed = cursor.elapsed || 0;
+            var energy = analysis ? (analysis.energy[cursor.timelineIndex] || 0) : 0;
+            var newScene = detectScene(cursor, energy);
+
+            // Scene transition events
+            if (newScene !== lastScene) {
+                if (newScene === 1) flashSectionText('THE MELODY BEGINS');
+                if (newScene === 2) flashSectionText('THE MARCH');
+                if (newScene === 3) flashSectionText('CRESCENDO');
+                if (newScene === 4) {
+                    flashSectionText('GRAND FINALE');
+                    flashAlpha = 0.4;
+                }
+                lastScene = newScene;
+            }
+            scenePhase = newScene;
+
+            // ── Beat events ──
+            if (frameData.beatChanged) {
+                beatCount++;
+                marchOffset += 0.5;
+
+                // Activate marchers progressively
+                var activateCount = 0;
+                if (scenePhase === 1) activateCount = 2;
+                else if (scenePhase >= 2) activateCount = 5;
+
+                for (var ai = 0; ai < marchers.length && activateCount > 0; ai++) {
+                    if (!marchers[ai].active) {
+                        marchers[ai].active = true;
+                        activateCount--;
+                    }
+                }
+
+                // Confetti on beats (scales with scene)
+                if (scenePhase >= 2 && energy > 0.4) {
+                    var confettiCount = scenePhase >= 3 ? 12 : 5;
+                    spawnConfetti(
+                        W * 0.2 + Math.random() * W * 0.6,
+                        H * 0.1 + Math.random() * H * 0.2,
+                        confettiCount
+                    );
+                }
+
+                // Fireworks in finale
+                if (scenePhase >= 4 && beatCount % 2 === 0) {
+                    launchFirework();
+                }
+                if (scenePhase >= 3 && energy > 0.7 && beatCount % 4 === 0) {
+                    launchFirework();
+                }
+
+                // Flash on strong beats
+                if (energy > 0.6 && scenePhase >= 2) {
+                    flashAlpha = Math.max(flashAlpha, 0.06 + energy * 0.06);
+                }
+            }
+
+            // ── Update ──
+            // Ray intensity tracks scene/energy
+            var targetRay = 0;
+            if (scenePhase === 2) targetRay = energy * 0.4;
+            else if (scenePhase === 3) targetRay = 0.5 + energy * 0.5;
+            else if (scenePhase === 4) targetRay = 0.7 + energy * 0.3;
+            rayIntensity = lerpExp(rayIntensity, targetRay, 3, dt);
+
+            // Flash decay
+            flashAlpha *= Math.exp(-5 * dt);
+
+            // Update marchers
+            for (var mi = 0; mi < marchers.length; mi++) {
+                var m = marchers[mi];
+                if (m.active) {
+                    m.fadeIn = lerpExp(m.fadeIn, 1, 3, dt);
+                }
+                m.phase += dt * (3 + energy * 2);
+                // Lateral march
+                m.x += m.marchDir * (10 + energy * 20) * dt;
+                // Wrap around
+                if (m.marchDir > 0 && m.x > W + m.size) m.x = -m.size;
+                if (m.marchDir < 0 && m.x < -m.size) m.x = W + m.size;
+                // Vertical bounce with beat
+                m.y = m.baseY + Math.sin(m.phase) * m.bounceAmp;
+            }
+
+            // Update fireworks
+            updateFireworks(dt);
+
+            // ── DRAW ──
+
+            // 1. Stars
+            drawStars(ctx, dt, energy);
+
+            // 2. Light rays (behind everything)
+            drawLightRays(ctx, rayIntensity, dt);
+
+            // 3. Banners (top area)
+            if (scenePhase >= 2) {
+                drawBanners(ctx, dt, energy);
+            }
+
+            // 4. Section text
+            drawSectionText(ctx, dt);
+
+            // 5. Title (intro only)
+            drawTitle(ctx, dt);
+
+            // 6. Ground
+            drawGround(ctx, energy);
+
+            // 7. Marchers (back rows first)
+            // Sort by row descending so front rows draw on top
+            var sortedMarchers = marchers.slice().sort(function(a, b) { return b.row - a.row; });
+            for (var dmi = 0; dmi < sortedMarchers.length; dmi++) {
+                drawMarcher(ctx, sortedMarchers[dmi], cursor.beat, energy);
+            }
+
+            // 8. Confetti
+            drawConfetti(ctx, dt);
+
+            // 9. Fireworks
+            drawFireworks(ctx);
+
+            // 10. Beat flash overlay
+            if (flashAlpha > 0.01) {
+                ctx.save();
+                ctx.globalAlpha = flashAlpha;
+                ctx.fillStyle = GOLD_LIGHT;
+                ctx.fillRect(0, 0, W, H);
+                ctx.restore();
+            }
+
+            // 11. Vignette
+            ctx.save();
+            var vg = ctx.createRadialGradient(W / 2, H / 2, W * 0.3, W / 2, H / 2, W * 0.85);
+            vg.addColorStop(0, 'rgba(0,0,0,0)');
+            vg.addColorStop(1, 'rgba(0,0,0,0.45)');
+            ctx.fillStyle = vg;
+            ctx.fillRect(0, 0, W, H);
+            ctx.restore();
+
+            // 12. Energy bar (subtle, bottom)
+            if (scenePhase >= 1) {
+                ctx.save();
+                ctx.globalAlpha = 0.25;
+                var barW = W * energy;
+                var grdBar = ctx.createLinearGradient(0, H - 3, barW, H - 3);
+                grdBar.addColorStop(0, GOLD_DARK);
+                grdBar.addColorStop(1, GOLD);
+                ctx.fillStyle = grdBar;
+                ctx.fillRect(0, H - 3, barW, 3);
+                ctx.restore();
+            }
+        }
+
+        BaseRenderer('ode-to-joy-video', 'Ode to Joy', {
+            beatDecay: 8,
+            init: init,
+            render: render,
+            resize: resize
+        });
+    })();
+
+    // ── Page bootstrap ──
+    (function() {
+        var canvas = document.getElementById('viz-canvas');
+        var overlay = document.getElementById('play-overlay');
+
+        Visualizer.init(canvas);
+        Visualizer.setRenderer('ode-to-joy-video');
+
+        function loadAndPlay(json) {
+            Visualizer.loadSong(json);
+            Visualizer.play();
+        }
+
+        function fetchSong() {
+            var url = '../audio-tracker/songs/ode-to-joy.json';
+            if (window.fetch && location.protocol !== 'file:') {
+                return fetch(url).then(function(r) { return r.json(); });
+            }
+            return new Promise(function(resolve, reject) {
+                var xhr = new XMLHttpRequest();
+                xhr.open('GET', url, true);
+                xhr.onload = function() {
+                    if (xhr.status === 200 || xhr.status === 0) {
+                        resolve(JSON.parse(xhr.responseText));
+                    } else {
+                        reject(new Error('XHR failed: ' + xhr.status));
+                    }
+                };
+                xhr.onerror = function() { reject(new Error('XHR error')); };
+                xhr.send();
+            });
+        }
+
+        overlay.addEventListener('click', function() {
+            overlay.classList.add('hidden');
+            fetchSong().then(loadAndPlay).catch(function(err) {
+                console.error('Failed to load song:', err);
+                overlay.classList.remove('hidden');
+            });
+        });
+
+        if (new URLSearchParams(window.location.search).get('autoplay') === '1') {
+            overlay.click();
+        }
+
+        canvas.addEventListener('click', function() {
+            if (overlay.classList.contains('hidden')) {
+                if (Visualizer.isPlaying()) {
+                    Visualizer.stop();
+                } else {
+                    Visualizer.play();
+                }
+            }
+        });
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Campfire Ballad — Music Video</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="video-base-styles.css">
+    <style>
+        :root {
+            --vid-bg: #050808;
+            --vid-bg-rgb: 5,8,8;
+            --vid-font: 'Cormorant Garamond', serif;
+            --vid-accent: #e8a030;
+            --vid-accent-r: 232;
+            --vid-accent-g: 160;
+            --vid-accent-b: 48;
+            --vid-overlay-alpha: 0.93;
+            --vid-title-weight: 600;
+            --vid-title-spacing: 0.08em;
+        }
+    </style>
+</head>
+<body>
+    <a href="music-videos/index.html" class="back-link">&larr; Music Videos</a>
+    <canvas id="viz-canvas"></canvas>
+    <div class="play-overlay" id="play-overlay">
+        <div class="play-title">Campfire Ballad</div>
+        <div class="play-sub">a gentle folk ballad under the stars</div>
+        <div class="play-btn"></div>
+    </div>
+
+    <script src="../audio-tracker/playback-engine.js"></script>
+    <script src="engine.js"></script>
+    <script src="video-utils.js"></script>
+    <script src="base-renderer.js"></script>
+    <script>
+    // ── Campfire Ballad Video Renderer ──────────────────────────────
+    (function() {
+        "use strict";
+
+        var W = 0, H = 0;
+        var analysis = null;
+
+        // ── Palette ──
+        var SKY_TOP = '#020408';
+        var SKY_MID = '#06101a';
+        var SKY_BOTTOM = '#0c1820';
+        var GROUND_DARK = '#0a0d06';
+        var GROUND_WARM = '#120e08';
+        var FIRE_YELLOW = '#ffd566';
+        var FIRE_ORANGE = '#e8a030';
+        var FIRE_RED = '#c04818';
+        var FIRE_WHITE = '#fff4d0';
+        var EMBER_BRIGHT = '#ffaa30';
+        var EMBER_DIM = '#e86020';
+        var STAR_WHITE = '#e8e8f0';
+        var TREE_DARK = '#060908';
+        var TREE_HIGHLIGHT = '#1a1810';
+
+        // ── State ──
+        var beatPulse = 0;
+        var time = 0;
+        var groundY = 0;
+        var fireX = 0, fireBaseY = 0;
+        var flashAlpha = 0;
+
+        // Stars
+        var stars = [];
+        var NUM_STARS = 220;
+
+        // Embers
+        var embers = [];
+        var MAX_EMBERS = 60;
+
+        // Fireflies
+        var fireflies = [];
+        var NUM_FIREFLIES = 12;
+
+        // Shooting stars
+        var shootingStars = [];
+        var shootingStarTimer = 8;
+
+        // Guitar strings (6 strings visualized as glowing filaments)
+        var strings = [];
+        var NUM_STRINGS = 6;
+
+        // Trees
+        var trees = [];
+
+        // Hills
+        var hills = [];
+
+        // Section tracking
+        var lastSeqIndex = -1;
+
+        // ── Init stars ──
+        function initStars() {
+            stars = [];
+            for (var i = 0; i < NUM_STARS; i++) {
+                stars.push({
+                    x: Math.random() * W,
+                    y: Math.random() * groundY * 0.88,
+                    size: 0.4 + Math.random() * 1.8,
+                    baseAlpha: 0.15 + Math.random() * 0.55,
+                    phase: Math.random() * Math.PI * 2,
+                    speed: 0.3 + Math.random() * 1.5,
+                    beatFlash: 0
+                });
+            }
+        }
+
+        // ── Init fireflies ──
+        function initFireflies() {
+            fireflies = [];
+            for (var i = 0; i < NUM_FIREFLIES; i++) {
+                fireflies.push({
+                    x: rand(W * 0.1, W * 0.9),
+                    y: rand(groundY * 0.5, groundY * 0.95),
+                    vx: rand(-8, 8),
+                    vy: rand(-6, 6),
+                    phase: Math.random() * Math.PI * 2,
+                    pulseSpeed: rand(1.5, 3.5),
+                    size: rand(1.5, 3)
+                });
+            }
+        }
+
+        // ── Init guitar strings ──
+        function initStrings() {
+            strings = [];
+            var stringArea = Math.min(W * 0.3, 260);
+            var stringTop = H * 0.12;
+            var stringSpacing = stringArea / (NUM_STRINGS + 1);
+            var anchorX = W - W * 0.12;
+            for (var i = 0; i < NUM_STRINGS; i++) {
+                strings.push({
+                    x: anchorX,
+                    y: stringTop + (i + 1) * stringSpacing,
+                    len: W * 0.18,
+                    amplitude: 0,
+                    decay: 0,
+                    phase: Math.random() * Math.PI * 2,
+                    freq: 3 + i * 0.7,
+                    color: i < 3 ? FIRE_YELLOW : FIRE_ORANGE,
+                    thickness: 2.5 - i * 0.25
+                });
+            }
+        }
+
+        // ── Init landscape ──
+        function initLandscape() {
+            hills = [];
+            var numHills = 6;
+            for (var i = 0; i < numHills; i++) {
+                hills.push({
+                    cx: (i / (numHills - 1)) * W * 1.2 - W * 0.1,
+                    w: W * (0.2 + Math.random() * 0.2),
+                    h: groundY * (0.06 + Math.random() * 0.08)
+                });
+            }
+
+            trees = [];
+            var numTrees = 16;
+            for (var j = 0; j < numTrees; j++) {
+                var tx = (j / (numTrees - 1)) * W * 1.15 - W * 0.075;
+                var distFromCenter = Math.abs(tx - fireX) / (W * 0.5);
+                if (distFromCenter < 0.25) continue;
+                var treeH = H * (0.12 + Math.random() * 0.18);
+                trees.push({
+                    x: tx,
+                    h: treeH,
+                    trunkW: 5 + Math.random() * 8,
+                    crownW: 18 + Math.random() * 28,
+                    crownH: treeH * (0.5 + Math.random() * 0.3),
+                    layers: 2 + Math.floor(Math.random() * 2),
+                    isPine: Math.random() > 0.3
+                });
+            }
+        }
+
+        // ── Spawn ember ──
+        function spawnEmber(burst) {
+            var spread = burst ? 25 : 12;
+            var speedMul = burst ? 1.5 : 1;
+            embers.push({
+                x: fireX + (Math.random() - 0.5) * spread,
+                y: fireBaseY - 8 - Math.random() * 10,
+                vx: (Math.random() - 0.5) * 25 * speedMul,
+                vy: -(25 + Math.random() * 55) * speedMul,
+                life: 1.0,
+                decay: 0.15 + Math.random() * 0.35,
+                size: 1 + Math.random() * 2.5,
+                wobblePhase: Math.random() * Math.PI * 2,
+                wobbleSpeed: rand(3, 7)
+            });
+        }
+
+        // ── Spawn shooting star ──
+        function spawnShootingStar() {
+            var startX = rand(W * 0.15, W * 0.85);
+            var startY = rand(0, groundY * 0.25);
+            var angle = rand(0.1, 0.5) * Math.PI;
+            var dir = Math.random() > 0.5 ? 1 : -1;
+            var speed = rand(180, 350);
+            shootingStars.push({
+                x: startX,
+                y: startY,
+                vx: Math.cos(angle) * speed * dir,
+                vy: Math.sin(angle) * speed,
+                life: 1.0,
+                tailLen: rand(40, 80)
+            });
+        }
+
+        // ── Draw sky ──
+        function drawSky(ctx, energy) {
+            var grad = ctx.createLinearGradient(0, 0, 0, groundY);
+            grad.addColorStop(0, SKY_TOP);
+            grad.addColorStop(0.5, SKY_MID);
+            grad.addColorStop(1, SKY_BOTTOM);
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, W, groundY);
+
+            // Subtle warm wash near horizon from fire
+            var horizonGlow = ctx.createRadialGradient(
+                fireX, groundY, 0,
+                fireX, groundY, W * 0.4
+            );
+            horizonGlow.addColorStop(0, rgba(FIRE_ORANGE, 0.03 + energy * 0.015));
+            horizonGlow.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = horizonGlow;
+            ctx.fillRect(0, 0, W, groundY);
+        }
+
+        // ── Draw stars ──
+        function drawStars(ctx, dt, energy, currentNotes) {
+            for (var i = 0; i < stars.length; i++) {
+                var s = stars[i];
+                s.phase += s.speed * dt;
+                s.beatFlash *= Math.exp(-3.5 * dt);
+
+                var twinkle = 0.5 + 0.5 * Math.sin(s.phase);
+                var alpha = s.baseAlpha * twinkle + s.beatFlash;
+                if (alpha < 0.02) continue;
+                alpha = clamp01(alpha);
+
+                ctx.save();
+                ctx.globalAlpha = alpha;
+                ctx.fillStyle = STAR_WHITE;
+                ctx.shadowColor = STAR_WHITE;
+                ctx.shadowBlur = s.size * 2.5;
+                ctx.beginPath();
+                ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Cross sparkle on bright stars
+                if (s.size > 1.3 && alpha > 0.55) {
+                    ctx.strokeStyle = STAR_WHITE;
+                    ctx.lineWidth = 0.4;
+                    ctx.globalAlpha = alpha * 0.35;
+                    var len = s.size * 3.5;
+                    ctx.beginPath();
+                    ctx.moveTo(s.x - len, s.y);
+                    ctx.lineTo(s.x + len, s.y);
+                    ctx.moveTo(s.x, s.y - len);
+                    ctx.lineTo(s.x, s.y + len);
+                    ctx.stroke();
+                }
+                ctx.restore();
+            }
+        }
+
+        // ── Flash stars on arpeggio beats ──
+        function flashStars(count) {
+            for (var i = 0; i < count; i++) {
+                var idx = randInt(0, stars.length - 1);
+                stars[idx].beatFlash = 0.4 + Math.random() * 0.6;
+            }
+        }
+
+        // ── Draw shooting stars ──
+        function updateShootingStars(ctx, dt) {
+            for (var i = shootingStars.length - 1; i >= 0; i--) {
+                var ss = shootingStars[i];
+                ss.x += ss.vx * dt;
+                ss.y += ss.vy * dt;
+                ss.life -= dt * 0.7;
+                if (ss.life <= 0) { shootingStars.splice(i, 1); continue; }
+
+                var alpha = ss.life;
+                var tl = ss.tailLen * alpha;
+                var nx = ss.vx / Math.sqrt(ss.vx * ss.vx + ss.vy * ss.vy);
+                var ny = ss.vy / Math.sqrt(ss.vx * ss.vx + ss.vy * ss.vy);
+
+                ctx.save();
+                ctx.globalAlpha = alpha;
+                var grad = ctx.createLinearGradient(
+                    ss.x, ss.y,
+                    ss.x - nx * tl, ss.y - ny * tl
+                );
+                grad.addColorStop(0, 'rgba(255,255,255,0.9)');
+                grad.addColorStop(1, 'rgba(255,255,255,0)');
+                ctx.strokeStyle = grad;
+                ctx.lineWidth = 1.8;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(ss.x, ss.y);
+                ctx.lineTo(ss.x - nx * tl, ss.y - ny * tl);
+                ctx.stroke();
+
+                ctx.fillStyle = '#fff';
+                ctx.shadowColor = '#fff';
+                ctx.shadowBlur = 6;
+                ctx.beginPath();
+                ctx.arc(ss.x, ss.y, 1.5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        // ── Draw hills ──
+        function drawHills(ctx) {
+            ctx.save();
+            ctx.fillStyle = '#080d10';
+            for (var i = 0; i < hills.length; i++) {
+                var h = hills[i];
+                ctx.beginPath();
+                ctx.ellipse(h.cx, groundY, h.w, h.h, 0, Math.PI, 0);
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+
+        // ── Draw trees ──
+        function drawTrees(ctx, energy) {
+            for (var i = 0; i < trees.length; i++) {
+                var t = trees[i];
+                var baseY = groundY;
+                var distFromFire = Math.abs(t.x - fireX);
+                var firelightIntensity = clamp01(1 - distFromFire / (W * 0.45));
+                firelightIntensity *= (0.06 + energy * 0.04 + beatPulse * 0.02);
+
+                // Trunk
+                ctx.save();
+                ctx.fillStyle = TREE_DARK;
+                ctx.fillRect(t.x - t.trunkW / 2, baseY - t.h, t.trunkW, t.h);
+
+                if (t.isPine) {
+                    // Pine tree: stacked triangles
+                    for (var l = 0; l < t.layers; l++) {
+                        var layerY = baseY - t.h + t.crownH * (l / t.layers) * 0.3;
+                        var layerH = t.crownH * (0.5 + 0.5 / t.layers);
+                        var layerW = t.crownW * (1 + l * 0.25);
+
+                        ctx.fillStyle = TREE_DARK;
+                        ctx.beginPath();
+                        ctx.moveTo(t.x, layerY - layerH);
+                        ctx.lineTo(t.x - layerW, layerY);
+                        ctx.lineTo(t.x + layerW, layerY);
+                        ctx.closePath();
+                        ctx.fill();
+                    }
+
+                    // Firelight edge
+                    if (firelightIntensity > 0.01) {
+                        ctx.globalAlpha = firelightIntensity;
+                        ctx.strokeStyle = FIRE_ORANGE;
+                        ctx.lineWidth = 1.5;
+                        var fireSide = t.x > fireX ? -1 : 1;
+                        ctx.beginPath();
+                        ctx.moveTo(t.x + fireSide * t.crownW * 0.1, baseY - t.h - t.crownH * 0.8);
+                        ctx.lineTo(t.x + fireSide * t.crownW, baseY - t.h + t.crownH * 0.3);
+                        ctx.stroke();
+                    }
+                } else {
+                    // Deciduous: round canopy
+                    ctx.fillStyle = TREE_DARK;
+                    ctx.beginPath();
+                    ctx.ellipse(t.x, baseY - t.h - t.crownH * 0.3, t.crownW, t.crownH * 0.6, 0, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    if (firelightIntensity > 0.01) {
+                        ctx.globalAlpha = firelightIntensity;
+                        ctx.strokeStyle = FIRE_ORANGE;
+                        ctx.lineWidth = 1.5;
+                        var side = t.x > fireX ? -1 : 1;
+                        ctx.beginPath();
+                        ctx.arc(t.x, baseY - t.h - t.crownH * 0.3, t.crownW,
+                            side > 0 ? -Math.PI * 0.4 : Math.PI * 0.6,
+                            side > 0 ? Math.PI * 0.4 : Math.PI * 1.4);
+                        ctx.stroke();
+                    }
+                }
+                ctx.restore();
+            }
+        }
+
+        // ── Draw ground ──
+        function drawGround(ctx, energy) {
+            ctx.save();
+            var grad = ctx.createLinearGradient(0, groundY, 0, H);
+            grad.addColorStop(0, GROUND_DARK);
+            grad.addColorStop(1, '#040604');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, groundY, W, H - groundY);
+
+            // Fire glow on ground
+            var glowR = W * 0.25 * (0.8 + energy * 0.35 + beatPulse * 0.15);
+            var gGrad = ctx.createRadialGradient(fireX, groundY, 0, fireX, groundY, glowR);
+            gGrad.addColorStop(0, rgba(FIRE_ORANGE, 0.1 + energy * 0.05));
+            gGrad.addColorStop(0.4, rgba(FIRE_RED, 0.04));
+            gGrad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = gGrad;
+            ctx.fillRect(0, groundY, W, H - groundY);
+
+            // Scattered rocks near fire
+            ctx.fillStyle = '#0e0e0a';
+            var rockPositions = [
+                [-0.08, 0.03], [0.07, 0.025], [-0.12, 0.015], [0.1, 0.04],
+                [-0.05, 0.05], [0.13, 0.02]
+            ];
+            for (var i = 0; i < rockPositions.length; i++) {
+                var rx = fireX + rockPositions[i][0] * W;
+                var ry = groundY + rockPositions[i][1] * H + 5;
+                var rw = 4 + i * 1.5;
+                var rh = 3 + i;
+                ctx.beginPath();
+                ctx.ellipse(rx, ry, rw, rh, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+
+        // ── Draw campfire ──
+        function drawCampfire(ctx, energy) {
+            var baseW = W * 0.035;
+            var flameH = H * 0.09 * (0.65 + energy * 0.55 + beatPulse * 0.25);
+
+            // Stone ring
+            ctx.save();
+            ctx.fillStyle = '#1a1814';
+            ctx.strokeStyle = '#100e0a';
+            ctx.lineWidth = 1;
+            var ringR = baseW * 2;
+            for (var si = 0; si < 8; si++) {
+                var sa = (si / 8) * Math.PI * 2;
+                var sx = fireX + Math.cos(sa) * ringR;
+                var sy = fireBaseY + Math.sin(sa) * ringR * 0.3;
+                ctx.beginPath();
+                ctx.ellipse(sx, sy, 4 + Math.random(), 3, sa, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+            }
+
+            // Logs
+            ctx.fillStyle = '#2a1a0a';
+            ctx.strokeStyle = '#1a0f05';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(fireX - baseW * 1.6, fireBaseY + 2);
+            ctx.lineTo(fireX + baseW * 0.4, fireBaseY - 5);
+            ctx.lineTo(fireX + baseW * 0.6, fireBaseY - 1);
+            ctx.lineTo(fireX - baseW * 1.4, fireBaseY + 6);
+            ctx.closePath();
+            ctx.fill(); ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(fireX + baseW * 1.6, fireBaseY + 2);
+            ctx.lineTo(fireX - baseW * 0.4, fireBaseY - 5);
+            ctx.lineTo(fireX - baseW * 0.6, fireBaseY - 1);
+            ctx.lineTo(fireX + baseW * 1.4, fireBaseY + 6);
+            ctx.closePath();
+            ctx.fill(); ctx.stroke();
+
+            // Fire glow (ambient radial)
+            var glowR = flameH * 3.5;
+            var gGrad = ctx.createRadialGradient(
+                fireX, fireBaseY - flameH * 0.35, 0,
+                fireX, fireBaseY - flameH * 0.35, glowR
+            );
+            gGrad.addColorStop(0, rgba(FIRE_YELLOW, 0.1 + beatPulse * 0.05));
+            gGrad.addColorStop(0.25, rgba(FIRE_ORANGE, 0.05 + beatPulse * 0.025));
+            gGrad.addColorStop(0.5, rgba(FIRE_RED, 0.015));
+            gGrad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.fillStyle = gGrad;
+            ctx.fillRect(fireX - glowR, fireBaseY - flameH - glowR, glowR * 2, glowR * 2);
+            ctx.globalCompositeOperation = 'source-over';
+
+            // Flames
+            var numFlames = 6;
+            for (var i = 0; i < numFlames; i++) {
+                var t = i / (numFlames - 1);
+                var fx = fireX + (t - 0.5) * baseW * 2;
+                var fh = flameH * (0.4 + 0.6 * Math.sin(time * 5.5 + i * 1.4)) * (0.5 + t * (1 - t) * 2.5);
+                var fw = baseW * (0.25 + 0.12 * Math.sin(time * 7 + i * 2.2));
+                var wobble = Math.sin(time * 4.5 + i * 1.8) * fw * 0.5;
+
+                ctx.save();
+                ctx.globalAlpha = 0.65 + beatPulse * 0.25;
+                var flameGrad = ctx.createLinearGradient(fx, fireBaseY, fx, fireBaseY - fh);
+                flameGrad.addColorStop(0, FIRE_RED);
+                flameGrad.addColorStop(0.35, FIRE_ORANGE);
+                flameGrad.addColorStop(0.7, FIRE_YELLOW);
+                flameGrad.addColorStop(1, rgba(FIRE_WHITE, 0.15));
+                ctx.fillStyle = flameGrad;
+
+                ctx.beginPath();
+                ctx.moveTo(fx - fw, fireBaseY);
+                ctx.quadraticCurveTo(fx - fw * 0.3 + wobble * 0.4, fireBaseY - fh * 0.5, fx + wobble, fireBaseY - fh);
+                ctx.quadraticCurveTo(fx + fw * 0.3 + wobble * 0.4, fireBaseY - fh * 0.5, fx + fw, fireBaseY);
+                ctx.closePath();
+                ctx.fill();
+
+                // Inner bright core
+                if (i % 2 === 0) {
+                    ctx.globalAlpha = 0.4 + beatPulse * 0.25;
+                    ctx.fillStyle = FIRE_WHITE;
+                    ctx.beginPath();
+                    ctx.moveTo(fx - fw * 0.35, fireBaseY);
+                    ctx.quadraticCurveTo(fx + wobble * 0.2, fireBaseY - fh * 0.35, fx + wobble * 0.3, fireBaseY - fh * 0.55);
+                    ctx.quadraticCurveTo(fx + wobble * 0.2, fireBaseY - fh * 0.35, fx + fw * 0.35, fireBaseY);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+                ctx.restore();
+            }
+
+            // White-hot core
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            var coreGrad = ctx.createRadialGradient(
+                fireX, fireBaseY - flameH * 0.15, 0,
+                fireX, fireBaseY - flameH * 0.15, baseW * 0.8
+            );
+            coreGrad.addColorStop(0, rgba('#ffffff', 0.12 + beatPulse * 0.08));
+            coreGrad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = coreGrad;
+            ctx.fillRect(fireX - baseW, fireBaseY - flameH * 0.5, baseW * 2, flameH * 0.5);
+            ctx.restore();
+
+            ctx.restore();
+        }
+
+        // ── Draw embers ──
+        function updateEmbers(ctx, dt, energy) {
+            // Ambient spawning
+            if (Math.random() < (0.25 + energy * 0.45) * dt * 60) {
+                spawnEmber(false);
+            }
+
+            while (embers.length > MAX_EMBERS) embers.shift();
+
+            for (var i = embers.length - 1; i >= 0; i--) {
+                var e = embers[i];
+                e.wobblePhase += e.wobbleSpeed * dt;
+                e.x += e.vx * dt + Math.sin(e.wobblePhase) * 8 * dt;
+                e.y += e.vy * dt;
+                e.vy -= 8 * dt;
+                e.vx *= 0.995;
+                e.life -= e.decay * dt;
+
+                if (e.life <= 0) { embers.splice(i, 1); continue; }
+
+                var alpha = e.life * 0.85;
+                var color = e.life > 0.6 ? EMBER_BRIGHT : EMBER_DIM;
+
+                ctx.save();
+                ctx.globalAlpha = alpha;
+                ctx.fillStyle = color;
+                ctx.shadowColor = color;
+                ctx.shadowBlur = 5;
+                ctx.beginPath();
+                ctx.arc(e.x, e.y, e.size * e.life, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        // ── Draw fireflies ──
+        function updateFireflies(ctx, dt) {
+            for (var i = 0; i < fireflies.length; i++) {
+                var f = fireflies[i];
+                f.phase += f.pulseSpeed * dt;
+                f.x += f.vx * dt;
+                f.y += f.vy * dt;
+                f.vx += (Math.random() - 0.5) * 15 * dt;
+                f.vy += (Math.random() - 0.5) * 12 * dt;
+                f.vx *= 0.98;
+                f.vy *= 0.98;
+
+                // Bounds
+                if (f.x < W * 0.05) f.vx += 3;
+                if (f.x > W * 0.95) f.vx -= 3;
+                if (f.y < groundY * 0.3) f.vy += 2;
+                if (f.y > groundY * 0.98) f.vy -= 2;
+
+                var glow = 0.3 + 0.7 * Math.max(0, Math.sin(f.phase));
+                if (glow < 0.1) continue;
+
+                ctx.save();
+                ctx.globalAlpha = glow * 0.6;
+                ctx.fillStyle = '#c8e840';
+                ctx.shadowColor = '#c8e840';
+                ctx.shadowBlur = 8;
+                ctx.beginPath();
+                ctx.arc(f.x, f.y, f.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        // ── Draw guitar strings ──
+        function drawGuitarStrings(ctx, dt, currentNotes, energy) {
+            // Trigger string vibration from active notes
+            if (currentNotes) {
+                // Ch0 = 12-string, Ch1 = nylon (map to strings)
+                for (var ch = 0; ch < 2; ch++) {
+                    var note = currentNotes[ch];
+                    if (note && note.vol > 0) {
+                        var stringIdx = ch === 0
+                            ? Math.floor((note.normalized || 0.5) * 3)
+                            : 3 + Math.floor((note.normalized || 0.5) * 3);
+                        stringIdx = Math.max(0, Math.min(NUM_STRINGS - 1, stringIdx));
+                        if (strings[stringIdx].amplitude < 0.3) {
+                            strings[stringIdx].amplitude = 0.5 + energy * 0.5;
+                        }
+                    }
+                }
+            }
+
+            for (var i = 0; i < strings.length; i++) {
+                var s = strings[i];
+                s.phase += s.freq * dt * Math.PI * 2;
+                s.amplitude *= Math.exp(-3 * dt);
+
+                if (s.amplitude < 0.02) continue;
+
+                var alpha = s.amplitude * 0.7;
+                var halfLen = s.len / 2;
+
+                ctx.save();
+                ctx.globalAlpha = alpha;
+                ctx.strokeStyle = s.color;
+                ctx.lineWidth = s.thickness;
+                ctx.shadowColor = s.color;
+                ctx.shadowBlur = 6 * s.amplitude;
+
+                // Draw vibrating string as sine wave
+                ctx.beginPath();
+                var startX = s.x - halfLen;
+                ctx.moveTo(startX, s.y);
+                var segments = 30;
+                for (var j = 1; j <= segments; j++) {
+                    var t = j / segments;
+                    var px = startX + s.len * t;
+                    // Envelope: zero at ends, max in middle
+                    var envelope = Math.sin(t * Math.PI);
+                    var py = s.y + Math.sin(s.phase + t * Math.PI * 3) * s.amplitude * 6 * envelope;
+                    ctx.lineTo(px, py);
+                }
+                ctx.stroke();
+                ctx.restore();
+            }
+        }
+
+        // ── Draw firelight scene glow ──
+        function drawFirelightGlow(ctx, energy) {
+            var radius = W * 0.38 * (0.75 + energy * 0.35 + beatPulse * 0.12);
+            var grad = ctx.createRadialGradient(
+                fireX, fireBaseY - H * 0.05, 0,
+                fireX, fireBaseY - H * 0.05, radius
+            );
+            grad.addColorStop(0, rgba(FIRE_ORANGE, 0.035 + energy * 0.02 + beatPulse * 0.015));
+            grad.addColorStop(0.35, rgba(FIRE_RED, 0.012));
+            grad.addColorStop(1, 'rgba(0,0,0,0)');
+
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, W, H);
+            ctx.restore();
+        }
+
+        // ── Draw title ──
+        var titleAlpha = 0;
+        var titleTarget = 0;
+
+        function drawTitle(ctx) {
+            if (titleAlpha < 0.01) return;
+
+            var fontSize = Math.max(16, Math.min(W * 0.035, 42));
+            ctx.save();
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.font = '600 ' + fontSize + 'px "Cormorant Garamond", serif';
+            ctx.globalAlpha = titleAlpha * 0.65;
+            ctx.fillStyle = FIRE_YELLOW;
+            ctx.shadowColor = FIRE_ORANGE;
+            ctx.shadowBlur = 25;
+            ctx.fillText('Campfire Ballad', W / 2, H * 0.07);
+
+            ctx.font = '400 italic ' + (fontSize * 0.5) + 'px "Cormorant Garamond", serif';
+            ctx.globalAlpha = titleAlpha * 0.35;
+            ctx.shadowBlur = 12;
+            ctx.fillText('a gentle folk ballad', W / 2, H * 0.07 + fontSize * 1.1);
+            ctx.restore();
+        }
+
+        // ── Beat flash overlay ──
+        function drawFlash(ctx) {
+            if (flashAlpha < 0.005) return;
+            ctx.save();
+            ctx.globalAlpha = flashAlpha;
+            ctx.fillStyle = rgba(FIRE_ORANGE, 0.3);
+            ctx.fillRect(0, 0, W, H);
+            ctx.restore();
+        }
+
+        // ── Init ──
+        function init(ctx, width, height, anal) {
+            W = width; H = height;
+            analysis = anal;
+            groundY = H * 0.73;
+            fireX = W * 0.5;
+            fireBaseY = groundY;
+            time = 0;
+            beatPulse = 0;
+            flashAlpha = 0;
+            lastSeqIndex = -1;
+            titleAlpha = 0;
+            titleTarget = 0;
+            shootingStarTimer = rand(6, 14);
+            embers = [];
+            shootingStars = [];
+
+            initStars();
+            initFireflies();
+            initStrings();
+            initLandscape();
+        }
+
+        // ── Resize ──
+        function resize(width, height) {
+            W = width; H = height;
+            groundY = H * 0.73;
+            fireX = W * 0.5;
+            fireBaseY = groundY;
+            initStars();
+            initFireflies();
+            initStrings();
+            initLandscape();
+        }
+
+        // ── Main render ──
+        function render(frameData) {
+            var ctx = frameData.ctx;
+            var dt = frameData.dt || 1 / 60;
+            var cursor = frameData.cursor;
+            var currentNotes = frameData.currentNotes;
+            beatPulse = frameData.beatPulse;
+            time += dt;
+
+            // Background
+            drawSky(ctx, 0);
+
+            if (!cursor) {
+                // Idle: peaceful static scene
+                drawStars(ctx, dt, 0, null);
+                drawHills(ctx);
+                drawTrees(ctx, 0.2);
+                drawGround(ctx, 0.2);
+                drawCampfire(ctx, 0.25);
+                updateEmbers(ctx, dt, 0.15);
+                updateFireflies(ctx, dt);
+                return;
+            }
+
+            var energy = analysis ? (analysis.energy[cursor.timelineIndex] || 0) : 0.3;
+            var seqIdx = cursor.seqIndex;
+
+            // Section tracking for title and shooting stars
+            if (seqIdx !== lastSeqIndex) {
+                lastSeqIndex = seqIdx;
+            }
+
+            // Title: show early in song, fade
+            titleTarget = (seqIdx < 4) ? 1 : 0;
+            titleAlpha += (titleTarget - titleAlpha) * (1 - Math.exp(-1.5 * dt));
+
+            // Beat handling
+            if (frameData.beatChanged) {
+                // Ember burst
+                var burstCount = 2 + Math.floor(energy * 4);
+                for (var b = 0; b < burstCount; b++) spawnEmber(true);
+
+                // Star twinkle (more on arpeggios)
+                flashStars(4 + Math.floor(energy * 10));
+
+                // Gentle flash on strong beats
+                if (energy > 0.5) {
+                    flashAlpha = 0.04 + energy * 0.04;
+                }
+
+                // Trigger guitar strings from beat energy
+                var triggerIdx = randInt(0, NUM_STRINGS - 1);
+                strings[triggerIdx].amplitude = Math.max(strings[triggerIdx].amplitude, 0.3 + energy * 0.5);
+            }
+
+            // Flash decay
+            flashAlpha *= Math.exp(-4 * dt);
+
+            // Shooting star timer
+            shootingStarTimer -= dt;
+            if (shootingStarTimer <= 0) {
+                spawnShootingStar();
+                shootingStarTimer = rand(8, 20);
+            }
+
+            // ── Draw scene back to front ──
+
+            // 1. Sky (already drawn)
+            drawSky(ctx, energy);
+
+            // 2. Stars
+            drawStars(ctx, dt, energy, currentNotes);
+
+            // 3. Shooting stars
+            updateShootingStars(ctx, dt);
+
+            // 4. Title
+            drawTitle(ctx);
+
+            // 5. Hills
+            drawHills(ctx);
+
+            // 6. Trees (with firelight edges)
+            drawTrees(ctx, energy);
+
+            // 7. Firelight ambient glow
+            drawFirelightGlow(ctx, energy);
+
+            // 8. Ground
+            drawGround(ctx, energy);
+
+            // 9. Campfire
+            drawCampfire(ctx, energy);
+
+            // 10. Embers rising
+            updateEmbers(ctx, dt, energy);
+
+            // 11. Fireflies
+            updateFireflies(ctx, dt);
+
+            // 12. Guitar strings (upper right)
+            drawGuitarStrings(ctx, dt, currentNotes, energy);
+
+            // 13. Beat flash overlay
+            drawFlash(ctx);
+        }
+
+        BaseRenderer('campfire-ballad-video', 'Campfire Ballad', {
+            beatDecay: 6,
+            init: init,
+            render: render,
+            resize: resize
+        });
+    })();
+
+    // ── Page bootstrap ──
+    (function() {
+        var canvas = document.getElementById('viz-canvas');
+        var overlay = document.getElementById('play-overlay');
+
+        Visualizer.init(canvas);
+        Visualizer.setRenderer('campfire-ballad-video');
+
+        function loadAndPlay(json) {
+            Visualizer.loadSong(json);
+            Visualizer.play();
+        }
+
+        function fetchSong() {
+            var url = '../audio-tracker/songs/campfire-ballad.json';
+            if (window.fetch && location.protocol !== 'file:') {
+                return fetch(url).then(function(r) { return r.json(); });
+            }
+            return new Promise(function(resolve, reject) {
+                var xhr = new XMLHttpRequest();
+                xhr.open('GET', url, true);
+                xhr.onload = function() {
+                    if (xhr.status === 200 || xhr.status === 0) {
+                        resolve(JSON.parse(xhr.responseText));
+                    } else {
+                        reject(new Error('XHR failed: ' + xhr.status));
+                    }
+                };
+                xhr.onerror = function() { reject(new Error('XHR error')); };
+                xhr.send();
+            });
+        }
+
+        overlay.addEventListener('click', function() {
+            overlay.classList.add('hidden');
+            fetchSong().then(loadAndPlay).catch(function(err) {
+                console.error('Failed to load song:', err);
+                overlay.classList.remove('hidden');
+            });
+        });
+
+        if (new URLSearchParams(window.location.search).get('autoplay') === '1') {
+            overlay.click();
+        }
+
+        canvas.addEventListener('click', function() {
+            if (overlay.classList.contains('hidden')) {
+                if (Visualizer.isPlaying()) {
+                    Visualizer.stop();
+                } else {
+                    Visualizer.play();
+                }
+            }
+        });
+    })();
+    </script>
+</body>
+</html>

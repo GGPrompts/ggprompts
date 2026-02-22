@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crystal Caves — Music Video</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="video-base-styles.css">
+    <style>
+        :root {
+            --vid-bg: #050210;
+            --vid-bg-rgb: 5,2,16;
+            --vid-font: 'Cinzel', serif;
+            --vid-accent: #7ecaff;
+            --vid-accent-r: 126;
+            --vid-accent-g: 202;
+            --vid-accent-b: 255;
+        }
+    </style>
+</head>
+<body>
+    <a href="music-videos/index.html" class="back-link">&larr; Music Videos</a>
+    <canvas id="viz-canvas"></canvas>
+    <div class="play-overlay" id="play-overlay">
+        <div class="play-title">Crystal Caves</div>
+        <div class="play-sub">descending through glowing crystal caverns</div>
+        <div class="play-btn"></div>
+    </div>
+
+    <script src="../audio-tracker/playback-engine.js"></script>
+    <script src="engine.js"></script>
+    <script src="video-utils.js"></script>
+    <script src="base-renderer.js"></script>
+    <script>
+    // -- Crystal Caves Video Renderer --
+    (function() {
+        "use strict";
+
+        var W = 0, H = 0;
+        var analysis = null;
+
+        // -- Palette: crystalline blues, purples, teals --
+        var DEPTH_PALETTES = {
+            upper:  ['#7ecaff','#a8d8ff','#c4b5fd','#67e8f9','#e0f2fe','#ddd6fe'],
+            middle: ['#6366f1','#818cf8','#7dd3fc','#38bdf8','#a78bfa','#c084fc'],
+            deep:   ['#4f46e5','#7c3aed','#2dd4bf','#06b6d4','#8b5cf6','#ec4899'],
+            abyss:  ['#312e81','#581c87','#0e7490','#155e75','#6d28d9','#be185d']
+        };
+        var DEPTH_NAMES = ['upper','middle','deep','abyss'];
+
+        // -- State --
+        var beatPulse = 0;
+        var currentDepth = 'upper';
+        var lastSeqIndex = -1;
+        var globalTime = 0;
+        var cameraY = 0;     // descent offset
+        var cameraTargetY = 0;
+
+        // Crystals (stalactites and stalagmites)
+        var crystals = [];
+        var MAX_CRYSTALS = 60;
+
+        // Reflections in underground pools
+        var poolReflections = [];
+
+        // Water drip particles
+        var drips = [];
+
+        // Arpeggio light cascades
+        var lightCascades = [];
+
+        // Ambient floating particles (dust motes)
+        var dustMotes = [];
+
+        // Bloom/flash
+        var bloomAlpha = 0;
+        var titleAlpha = 0;
+        var titleTarget = 0;
+
+        // -- Helpers --
+        function palette(idx) {
+            var pal = DEPTH_PALETTES[currentDepth];
+            return pal[idx % pal.length];
+        }
+
+        // -- Section mapping (10 sequence entries) --
+        // 0: Ambient Opening, 1: Transition, 2: Crystal Arpeggios,
+        // 3: Arp+Transition, 4: Pad Harmonies, 5: Pad Transition,
+        // 6: A Minor Shift, 7: Minor Transition, 8-9: Gentle Resolution
+        function mapDepth(seqIndex) {
+            if (seqIndex <= 1) return 'upper';
+            if (seqIndex <= 3) return 'middle';
+            if (seqIndex <= 5) return 'deep';
+            if (seqIndex <= 7) return 'abyss';
+            return 'deep';  // resolution ascends slightly
+        }
+
+        function mapSection(seqIndex) {
+            if (seqIndex === 0) return 'entrance';
+            if (seqIndex === 1) return 'descent';
+            if (seqIndex <= 3) return 'arpeggios';
+            if (seqIndex <= 5) return 'pads';
+            if (seqIndex <= 7) return 'shift';
+            return 'resolution';
+        }
+
+        // -- Crystal creation --
+        function createCrystal(forceY) {
+            var isStalactite = Math.random() > 0.4;  // more from ceiling
+            var baseX = Math.random() * W;
+            var baseY = forceY !== undefined ? forceY : (isStalactite ? -10 : H + 10);
+            var length = 30 + Math.random() * 120;
+            var width = 4 + Math.random() * 16;
+            var angle = isStalactite ?
+                (Math.PI / 2 + (Math.random() - 0.5) * 0.6) :
+                (-Math.PI / 2 + (Math.random() - 0.5) * 0.6);
+
+            return {
+                x: baseX,
+                y: baseY,
+                length: length,
+                width: width,
+                angle: angle,
+                stalactite: isStalactite,
+                colorIdx: Math.floor(Math.random() * 6),
+                glow: 0,
+                glowTarget: 0.1 + Math.random() * 0.3,
+                pulsePhase: Math.random() * Math.PI * 2,
+                facets: 3 + Math.floor(Math.random() * 3),  // number of facet lines
+                opacity: 0.4 + Math.random() * 0.4
+            };
+        }
+
+        function drawCrystal(ctx, c, energy) {
+            var col = palette(c.colorIdx);
+            var glowAmount = c.glow + energy * 0.3 + beatPulse * 0.2;
+
+            ctx.save();
+            ctx.translate(c.x, c.y);
+            ctx.rotate(c.angle - Math.PI / 2);
+
+            // Crystal body (elongated hexagonal shape)
+            var hw = c.width / 2;
+            var tipOffset = c.length;
+
+            // Main crystal body
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(-hw, c.length * 0.15);
+            ctx.lineTo(-hw * 0.7, c.length * 0.85);
+            ctx.lineTo(0, tipOffset);
+            ctx.lineTo(hw * 0.7, c.length * 0.85);
+            ctx.lineTo(hw, c.length * 0.15);
+            ctx.closePath();
+
+            // Fill with gradient
+            var grad = ctx.createLinearGradient(0, 0, 0, tipOffset);
+            grad.addColorStop(0, rgba(col, c.opacity * 0.2));
+            grad.addColorStop(0.5, rgba(col, c.opacity * glowAmount));
+            grad.addColorStop(1, rgba(col, c.opacity * 0.1));
+            ctx.fillStyle = grad;
+            ctx.fill();
+
+            // Edge glow
+            ctx.strokeStyle = rgba(col, glowAmount * 0.6);
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            // Inner facet lines
+            ctx.strokeStyle = rgba(col, glowAmount * 0.3);
+            ctx.lineWidth = 0.5;
+            for (var f = 0; f < c.facets; f++) {
+                var fx = (f / c.facets - 0.5) * hw * 1.2;
+                ctx.beginPath();
+                ctx.moveTo(fx, c.length * 0.1);
+                ctx.lineTo(fx * 0.3, c.length * 0.9);
+                ctx.stroke();
+            }
+
+            // Glow at tip
+            if (glowAmount > 0.2) {
+                ctx.shadowBlur = 15 + glowAmount * 25;
+                ctx.shadowColor = col;
+                ctx.fillStyle = rgba(col, glowAmount * 0.5);
+                ctx.beginPath();
+                ctx.arc(0, tipOffset, 2 + glowAmount * 3, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+
+            ctx.restore();
+        }
+
+        // -- Underground pool --
+        function drawPool(ctx, energy) {
+            var poolY = H * 0.82;
+            var poolH = H * 0.18;
+
+            // Water surface with ripples
+            ctx.save();
+
+            // Pool gradient
+            var poolGrad = ctx.createLinearGradient(0, poolY, 0, H);
+            poolGrad.addColorStop(0, rgba(palette(0), 0.15 + energy * 0.1));
+            poolGrad.addColorStop(0.3, rgba(palette(1), 0.08));
+            poolGrad.addColorStop(1, 'rgba(5,2,16,0.9)');
+            ctx.fillStyle = poolGrad;
+            ctx.fillRect(0, poolY, W, poolH);
+
+            // Ripple lines on surface
+            ctx.globalCompositeOperation = 'lighter';
+            for (var r = 0; r < 6; r++) {
+                var rippleX = W * 0.5 + Math.sin(globalTime * 0.4 + r * 1.1) * W * 0.35;
+                var rippleW = 40 + Math.sin(globalTime * 0.7 + r) * 20 + energy * 30;
+                var rippleAlpha = 0.03 + energy * 0.04 + beatPulse * 0.02;
+                var rcol = palette(r % 6);
+
+                ctx.strokeStyle = rgba(rcol, rippleAlpha);
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.ellipse(rippleX, poolY + 2, rippleW, 3, 0, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+
+            // Reflected crystal lights in pool
+            for (var pr = 0; pr < poolReflections.length; pr++) {
+                var ref = poolReflections[pr];
+                ref.phase += 0.02;
+                var rx = ref.x + Math.sin(ref.phase) * 8;
+                var ry = poolY + 10 + ref.depth * poolH * 0.6;
+                var rAlpha = ref.brightness * (0.2 + energy * 0.3 + beatPulse * 0.1);
+                var refCol = palette(ref.colorIdx);
+
+                // Wobbling reflection
+                ctx.fillStyle = rgba(refCol, rAlpha * 0.3);
+                ctx.beginPath();
+                var refW = 3 + Math.sin(ref.phase * 2) * 2;
+                var refH = 8 + energy * 6;
+                ctx.ellipse(rx, ry, refW, refH, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            ctx.restore();
+        }
+
+        // -- Water drip particles --
+        function createDrip() {
+            return {
+                x: Math.random() * W,
+                y: 0,
+                vy: 60 + Math.random() * 100,
+                size: 2 + Math.random() * 3,
+                life: 1,
+                colorIdx: Math.floor(Math.random() * 6),
+                trail: [],
+                splashed: false
+            };
+        }
+
+        function drawDrip(ctx, d, energy) {
+            var col = palette(d.colorIdx);
+
+            // Trail
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            for (var t = 0; t < d.trail.length; t++) {
+                var tp = d.trail[t];
+                var tAlpha = (1 - t / d.trail.length) * 0.3 * d.life;
+                ctx.fillStyle = rgba(col, tAlpha);
+                ctx.beginPath();
+                ctx.arc(tp.x, tp.y, d.size * 0.5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Main drop
+            if (!d.splashed) {
+                ctx.shadowBlur = 6 + energy * 8;
+                ctx.shadowColor = col;
+                ctx.fillStyle = rgba(col, d.life * 0.7);
+                ctx.beginPath();
+                // Teardrop shape
+                ctx.ellipse(d.x, d.y, d.size * 0.6, d.size, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+
+        // -- Splash particles (when drip hits pool) --
+        var splashParticles = [];
+
+        function createSplash(x, y, colorIdx) {
+            var col = palette(colorIdx);
+            for (var i = 0; i < 8; i++) {
+                var angle = -Math.PI + Math.random() * Math.PI;
+                var speed = 30 + Math.random() * 60;
+                splashParticles.push({
+                    x: x,
+                    y: y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed - 20,
+                    size: 1 + Math.random() * 2,
+                    life: 0.4 + Math.random() * 0.4,
+                    colorIdx: colorIdx
+                });
+            }
+        }
+
+        // -- Light cascade (arpeggio effect) --
+        function createCascade(x) {
+            return {
+                x: x || Math.random() * W,
+                y: 0,
+                speed: 100 + Math.random() * 150,
+                width: 20 + Math.random() * 40,
+                colorIdx: Math.floor(Math.random() * 6),
+                life: 1,
+                segments: []
+            };
+        }
+
+        // -- Dust motes --
+        function createDustMote() {
+            return {
+                x: Math.random() * W,
+                y: Math.random() * H,
+                size: 0.5 + Math.random() * 2,
+                alpha: 0.1 + Math.random() * 0.3,
+                driftX: (Math.random() - 0.5) * 8,
+                driftY: (Math.random() - 0.5) * 5,
+                pulsePhase: Math.random() * Math.PI * 2
+            };
+        }
+
+        // -- Cave walls --
+        function drawCaveWalls(ctx, energy) {
+            var wallAlpha = 0.6 - energy * 0.15;
+
+            // Left wall
+            ctx.save();
+            var leftGrad = ctx.createLinearGradient(0, 0, W * 0.18, 0);
+            leftGrad.addColorStop(0, rgba('#0a0520', wallAlpha));
+            leftGrad.addColorStop(0.6, rgba('#0a0520', wallAlpha * 0.3));
+            leftGrad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = leftGrad;
+            ctx.fillRect(0, 0, W * 0.18, H);
+
+            // Right wall
+            var rightGrad = ctx.createLinearGradient(W, 0, W * 0.82, 0);
+            rightGrad.addColorStop(0, rgba('#0a0520', wallAlpha));
+            rightGrad.addColorStop(0.6, rgba('#0a0520', wallAlpha * 0.3));
+            rightGrad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = rightGrad;
+            ctx.fillRect(W * 0.82, 0, W * 0.18, H);
+
+            // Rocky edge details
+            ctx.globalCompositeOperation = 'lighter';
+            for (var i = 0; i < 10; i++) {
+                var ey = H * (i / 10) + Math.sin(globalTime * 0.2 + i) * 10;
+                var edgeGlow = 0.02 + energy * 0.03;
+                var ecol = palette(i % 6);
+
+                // Left edge glow spots
+                ctx.fillStyle = rgba(ecol, edgeGlow);
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = ecol;
+                ctx.beginPath();
+                ctx.arc(W * 0.05 + Math.sin(i * 2.3) * W * 0.03, ey, 3 + energy * 4, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Right edge glow spots
+                ctx.beginPath();
+                ctx.arc(W * 0.95 + Math.sin(i * 1.7) * W * 0.03, ey, 3 + energy * 4, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+
+        // -- Cavern background --
+        function drawCavernBg(ctx, energy) {
+            var bgColors = {
+                upper:  ['#050210','#0a0830'],
+                middle: ['#030118','#080440'],
+                deep:   ['#020015','#0a0235'],
+                abyss:  ['#010010','#050128']
+            };
+            var bg = bgColors[currentDepth];
+            var grad = ctx.createLinearGradient(0, 0, 0, H);
+            grad.addColorStop(0, bg[0]);
+            grad.addColorStop(1, bg[1]);
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, W, H);
+
+            // Subtle ambient light from crystals
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            var numGlows = 4;
+            for (var i = 0; i < numGlows; i++) {
+                var gx = W * (0.2 + i * 0.2) + Math.sin(globalTime * 0.3 + i * 1.5) * W * 0.08;
+                var gy = H * (0.3 + Math.sin(globalTime * 0.2 + i) * 0.15);
+                var gAlpha = 0.01 + energy * 0.02;
+                var gcol = palette(i);
+                var ambGrad = ctx.createRadialGradient(gx, gy, 0, gx, gy, W * 0.25);
+                ambGrad.addColorStop(0, rgba(gcol, gAlpha));
+                ambGrad.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.fillStyle = ambGrad;
+                ctx.fillRect(0, 0, W, H);
+            }
+            ctx.restore();
+        }
+
+        // -- Light beams (from above, hitting crystals) --
+        function drawLightBeams(ctx, energy) {
+            if (energy < 0.15) return;
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            var numBeams = 3;
+            for (var i = 0; i < numBeams; i++) {
+                var bx = W * (0.25 + i * 0.25) + Math.sin(globalTime * 0.15 + i * 2) * W * 0.1;
+                var topW = 5 + energy * 10;
+                var botW = 40 + energy * 60;
+                var bAlpha = 0.015 + energy * 0.02;
+                var bcol = palette(i * 2);
+
+                ctx.fillStyle = rgba(bcol, bAlpha);
+                ctx.beginPath();
+                ctx.moveTo(bx - topW, 0);
+                ctx.lineTo(bx + topW, 0);
+                ctx.lineTo(bx + botW, H * 0.75);
+                ctx.lineTo(bx - botW, H * 0.75);
+                ctx.closePath();
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+
+        // -- Arpeggio cascade effect --
+        function drawCascades(ctx, energy) {
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            for (var i = lightCascades.length - 1; i >= 0; i--) {
+                var cas = lightCascades[i];
+                var col = palette(cas.colorIdx);
+                var alpha = cas.life * (0.1 + energy * 0.15);
+
+                // Vertical shimmer band
+                var casGrad = ctx.createLinearGradient(cas.x - cas.width, 0, cas.x + cas.width, 0);
+                casGrad.addColorStop(0, 'rgba(0,0,0,0)');
+                casGrad.addColorStop(0.3, rgba(col, alpha * 0.3));
+                casGrad.addColorStop(0.5, rgba(col, alpha));
+                casGrad.addColorStop(0.7, rgba(col, alpha * 0.3));
+                casGrad.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.fillStyle = casGrad;
+                ctx.fillRect(cas.x - cas.width, 0, cas.width * 2, H);
+
+                // Sparkle dots along the cascade
+                for (var s = 0; s < 5; s++) {
+                    var sy = (cas.y + s * H * 0.15) % H;
+                    var sx = cas.x + Math.sin(globalTime * 3 + s * 2) * cas.width * 0.5;
+                    ctx.fillStyle = rgba(col, alpha * 0.6);
+                    ctx.shadowBlur = 8;
+                    ctx.shadowColor = col;
+                    ctx.beginPath();
+                    ctx.arc(sx, sy, 1.5 + energy * 2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+            ctx.restore();
+        }
+
+        // -- Title --
+        function drawTitle(ctx) {
+            if (titleAlpha < 0.01) return;
+
+            var fontSize = Math.max(16, Math.min(W * 0.04, 52));
+            ctx.save();
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.font = '700 ' + fontSize + 'px "Cinzel", serif';
+
+            var text = 'CRYSTAL CAVES';
+            var y = H * 0.12;
+
+            // Glow layers
+            ctx.globalAlpha = titleAlpha * 0.5;
+            ctx.shadowColor = '#7ecaff';
+            ctx.shadowBlur = 60;
+            ctx.fillStyle = '#7ecaff';
+            ctx.fillText(text, W / 2, y);
+
+            ctx.globalAlpha = titleAlpha;
+            ctx.shadowBlur = 30;
+            ctx.fillStyle = '#e0f2fe';
+            ctx.fillText(text, W / 2, y);
+
+            ctx.restore();
+        }
+
+        // -- Bloom overlay --
+        function drawBloom(ctx) {
+            if (bloomAlpha < 0.005) return;
+            ctx.save();
+            var col = palette(0);
+            var grad = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.max(W, H) * 0.6);
+            grad.addColorStop(0, rgba(col, bloomAlpha * 0.3));
+            grad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, W, H);
+            ctx.restore();
+        }
+
+        // -- Init --
+        function init(ctx, width, height, anal) {
+            W = width; H = height;
+            analysis = anal;
+            globalTime = 0;
+            beatPulse = 0;
+            lastSeqIndex = -1;
+            currentDepth = 'upper';
+            cameraY = 0;
+            cameraTargetY = 0;
+            bloomAlpha = 0;
+            titleAlpha = 0;
+            titleTarget = 0;
+
+            // Init crystals
+            crystals = [];
+            for (var i = 0; i < MAX_CRYSTALS; i++) {
+                var c = createCrystal(Math.random() > 0.6 ? -10 : H + 10);
+                c.y = c.stalactite ? (Math.random() * H * 0.35) : (H * 0.7 + Math.random() * H * 0.3);
+                crystals.push(c);
+            }
+
+            // Init pool reflections
+            poolReflections = [];
+            for (var r = 0; r < 15; r++) {
+                poolReflections.push({
+                    x: Math.random() * W,
+                    depth: Math.random(),
+                    brightness: 0.2 + Math.random() * 0.5,
+                    phase: Math.random() * Math.PI * 2,
+                    colorIdx: Math.floor(Math.random() * 6)
+                });
+            }
+
+            // Init drips
+            drips = [];
+
+            // Init cascades
+            lightCascades = [];
+
+            // Init splash particles
+            splashParticles = [];
+
+            // Init dust motes
+            dustMotes = [];
+            for (var d = 0; d < 80; d++) {
+                dustMotes.push(createDustMote());
+            }
+        }
+
+        // -- Resize --
+        function resize(width, height) {
+            W = width; H = height;
+        }
+
+        // -- Main render --
+        function render(frameData) {
+            var ctx = frameData.ctx;
+            var dt = frameData.dt || 1/60;
+            var cursor = frameData.cursor;
+            beatPulse = frameData.beatPulse;
+
+            globalTime += dt;
+
+            // Idle state
+            if (!cursor) {
+                drawCavernBg(ctx, 0);
+                drawCaveWalls(ctx, 0);
+                // Draw a few idle crystals gently glowing
+                for (var ic = 0; ic < 10; ic++) {
+                    var idleCrystal = crystals[ic];
+                    if (idleCrystal) {
+                        idleCrystal.glow = 0.1 + Math.sin(globalTime + ic) * 0.05;
+                        drawCrystal(ctx, idleCrystal, 0.1);
+                    }
+                }
+                // Idle dust
+                ctx.save();
+                ctx.globalCompositeOperation = 'lighter';
+                for (var dm = 0; dm < 20; dm++) {
+                    var mote = dustMotes[dm];
+                    mote.x += mote.driftX * dt;
+                    mote.y += mote.driftY * dt;
+                    if (mote.x < 0) mote.x = W;
+                    if (mote.x > W) mote.x = 0;
+                    if (mote.y < 0) mote.y = H;
+                    if (mote.y > H) mote.y = 0;
+                    ctx.fillStyle = rgba('#7ecaff', mote.alpha * 0.3);
+                    ctx.beginPath();
+                    ctx.arc(mote.x, mote.y, mote.size, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.restore();
+                return;
+            }
+
+            var seqIdx = cursor.seqIndex;
+            var energy = analysis ? (analysis.energy[cursor.timelineIndex] || 0) : 0;
+            var section = mapSection(seqIdx);
+
+            // -- Section transitions --
+            if (seqIdx !== lastSeqIndex) {
+                currentDepth = mapDepth(seqIdx);
+                lastSeqIndex = seqIdx;
+
+                // Camera descent on section change
+                cameraTargetY = seqIdx * 50;
+
+                // Spawn new crystals at depth changes
+                for (var nc = 0; nc < 5; nc++) {
+                    if (crystals.length < MAX_CRYSTALS + 20) {
+                        crystals.push(createCrystal());
+                    }
+                }
+            }
+
+            // Smooth camera
+            cameraY = lerpExp(cameraY, cameraTargetY, 2, dt);
+
+            // -- Beat effects --
+            if (frameData.beatChanged) {
+                // Bloom on strong beats
+                if (energy > 0.3) {
+                    bloomAlpha = 0.1 + energy * 0.15;
+                }
+
+                // Pulse crystal glow on beat
+                for (var cp = 0; cp < crystals.length; cp++) {
+                    crystals[cp].glow = Math.min(1, crystals[cp].glow + 0.3 + energy * 0.4);
+                }
+
+                // Spawn water drips on beats (water drip effect)
+                if (section !== 'entrance') {
+                    var numDrips = 1 + Math.floor(energy * 3);
+                    for (var nd = 0; nd < numDrips; nd++) {
+                        if (drips.length < 30) {
+                            drips.push(createDrip());
+                        }
+                    }
+                }
+
+                // Spawn cascades on arpeggios (seq 2-3)
+                if (section === 'arpeggios' || section === 'pads') {
+                    if (lightCascades.length < 6) {
+                        lightCascades.push(createCascade());
+                    }
+                }
+
+                // Burst of dust on high energy
+                if (energy > 0.5) {
+                    for (var bd = 0; bd < 5; bd++) {
+                        if (dustMotes.length < 120) {
+                            dustMotes.push(createDustMote());
+                        }
+                    }
+                }
+            }
+
+            bloomAlpha *= Math.exp(-4 * dt);
+
+            // -- Title visibility --
+            titleTarget = (section === 'pads' || section === 'shift') ? 1 : 0;
+            titleAlpha = lerpExp(titleAlpha, titleTarget, 3, dt);
+
+            // -- Activity scaling --
+            var activity = 0;
+            if (section === 'entrance') activity = 0.15;
+            else if (section === 'descent') activity = 0.35;
+            else if (section === 'arpeggios') activity = 0.65;
+            else if (section === 'pads') activity = 0.85;
+            else if (section === 'shift') activity = 1.0;
+            else if (section === 'resolution') activity = 0.6;
+
+            // -- Update crystals --
+            for (var uc = 0; uc < crystals.length; uc++) {
+                var cr = crystals[uc];
+                cr.pulsePhase += dt * (1 + energy);
+                var pulseGlow = Math.sin(cr.pulsePhase) * 0.1 * activity;
+                cr.glow = lerpExp(cr.glow, cr.glowTarget * activity + pulseGlow, 3, dt);
+            }
+
+            // -- Update drips --
+            var poolY = H * 0.82;
+            for (var ud = drips.length - 1; ud >= 0; ud--) {
+                var drip = drips[ud];
+                drip.y += drip.vy * dt;
+                drip.vy += 120 * dt;  // gravity
+
+                // Trail
+                if (drip.trail.length < 8) {
+                    drip.trail.push({ x: drip.x, y: drip.y });
+                } else {
+                    drip.trail.shift();
+                    drip.trail.push({ x: drip.x, y: drip.y });
+                }
+
+                // Hit pool surface
+                if (drip.y >= poolY && !drip.splashed) {
+                    drip.splashed = true;
+                    drip.life = 0;
+                    createSplash(drip.x, poolY, drip.colorIdx);
+                }
+
+                drip.life -= dt * 0.3;
+                if (drip.life <= 0 || drip.y > H + 20) {
+                    drips.splice(ud, 1);
+                }
+            }
+
+            // -- Update splash particles --
+            for (var us = splashParticles.length - 1; us >= 0; us--) {
+                var sp = splashParticles[us];
+                sp.x += sp.vx * dt;
+                sp.y += sp.vy * dt;
+                sp.vy += 80 * dt;  // gravity
+                sp.life -= dt * 1.5;
+                if (sp.life <= 0) {
+                    splashParticles.splice(us, 1);
+                }
+            }
+
+            // -- Update cascades --
+            for (var ulc = lightCascades.length - 1; ulc >= 0; ulc--) {
+                var lc = lightCascades[ulc];
+                lc.y += lc.speed * dt;
+                lc.life -= dt * 0.25;
+                if (lc.life <= 0 || lc.y > H * 2) {
+                    lightCascades.splice(ulc, 1);
+                }
+            }
+
+            // -- Update dust motes --
+            for (var udm = 0; udm < dustMotes.length; udm++) {
+                var dm2 = dustMotes[udm];
+                dm2.x += dm2.driftX * dt;
+                dm2.y += dm2.driftY * dt;
+                dm2.pulsePhase += dt * 2;
+                // Wrap
+                if (dm2.x < -10) dm2.x = W + 10;
+                if (dm2.x > W + 10) dm2.x = -10;
+                if (dm2.y < -10) dm2.y = H + 10;
+                if (dm2.y > H + 10) dm2.y = -10;
+            }
+
+            // Trim excess dust
+            while (dustMotes.length > 120) dustMotes.pop();
+
+            // ========== DRAW ==========
+
+            // 1. Cavern background
+            drawCavernBg(ctx, energy);
+
+            // 2. Light beams from above
+            drawLightBeams(ctx, energy * activity);
+
+            // 3. Cave walls
+            drawCaveWalls(ctx, energy);
+
+            // 4. Arpeggio cascades (behind crystals)
+            if (lightCascades.length > 0) {
+                drawCascades(ctx, energy);
+            }
+
+            // 5. Crystals (stalactites at top, stalagmites at bottom)
+            var numActiveCrystals = Math.floor(10 + activity * (crystals.length - 10));
+            for (var dc = 0; dc < Math.min(numActiveCrystals, crystals.length); dc++) {
+                drawCrystal(ctx, crystals[dc], energy * activity);
+            }
+
+            // 6. Dust motes
+            var numActiveDust = Math.floor(20 + activity * 60);
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            for (var ddm = 0; ddm < Math.min(numActiveDust, dustMotes.length); ddm++) {
+                var mote2 = dustMotes[ddm];
+                var moteAlpha = mote2.alpha * activity *
+                    (0.5 + Math.sin(mote2.pulsePhase) * 0.3 + beatPulse * 0.2);
+                var mcol = palette(ddm % 6);
+                ctx.fillStyle = rgba(mcol, moteAlpha);
+                ctx.shadowBlur = 3;
+                ctx.shadowColor = mcol;
+                ctx.beginPath();
+                ctx.arc(mote2.x, mote2.y, mote2.size * (0.8 + beatPulse * 0.3), 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.restore();
+
+            // 7. Water drips
+            for (var dd = 0; dd < drips.length; dd++) {
+                drawDrip(ctx, drips[dd], energy);
+            }
+
+            // 8. Splash particles
+            if (splashParticles.length > 0) {
+                ctx.save();
+                ctx.globalCompositeOperation = 'lighter';
+                for (var ds = 0; ds < splashParticles.length; ds++) {
+                    var spart = splashParticles[ds];
+                    var scol = palette(spart.colorIdx);
+                    ctx.fillStyle = rgba(scol, spart.life * 0.6);
+                    ctx.shadowBlur = 5;
+                    ctx.shadowColor = scol;
+                    ctx.beginPath();
+                    ctx.arc(spart.x, spart.y, spart.size * spart.life, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.restore();
+            }
+
+            // 9. Underground pool
+            drawPool(ctx, energy * activity);
+
+            // 10. Bloom overlay
+            drawBloom(ctx);
+
+            // 11. Title
+            drawTitle(ctx);
+
+            // 12. Entrance/exit darkness
+            if (section === 'entrance') {
+                var fadeAlpha = Math.max(0, 0.7 - cursor.elapsed * 0.15);
+                ctx.save();
+                ctx.fillStyle = 'rgba(5,2,16,' + fadeAlpha + ')';
+                ctx.fillRect(0, 0, W, H);
+                ctx.restore();
+            }
+        }
+
+        BaseRenderer('crystal-caves-video', 'Crystal Caves', {
+            beatDecay: 6,
+            init: init,
+            render: render,
+            resize: resize
+        });
+    })();
+
+    // -- Page bootstrap --
+    (function() {
+        var canvas = document.getElementById('viz-canvas');
+        var overlay = document.getElementById('play-overlay');
+
+        Visualizer.init(canvas);
+        Visualizer.setRenderer('crystal-caves-video');
+
+        function loadAndPlay(json) {
+            Visualizer.loadSong(json);
+            Visualizer.play();
+        }
+
+        function fetchSong() {
+            var url = '../audio-tracker/songs/crystal-caves.json';
+            if (window.fetch && location.protocol !== 'file:') {
+                return fetch(url).then(function(r) { return r.json(); });
+            }
+            return new Promise(function(resolve, reject) {
+                var xhr = new XMLHttpRequest();
+                xhr.open('GET', url, true);
+                xhr.onload = function() {
+                    if (xhr.status === 200 || xhr.status === 0) {
+                        resolve(JSON.parse(xhr.responseText));
+                    } else {
+                        reject(new Error('XHR failed: ' + xhr.status));
+                    }
+                };
+                xhr.onerror = function() { reject(new Error('XHR error')); };
+                xhr.send();
+            });
+        }
+
+        overlay.addEventListener('click', function() {
+            overlay.classList.add('hidden');
+            fetchSong().then(loadAndPlay).catch(function(err) {
+                console.error('Failed to load song:', err);
+                overlay.classList.remove('hidden');
+            });
+        });
+
+        // Auto-play when embedded (e.g. jukebox iframe with ?autoplay=1)
+        if (new URLSearchParams(window.location.search).get('autoplay') === '1') {
+            overlay.click();
+        }
+
+        canvas.addEventListener('click', function() {
+            if (overlay.classList.contains('hidden')) {
+                if (Visualizer.isPlaying()) {
+                    Visualizer.stop();
+                } else {
+                    Visualizer.play();
+                }
+            }
+        });
+    })();
+    </script>
+</body>
+</html>

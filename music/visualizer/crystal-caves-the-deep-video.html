@@ -1,0 +1,1036 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crystal Caves: The Deep — Music Video</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="video-base-styles.css">
+    <style>
+        :root {
+            --vid-bg: #020810;
+            --vid-bg-rgb: 2,8,16;
+            --vid-font: 'Cinzel', serif;
+            --vid-accent: #7ab8ff;
+            --vid-accent-r: 122;
+            --vid-accent-g: 184;
+            --vid-accent-b: 255;
+            --vid-title-spacing: 0.08em;
+        }
+    </style>
+</head>
+<body>
+    <a href="music-videos/index.html" class="back-link">&larr; Music Videos</a>
+    <canvas id="viz-canvas"></canvas>
+    <div class="play-overlay" id="play-overlay">
+        <div class="play-title">Crystal Caves: The Deep</div>
+        <div class="play-sub">descend into the shimmering darkness</div>
+        <div class="play-btn"></div>
+    </div>
+
+    <script src="../audio-tracker/playback-engine.js"></script>
+    <script src="engine.js"></script>
+    <script src="video-utils.js"></script>
+    <script src="base-renderer.js"></script>
+    <script>
+    // ── Crystal Caves: The Deep — Video Renderer ──────────────────────
+    (function() {
+        "use strict";
+
+        var W = 0, H = 0;
+        var analysis = null;
+
+        // ── Palette ──
+        var COL_BG_DARK     = '#020810';
+        var COL_CRYSTAL_1   = '#7ab8ff';  // ice blue
+        var COL_CRYSTAL_2   = '#a78bfa';  // amethyst
+        var COL_CRYSTAL_3   = '#5eead4';  // teal
+        var COL_CRYSTAL_4   = '#f0abfc';  // pink
+        var COL_BIOLUM      = '#00e5c8';  // bioluminescent green
+        var COL_LAKE_BLUE   = '#1e40af';  // deep lake
+        var COL_LAKE_GLOW   = '#38bdf8';  // lake surface glow
+        var COL_MELODY      = '#fbbf24';  // dorian melody gold
+        var COL_CHORUS_1    = '#e879f9';  // prismatic magenta
+        var COL_CHORUS_2    = '#22d3ee';  // prismatic cyan
+        var COL_CHORUS_3    = '#a3e635';  // prismatic lime
+        var COL_DEEP_BLUE   = '#0c1445';  // deep silence blue
+
+        var CRYSTAL_COLORS = [COL_CRYSTAL_1, COL_CRYSTAL_2, COL_CRYSTAL_3, COL_CRYSTAL_4];
+        var CHORUS_COLORS  = [COL_CHORUS_1, COL_CHORUS_2, COL_CHORUS_3, COL_CRYSTAL_1, COL_MELODY];
+
+        // ── State ──
+        var beatPulse = 0;
+        var flashAlpha = 0;
+        var globalTime = 0;
+        var lastSeqIndex = -1;
+
+        // Phase: shaft, lake, chorus, silence
+        var phase = 'shaft';
+        var phaseBlend = 0;
+
+        // Camera depth 0 = top of shaft, 1 = deepest
+        var cameraDepth = 0;
+        var cameraDepthTarget = 0;
+
+        // Crystal shaft elements
+        var crystals = [];
+        var MAX_CRYSTALS = 60;
+        var trailParticles = [];
+        var MAX_TRAIL = 150;
+
+        // Lake elements
+        var lakeWaves = [];
+        var NUM_LAKE_WAVES = 80;
+        var biolumMotes = [];
+        var MAX_BIOLUM = 120;
+        var melodyLine = [];
+        var MAX_MELODY_PTS = 60;
+        var melodyGlow = 0;
+
+        // Chorus prism particles
+        var prismParticles = [];
+        var MAX_PRISM = 200;
+        var prismBurst = 0;
+
+        // Stalactites / stalagmites
+        var stalactites = [];
+        var stalagmites = [];
+
+        // Title
+        var titleAlpha = 0;
+        var titleTarget = 0;
+
+        // Bloom
+        var bloomAlpha = 0;
+        var bloomColor = COL_CRYSTAL_1;
+
+        // Fade
+        var fadeAlpha = 0;
+        var fadeTarget = 0;
+
+        // ── Phase Mapping ──
+        // Seq 0-1: Cave entrance (intro)
+        // Seq 2-6: Arp Awakens / Arp+Pad / Arp Descending => shaft descent with arpeggios
+        // Seq 7-11: Crystal/Chamber patterns => deeper shaft, crystals everywhere
+        // Seq 12-15: The Descent / Deep Below => transition to underground lake
+        // Seq 16-23: Lake Surface / Lake Melody => bioluminescent lake with melody line
+        // Seq 24-28: Crystal Chorus => prismatic eruption
+        // Seq 29-30: Surfacing / Final Shimmer => fade to silence
+        // Seq 31-32: Cave Entrance reprise => deep blue silence
+        function mapPhase(seqIndex) {
+            if (seqIndex <= 11) return 'shaft';
+            if (seqIndex <= 15) return 'descent';
+            if (seqIndex <= 23) return 'lake';
+            if (seqIndex <= 28) return 'chorus';
+            return 'silence';
+        }
+
+        function getDepthTarget(seqIndex) {
+            if (seqIndex <= 1) return 0.05;
+            if (seqIndex <= 3) return 0.15;
+            if (seqIndex <= 6) return 0.3;
+            if (seqIndex <= 9) return 0.5;
+            if (seqIndex <= 11) return 0.65;
+            if (seqIndex <= 13) return 0.8;
+            if (seqIndex <= 15) return 0.95;
+            if (seqIndex <= 23) return 1.0;
+            if (seqIndex <= 28) return 0.85;
+            return 0.6;
+        }
+
+        // ── Crystal Creation ──
+        function createCrystal() {
+            var side = Math.random() > 0.5 ? 1 : -1;
+            return {
+                x: side > 0 ? W * (0.7 + Math.random() * 0.28) : W * (0.02 + Math.random() * 0.28),
+                y: Math.random() * H,
+                length: 20 + Math.random() * 60,
+                width: 3 + Math.random() * 8,
+                angle: side > 0 ? (Math.PI * 0.6 + Math.random() * 0.6) : -(Math.PI * 0.6 + Math.random() * 0.6),
+                colorIdx: Math.floor(Math.random() * CRYSTAL_COLORS.length),
+                glow: 0.2 + Math.random() * 0.4,
+                glowPhase: Math.random() * Math.PI * 2,
+                facets: 2 + Math.floor(Math.random() * 3)
+            };
+        }
+
+        function createStalactite(isTop) {
+            return {
+                x: Math.random() * W,
+                length: 30 + Math.random() * 90,
+                width: 4 + Math.random() * 12,
+                isTop: isTop,
+                colorIdx: Math.floor(Math.random() * CRYSTAL_COLORS.length),
+                glow: 0.1 + Math.random() * 0.3,
+                glowPhase: Math.random() * Math.PI * 2
+            };
+        }
+
+        // ── Trail Particle (arpeggio light) ──
+        function createTrailParticle(x, y, col) {
+            return {
+                x: x + rand(-20, 20),
+                y: y + rand(-10, 10),
+                vx: rand(-15, 15),
+                vy: rand(-40, -10),
+                size: rand(1.5, 4),
+                alpha: rand(0.4, 0.9),
+                life: 1.0,
+                color: col || pickRandom(CRYSTAL_COLORS),
+                phase: rand(0, Math.PI * 2)
+            };
+        }
+
+        // ── Bioluminescent Mote ──
+        function createBiolumMote() {
+            return {
+                x: rand(0, W),
+                y: rand(H * 0.3, H * 0.95),
+                vx: rand(-5, 5),
+                vy: rand(-3, 3),
+                size: rand(1, 3),
+                alpha: rand(0.2, 0.6),
+                phase: rand(0, Math.PI * 2),
+                color: Math.random() > 0.3 ? COL_BIOLUM : COL_LAKE_GLOW
+            };
+        }
+
+        // ── Prism Particle (chorus) ──
+        function createPrismParticle(cx, cy) {
+            var angle = rand(0, Math.PI * 2);
+            var speed = rand(30, 150);
+            return {
+                x: cx || W * 0.5,
+                y: cy || H * 0.5,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                size: rand(2, 5),
+                alpha: rand(0.5, 1),
+                life: 1.0,
+                color: pickRandom(CHORUS_COLORS),
+                rotation: rand(0, Math.PI * 2),
+                rotSpeed: rand(-3, 3)
+            };
+        }
+
+        // ── Lake Wave Point ──
+        function initLakeWaves() {
+            lakeWaves = [];
+            for (var i = 0; i < NUM_LAKE_WAVES; i++) {
+                lakeWaves.push({
+                    baseY: H * 0.48,
+                    phase: (i / NUM_LAKE_WAVES) * Math.PI * 4,
+                    amplitude: 2 + Math.random() * 4
+                });
+            }
+        }
+
+        // ── Drawing Helpers ──
+
+        function drawCavernWalls(ctx, energy) {
+            var depth = cameraDepth;
+            var wallAlpha = 0.15 + energy * 0.1;
+
+            // Gradient background: darker as we go deeper
+            var topR = lerp(4, 2, depth);
+            var topG = lerp(12, 6, depth);
+            var topB = lerp(24, 14, depth);
+            var botR = lerp(8, 3, depth);
+            var botG = lerp(20, 8, depth);
+            var botB = lerp(40, 18, depth);
+
+            var grad = ctx.createLinearGradient(0, 0, 0, H);
+            grad.addColorStop(0, 'rgb(' + Math.floor(topR) + ',' + Math.floor(topG) + ',' + Math.floor(topB) + ')');
+            grad.addColorStop(1, 'rgb(' + Math.floor(botR) + ',' + Math.floor(botG) + ',' + Math.floor(botB) + ')');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, W, H);
+
+            // Shaft walls (narrowing with depth)
+            var wallWidth = lerp(W * 0.15, W * 0.25, depth);
+            var wallColor = rgba(COL_CRYSTAL_1, wallAlpha * 0.3);
+
+            // Left wall texture
+            ctx.fillStyle = wallColor;
+            for (var i = 0; i < 12; i++) {
+                var wy = i * (H / 12) + Math.sin(globalTime * 0.3 + i * 0.7) * 5;
+                var ww = wallWidth * (0.6 + Math.sin(i * 1.3 + depth * 3) * 0.4);
+                ctx.globalAlpha = wallAlpha * (0.2 + Math.sin(i * 0.9 + globalTime * 0.2) * 0.1);
+                ctx.fillRect(0, wy, ww, H / 12 + 2);
+            }
+
+            // Right wall texture
+            for (var j = 0; j < 12; j++) {
+                var rwy = j * (H / 12) + Math.sin(globalTime * 0.25 + j * 0.9) * 5;
+                var rww = wallWidth * (0.6 + Math.sin(j * 1.1 + depth * 2.5) * 0.4);
+                ctx.globalAlpha = wallAlpha * (0.2 + Math.sin(j * 1.1 + globalTime * 0.15) * 0.1);
+                ctx.fillRect(W - rww, rwy, rww, H / 12 + 2);
+            }
+            ctx.globalAlpha = 1;
+        }
+
+        function drawStalactitesAndStagmites(ctx, energy) {
+            ctx.save();
+            for (var i = 0; i < stalactites.length; i++) {
+                var s = stalactites[i];
+                var col = CRYSTAL_COLORS[s.colorIdx];
+                var glowVal = s.glow + Math.sin(s.glowPhase + globalTime * 1.5) * 0.1 + energy * 0.15;
+
+                ctx.fillStyle = rgba(col, glowVal * 0.3);
+                ctx.beginPath();
+                if (s.isTop) {
+                    ctx.moveTo(s.x - s.width / 2, 0);
+                    ctx.lineTo(s.x + s.width / 2, 0);
+                    ctx.lineTo(s.x + s.width * 0.1, s.length);
+                    ctx.lineTo(s.x - s.width * 0.1, s.length * 0.9);
+                } else {
+                    ctx.moveTo(s.x - s.width / 2, H);
+                    ctx.lineTo(s.x + s.width / 2, H);
+                    ctx.lineTo(s.x + s.width * 0.1, H - s.length);
+                    ctx.lineTo(s.x - s.width * 0.1, H - s.length * 0.9);
+                }
+                ctx.closePath();
+                ctx.fill();
+
+                // Tip glow
+                var tipY = s.isTop ? s.length : H - s.length;
+                ctx.fillStyle = rgba(col, glowVal * 0.5);
+                ctx.shadowBlur = 6 + energy * 8;
+                ctx.shadowColor = col;
+                ctx.beginPath();
+                ctx.arc(s.x, tipY, 2 + glowVal * 2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+            ctx.restore();
+        }
+
+        function drawCrystals(ctx, energy) {
+            ctx.save();
+            for (var i = 0; i < crystals.length; i++) {
+                var c = crystals[i];
+                var col = CRYSTAL_COLORS[c.colorIdx];
+                var glowVal = c.glow + Math.sin(c.glowPhase + globalTime * 2) * 0.15 + beatPulse * 0.3 + energy * 0.2;
+
+                ctx.save();
+                ctx.translate(c.x, c.y);
+                ctx.rotate(c.angle);
+
+                // Crystal body
+                ctx.fillStyle = rgba(col, glowVal * 0.25);
+                ctx.strokeStyle = rgba(col, glowVal * 0.6);
+                ctx.lineWidth = 1;
+                ctx.shadowBlur = 8 + beatPulse * 15;
+                ctx.shadowColor = col;
+
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(-c.width / 2, c.length * 0.3);
+                ctx.lineTo(-c.width * 0.3, c.length);
+                ctx.lineTo(c.width * 0.3, c.length);
+                ctx.lineTo(c.width / 2, c.length * 0.3);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // Facet lines
+                for (var f = 1; f <= c.facets; f++) {
+                    var fy = c.length * (f / (c.facets + 1));
+                    var fw = c.width * (1 - f / (c.facets + 2)) * 0.4;
+                    ctx.strokeStyle = rgba(col, glowVal * 0.3);
+                    ctx.beginPath();
+                    ctx.moveTo(-fw, fy);
+                    ctx.lineTo(fw, fy);
+                    ctx.stroke();
+                }
+
+                ctx.restore();
+            }
+            ctx.restore();
+        }
+
+        function drawTrailParticles(ctx) {
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            for (var i = 0; i < trailParticles.length; i++) {
+                var p = trailParticles[i];
+                var pulse = 0.6 + Math.sin(p.phase + globalTime * 3) * 0.3;
+                var alpha = p.alpha * p.life * pulse;
+                ctx.fillStyle = rgba(p.color, alpha);
+                ctx.shadowBlur = 4 + p.life * 6;
+                ctx.shadowColor = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size * (0.5 + p.life * 0.5), 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+
+        function drawLake(ctx, energy) {
+            var lakeY = H * 0.48;
+
+            // Lake body (dark water below surface)
+            var lakeGrad = ctx.createLinearGradient(0, lakeY, 0, H);
+            lakeGrad.addColorStop(0, rgba(COL_LAKE_BLUE, 0.3 + energy * 0.15));
+            lakeGrad.addColorStop(0.3, rgba(COL_DEEP_BLUE, 0.5));
+            lakeGrad.addColorStop(1, rgba(COL_BG_DARK, 0.8));
+            ctx.fillStyle = lakeGrad;
+            ctx.fillRect(0, lakeY, W, H - lakeY);
+
+            // Wavy surface line
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(0, lakeY);
+            for (var i = 0; i < NUM_LAKE_WAVES; i++) {
+                var wx = (i / (NUM_LAKE_WAVES - 1)) * W;
+                var wave = lakeWaves[i];
+                var wy = wave.baseY + Math.sin(wave.phase + globalTime * 1.2) * wave.amplitude
+                       + Math.sin(wave.phase * 0.7 + globalTime * 0.8) * wave.amplitude * 0.5
+                       + beatPulse * 3;
+                if (i === 0) ctx.moveTo(wx, wy);
+                else ctx.lineTo(wx, wy);
+            }
+            ctx.strokeStyle = rgba(COL_LAKE_GLOW, 0.4 + energy * 0.3);
+            ctx.lineWidth = 2;
+            ctx.shadowBlur = 12 + energy * 15;
+            ctx.shadowColor = COL_LAKE_GLOW;
+            ctx.stroke();
+            ctx.restore();
+
+            // Surface shimmer reflections
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            for (var r = 0; r < 8; r++) {
+                var rx = W * (0.1 + r * 0.1) + Math.sin(globalTime * 0.6 + r) * 30;
+                var ry = lakeY + 3 + Math.sin(globalTime * 1.5 + r * 1.3) * 5;
+                var rw = 20 + Math.sin(globalTime * 0.8 + r * 0.7) * 15;
+                ctx.fillStyle = rgba(COL_LAKE_GLOW, 0.03 + energy * 0.03);
+                ctx.fillRect(rx, ry, rw, 1.5);
+            }
+            ctx.restore();
+        }
+
+        function drawBiolumMotes(ctx, energy) {
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            for (var i = 0; i < biolumMotes.length; i++) {
+                var m = biolumMotes[i];
+                var pulse = 0.5 + Math.sin(m.phase + globalTime * 2) * 0.3 + beatPulse * 0.2;
+                var alpha = m.alpha * pulse;
+                ctx.fillStyle = rgba(m.color, alpha);
+                ctx.shadowBlur = 5 + energy * 8;
+                ctx.shadowColor = m.color;
+                ctx.beginPath();
+                ctx.arc(m.x, m.y, m.size * (0.7 + pulse * 0.4), 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+
+        function drawMelodyLine(ctx, energy) {
+            if (melodyLine.length < 2) return;
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+
+            // Draw as a flowing line on the water surface
+            var lakeY = H * 0.48;
+
+            ctx.strokeStyle = rgba(COL_MELODY, (0.4 + energy * 0.3 + melodyGlow * 0.3));
+            ctx.lineWidth = 2 + melodyGlow * 2;
+            ctx.shadowBlur = 15 + melodyGlow * 20;
+            ctx.shadowColor = COL_MELODY;
+
+            ctx.beginPath();
+            for (var i = 0; i < melodyLine.length; i++) {
+                var pt = melodyLine[i];
+                var px = pt.x;
+                var py = lakeY - 5 + pt.yOffset + Math.sin(pt.phase + globalTime * 1.5) * 3;
+                if (i === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+            }
+            ctx.stroke();
+
+            // Glow nodes at each melody point
+            for (var j = 0; j < melodyLine.length; j++) {
+                var mp = melodyLine[j];
+                var mAlpha = mp.alpha * (0.3 + melodyGlow * 0.5);
+                ctx.fillStyle = rgba(COL_MELODY, mAlpha);
+                ctx.beginPath();
+                ctx.arc(mp.x, lakeY - 5 + mp.yOffset + Math.sin(mp.phase + globalTime * 1.5) * 3,
+                        2 + mp.alpha * 3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Reflection below surface
+            ctx.globalAlpha = 0.3;
+            ctx.strokeStyle = rgba(COL_MELODY, 0.15 + energy * 0.1);
+            ctx.lineWidth = 1.5;
+            ctx.shadowBlur = 8;
+            ctx.beginPath();
+            for (var k = 0; k < melodyLine.length; k++) {
+                var rp = melodyLine[k];
+                var rpx = rp.x;
+                var rpy = lakeY + 5 - rp.yOffset - Math.sin(rp.phase + globalTime * 1.5) * 2;
+                if (k === 0) ctx.moveTo(rpx, rpy);
+                else ctx.lineTo(rpx, rpy);
+            }
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        function drawPrismParticles(ctx) {
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            for (var i = 0; i < prismParticles.length; i++) {
+                var p = prismParticles[i];
+                var alpha = p.alpha * p.life;
+
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                ctx.rotate(p.rotation);
+
+                // Diamond shape
+                var sz = p.size * (0.5 + p.life * 0.5);
+                ctx.fillStyle = rgba(p.color, alpha * 0.7);
+                ctx.shadowBlur = 6 + p.life * 10;
+                ctx.shadowColor = p.color;
+                ctx.beginPath();
+                ctx.moveTo(0, -sz);
+                ctx.lineTo(sz * 0.6, 0);
+                ctx.lineTo(0, sz);
+                ctx.lineTo(-sz * 0.6, 0);
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.restore();
+            }
+            ctx.restore();
+        }
+
+        function drawCavernCeiling(ctx, energy) {
+            // Subtle ceiling glow during lake/chorus phases
+            if (phase !== 'lake' && phase !== 'chorus') return;
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+
+            var ceilColor = phase === 'chorus' ? COL_CHORUS_1 : COL_CRYSTAL_1;
+            var ceilAlpha = (phase === 'chorus' ? 0.06 : 0.03) + energy * 0.04;
+
+            var ceilGrad = ctx.createLinearGradient(0, 0, 0, H * 0.3);
+            ceilGrad.addColorStop(0, rgba(ceilColor, ceilAlpha));
+            ceilGrad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = ceilGrad;
+            ctx.fillRect(0, 0, W, H * 0.3);
+
+            // Scattered ceiling crystal reflections
+            for (var i = 0; i < 6; i++) {
+                var cx = W * (0.1 + i * 0.15) + Math.sin(globalTime * 0.4 + i * 1.2) * 20;
+                var cy = H * 0.05 + Math.sin(globalTime * 0.3 + i) * 8;
+                var cr = 3 + Math.sin(globalTime * 2 + i * 0.9) * 1.5 + beatPulse * 3;
+                ctx.fillStyle = rgba(CRYSTAL_COLORS[i % 4], ceilAlpha * 2);
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = CRYSTAL_COLORS[i % 4];
+                ctx.beginPath();
+                ctx.arc(cx, cy, cr, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            ctx.restore();
+        }
+
+        function drawBloom(ctx) {
+            if (bloomAlpha < 0.005) return;
+            ctx.save();
+            var grad = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.max(W, H) * 0.6);
+            grad.addColorStop(0, rgba(bloomColor, bloomAlpha * 0.35));
+            grad.addColorStop(0.5, rgba(bloomColor, bloomAlpha * 0.1));
+            grad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, W, H);
+            ctx.restore();
+        }
+
+        function drawFlash(ctx) {
+            if (flashAlpha < 0.005) return;
+            ctx.save();
+            ctx.fillStyle = rgba('#ffffff', flashAlpha * 0.2);
+            ctx.fillRect(0, 0, W, H);
+            ctx.restore();
+        }
+
+        function drawTitle(ctx) {
+            if (titleAlpha < 0.01) return;
+            ctx.save();
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.globalAlpha = titleAlpha;
+
+            var fontSize = Math.max(16, Math.min(W * 0.035, 44));
+            ctx.font = '700 ' + fontSize + 'px "Cinzel", serif';
+            ctx.fillStyle = COL_CRYSTAL_1;
+            ctx.shadowColor = COL_CRYSTAL_1;
+            ctx.shadowBlur = 40;
+            ctx.fillText('CRYSTAL CAVES: THE DEEP', W / 2, H * 0.1);
+
+            ctx.font = '400 ' + Math.floor(fontSize * 0.4) + 'px sans-serif';
+            ctx.fillStyle = rgba('#ffffff', 0.45);
+            ctx.shadowBlur = 0;
+            ctx.fillText('descend into the shimmering darkness', W / 2, H * 0.1 + fontSize * 0.75);
+
+            ctx.restore();
+        }
+
+        function drawPrismaticLight(ctx, energy) {
+            // Chorus: light rays from above fracturing through crystals
+            if (phase !== 'chorus') return;
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+
+            var numRays = 8;
+            for (var i = 0; i < numRays; i++) {
+                var rayPhase = globalTime * 0.3 + i * (Math.PI * 2 / numRays);
+                var startX = W * (0.2 + i * 0.075) + Math.sin(rayPhase) * 40;
+                var endX = startX + Math.sin(rayPhase * 0.7) * 60;
+                var col = CHORUS_COLORS[i % CHORUS_COLORS.length];
+                var rayAlpha = (0.03 + energy * 0.05 + beatPulse * 0.04);
+
+                ctx.strokeStyle = rgba(col, rayAlpha);
+                ctx.lineWidth = 3 + energy * 4 + beatPulse * 3;
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = col;
+                ctx.beginPath();
+                ctx.moveTo(startX, 0);
+                ctx.lineTo(endX, H);
+                ctx.stroke();
+            }
+
+            ctx.restore();
+        }
+
+        // ── Init ──
+        function init(ctx, width, height, anal) {
+            W = width;
+            H = height;
+            analysis = anal;
+            globalTime = 0;
+            beatPulse = 0;
+            flashAlpha = 0;
+            lastSeqIndex = -1;
+            phase = 'shaft';
+            phaseBlend = 0;
+            cameraDepth = 0;
+            cameraDepthTarget = 0;
+            bloomAlpha = 0;
+            bloomColor = COL_CRYSTAL_1;
+            fadeAlpha = 0;
+            fadeTarget = 0;
+            titleAlpha = 0;
+            titleTarget = 0;
+            melodyGlow = 0;
+            prismBurst = 0;
+
+            // Init crystals
+            crystals = [];
+            for (var i = 0; i < MAX_CRYSTALS; i++) {
+                crystals.push(createCrystal());
+            }
+
+            // Init stalactites/stalagmites
+            stalactites = [];
+            for (var st = 0; st < 15; st++) {
+                stalactites.push(createStalactite(true));
+                stalactites.push(createStalactite(false));
+            }
+
+            trailParticles = [];
+            biolumMotes = [];
+            melodyLine = [];
+            prismParticles = [];
+
+            initLakeWaves();
+
+            // Pre-populate biolum motes
+            for (var bm = 0; bm < 40; bm++) {
+                biolumMotes.push(createBiolumMote());
+            }
+        }
+
+        // ── Resize ──
+        function resize(width, height) {
+            W = width;
+            H = height;
+            initLakeWaves();
+
+            // Regenerate crystals for new dimensions
+            crystals = [];
+            for (var i = 0; i < MAX_CRYSTALS; i++) {
+                crystals.push(createCrystal());
+            }
+            stalactites = [];
+            for (var st = 0; st < 15; st++) {
+                stalactites.push(createStalactite(true));
+                stalactites.push(createStalactite(false));
+            }
+        }
+
+        // ── Main Render ──
+        function render(frameData) {
+            var ctx = frameData.ctx;
+            var dt = frameData.dt || 1 / 60;
+            var cursor = frameData.cursor;
+            beatPulse = frameData.beatPulse;
+
+            globalTime += dt;
+
+            // ── Idle State ──
+            if (!cursor) {
+                drawCavernWalls(ctx, 0);
+                // A few idle crystals
+                ctx.save();
+                for (var ic = 0; ic < 10; ic++) {
+                    var c = crystals[ic];
+                    if (!c) break;
+                    c.glowPhase += dt;
+                    drawCrystals(ctx, 0.1);
+                }
+                ctx.restore();
+                return;
+            }
+
+            var seqIdx = cursor.seqIndex;
+            var energy = analysis ? (analysis.energy[cursor.timelineIndex] || 0) : 0;
+            var notes = frameData.currentNotes;
+
+            // ── Section Transition Detection ──
+            if (seqIdx !== lastSeqIndex) {
+                var newPhase = mapPhase(seqIdx);
+                if (newPhase !== phase) {
+                    phase = newPhase;
+                    phaseBlend = 0;
+
+                    // Phase transition effects
+                    if (phase === 'lake') {
+                        bloomAlpha = 0.5;
+                        bloomColor = COL_LAKE_GLOW;
+                    } else if (phase === 'chorus') {
+                        flashAlpha = 0.8;
+                        bloomColor = COL_CHORUS_1;
+                    } else if (phase === 'silence') {
+                        fadeTarget = 1.0;
+                    }
+                }
+
+                cameraDepthTarget = getDepthTarget(seqIdx);
+
+                // Title: show during intro and silence
+                if (seqIdx <= 1) {
+                    titleTarget = 1;
+                } else if (phase === 'silence' && seqIdx >= 30) {
+                    titleTarget = 0.5;
+                } else {
+                    titleTarget = 0;
+                }
+
+                lastSeqIndex = seqIdx;
+            }
+
+            // ── Beat Events ──
+            if (frameData.beatChanged) {
+                // Trail particles on every beat (arpeggio light)
+                if (phase === 'shaft' || phase === 'descent') {
+                    var trailCount = Math.floor(3 + energy * 8);
+                    for (var tc = 0; tc < trailCount; tc++) {
+                        if (trailParticles.length < MAX_TRAIL) {
+                            var tx = W * 0.3 + Math.random() * W * 0.4;
+                            var ty = H * 0.2 + Math.random() * H * 0.6;
+                            trailParticles.push(createTrailParticle(tx, ty));
+                        }
+                    }
+                }
+
+                // Bloom on energetic beats
+                if (energy > 0.35) {
+                    bloomAlpha = Math.max(bloomAlpha, 0.1 + energy * 0.2);
+                    if (phase === 'chorus') {
+                        bloomColor = pickRandom(CHORUS_COLORS);
+                    } else if (phase === 'lake') {
+                        bloomColor = Math.random() > 0.5 ? COL_LAKE_GLOW : COL_MELODY;
+                    } else {
+                        bloomColor = pickRandom(CRYSTAL_COLORS);
+                    }
+                }
+
+                // Flash on strong beats
+                if (energy > 0.55) {
+                    flashAlpha = Math.max(flashAlpha, energy * 0.3);
+                }
+
+                // Lake phase: add melody points based on current notes
+                if (phase === 'lake') {
+                    var leadNote = notes ? (notes[0] || notes[1]) : null;
+                    if (leadNote && leadNote.normalized !== undefined) {
+                        if (melodyLine.length >= MAX_MELODY_PTS) {
+                            melodyLine.shift();
+                        }
+                        var lastX = melodyLine.length > 0 ? melodyLine[melodyLine.length - 1].x + W / MAX_MELODY_PTS : W * 0.05;
+                        if (lastX > W * 0.95) {
+                            // Wrap the melody line
+                            for (var ml = 0; ml < melodyLine.length; ml++) {
+                                melodyLine[ml].x -= W * 0.1;
+                            }
+                            lastX -= W * 0.1;
+                        }
+                        melodyLine.push({
+                            x: lastX,
+                            yOffset: -(leadNote.normalized * 30 + 5),
+                            alpha: 0.6 + energy * 0.4,
+                            phase: globalTime
+                        });
+                        melodyGlow = 1;
+                    }
+
+                    // Spawn biolum motes
+                    if (biolumMotes.length < MAX_BIOLUM) {
+                        var moteCount = Math.floor(2 + energy * 4);
+                        for (var mc = 0; mc < moteCount; mc++) {
+                            biolumMotes.push(createBiolumMote());
+                        }
+                    }
+                }
+
+                // Chorus: prism particle burst
+                if (phase === 'chorus') {
+                    var burstCount = Math.floor(5 + energy * 15);
+                    for (var bc = 0; bc < burstCount; bc++) {
+                        if (prismParticles.length < MAX_PRISM) {
+                            prismParticles.push(createPrismParticle(
+                                W * (0.3 + Math.random() * 0.4),
+                                H * (0.2 + Math.random() * 0.3)
+                            ));
+                        }
+                    }
+                    prismBurst = 1;
+                }
+            }
+
+            // ── Smooth State Updates ──
+            cameraDepth = lerpExp(cameraDepth, cameraDepthTarget, 1.2, dt);
+            titleAlpha = lerpExp(titleAlpha, titleTarget, 3, dt);
+            bloomAlpha *= Math.exp(-3.5 * dt);
+            flashAlpha *= Math.exp(-5 * dt);
+            melodyGlow *= Math.exp(-4 * dt);
+            prismBurst *= Math.exp(-6 * dt);
+            phaseBlend = Math.min(1, phaseBlend + dt * 1.5);
+
+            if (phase === 'silence') {
+                fadeAlpha = lerpExp(fadeAlpha, fadeTarget, 0.8, dt);
+            } else {
+                fadeAlpha *= Math.exp(-2 * dt);
+            }
+
+            // ── Update Trail Particles ──
+            for (var ut = trailParticles.length - 1; ut >= 0; ut--) {
+                var tp = trailParticles[ut];
+                tp.x += tp.vx * dt;
+                tp.y += tp.vy * dt;
+                tp.vy -= 10 * dt; // float upward
+                tp.vx += (Math.random() - 0.5) * 20 * dt;
+                tp.phase += dt * 2;
+                tp.life -= dt * 0.3;
+                if (tp.life <= 0 || tp.y < -20 || tp.y > H + 20) {
+                    trailParticles.splice(ut, 1);
+                }
+            }
+
+            // ── Update Biolum Motes ──
+            for (var ub = biolumMotes.length - 1; ub >= 0; ub--) {
+                var bm = biolumMotes[ub];
+                bm.x += bm.vx * dt + Math.sin(bm.phase + globalTime) * 2 * dt;
+                bm.y += bm.vy * dt + Math.cos(bm.phase * 0.7 + globalTime * 0.8) * 1.5 * dt;
+                bm.phase += dt * 1.5;
+                // Wrap
+                if (bm.x < -10) bm.x = W + 10;
+                if (bm.x > W + 10) bm.x = -10;
+                if (bm.y < H * 0.25) bm.y = H * 0.95;
+                if (bm.y > H + 10) bm.y = H * 0.3;
+            }
+
+            // Trim biolum motes if not in lake phase
+            if (phase !== 'lake' && phase !== 'chorus' && biolumMotes.length > 40) {
+                biolumMotes.splice(0, 2);
+            }
+
+            // ── Update Prism Particles ──
+            for (var up = prismParticles.length - 1; up >= 0; up--) {
+                var pp = prismParticles[up];
+                pp.x += pp.vx * dt;
+                pp.y += pp.vy * dt;
+                pp.rotation += pp.rotSpeed * dt;
+                pp.vx *= 0.98;
+                pp.vy *= 0.98;
+                pp.life -= dt * 0.25;
+                if (pp.life <= 0 || pp.x < -30 || pp.x > W + 30 || pp.y < -30 || pp.y > H + 30) {
+                    prismParticles.splice(up, 1);
+                }
+            }
+
+            // ── Update Crystal Glow ──
+            for (var uc = 0; uc < crystals.length; uc++) {
+                crystals[uc].glowPhase += dt * (0.8 + uc * 0.02);
+            }
+
+            // ── Update Melody Line (decay old points) ──
+            for (var um = melodyLine.length - 1; um >= 0; um--) {
+                melodyLine[um].alpha *= Math.exp(-0.15 * dt);
+                if (melodyLine[um].alpha < 0.02) {
+                    melodyLine.splice(um, 1);
+                }
+            }
+
+            // ═══════════════════════════════════════════════════════════
+            // ══════════════════ DRAW ORDER ═════════════════════════════
+            // ═══════════════════════════════════════════════════════════
+
+            // Layer 1: Cavern background
+            drawCavernWalls(ctx, energy);
+
+            // Layer 2: Cavern ceiling glow (lake/chorus)
+            drawCavernCeiling(ctx, energy);
+
+            // Layer 3: Stalactites/stalagmites
+            drawStalactitesAndStagmites(ctx, energy);
+
+            // Layer 4: Crystals on walls
+            drawCrystals(ctx, energy);
+
+            // Layer 5: Lake (if in lake/chorus/silence phase)
+            if (phase === 'lake' || phase === 'chorus' || phase === 'silence' || phase === 'descent') {
+                var lakeAlpha = 1;
+                if (phase === 'descent') {
+                    lakeAlpha = clamp01((cameraDepth - 0.7) / 0.25);
+                }
+                if (lakeAlpha > 0.01) {
+                    ctx.save();
+                    ctx.globalAlpha = lakeAlpha;
+                    drawLake(ctx, energy);
+                    ctx.restore();
+                }
+            }
+
+            // Layer 6: Bioluminescent motes
+            if (phase === 'lake' || phase === 'chorus' || phase === 'silence') {
+                drawBiolumMotes(ctx, energy);
+            }
+
+            // Layer 7: Melody line on water surface
+            if (phase === 'lake') {
+                drawMelodyLine(ctx, energy);
+            }
+
+            // Layer 8: Trail particles (arpeggio light in shaft)
+            drawTrailParticles(ctx);
+
+            // Layer 9: Prismatic light rays (chorus)
+            drawPrismaticLight(ctx, energy);
+
+            // Layer 10: Prism particles (chorus)
+            drawPrismParticles(ctx);
+
+            // Layer 11: Bloom overlay
+            drawBloom(ctx);
+
+            // Layer 12: Flash overlay
+            drawFlash(ctx);
+
+            // Layer 13: Title
+            drawTitle(ctx);
+
+            // Layer 14: Intro fade from black
+            if (seqIdx <= 1) {
+                var introFade = Math.max(0, 1 - cursor.elapsed * 0.4);
+                if (introFade > 0.01) {
+                    ctx.save();
+                    ctx.fillStyle = 'rgba(2,8,16,' + introFade + ')';
+                    ctx.fillRect(0, 0, W, H);
+                    ctx.restore();
+                }
+            }
+
+            // Layer 15: Silence fade to deep blue
+            if (fadeAlpha > 0.01) {
+                ctx.save();
+                ctx.fillStyle = rgba(COL_DEEP_BLUE, fadeAlpha * 0.85);
+                ctx.fillRect(0, 0, W, H);
+                ctx.restore();
+            }
+        }
+
+        BaseRenderer('crystal-caves-the-deep-video', 'Crystal Caves: The Deep', {
+            beatDecay: 7,
+            init: init,
+            render: render,
+            resize: resize
+        });
+    })();
+
+    // ── Page bootstrap ─────────────────────────────────────────────────
+    (function() {
+        var canvas = document.getElementById('viz-canvas');
+        var overlay = document.getElementById('play-overlay');
+
+        Visualizer.init(canvas);
+        Visualizer.setRenderer('crystal-caves-the-deep-video');
+
+        function loadAndPlay(json) {
+            Visualizer.loadSong(json);
+            Visualizer.play();
+        }
+
+        function fetchSong() {
+            var url = '../audio-tracker/songs/crystal-caves-the-deep.json';
+            if (window.fetch && location.protocol !== 'file:') {
+                return fetch(url).then(function(r) { return r.json(); });
+            }
+            return new Promise(function(resolve, reject) {
+                var xhr = new XMLHttpRequest();
+                xhr.open('GET', url, true);
+                xhr.onload = function() {
+                    if (xhr.status === 200 || xhr.status === 0) {
+                        resolve(JSON.parse(xhr.responseText));
+                    } else {
+                        reject(new Error('XHR failed: ' + xhr.status));
+                    }
+                };
+                xhr.onerror = function() { reject(new Error('XHR error')); };
+                xhr.send();
+            });
+        }
+
+        overlay.addEventListener('click', function() {
+            overlay.classList.add('hidden');
+            fetchSong().then(loadAndPlay).catch(function(err) {
+                console.error('Failed to load song:', err);
+                overlay.classList.remove('hidden');
+            });
+        });
+
+        if (new URLSearchParams(window.location.search).get('autoplay') === '1') {
+            overlay.click();
+        }
+
+        canvas.addEventListener('click', function() {
+            if (overlay.classList.contains('hidden')) {
+                if (Visualizer.isPlaying()) {
+                    Visualizer.stop();
+                } else {
+                    Visualizer.play();
+                }
+            }
+        });
+    })();
+    </script>
+</body>
+</html>

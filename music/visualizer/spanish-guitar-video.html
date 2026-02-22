@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spanish Guitar — Music Video</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="video-base-styles.css">
+    <style>
+        :root {
+            --vid-bg: #1a0c04;
+            --vid-bg-rgb: 26,12,4;
+            --vid-font: 'Cormorant Garamond', serif;
+            --vid-accent: #e8942a;
+            --vid-accent-r: 232;
+            --vid-accent-g: 148;
+            --vid-accent-b: 42;
+            --vid-overlay-alpha: 0.93;
+            --vid-title-spacing: 0.08em;
+            --vid-sub-alpha: 0.5;
+        }
+    </style>
+</head>
+<body>
+    <a href="music-videos/index.html" class="back-link">&larr; Music Videos</a>
+    <canvas id="viz-canvas"></canvas>
+    <div class="play-overlay" id="play-overlay">
+        <div class="play-title">Spanish Guitar</div>
+        <div class="play-sub">flamenco courtyard at sunset</div>
+        <div class="play-btn"></div>
+    </div>
+
+    <script src="../audio-tracker/playback-engine.js"></script>
+    <script src="engine.js"></script>
+    <script src="video-utils.js"></script>
+    <script src="base-renderer.js"></script>
+    <script>
+    // ── Spanish Guitar Video Renderer ───────────────────────────────────
+    (function() {
+        "use strict";
+
+        var W = 0, H = 0;
+        var analysis = null;
+
+        // ── Color Palette ──
+        var TERRACOTTA_DEEP = '#8b3a1a';
+        var TERRACOTTA_MID = '#c45a28';
+        var TERRACOTTA_LIGHT = '#d87a40';
+        var ORANGE_WARM = '#e8942a';
+        var ORANGE_GLOW = '#f5b848';
+        var GOLD_BRIGHT = '#ffd06a';
+        var GOLD_PALE = '#ffe8a0';
+        var SKY_SUNSET_TOP = '#1a0c2a';
+        var SKY_SUNSET_MID = '#6b2040';
+        var SKY_SUNSET_BOT = '#d86020';
+        var SKY_DUSK_TOP = '#0d0818';
+        var SKY_DUSK_BOT = '#3a1a30';
+        var SKY_NIGHT_TOP = '#060410';
+        var SKY_NIGHT_BOT = '#1a0c18';
+        var COURTYARD_DARK = '#2a1208';
+        var COURTYARD_FLOOR = '#8b6040';
+        var STRING_GOLD = '#ffd06a';
+        var STRING_GLOW = '#ffe8a0';
+        var TILE_BLUE = '#2a5a8a';
+        var TILE_WHITE = '#e8dcc8';
+        var TILE_RED = '#a83020';
+
+        // ── Scene State ──
+        var scene = 'sunset';
+        var lastSeqIndex = -1;
+        var beatPulse = 0;
+        var flashAlpha = 0;
+        var elapsed = 0;
+
+        // ── Guitar Strings ──
+        var strings = [];
+        var STRING_COUNT = 6;
+        var stringVibrations = [0, 0, 0, 0, 0, 0];
+
+        // ── Rosette Pattern ──
+        var rosettes = [];
+        var MAX_ROSETTES = 8;
+        var rosetteTimer = 0;
+
+        // ── Tile Patterns ──
+        var tiles = [];
+        var MAX_TILES = 24;
+        var tileFormProgress = 0;
+        var tileFormTarget = 0;
+
+        // ── Warm Light Particles ──
+        var lightParticles = [];
+        var LIGHT_COUNT = 60;
+
+        // ── Stars ──
+        var stars = [];
+        var STAR_COUNT = 80;
+
+        // ── Arches (courtyard architecture) ──
+        var archCount = 3;
+
+        // ── Title ──
+        var titleAlpha = 0;
+        var titleTarget = 0;
+
+        // ── Section Mapping ──
+        function mapScene(seqIdx) {
+            if (seqIdx <= 3) return 'sunset';
+            if (seqIdx <= 11) return 'golden';
+            if (seqIdx <= 19) return 'passionate';
+            if (seqIdx <= 27) return 'cadence';
+            if (seqIdx <= 35) return 'fiery';
+            if (seqIdx <= 43) return 'dusk';
+            return 'night';
+        }
+
+        // ── Helpers ──
+        function lerpColor(c1, c2, t) {
+            var r1 = parseInt(c1.slice(1,3),16), g1 = parseInt(c1.slice(3,5),16), b1 = parseInt(c1.slice(5,7),16);
+            var r2 = parseInt(c2.slice(1,3),16), g2 = parseInt(c2.slice(3,5),16), b2 = parseInt(c2.slice(5,7),16);
+            var r = Math.round(lerp(r1,r2,t)), g = Math.round(lerp(g1,g2,t)), b = Math.round(lerp(b1,b2,t));
+            return 'rgb(' + r + ',' + g + ',' + b + ')';
+        }
+
+        // ── Init ──
+        function init(ctx, w, h, ana) {
+            W = w; H = h;
+            analysis = ana;
+            initStrings();
+            initLightParticles();
+            initStars();
+            tiles = [];
+            rosettes = [];
+            tileFormProgress = 0;
+            tileFormTarget = 0;
+            flashAlpha = 0;
+            elapsed = 0;
+            scene = 'sunset';
+            lastSeqIndex = -1;
+            titleAlpha = 0;
+        }
+
+        function resize(w, h) {
+            W = w; H = h;
+            initStrings();
+            initStars();
+        }
+
+        function initStrings() {
+            strings = [];
+            var cx = W * 0.5;
+            var startY = H * 0.3;
+            var endY = H * 0.75;
+            var spread = Math.min(W * 0.15, 120);
+            for (var i = 0; i < STRING_COUNT; i++) {
+                var t = i / (STRING_COUNT - 1);
+                var xOff = (t - 0.5) * spread * 2;
+                strings.push({
+                    x1: cx + xOff * 0.6,
+                    y1: startY,
+                    x2: cx + xOff,
+                    y2: endY,
+                    thickness: 1.5 + (STRING_COUNT - 1 - i) * 0.4,
+                    freq: 2 + i * 0.8,
+                    phase: i * 0.5
+                });
+                stringVibrations[i] = 0;
+            }
+        }
+
+        function initLightParticles() {
+            lightParticles = [];
+            for (var i = 0; i < LIGHT_COUNT; i++) {
+                lightParticles.push({
+                    x: Math.random() * W,
+                    y: Math.random() * H,
+                    vx: (Math.random() - 0.5) * 15,
+                    vy: -8 - Math.random() * 20,
+                    size: 1 + Math.random() * 3,
+                    alpha: 0.1 + Math.random() * 0.5,
+                    life: Math.random(),
+                    wave: Math.random() * Math.PI * 2
+                });
+            }
+        }
+
+        function initStars() {
+            stars = [];
+            for (var i = 0; i < STAR_COUNT; i++) {
+                stars.push({
+                    x: Math.random() * W,
+                    y: Math.random() * H * 0.4,
+                    size: 0.3 + Math.random() * 1.5,
+                    twinkle: Math.random() * Math.PI * 2,
+                    speed: 0.5 + Math.random() * 2
+                });
+            }
+        }
+
+        // ── Sky ──
+        function drawSky(ctx, sc, energy) {
+            var topColor, botColor;
+            switch (sc) {
+                case 'sunset':
+                    topColor = SKY_SUNSET_TOP; botColor = SKY_SUNSET_BOT; break;
+                case 'golden':
+                    topColor = lerpColor(SKY_SUNSET_TOP, '#2a1040', 0.3);
+                    botColor = lerpColor(SKY_SUNSET_BOT, '#c84a28', 0.3); break;
+                case 'passionate':
+                    topColor = '#1a0830'; botColor = '#b84020'; break;
+                case 'cadence':
+                    topColor = lerpColor('#1a0830', SKY_DUSK_TOP, 0.5);
+                    botColor = lerpColor('#b84020', SKY_DUSK_BOT, 0.5); break;
+                case 'fiery':
+                    topColor = '#200820'; botColor = '#a83818'; break;
+                case 'dusk':
+                    topColor = SKY_DUSK_TOP; botColor = SKY_DUSK_BOT; break;
+                case 'night':
+                    topColor = SKY_NIGHT_TOP; botColor = SKY_NIGHT_BOT; break;
+                default:
+                    topColor = SKY_SUNSET_TOP; botColor = SKY_SUNSET_BOT;
+            }
+
+            var grad = ctx.createLinearGradient(0, 0, 0, H * 0.6);
+            grad.addColorStop(0, topColor);
+            grad.addColorStop(1, botColor);
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, W, H);
+
+            // Sunset glow on horizon
+            if (sc === 'sunset' || sc === 'golden' || sc === 'passionate') {
+                var glowY = H * 0.35;
+                var sunGlow = ctx.createRadialGradient(W * 0.7, glowY, 0, W * 0.7, glowY, H * 0.4);
+                var intensity = 0.2 + energy * 0.15 + beatPulse * 0.1;
+                sunGlow.addColorStop(0, 'rgba(255,160,40,' + intensity + ')');
+                sunGlow.addColorStop(0.4, 'rgba(232,100,30,' + (intensity * 0.4) + ')');
+                sunGlow.addColorStop(1, 'rgba(200,60,20,0)');
+                ctx.fillStyle = sunGlow;
+                ctx.fillRect(0, 0, W, H);
+            }
+        }
+
+        // ── Stars ──
+        function drawStars(ctx, sc, dt) {
+            var alpha = 0;
+            if (sc === 'dusk') alpha = 0.4;
+            else if (sc === 'night') alpha = 0.8;
+            else if (sc === 'cadence') alpha = 0.2;
+            if (alpha < 0.01) return;
+
+            ctx.save();
+            ctx.fillStyle = GOLD_PALE;
+            for (var i = 0; i < stars.length; i++) {
+                var s = stars[i];
+                s.twinkle += s.speed * dt;
+                var a = alpha * (0.3 + 0.7 * Math.abs(Math.sin(s.twinkle)));
+                ctx.globalAlpha = a;
+                ctx.beginPath();
+                ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+
+        // ── Courtyard Arches ──
+        function drawArches(ctx, sc, energy) {
+            ctx.save();
+            var archW = W / (archCount + 1);
+            var archH = H * 0.55;
+            var baseY = H * 0.65;
+
+            // Wall background
+            var wallGrad = ctx.createLinearGradient(0, 0, 0, baseY);
+            var wallDark = (sc === 'night' || sc === 'dusk') ? '#0d0604' : COURTYARD_DARK;
+            var wallLight = (sc === 'night' || sc === 'dusk') ? '#1a0c06' : '#4a2a14';
+            wallGrad.addColorStop(0, wallDark);
+            wallGrad.addColorStop(1, wallLight);
+            ctx.fillStyle = wallGrad;
+            ctx.fillRect(0, H * 0.15, W, baseY - H * 0.15);
+
+            // Draw Moorish arches
+            var archColor = (sc === 'night' || sc === 'dusk') ? '#1a0c04' : TERRACOTTA_DEEP;
+            var archInner = (sc === 'night' || sc === 'dusk') ? '#060208' : '#0d0612';
+            ctx.lineWidth = Math.max(3, W * 0.006);
+
+            for (var i = 0; i < archCount; i++) {
+                var cx = archW * (i + 1);
+                var aw = archW * 0.35;
+                var ah = archH * 0.65;
+
+                // Arch opening (dark interior showing sky)
+                ctx.fillStyle = archInner;
+                ctx.beginPath();
+                ctx.moveTo(cx - aw, baseY);
+                ctx.lineTo(cx - aw, baseY - ah + aw);
+                // Horseshoe arch top
+                ctx.quadraticCurveTo(cx - aw, baseY - ah - aw * 0.3, cx, baseY - ah - aw * 0.5);
+                ctx.quadraticCurveTo(cx + aw, baseY - ah - aw * 0.3, cx + aw, baseY - ah + aw);
+                ctx.lineTo(cx + aw, baseY);
+                ctx.closePath();
+                ctx.fill();
+
+                // Arch frame
+                ctx.strokeStyle = archColor;
+                ctx.beginPath();
+                ctx.moveTo(cx - aw, baseY);
+                ctx.lineTo(cx - aw, baseY - ah + aw);
+                ctx.quadraticCurveTo(cx - aw, baseY - ah - aw * 0.3, cx, baseY - ah - aw * 0.5);
+                ctx.quadraticCurveTo(cx + aw, baseY - ah - aw * 0.3, cx + aw, baseY - ah + aw);
+                ctx.lineTo(cx + aw, baseY);
+                ctx.stroke();
+
+                // Column capitals
+                var capW = aw * 0.25;
+                var capH = aw * 0.12;
+                ctx.fillStyle = archColor;
+                ctx.fillRect(cx - aw - capW * 0.5, baseY - ah + aw - capH, capW * 2, capH);
+                ctx.fillRect(cx + aw - capW * 1.5, baseY - ah + aw - capH, capW * 2, capH);
+
+                // Warm light spilling through arch on beat
+                if (beatPulse > 0.1) {
+                    var lightGrad = ctx.createRadialGradient(cx, baseY - ah * 0.3, 0, cx, baseY - ah * 0.3, aw * 2);
+                    lightGrad.addColorStop(0, 'rgba(232,148,42,' + (beatPulse * 0.15 * (0.5 + energy * 0.5)) + ')');
+                    lightGrad.addColorStop(1, 'rgba(232,148,42,0)');
+                    ctx.fillStyle = lightGrad;
+                    ctx.fillRect(cx - aw * 2, baseY - ah, aw * 4, ah * 1.5);
+                }
+            }
+
+            // Columns between arches
+            ctx.fillStyle = archColor;
+            for (var j = 0; j <= archCount; j++) {
+                var colX = j === 0 ? 0 : (j === archCount ? W : archW * j + archW * 0.5);
+                if (j === 0) {
+                    ctx.fillRect(0, H * 0.15, archW * 0.35, baseY - H * 0.15);
+                } else if (j === archCount) {
+                    ctx.fillRect(W - archW * 0.35, H * 0.15, archW * 0.35, baseY - H * 0.15);
+                }
+            }
+
+            ctx.restore();
+        }
+
+        // ── Courtyard Floor ──
+        function drawFloor(ctx, sc, energy) {
+            var floorY = H * 0.65;
+            var grad = ctx.createLinearGradient(0, floorY, 0, H);
+            var floorLight = (sc === 'night' || sc === 'dusk') ? '#1a1008' : COURTYARD_FLOOR;
+            var floorDark = (sc === 'night' || sc === 'dusk') ? '#0d0804' : '#4a3020';
+            grad.addColorStop(0, floorLight);
+            grad.addColorStop(1, floorDark);
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, floorY, W, H - floorY);
+
+            // Tile pattern on floor
+            if (tileFormProgress > 0.01) {
+                drawFloorTiles(ctx, floorY, energy);
+            }
+        }
+
+        // ── Floor Tiles (Andalusian geometric) ──
+        function drawFloorTiles(ctx, floorY, energy) {
+            ctx.save();
+            var tileSize = Math.min(W, H) * 0.04;
+            var cols = Math.ceil(W / tileSize) + 1;
+            var rows = Math.ceil((H - floorY) / tileSize) + 1;
+            var alpha = tileFormProgress * 0.3 * (0.6 + energy * 0.4);
+
+            for (var r = 0; r < Math.min(rows, 8); r++) {
+                for (var c = 0; c < cols; c++) {
+                    var tx = c * tileSize;
+                    var ty = floorY + r * tileSize;
+                    var isAccent = (c + r) % 3 === 0;
+                    var isBlue = (c + r) % 5 === 0;
+
+                    ctx.globalAlpha = alpha * (1 - r * 0.1);
+                    if (isBlue) {
+                        ctx.strokeStyle = TILE_BLUE;
+                    } else if (isAccent) {
+                        ctx.strokeStyle = TILE_RED;
+                    } else {
+                        ctx.strokeStyle = TILE_WHITE;
+                    }
+                    ctx.lineWidth = 0.5;
+
+                    // Diamond pattern inside each tile
+                    ctx.beginPath();
+                    ctx.moveTo(tx + tileSize * 0.5, ty);
+                    ctx.lineTo(tx + tileSize, ty + tileSize * 0.5);
+                    ctx.lineTo(tx + tileSize * 0.5, ty + tileSize);
+                    ctx.lineTo(tx, ty + tileSize * 0.5);
+                    ctx.closePath();
+                    ctx.stroke();
+                }
+            }
+            ctx.restore();
+        }
+
+        // ── Guitar Strings ──
+        function drawGuitarStrings(ctx, sc, dt, energy) {
+            ctx.save();
+            var glowIntensity = 0.4 + energy * 0.4 + beatPulse * 0.2;
+
+            for (var i = 0; i < STRING_COUNT; i++) {
+                var s = strings[i];
+                stringVibrations[i] *= Math.exp(-3 * dt);
+
+                // String glow
+                ctx.globalAlpha = glowIntensity * (0.3 + stringVibrations[i] * 0.7);
+                ctx.strokeStyle = STRING_GLOW;
+                ctx.lineWidth = s.thickness + 4 + stringVibrations[i] * 6;
+                ctx.shadowColor = ORANGE_GLOW;
+                ctx.shadowBlur = 10 + stringVibrations[i] * 20;
+
+                // Draw vibrating string as a sine wave
+                ctx.beginPath();
+                var segments = 40;
+                for (var j = 0; j <= segments; j++) {
+                    var t = j / segments;
+                    var px = lerp(s.x1, s.x2, t);
+                    var py = lerp(s.y1, s.y2, t);
+                    // Vibration envelope: max at center, zero at endpoints
+                    var envelope = Math.sin(t * Math.PI);
+                    var vibAmp = stringVibrations[i] * 8 * envelope;
+                    var vibOffset = Math.sin(t * Math.PI * s.freq + s.phase + elapsed * 12) * vibAmp;
+                    px += vibOffset;
+                    if (j === 0) ctx.moveTo(px, py);
+                    else ctx.lineTo(px, py);
+                }
+                ctx.stroke();
+
+                // Core string line
+                ctx.shadowBlur = 0;
+                ctx.globalAlpha = 0.6 + stringVibrations[i] * 0.4;
+                ctx.strokeStyle = STRING_GOLD;
+                ctx.lineWidth = s.thickness;
+                ctx.beginPath();
+                for (var k = 0; k <= segments; k++) {
+                    var t2 = k / segments;
+                    var px2 = lerp(s.x1, s.x2, t2);
+                    var py2 = lerp(s.y1, s.y2, t2);
+                    var env2 = Math.sin(t2 * Math.PI);
+                    var vib2 = stringVibrations[i] * 8 * env2;
+                    var off2 = Math.sin(t2 * Math.PI * s.freq + s.phase + elapsed * 12) * vib2;
+                    px2 += off2;
+                    if (k === 0) ctx.moveTo(px2, py2);
+                    else ctx.lineTo(px2, py2);
+                }
+                ctx.stroke();
+            }
+            ctx.shadowBlur = 0;
+            ctx.restore();
+        }
+
+        // ── Rosette Patterns ──
+        function spawnRosette() {
+            if (rosettes.length >= MAX_ROSETTES) return;
+            rosettes.push({
+                x: W * 0.5 + (Math.random() - 0.5) * W * 0.3,
+                y: H * 0.5 + (Math.random() - 0.5) * H * 0.2,
+                radius: 0,
+                maxRadius: 30 + Math.random() * 60,
+                rotation: Math.random() * Math.PI * 2,
+                rotSpeed: (Math.random() - 0.5) * 1.5,
+                petals: 6 + randInt(0, 6) * 2,
+                alpha: 0.7,
+                life: 1.0,
+                color: pickRandom([ORANGE_WARM, GOLD_BRIGHT, TERRACOTTA_LIGHT, STRING_GOLD])
+            });
+        }
+
+        function updateAndDrawRosettes(ctx, dt, energy) {
+            ctx.save();
+            for (var i = rosettes.length - 1; i >= 0; i--) {
+                var r = rosettes[i];
+                r.life -= dt * 0.3;
+                r.radius += (r.maxRadius - r.radius) * (1 - Math.exp(-3 * dt));
+                r.rotation += r.rotSpeed * dt;
+
+                if (r.life <= 0) {
+                    rosettes.splice(i, 1);
+                    continue;
+                }
+
+                ctx.save();
+                ctx.translate(r.x, r.y);
+                ctx.rotate(r.rotation);
+                ctx.globalAlpha = r.alpha * r.life * (0.3 + energy * 0.3);
+                ctx.strokeStyle = r.color;
+                ctx.lineWidth = 1.5;
+
+                // Draw rosette (concentric petal circles)
+                var petalAngle = (Math.PI * 2) / r.petals;
+                for (var p = 0; p < r.petals; p++) {
+                    var angle = petalAngle * p;
+                    var petalR = r.radius * 0.4;
+                    var px = Math.cos(angle) * r.radius * 0.35;
+                    var py = Math.sin(angle) * r.radius * 0.35;
+                    ctx.beginPath();
+                    ctx.arc(px, py, petalR, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+
+                // Center circle
+                ctx.beginPath();
+                ctx.arc(0, 0, r.radius * 0.15, 0, Math.PI * 2);
+                ctx.stroke();
+
+                // Outer ring
+                ctx.beginPath();
+                ctx.arc(0, 0, r.radius * 0.7, 0, Math.PI * 2);
+                ctx.stroke();
+
+                ctx.restore();
+            }
+            ctx.restore();
+        }
+
+        // ── Tile Patterns (Andalusian, form and dissolve) ──
+        function drawTileOverlay(ctx, sc, energy) {
+            if (tileFormProgress < 0.01) return;
+            ctx.save();
+
+            var tileSize = Math.min(W, H) * 0.06;
+            var cx = W * 0.5;
+            var cy = H * 0.45;
+            var gridW = 6;
+            var gridH = 4;
+            var alpha = tileFormProgress * 0.4 * (0.5 + energy * 0.5);
+
+            for (var row = -gridH; row <= gridH; row++) {
+                for (var col = -gridW; col <= gridW; col++) {
+                    var tx = cx + col * tileSize;
+                    var ty = cy + row * tileSize;
+
+                    // Distance-based fade
+                    var dist = Math.sqrt(col * col + row * row) / Math.sqrt(gridW * gridW + gridH * gridH);
+                    var tileAlpha = alpha * (1 - dist * 0.6);
+                    if (tileAlpha < 0.01) continue;
+
+                    ctx.globalAlpha = tileAlpha;
+                    var pattern = (Math.abs(col) + Math.abs(row)) % 3;
+
+                    if (pattern === 0) {
+                        ctx.strokeStyle = TILE_BLUE;
+                    } else if (pattern === 1) {
+                        ctx.strokeStyle = GOLD_BRIGHT;
+                    } else {
+                        ctx.strokeStyle = TILE_RED;
+                    }
+                    ctx.lineWidth = 1;
+
+                    // Eight-pointed star pattern
+                    ctx.beginPath();
+                    var starR = tileSize * 0.4;
+                    for (var p = 0; p < 8; p++) {
+                        var a1 = (p / 8) * Math.PI * 2;
+                        var a2 = ((p + 3) / 8) * Math.PI * 2;
+                        ctx.moveTo(tx + Math.cos(a1) * starR, ty + Math.sin(a1) * starR);
+                        ctx.lineTo(tx + Math.cos(a2) * starR, ty + Math.sin(a2) * starR);
+                    }
+                    ctx.stroke();
+                }
+            }
+            ctx.restore();
+        }
+
+        // ── Warm Light Particles ──
+        function drawLightParticles(ctx, dt, sc, energy) {
+            ctx.save();
+            var brightness = (sc === 'night' || sc === 'dusk') ? 0.3 : 0.7;
+            brightness += energy * 0.3 + beatPulse * 0.2;
+
+            for (var i = 0; i < lightParticles.length; i++) {
+                var p = lightParticles[i];
+                p.wave += dt * 2;
+                p.x += p.vx * dt + Math.sin(p.wave) * 3 * dt;
+                p.y += p.vy * dt;
+                p.life -= dt * 0.15;
+
+                if (p.life <= 0 || p.y < -20) {
+                    p.x = Math.random() * W;
+                    p.y = H + 10;
+                    p.life = 0.5 + Math.random() * 0.5;
+                    p.vx = (Math.random() - 0.5) * 15;
+                    p.vy = -8 - Math.random() * 20;
+                }
+
+                var a = p.alpha * p.life * brightness;
+                ctx.globalAlpha = a;
+
+                // Warm glow particle
+                var glow = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 3);
+                glow.addColorStop(0, GOLD_PALE);
+                glow.addColorStop(0.5, 'rgba(232,148,42,0.3)');
+                glow.addColorStop(1, 'rgba(232,148,42,0)');
+                ctx.fillStyle = glow;
+                ctx.fillRect(p.x - p.size * 3, p.y - p.size * 3, p.size * 6, p.size * 6);
+            }
+            ctx.restore();
+        }
+
+        // ── Central Warm Light Source ──
+        function drawWarmLight(ctx, sc, energy) {
+            ctx.save();
+            var cx = W * 0.5;
+            var cy = H * 0.52;
+            var baseIntensity = (sc === 'sunset' || sc === 'golden') ? 0.15 :
+                               (sc === 'passionate' || sc === 'fiery') ? 0.2 :
+                               (sc === 'night') ? 0.08 : 0.12;
+            var intensity = baseIntensity + energy * 0.1 + beatPulse * 0.08;
+            var radius = Math.min(W, H) * 0.5;
+
+            var glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+            glow.addColorStop(0, 'rgba(232,148,42,' + intensity + ')');
+            glow.addColorStop(0.3, 'rgba(200,100,30,' + (intensity * 0.4) + ')');
+            glow.addColorStop(0.7, 'rgba(160,60,20,' + (intensity * 0.15) + ')');
+            glow.addColorStop(1, 'rgba(100,30,10,0)');
+            ctx.fillStyle = glow;
+            ctx.fillRect(0, 0, W, H);
+            ctx.restore();
+        }
+
+        // ── Title ──
+        function drawTitle(ctx) {
+            if (titleAlpha < 0.01) return;
+            ctx.save();
+            ctx.globalAlpha = titleAlpha;
+            ctx.fillStyle = GOLD_BRIGHT;
+            ctx.font = '600 ' + Math.round(H * 0.055) + 'px "Cormorant Garamond", serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.shadowColor = 'rgba(232,148,42,0.5)';
+            ctx.shadowBlur = 20;
+            ctx.fillText('SPANISH GUITAR', W / 2, H * 0.18);
+            ctx.shadowBlur = 0;
+
+            // Subtitle
+            ctx.globalAlpha = titleAlpha * 0.5;
+            ctx.font = '400 ' + Math.round(H * 0.025) + 'px "Cormorant Garamond", serif';
+            ctx.fillStyle = GOLD_PALE;
+            ctx.fillText('E  P H R Y G I A N', W / 2, H * 0.23);
+            ctx.restore();
+        }
+
+        // ── Flash ──
+        function drawFlash(ctx) {
+            if (flashAlpha < 0.01) return;
+            ctx.save();
+            ctx.globalAlpha = flashAlpha;
+            ctx.fillStyle = ORANGE_GLOW;
+            ctx.fillRect(0, 0, W, H);
+            ctx.restore();
+        }
+
+        // ── Vignette ──
+        function drawVignette(ctx, intensity) {
+            ctx.save();
+            var grad = ctx.createRadialGradient(W * 0.5, H * 0.5, Math.min(W, H) * 0.3, W * 0.5, H * 0.5, Math.max(W, H) * 0.7);
+            grad.addColorStop(0, 'rgba(0,0,0,0)');
+            grad.addColorStop(1, 'rgba(0,0,0,' + intensity + ')');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, W, H);
+            ctx.restore();
+        }
+
+        // ── Main Render ──
+        function render(frameData) {
+            var ctx = frameData.ctx;
+            var dt = frameData.dt || 1/60;
+            var cursor = frameData.cursor;
+            beatPulse = frameData.beatPulse;
+
+            if (!cursor) {
+                // Idle state
+                drawSky(ctx, 'sunset', 0);
+                drawArches(ctx, 'sunset', 0);
+                drawFloor(ctx, 'sunset', 0);
+                drawVignette(ctx, 0.5);
+                return;
+            }
+
+            var seqIdx = cursor.seqIndex;
+            var energy = analysis ? (analysis.energy[cursor.timelineIndex] || 0) : 0;
+            elapsed = cursor.elapsed;
+
+            // ── Scene transitions ──
+            var newScene = mapScene(seqIdx);
+            if (seqIdx !== lastSeqIndex) {
+                var oldScene = scene;
+                scene = newScene;
+
+                // Flash on major transitions
+                if (scene === 'fiery' && oldScene !== 'fiery') {
+                    flashAlpha = 0.25;
+                }
+                if (scene === 'cadence' && oldScene !== 'cadence') {
+                    flashAlpha = 0.15;
+                }
+                if (scene === 'passionate' && oldScene !== 'passionate') {
+                    flashAlpha = 0.1;
+                }
+
+                lastSeqIndex = seqIdx;
+            }
+
+            // ── Beat effects ──
+            if (frameData.beatChanged) {
+                // Pluck random strings
+                var pluckCount = 1 + Math.floor(energy * 3);
+                for (var p = 0; p < pluckCount; p++) {
+                    var si = randInt(0, STRING_COUNT - 1);
+                    stringVibrations[si] = 0.5 + energy * 0.5;
+                }
+
+                // Spawn rosettes on strong beats
+                if (energy > 0.4) {
+                    spawnRosette();
+                }
+
+                // Flash on strong beats during passionate/fiery sections
+                if ((scene === 'passionate' || scene === 'fiery') && energy > 0.6) {
+                    flashAlpha = Math.max(flashAlpha, 0.06 + energy * 0.06);
+                }
+            }
+
+            flashAlpha *= Math.exp(-5 * dt);
+
+            // ── Tile pattern formation ──
+            tileFormTarget = (scene === 'cadence' || scene === 'fiery') ? 1 : 0;
+            tileFormProgress = lerpExp(tileFormProgress, tileFormTarget, 2, dt);
+
+            // ── Title ──
+            titleTarget = (scene === 'sunset' && elapsed > 1 && elapsed < 8) ? 1 :
+                          (scene === 'night') ? 0.5 : 0;
+            titleAlpha = lerpExp(titleAlpha, titleTarget, 3, dt);
+
+            // ── Draw scene layers ──
+
+            // 1. Sky
+            drawSky(ctx, scene, energy);
+
+            // 2. Stars
+            drawStars(ctx, scene, dt);
+
+            // 3. Courtyard arches
+            drawArches(ctx, scene, energy);
+
+            // 4. Courtyard floor
+            drawFloor(ctx, scene, energy);
+
+            // 5. Warm ambient light
+            drawWarmLight(ctx, scene, energy);
+
+            // 6. Tile overlay pattern (cadences)
+            drawTileOverlay(ctx, scene, energy);
+
+            // 7. Guitar strings
+            drawGuitarStrings(ctx, scene, dt, energy);
+
+            // 8. Rosette patterns
+            updateAndDrawRosettes(ctx, dt, energy);
+
+            // 9. Light particles
+            drawLightParticles(ctx, dt, scene, energy);
+
+            // 10. Title
+            drawTitle(ctx);
+
+            // 11. Flash
+            drawFlash(ctx);
+
+            // 12. Vignette
+            var vigIntensity = (scene === 'night') ? 0.6 : (scene === 'dusk') ? 0.5 : 0.35;
+            drawVignette(ctx, vigIntensity);
+        }
+
+        BaseRenderer('spanish-guitar-video', 'Spanish Guitar', {
+            beatDecay: 7,
+            init: init,
+            render: render,
+            resize: resize
+        });
+    })();
+
+    // ── Page bootstrap ──
+    (function() {
+        var canvas = document.getElementById('viz-canvas');
+        var overlay = document.getElementById('play-overlay');
+
+        Visualizer.init(canvas);
+        Visualizer.setRenderer('spanish-guitar-video');
+
+        function loadAndPlay(json) {
+            Visualizer.loadSong(json);
+            Visualizer.play();
+        }
+
+        function fetchSong() {
+            var url = '../audio-tracker/songs/spanish-guitar.json';
+            if (window.fetch && location.protocol !== 'file:') {
+                return fetch(url).then(function(r) { return r.json(); });
+            }
+            return new Promise(function(resolve, reject) {
+                var xhr = new XMLHttpRequest();
+                xhr.open('GET', url, true);
+                xhr.onload = function() {
+                    if (xhr.status === 200 || xhr.status === 0) {
+                        resolve(JSON.parse(xhr.responseText));
+                    } else {
+                        reject(new Error('XHR failed: ' + xhr.status));
+                    }
+                };
+                xhr.onerror = function() { reject(new Error('XHR error')); };
+                xhr.send();
+            });
+        }
+
+        overlay.addEventListener('click', function() {
+            overlay.classList.add('hidden');
+            fetchSong().then(loadAndPlay).catch(function(err) {
+                console.error('Failed to load song:', err);
+                overlay.classList.remove('hidden');
+            });
+        });
+
+        if (new URLSearchParams(window.location.search).get('autoplay') === '1') {
+            overlay.click();
+        }
+
+        canvas.addEventListener('click', function() {
+            if (overlay.classList.contains('hidden')) {
+                if (Visualizer.isPlaying()) {
+                    Visualizer.stop();
+                } else {
+                    Visualizer.play();
+                }
+            }
+        });
+    })();
+    </script>
+</body>
+</html>

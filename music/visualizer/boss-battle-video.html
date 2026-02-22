@@ -1,0 +1,916 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Megabyte Menace — Music Video</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="video-base-styles.css">
+    <style>
+        :root {
+            --vid-bg: #06000a;
+            --vid-bg-rgb: 6,0,10;
+            --vid-font: 'Press Start 2P', monospace;
+            --vid-accent: #ff0044;
+            --vid-accent-r: 255;
+            --vid-accent-g: 0;
+            --vid-accent-b: 68;
+            --vid-overlay-alpha: 0.95;
+            --vid-title-weight: 400;
+            --vid-title-spacing: 0.05em;
+            --vid-title-min: 14px;
+            --vid-title-max: 32px;
+            --vid-sub-alpha: 0.5;
+        }
+    </style>
+</head>
+<body>
+    <a href="music-videos/index.html" class="back-link">&larr; Music Videos</a>
+    <canvas id="viz-canvas"></canvas>
+    <div class="play-overlay" id="play-overlay">
+        <div class="play-title">Megabyte Menace</div>
+        <div class="play-sub">epic pixel-art boss fight</div>
+        <div class="play-btn"></div>
+    </div>
+
+    <script src="../audio-tracker/playback-engine.js"></script>
+    <script src="engine.js"></script>
+    <script src="video-utils.js"></script>
+    <script src="base-renderer.js"></script>
+    <script>
+    // ── Megabyte Menace Video Renderer ──────────────────────────────
+    (function() {
+        "use strict";
+
+        var W = 0, H = 0;
+        var analysis = null;
+
+        // ── Palette ──
+        var BG_DARK = '#06000a';
+        var BOSS_BODY = '#1a0028';
+        var BOSS_DARK = '#0d0018';
+        var BOSS_EYE = '#ff0044';
+        var BOSS_GLOW = '#cc0033';
+        var PIXEL_GREEN = '#00ff66';
+        var PIXEL_CYAN = '#00ddff';
+        var PIXEL_MAGENTA = '#ff00aa';
+        var PIXEL_YELLOW = '#ffdd00';
+        var PIXEL_RED = '#ff2200';
+        var HP_GREEN = '#00cc44';
+        var HP_RED = '#cc0022';
+        var GLITCH_COLORS = ['#ff0044', '#00ff66', '#00ddff', '#ff00aa', '#ffdd00'];
+
+        // ── State ──
+        var beatPulse = 0, flashAlpha = 0;
+        var screenShakeX = 0, screenShakeY = 0, shakeIntensity = 0;
+        var elapsed = 0;
+        var scene = 'intro';
+        var sceneProgress = 0;
+        var lastSeqIndex = -1;
+
+        // Boss
+        var bossX = 0, bossY = 0, bossScale = 1;
+        var bossTargetScale = 1;
+        var bossBreathTimer = 0;
+        var bossEyeGlow = 0;
+        var bossHP = 1.0;
+        var bossHPTarget = 1.0;
+        var bossHPFlash = 0;
+        var bossArmPhase = 0;
+        var bossMouthOpen = 0;
+        var bossPixelSize = 4;
+
+        // Projectiles (arpeggios)
+        var projectiles = [];
+        var MAX_PROJ = 120;
+
+        // Attack projectiles from boss
+        var bossProjectiles = [];
+        var MAX_BOSS_PROJ = 60;
+
+        // Screen glitch
+        var glitchTimer = 0;
+        var glitchLines = [];
+        var glitchIntensity = 0;
+
+        // Explosion particles
+        var explosions = [];
+        var MAX_EXPLOSIONS = 200;
+
+        // Scanlines
+        var scanlineOffset = 0;
+
+        // HP bar
+        var playerHP = 1.0;
+        var playerHPTarget = 1.0;
+
+        // Stars (background)
+        var stars = [];
+
+        // Energy ring
+        var ringPhase = 0;
+
+        // Title
+        var titleAlpha = 0;
+        var titleTarget = 0;
+
+        // Section detection based on pattern IDs
+        // 0=Intense Intro, 1=Main Riff A, 2=Main Riff B, 3=Bridge-Chromatic,
+        // 4=Counter-Melody, 5=Climax Riff, 6=Loop Transition,
+        // 7=Counter->Climax Fill, 8=Breakdown-Bass, 9=Breakdown-Rising,
+        // 10=Intensity Build A, 11=Intensity Build B, 12=Bridge2-Bb,
+        // 13=Bridge2-Return, 14=Arp Frenzy, 15=Final Climax, 16=Ending Stinger
+        function detectScene(patternId) {
+            if (patternId === 0) return 'intro';
+            if (patternId === 1 || patternId === 2) return 'mainriff';
+            if (patternId === 3) return 'chromatic';
+            if (patternId === 4 || patternId === 7) return 'counter';
+            if (patternId === 5) return 'climax';
+            if (patternId === 6) return 'transition';
+            if (patternId === 8 || patternId === 9) return 'breakdown';
+            if (patternId === 10 || patternId === 11) return 'build';
+            if (patternId === 12 || patternId === 13) return 'bridge2';
+            if (patternId === 14) return 'arpfrenzy';
+            if (patternId === 15) return 'finalclimax';
+            if (patternId === 16) return 'ending';
+            return 'intro';
+        }
+
+        // ── Init stars ──
+        function initStars() {
+            stars = [];
+            for (var i = 0; i < 80; i++) {
+                stars.push({
+                    x: rand(0, W), y: rand(0, H * 0.7),
+                    size: rand(0.5, 2), bright: rand(0.2, 0.8),
+                    speed: rand(0.1, 0.5)
+                });
+            }
+        }
+
+        // ── Draw pixel-art boss silhouette ──
+        // A massive 8-bit monster built from rectangles
+        function drawBoss(ctx, energy) {
+            ctx.save();
+            var cx = bossX;
+            var baseY = bossY;
+            var s = bossScale * Math.min(H * 0.0035, 1.5);
+            var px = Math.max(2, Math.floor(bossPixelSize * s));
+            var breathOff = Math.sin(bossBreathTimer * 1.8) * 3 * s;
+            var armOff = Math.sin(bossArmPhase) * 8 * s;
+
+            // Shadow underneath
+            ctx.fillStyle = 'rgba(0,0,0,0.4)';
+            ctx.beginPath();
+            ctx.ellipse(cx, baseY + 5, 55 * s, 8 * s, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Helper to draw pixel blocks
+            function pxRect(x, y, w, h, color) {
+                ctx.fillStyle = color;
+                // Snap to pixel grid
+                var rx = cx + Math.round(x * s / px) * px;
+                var ry = baseY + Math.round(y * s / px) * px;
+                var rw = Math.max(px, Math.round(w * s / px) * px);
+                var rh = Math.max(px, Math.round(h * s / px) * px);
+                ctx.fillRect(rx, ry, rw, rh);
+            }
+
+            // Body glow
+            var glowAlpha = 0.1 + energy * 0.2 + beatPulse * 0.15;
+            ctx.shadowColor = rgba(BOSS_EYE, glowAlpha);
+            ctx.shadowBlur = 20 + energy * 40;
+
+            // ── Legs ──
+            pxRect(-30, -25 + breathOff, 16, 25, BOSS_DARK);
+            pxRect(14, -25 + breathOff, 16, 25, BOSS_DARK);
+            // Feet / claws
+            pxRect(-34, -4 + breathOff, 10, 6, '#2a0040');
+            pxRect(30, -4 + breathOff, 10, 6, '#2a0040');
+
+            // ── Main body ──
+            pxRect(-40, -90 + breathOff, 80, 65, BOSS_BODY);
+            // Chest plate / armor
+            pxRect(-30, -80 + breathOff, 60, 20, '#2a0045');
+            // Belly
+            pxRect(-25, -60 + breathOff, 50, 20, '#220035');
+
+            // ── Shoulder spikes ──
+            pxRect(-52, -95 + breathOff, 14, 14, '#3a0060');
+            pxRect(38, -95 + breathOff, 14, 14, '#3a0060');
+            pxRect(-48, -105 + breathOff, 8, 12, '#4a0080');
+            pxRect(40, -105 + breathOff, 8, 12, '#4a0080');
+
+            // ── Arms ──
+            pxRect(-55, -75 + breathOff + armOff, 16, 40, BOSS_DARK);
+            pxRect(39, -75 + breathOff - armOff, 16, 40, BOSS_DARK);
+            // Claws at hand
+            pxRect(-60, -38 + breathOff + armOff, 8, 10, PIXEL_RED);
+            pxRect(50, -38 + breathOff - armOff, 8, 10, PIXEL_RED);
+
+            // ── Head ──
+            pxRect(-28, -118 + breathOff, 56, 30, BOSS_BODY);
+            // Horns
+            pxRect(-36, -135 + breathOff, 10, 20, '#3a0060');
+            pxRect(26, -135 + breathOff, 10, 20, '#3a0060');
+            pxRect(-32, -145 + breathOff, 6, 12, '#4a0080');
+            pxRect(26, -145 + breathOff, 6, 12, '#4a0080');
+
+            // Crown spikes
+            pxRect(-18, -128 + breathOff, 6, 12, '#5500aa');
+            pxRect(-6, -132 + breathOff, 6, 16, '#5500aa');
+            pxRect(12, -128 + breathOff, 6, 12, '#5500aa');
+
+            ctx.shadowBlur = 0;
+
+            // ── Eyes (glowing) ──
+            var eyeR = bossEyeGlow;
+            var eyeColor = 'rgba(255,' + Math.floor(eyeR * 30) + ',' + Math.floor(68 + eyeR * 50) + ',' + (0.7 + eyeR * 0.3) + ')';
+            ctx.fillStyle = eyeColor;
+            ctx.shadowColor = BOSS_EYE;
+            ctx.shadowBlur = 15 + eyeR * 35;
+            pxRect(-20, -110 + breathOff, 10, 8, eyeColor);
+            pxRect(10, -110 + breathOff, 10, 8, eyeColor);
+            // Pupil scan
+            var pupilOff = Math.sin(elapsed * 2) * 2;
+            ctx.fillStyle = '#fff';
+            ctx.shadowBlur = 10;
+            pxRect(-16 + pupilOff, -108 + breathOff, 4, 4, '#fff');
+            pxRect(14 + pupilOff, -108 + breathOff, 4, 4, '#fff');
+
+            ctx.shadowBlur = 0;
+
+            // ── Mouth ──
+            var mouthH = 4 + bossMouthOpen * 12;
+            pxRect(-16, -95 + breathOff, 32, mouthH, '#0a0010');
+            // Teeth
+            if (bossMouthOpen > 0.2) {
+                for (var t = 0; t < 4; t++) {
+                    pxRect(-12 + t * 8, -95 + breathOff, 4, 4, '#ddccff');
+                }
+            }
+
+            // ── Energy core on chest (pulses with beat) ──
+            var coreAlpha = 0.5 + beatPulse * 0.5;
+            ctx.fillStyle = rgba(PIXEL_MAGENTA, coreAlpha);
+            ctx.shadowColor = PIXEL_MAGENTA;
+            ctx.shadowBlur = 20 + beatPulse * 30;
+            pxRect(-8, -72 + breathOff, 16, 12, rgba(PIXEL_MAGENTA, coreAlpha));
+            ctx.shadowBlur = 0;
+
+            ctx.restore();
+        }
+
+        // ── Draw HP bars ──
+        function drawHPBars(ctx) {
+            var barW = Math.min(W * 0.35, 300);
+            var barH = 14;
+            var px = 2;
+
+            // Boss HP (top center)
+            var bx = (W - barW) / 2;
+            var by = 30;
+
+            // Border
+            ctx.fillStyle = '#222';
+            ctx.fillRect(bx - 2, by - 2, barW + 4, barH + 4);
+            // Background
+            ctx.fillStyle = '#111';
+            ctx.fillRect(bx, by, barW, barH);
+            // HP fill
+            var hpW = barW * bossHP;
+            var hpColor = bossHP > 0.5 ? HP_GREEN : (bossHP > 0.25 ? PIXEL_YELLOW : HP_RED);
+            ctx.fillStyle = hpColor;
+            ctx.fillRect(bx, by, hpW, barH);
+            // Flash on damage
+            if (bossHPFlash > 0.01) {
+                ctx.fillStyle = rgba('#ffffff', bossHPFlash);
+                ctx.fillRect(bx, by, hpW, barH);
+            }
+            // Pixel grid overlay
+            ctx.fillStyle = 'rgba(0,0,0,0.2)';
+            for (var i = 0; i < barW; i += px * 4) {
+                ctx.fillRect(bx + i, by, 1, barH);
+            }
+            // Label
+            ctx.font = '8px "Press Start 2P", monospace';
+            ctx.fillStyle = '#fff';
+            ctx.textAlign = 'center';
+            ctx.fillText('MEGABYTE MENACE', W / 2, by - 6);
+
+            // Player HP (bottom left)
+            var py = H - 40;
+            var px2 = 20;
+            ctx.fillStyle = '#222';
+            ctx.fillRect(px2 - 2, py - 2, barW * 0.6 + 4, barH + 4);
+            ctx.fillStyle = '#111';
+            ctx.fillRect(px2, py, barW * 0.6, barH);
+            var phW = barW * 0.6 * playerHP;
+            ctx.fillStyle = playerHP > 0.5 ? PIXEL_CYAN : (playerHP > 0.25 ? PIXEL_YELLOW : HP_RED);
+            ctx.fillRect(px2, py, phW, barH);
+            ctx.fillStyle = 'rgba(0,0,0,0.2)';
+            for (var j = 0; j < barW * 0.6; j += 8) {
+                ctx.fillRect(px2 + j, py, 1, barH);
+            }
+            ctx.fillStyle = '#aaa';
+            ctx.textAlign = 'left';
+            ctx.fillText('HERO', px2, py - 6);
+        }
+
+        // ── Spawn arpeggio projectiles ──
+        function spawnProjectile(fromBoss, note, energy) {
+            if (projectiles.length >= MAX_PROJ) return;
+            var speed, startX, startY, dx, dy, col;
+            if (fromBoss) {
+                startX = bossX + rand(-30, 30) * bossScale;
+                startY = bossY - rand(40, 100) * bossScale;
+                dx = rand(-200, 200);
+                dy = rand(100, 300);
+                col = pickRandom([PIXEL_RED, PIXEL_MAGENTA, BOSS_EYE]);
+            } else {
+                startX = rand(20, W - 20);
+                startY = H - rand(20, 60);
+                dx = (bossX - startX) * rand(0.5, 1.5);
+                dy = -(rand(200, 500));
+                col = pickRandom([PIXEL_GREEN, PIXEL_CYAN, PIXEL_YELLOW]);
+            }
+            projectiles.push({
+                x: startX, y: startY,
+                vx: dx, vy: dy,
+                life: 1, decay: rand(0.5, 1.5),
+                size: rand(3, 7 + energy * 4),
+                color: col,
+                trail: [],
+                fromBoss: fromBoss
+            });
+        }
+
+        // ── Spawn explosion ──
+        function spawnExplosion(x, y, count, color) {
+            for (var i = 0; i < count; i++) {
+                if (explosions.length >= MAX_EXPLOSIONS) break;
+                var angle = rand(0, Math.PI * 2);
+                var speed = rand(50, 250);
+                explosions.push({
+                    x: x, y: y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    life: 1, decay: rand(1, 3),
+                    size: rand(2, 6),
+                    color: color || pickRandom(GLITCH_COLORS)
+                });
+            }
+        }
+
+        // ── Init glitch lines ──
+        function triggerGlitch(intensity) {
+            glitchTimer = 0.15 + intensity * 0.2;
+            glitchIntensity = intensity;
+            glitchLines = [];
+            var count = Math.floor(3 + intensity * 10);
+            for (var i = 0; i < count; i++) {
+                glitchLines.push({
+                    y: rand(0, H),
+                    h: rand(1, 6 + intensity * 10),
+                    offset: rand(-30, 30) * intensity,
+                    color: pickRandom(GLITCH_COLORS),
+                    alpha: rand(0.3, 0.8)
+                });
+            }
+        }
+
+        // ── INIT ──
+        function init(ctx, w, h, anal) {
+            W = w; H = h;
+            analysis = anal;
+            bossX = W * 0.5;
+            bossY = H * 0.55;
+            bossScale = 1;
+            bossTargetScale = 1;
+            bossHP = 1.0; bossHPTarget = 1.0;
+            playerHP = 1.0; playerHPTarget = 1.0;
+            bossEyeGlow = 0;
+            bossHPFlash = 0;
+            scene = 'intro';
+            sceneProgress = 0;
+            lastSeqIndex = -1;
+            beatPulse = 0; flashAlpha = 0;
+            screenShakeX = 0; screenShakeY = 0; shakeIntensity = 0;
+            elapsed = 0;
+            projectiles = [];
+            explosions = [];
+            glitchTimer = 0;
+            glitchLines = [];
+            titleAlpha = 0; titleTarget = 0;
+            bossBreathTimer = 0;
+            bossArmPhase = 0;
+            bossMouthOpen = 0;
+            ringPhase = 0;
+            scanlineOffset = 0;
+            initStars();
+        }
+
+        // ── RESIZE ──
+        function resize(w, h) {
+            W = w; H = h;
+            bossX = W * 0.5;
+            bossY = H * 0.55;
+            initStars();
+        }
+
+        // ── RENDER ──
+        function render(frameData) {
+            var ctx = frameData.ctx;
+            var dt = frameData.dt || 1/60;
+            var cursor = frameData.cursor;
+            beatPulse = frameData.beatPulse;
+            var currentNotes = frameData.currentNotes;
+            var anal = frameData.analysis;
+            var song = frameData.song;
+
+            W = frameData.width;
+            H = frameData.height;
+            elapsed += dt;
+            bossBreathTimer += dt;
+            bossArmPhase += dt * (2 + beatPulse * 6);
+            ringPhase += dt * 3;
+            scanlineOffset = (scanlineOffset + dt * 60) % 4;
+
+            // ── Determine state ──
+            var energy = 0;
+            var seqIndex = 0;
+            var patternId = 0;
+
+            if (cursor) {
+                var tIdx = cursor.timelineIndex || 0;
+                energy = (anal && anal.energy) ? (anal.energy[tIdx] || 0) : 0;
+                seqIndex = cursor.seqIndex || 0;
+
+                if (song && song.sequence && song.sequence[seqIndex]) {
+                    patternId = song.sequence[seqIndex][0];
+                    if (typeof patternId === 'undefined') patternId = 0;
+                }
+
+                var newScene = detectScene(patternId);
+                if (newScene !== scene) {
+                    scene = newScene;
+                    sceneProgress = 0;
+                    flashAlpha = 0.5;
+                    shakeIntensity = 12;
+                    triggerGlitch(0.5);
+                }
+                sceneProgress += dt;
+
+                // Beat effects
+                if (frameData.beatChanged) {
+                    // Stomp shake
+                    if (energy > 0.3) {
+                        shakeIntensity = Math.max(shakeIntensity, energy * 15);
+                    }
+
+                    // Spawn projectiles on notes
+                    if (currentNotes) {
+                        for (var ch = 0; ch < currentNotes.length; ch++) {
+                            if (currentNotes[ch] && currentNotes[ch].midi) {
+                                // Arpeggios = cascading attack projectiles
+                                if (ch < 2 && energy > 0.2) {
+                                    spawnProjectile(false, currentNotes[ch], energy);
+                                }
+                                // Bass channel = boss attacks
+                                if (ch === 2 && energy > 0.4) {
+                                    spawnProjectile(true, currentNotes[ch], energy);
+                                }
+                            }
+                        }
+                        // Percussion = explosions
+                        if (currentNotes[3] && energy > 0.3) {
+                            spawnExplosion(
+                                bossX + rand(-60, 60) * bossScale,
+                                bossY - rand(20, 80) * bossScale,
+                                Math.floor(3 + energy * 6),
+                                null
+                            );
+                        }
+                    }
+
+                    // Boss roar on strong beats
+                    if (energy > 0.7 && Math.floor(cursor.beat) % 4 === 0) {
+                        bossMouthOpen = 1;
+                        flashAlpha = Math.max(flashAlpha, 0.25);
+                    }
+
+                    // Glitch on chromatic tension
+                    if (scene === 'chromatic' || scene === 'arpfrenzy') {
+                        triggerGlitch(energy * 0.7);
+                    }
+                }
+
+                // Sequence change
+                if (seqIndex !== lastSeqIndex) {
+                    lastSeqIndex = seqIndex;
+                    // Boss HP decreases through the song
+                    var progress = seqIndex / (song.sequence.length || 1);
+                    bossHPTarget = Math.max(0, 1 - progress * 1.1);
+                    // Player takes some hits too
+                    if (scene === 'breakdown' || scene === 'bridge2') {
+                        playerHPTarget = Math.max(0.15, playerHPTarget - 0.05);
+                    }
+                }
+            } else {
+                energy = 0.1 + Math.sin(elapsed * 0.5) * 0.05;
+            }
+
+            // ── Scene-specific behavior ──
+            switch (scene) {
+                case 'intro':
+                    bossTargetScale = 0.8 + sceneProgress * 0.1;
+                    bossEyeGlow = lerpExp(bossEyeGlow, 0.3 + energy * 0.3, 3, dt);
+                    titleTarget = clamp01(sceneProgress * 0.8);
+                    break;
+                case 'mainriff':
+                    bossTargetScale = 1.0 + energy * 0.15;
+                    bossEyeGlow = lerpExp(bossEyeGlow, 0.7 + energy * 0.3, 4, dt);
+                    titleTarget = Math.max(0, 1 - sceneProgress * 0.4);
+                    break;
+                case 'chromatic':
+                    bossTargetScale = 1.1 + energy * 0.1;
+                    bossEyeGlow = 1;
+                    titleTarget = 0;
+                    // Extra glitch effect
+                    if (Math.random() < energy * 0.3 * dt * 60) {
+                        triggerGlitch(energy * 0.5);
+                    }
+                    break;
+                case 'counter':
+                    bossTargetScale = 1.0 + energy * 0.1;
+                    bossEyeGlow = lerpExp(bossEyeGlow, 0.5 + energy * 0.3, 3, dt);
+                    titleTarget = 0;
+                    break;
+                case 'climax':
+                    bossTargetScale = 1.2 + energy * 0.2;
+                    bossEyeGlow = 1;
+                    titleTarget = 0;
+                    // Extra projectiles
+                    if (Math.random() < energy * 0.5 * dt * 60) {
+                        spawnProjectile(Math.random() < 0.4, null, energy);
+                    }
+                    break;
+                case 'breakdown':
+                    bossTargetScale = 0.9;
+                    bossEyeGlow = lerpExp(bossEyeGlow, 0.3 + Math.sin(elapsed * 3) * 0.2, 3, dt);
+                    titleTarget = 0;
+                    break;
+                case 'build':
+                    bossTargetScale = 0.95 + sceneProgress * 0.05;
+                    bossEyeGlow = lerpExp(bossEyeGlow, 0.4 + sceneProgress * 0.2, 3, dt);
+                    titleTarget = 0;
+                    break;
+                case 'bridge2':
+                    bossTargetScale = 1.05 + energy * 0.1;
+                    bossEyeGlow = lerpExp(bossEyeGlow, 0.6 + energy * 0.2, 3, dt);
+                    titleTarget = 0;
+                    break;
+                case 'arpfrenzy':
+                    bossTargetScale = 1.15 + energy * 0.15;
+                    bossEyeGlow = 1;
+                    titleTarget = 0;
+                    // Lots of projectiles
+                    if (Math.random() < energy * 0.7 * dt * 60) {
+                        spawnProjectile(false, null, energy);
+                        spawnProjectile(false, null, energy);
+                    }
+                    break;
+                case 'finalclimax':
+                    bossTargetScale = 1.3 + energy * 0.25;
+                    bossEyeGlow = 1;
+                    titleTarget = sceneProgress > 2 ? clamp01((sceneProgress - 2) * 0.3) : 0;
+                    // Maximum chaos
+                    if (Math.random() < 0.6 * dt * 60) {
+                        spawnProjectile(Math.random() < 0.3, null, 1);
+                        spawnExplosion(rand(0, W), rand(0, H * 0.7), 3, null);
+                    }
+                    if (Math.random() < energy * 0.2 * dt * 60) {
+                        triggerGlitch(0.4);
+                    }
+                    break;
+                case 'ending':
+                    bossTargetScale = lerpExp(bossScale, 1.5, 0.5, dt);
+                    bossEyeGlow = lerpExp(bossEyeGlow, 0.1, 2, dt);
+                    titleTarget = 1;
+                    // Final explosion
+                    if (sceneProgress < 0.5 && Math.random() < 0.4 * dt * 60) {
+                        spawnExplosion(bossX + rand(-80, 80), bossY + rand(-100, 20), 8, '#fff');
+                        shakeIntensity = Math.max(shakeIntensity, 20);
+                        triggerGlitch(1);
+                    }
+                    break;
+                default:
+                    bossTargetScale = 1;
+                    bossEyeGlow = 0.5;
+                    titleTarget = 0;
+            }
+
+            // ── Smooth updates ──
+            bossScale = lerpExp(bossScale, bossTargetScale, 3, dt);
+            bossHP = lerpExp(bossHP, bossHPTarget, 2, dt);
+            playerHP = lerpExp(playerHP, playerHPTarget, 2, dt);
+            bossHPFlash *= Math.exp(-5 * dt);
+            bossMouthOpen *= Math.exp(-4 * dt);
+            flashAlpha *= Math.exp(-4 * dt);
+            shakeIntensity *= Math.exp(-8 * dt);
+            glitchTimer = Math.max(0, glitchTimer - dt);
+
+            // Screen shake
+            if (shakeIntensity > 0.5) {
+                screenShakeX = (Math.random() - 0.5) * shakeIntensity;
+                screenShakeY = (Math.random() - 0.5) * shakeIntensity;
+            } else {
+                screenShakeX = 0;
+                screenShakeY = 0;
+            }
+
+            // Update projectiles
+            for (var pi = projectiles.length - 1; pi >= 0; pi--) {
+                var p = projectiles[pi];
+                p.x += p.vx * dt;
+                p.y += p.vy * dt;
+                p.life -= p.decay * dt;
+                // Trail
+                p.trail.push({ x: p.x, y: p.y });
+                if (p.trail.length > 8) p.trail.shift();
+                // Hit detection against boss
+                if (!p.fromBoss) {
+                    var dx = p.x - bossX;
+                    var dy = p.y - bossY + 50 * bossScale;
+                    if (Math.abs(dx) < 50 * bossScale && Math.abs(dy) < 80 * bossScale && p.life > 0.3) {
+                        spawnExplosion(p.x, p.y, 5, p.color);
+                        p.life = 0;
+                        bossHPFlash = 0.5;
+                        shakeIntensity = Math.max(shakeIntensity, 4);
+                    }
+                }
+                if (p.life <= 0 || p.y > H + 20 || p.y < -20 || p.x < -20 || p.x > W + 20) {
+                    projectiles.splice(pi, 1);
+                }
+            }
+
+            // Update explosions
+            for (var ei = explosions.length - 1; ei >= 0; ei--) {
+                var e = explosions[ei];
+                e.x += e.vx * dt;
+                e.y += e.vy * dt;
+                e.vy += 150 * dt;
+                e.life -= e.decay * dt;
+                if (e.life <= 0) explosions.splice(ei, 1);
+            }
+
+            // Update stars
+            for (var si = 0; si < stars.length; si++) {
+                var st = stars[si];
+                st.y += st.speed * energy * 50 * dt;
+                if (st.y > H * 0.7) {
+                    st.y = 0;
+                    st.x = rand(0, W);
+                }
+            }
+
+            // ── DRAW ──
+            ctx.save();
+            ctx.translate(screenShakeX, screenShakeY);
+
+            // 1. Background gradient
+            var grad = ctx.createLinearGradient(0, 0, 0, H);
+            var bgR = Math.floor(6 + energy * 20);
+            var bgB = Math.floor(10 + energy * 30);
+            grad.addColorStop(0, 'rgb(' + bgR + ',0,' + bgB + ')');
+            grad.addColorStop(0.5, 'rgb(' + Math.floor(bgR * 0.5) + ',0,' + Math.floor(bgB * 0.7) + ')');
+            grad.addColorStop(1, '#020005');
+            ctx.fillStyle = grad;
+            ctx.fillRect(-20, -20, W + 40, H + 40);
+
+            // 2. Stars
+            for (var si2 = 0; si2 < stars.length; si2++) {
+                var star = stars[si2];
+                var sa = star.bright * (0.3 + energy * 0.5);
+                ctx.fillStyle = 'rgba(200,180,255,' + sa + ')';
+                ctx.fillRect(Math.floor(star.x), Math.floor(star.y), star.size, star.size);
+            }
+
+            // 3. Grid floor (pixel-art perspective)
+            var floorY = H * 0.65;
+            ctx.strokeStyle = rgba(PIXEL_MAGENTA, 0.08 + energy * 0.1);
+            ctx.lineWidth = 1;
+            // Horizontal lines
+            for (var gy = floorY; gy < H; gy += 20) {
+                var alpha = (gy - floorY) / (H - floorY);
+                ctx.strokeStyle = rgba(PIXEL_MAGENTA, alpha * (0.06 + energy * 0.08));
+                ctx.beginPath();
+                ctx.moveTo(0, gy);
+                ctx.lineTo(W, gy);
+                ctx.stroke();
+            }
+            // Vertical converging lines
+            var vanishX = W * 0.5;
+            for (var gx = 0; gx <= W; gx += 60) {
+                ctx.strokeStyle = rgba(PIXEL_CYAN, 0.03 + energy * 0.05);
+                ctx.beginPath();
+                ctx.moveTo(vanishX, floorY);
+                ctx.lineTo(gx, H);
+                ctx.stroke();
+            }
+
+            // 4. Energy ring around boss
+            if (energy > 0.3) {
+                ctx.save();
+                ctx.translate(bossX, bossY - 50 * bossScale);
+                var ringR = 80 * bossScale + beatPulse * 20;
+                var ringSegments = 24;
+                for (var ri = 0; ri < ringSegments; ri++) {
+                    var a1 = (ri / ringSegments) * Math.PI * 2 + ringPhase;
+                    var a2 = ((ri + 0.7) / ringSegments) * Math.PI * 2 + ringPhase;
+                    var segAlpha = (0.1 + energy * 0.3) * (0.5 + 0.5 * Math.sin(ri * 3 + elapsed * 4));
+                    ctx.strokeStyle = rgba(ri % 2 === 0 ? PIXEL_MAGENTA : BOSS_EYE, segAlpha);
+                    ctx.lineWidth = 2 + beatPulse * 3;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, ringR, a1, a2);
+                    ctx.stroke();
+                }
+                ctx.restore();
+            }
+
+            // 5. Boss
+            drawBoss(ctx, energy);
+
+            // 6. Projectiles with trails
+            for (var pj = 0; pj < projectiles.length; pj++) {
+                var proj = projectiles[pj];
+                // Trail
+                if (proj.trail.length > 1) {
+                    ctx.strokeStyle = rgba(proj.color, proj.life * 0.3);
+                    ctx.lineWidth = proj.size * 0.5;
+                    ctx.beginPath();
+                    ctx.moveTo(proj.trail[0].x, proj.trail[0].y);
+                    for (var ti = 1; ti < proj.trail.length; ti++) {
+                        ctx.lineTo(proj.trail[ti].x, proj.trail[ti].y);
+                    }
+                    ctx.stroke();
+                }
+                // Core
+                ctx.fillStyle = rgba(proj.color, proj.life * 0.9);
+                ctx.shadowColor = proj.color;
+                ctx.shadowBlur = 10;
+                ctx.beginPath();
+                ctx.arc(proj.x, proj.y, proj.size * proj.life, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+
+            // 7. Explosions
+            for (var ej = 0; ej < explosions.length; ej++) {
+                var exp = explosions[ej];
+                ctx.fillStyle = rgba(exp.color, exp.life * 0.8);
+                var es = exp.size * (0.3 + exp.life * 0.7);
+                ctx.fillRect(Math.floor(exp.x - es/2), Math.floor(exp.y - es/2), Math.ceil(es), Math.ceil(es));
+            }
+
+            ctx.restore();
+
+            // 8. HP Bars (not affected by shake)
+            if (cursor) {
+                drawHPBars(ctx);
+            }
+
+            // 9. Scanlines
+            ctx.fillStyle = 'rgba(0,0,0,0.06)';
+            for (var sl = scanlineOffset; sl < H; sl += 4) {
+                ctx.fillRect(0, sl, W, 1);
+            }
+
+            // 10. Glitch effect
+            if (glitchTimer > 0) {
+                for (var gi = 0; gi < glitchLines.length; gi++) {
+                    var gl = glitchLines[gi];
+                    ctx.fillStyle = rgba(gl.color, gl.alpha * glitchTimer * 3);
+                    ctx.fillRect(gl.offset, gl.y, W, gl.h);
+                    // RGB split
+                    ctx.globalCompositeOperation = 'screen';
+                    ctx.fillStyle = rgba('#ff0000', gl.alpha * glitchTimer * 0.3);
+                    ctx.fillRect(gl.offset - 3, gl.y, W, gl.h);
+                    ctx.fillStyle = rgba('#0000ff', gl.alpha * glitchTimer * 0.3);
+                    ctx.fillRect(gl.offset + 3, gl.y, W, gl.h);
+                    ctx.globalCompositeOperation = 'source-over';
+                }
+            }
+
+            // 11. Title
+            if (titleAlpha > 0.01) {
+                titleAlpha = lerpExp(titleAlpha, titleTarget, 2, dt);
+                ctx.save();
+                var fontSize = Math.floor(Math.min(W * 0.05, 36));
+                ctx.font = fontSize + 'px "Press Start 2P", monospace';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.shadowColor = rgba(BOSS_EYE, titleAlpha);
+                ctx.shadowBlur = 30;
+                ctx.fillStyle = rgba(BOSS_EYE, titleAlpha);
+                ctx.fillText('MEGABYTE MENACE', W / 2, H * 0.12);
+                ctx.shadowColor = '#fff';
+                ctx.shadowBlur = 15;
+                ctx.fillStyle = rgba('#ffffff', titleAlpha * 0.6);
+                ctx.fillText('MEGABYTE MENACE', W / 2, H * 0.12);
+                ctx.restore();
+            } else {
+                titleAlpha = lerpExp(titleAlpha, titleTarget, 2, dt);
+            }
+
+            // 12. Vignette
+            var vig = ctx.createRadialGradient(W / 2, H / 2, W * 0.25, W / 2, H / 2, W * 0.75);
+            vig.addColorStop(0, 'rgba(0,0,0,0)');
+            vig.addColorStop(1, 'rgba(0,0,0,' + (0.5 + (1 - energy) * 0.2) + ')');
+            ctx.fillStyle = vig;
+            ctx.fillRect(0, 0, W, H);
+
+            // 13. Flash
+            if (flashAlpha > 0.01) {
+                ctx.fillStyle = 'rgba(255,200,255,' + flashAlpha + ')';
+                ctx.fillRect(0, 0, W, H);
+            }
+
+            // 14. Beat pulse border
+            if (beatPulse > 0.05) {
+                ctx.save();
+                ctx.strokeStyle = rgba(BOSS_EYE, beatPulse * 0.4);
+                ctx.lineWidth = 2 + beatPulse * 4;
+                ctx.shadowColor = BOSS_EYE;
+                ctx.shadowBlur = 15;
+                ctx.strokeRect(2, 2, W - 4, H - 4);
+                ctx.restore();
+            }
+        }
+
+        BaseRenderer('boss-battle-video', 'Megabyte Menace Video', {
+            beatDecay: 10,
+            init: init, render: render, resize: resize
+        });
+    })();
+
+    // ── Page bootstrap ──
+    (function() {
+        var canvas = document.getElementById('viz-canvas');
+        var overlay = document.getElementById('play-overlay');
+
+        Visualizer.init(canvas);
+        Visualizer.setRenderer('boss-battle-video');
+
+        function loadAndPlay(json) {
+            Visualizer.loadSong(json);
+            Visualizer.play();
+        }
+
+        function fetchSong() {
+            var url = '../audio-tracker/songs/boss-battle.json';
+            if (window.fetch && location.protocol !== 'file:') {
+                return fetch(url).then(function(r) { return r.json(); });
+            }
+            return new Promise(function(resolve, reject) {
+                var xhr = new XMLHttpRequest();
+                xhr.open('GET', url, true);
+                xhr.onload = function() {
+                    if (xhr.status === 200 || xhr.status === 0) {
+                        resolve(JSON.parse(xhr.responseText));
+                    } else {
+                        reject(new Error('XHR failed: ' + xhr.status));
+                    }
+                };
+                xhr.onerror = function() { reject(new Error('XHR error')); };
+                xhr.send();
+            });
+        }
+
+        overlay.addEventListener('click', function() {
+            overlay.classList.add('hidden');
+            fetchSong().then(loadAndPlay).catch(function(err) {
+                console.error('Failed to load song:', err);
+                overlay.classList.remove('hidden');
+            });
+        });
+
+        if (new URLSearchParams(window.location.search).get('autoplay') === '1') {
+            overlay.click();
+        }
+
+        canvas.addEventListener('click', function() {
+            if (overlay.classList.contains('hidden')) {
+                if (Visualizer.isPlaying()) {
+                    Visualizer.stop();
+                } else {
+                    Visualizer.play();
+                }
+            }
+        });
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crystal Caverns — Music Video</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="video-base-styles.css">
+    <style>
+        :root {
+            --vid-bg: #060818;
+            --vid-bg-rgb: 6,8,24;
+            --vid-font: 'Cinzel', serif;
+            --vid-accent: #7eb8ff;
+            --vid-accent-r: 126;
+            --vid-accent-g: 184;
+            --vid-accent-b: 255;
+        }
+    </style>
+</head>
+<body>
+    <a href="music-videos/index.html" class="back-link">&larr; Music Videos</a>
+    <canvas id="viz-canvas"></canvas>
+    <div class="play-overlay" id="play-overlay">
+        <div class="play-title">Crystal Caverns</div>
+        <div class="play-sub">ethereal light refracting through ancient stone</div>
+        <div class="play-btn"></div>
+    </div>
+
+    <script src="../audio-tracker/playback-engine.js"></script>
+    <script src="engine.js"></script>
+    <script src="video-utils.js"></script>
+    <script src="base-renderer.js"></script>
+    <script>
+    // -- Crystal Caverns Video Renderer --
+    (function() {
+        "use strict";
+
+        var W = 0, H = 0;
+        var analysis = null;
+        var globalTime = 0;
+        var beatPulse = 0;
+        var flashAlpha = 0;
+        var lastSeqIndex = -1;
+
+        // -- Palette: prismatic crystal tones --
+        var CRYSTAL_COLORS = [
+            '#7eb8ff', '#b388ff', '#80cbc4', '#f8bbd0',
+            '#b2ebf2', '#ce93d8', '#a5d6a7', '#fff59d'
+        ];
+        var DEEP_COLORS = [
+            '#3949ab', '#5c6bc0', '#7986cb', '#9fa8da'
+        ];
+
+        // -- Crystal objects --
+        var crystals = [];
+        var sparkles = [];
+        var ripples = [];
+        var lightRays = [];
+        var stalactites = [];
+        var reflections = [];
+
+        // Section state
+        var sectionName = 'silence';
+        var activity = 0;
+        var activityTarget = 0;
+        var titleAlpha = 0;
+        var titleTarget = 0;
+
+        // -- Helper --
+        function crystalColor(idx) {
+            return CRYSTAL_COLORS[idx % CRYSTAL_COLORS.length];
+        }
+
+        function rgbFromHex(hex) {
+            return [
+                parseInt(hex.slice(1,3), 16),
+                parseInt(hex.slice(3,5), 16),
+                parseInt(hex.slice(5,7), 16)
+            ];
+        }
+
+        function rgbaStr(hex, alpha) {
+            var c = rgbFromHex(hex);
+            return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + alpha + ')';
+        }
+
+        // -- Section mapping (19 sequences) --
+        // 0: Silence-Drips, 1: Intro-Harp, 2: Intro-FirstVib,
+        // 3-4: A Crystal Theme, 5-6: B Bell Shimmer,
+        // 7: Bridge, 8: A Var Rising, 9: B Var Descending,
+        // 10-11: A' Full Crystal, 12-13: B repeat,
+        // 14-15: A' repeat, 16: Outro Fading, 17: Outro Last, 18: Silence
+        function mapSection(seqIdx) {
+            if (seqIdx <= 0) return 'drips';
+            if (seqIdx <= 1) return 'awakening';
+            if (seqIdx <= 2) return 'firstlight';
+            if (seqIdx <= 4) return 'crystaltheme';
+            if (seqIdx <= 6) return 'bellshimmer';
+            if (seqIdx <= 7) return 'bridge';
+            if (seqIdx <= 8) return 'rising';
+            if (seqIdx <= 9) return 'descending';
+            if (seqIdx <= 11) return 'fullcrystal';
+            if (seqIdx <= 13) return 'bellshimmer2';
+            if (seqIdx <= 15) return 'climax';
+            if (seqIdx <= 16) return 'fading';
+            if (seqIdx <= 17) return 'lastlight';
+            return 'silence';
+        }
+
+        function mapActivity(section) {
+            switch (section) {
+                case 'silence': return 0;
+                case 'drips': return 0.1;
+                case 'awakening': return 0.25;
+                case 'firstlight': return 0.4;
+                case 'crystaltheme': return 0.65;
+                case 'bellshimmer': return 0.75;
+                case 'bridge': return 0.5;
+                case 'rising': return 0.7;
+                case 'descending': return 0.65;
+                case 'fullcrystal': return 0.85;
+                case 'bellshimmer2': return 0.8;
+                case 'climax': return 1.0;
+                case 'fading': return 0.35;
+                case 'lastlight': return 0.15;
+                default: return 0;
+            }
+        }
+
+        // -- Floating Crystal --
+        function createCrystal(forcePos) {
+            var x = forcePos ? forcePos.x : Math.random() * W;
+            var y = forcePos ? forcePos.y : H * 0.2 + Math.random() * H * 0.6;
+            var size = 15 + Math.random() * 45;
+            return {
+                x: x, y: y,
+                baseX: x, baseY: y,
+                size: size,
+                sides: 5 + Math.floor(Math.random() * 4), // 5-8 sides
+                rotation: Math.random() * Math.PI * 2,
+                rotSpeed: (Math.random() - 0.5) * 0.3,
+                driftPhase: Math.random() * Math.PI * 2,
+                driftAmpX: 5 + Math.random() * 20,
+                driftAmpY: 3 + Math.random() * 12,
+                colorIdx: Math.floor(Math.random() * CRYSTAL_COLORS.length),
+                innerGlow: 0.3 + Math.random() * 0.3,
+                facetAlpha: 0.1 + Math.random() * 0.2,
+                pulse: 0,
+                refractionAngle: Math.random() * Math.PI * 2,
+                depth: 0.3 + Math.random() * 0.7 // parallax depth
+            };
+        }
+
+        function drawCrystal(ctx, c, energy) {
+            var col = crystalColor(c.colorIdx);
+            var glow = c.innerGlow + c.pulse * 0.5 + energy * 0.3;
+
+            ctx.save();
+            ctx.translate(c.x, c.y);
+            ctx.rotate(c.rotation);
+
+            // Outer glow
+            ctx.shadowBlur = 15 + energy * 25 + c.pulse * 20;
+            ctx.shadowColor = col;
+
+            // Crystal body (faceted polygon)
+            ctx.beginPath();
+            for (var i = 0; i <= c.sides; i++) {
+                var angle = (i / c.sides) * Math.PI * 2;
+                var r = c.size * (0.8 + Math.sin(angle * 3 + c.refractionAngle) * 0.2);
+                var px = Math.cos(angle) * r;
+                var py = Math.sin(angle) * r;
+                if (i === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+            ctx.fillStyle = rgbaStr(col, c.facetAlpha * glow);
+            ctx.fill();
+
+            // Inner bright core
+            ctx.shadowBlur = 0;
+            ctx.beginPath();
+            ctx.arc(0, 0, c.size * 0.25, 0, Math.PI * 2);
+            ctx.fillStyle = rgbaStr('#ffffff', glow * 0.4);
+            ctx.fill();
+
+            // Facet lines
+            ctx.strokeStyle = rgbaStr(col, glow * 0.5);
+            ctx.lineWidth = 0.8;
+            for (var f = 0; f < c.sides; f++) {
+                var fa = (f / c.sides) * Math.PI * 2;
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                var fr = c.size * (0.8 + Math.sin(fa * 3 + c.refractionAngle) * 0.2);
+                ctx.lineTo(Math.cos(fa) * fr, Math.sin(fa) * fr);
+                ctx.stroke();
+            }
+
+            // Refraction highlight
+            var highlightAngle = c.refractionAngle + globalTime * 0.2;
+            var hx = Math.cos(highlightAngle) * c.size * 0.4;
+            var hy = Math.sin(highlightAngle) * c.size * 0.3;
+            ctx.fillStyle = rgbaStr('#ffffff', glow * 0.3 + c.pulse * 0.2);
+            ctx.beginPath();
+            ctx.ellipse(hx, hy, c.size * 0.15, c.size * 0.08, highlightAngle, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        // -- Sparkle particles (harp arpeggios) --
+        function createSparkle(x, y) {
+            return {
+                x: x, y: y,
+                vx: (Math.random() - 0.5) * 60,
+                vy: (Math.random() - 0.5) * 60 - 20,
+                size: 1 + Math.random() * 3,
+                life: 1.0,
+                colorIdx: Math.floor(Math.random() * CRYSTAL_COLORS.length),
+                twinklePhase: Math.random() * Math.PI * 2
+            };
+        }
+
+        // -- Ripple (vibraphone hits) --
+        function createRipple(x, y, colorIdx) {
+            return {
+                x: x, y: y,
+                radius: 0,
+                maxRadius: 80 + Math.random() * 120,
+                speed: 60 + Math.random() * 40,
+                life: 1.0,
+                colorIdx: colorIdx || Math.floor(Math.random() * CRYSTAL_COLORS.length)
+            };
+        }
+
+        // -- Light ray (bell accents, prismatic) --
+        function createLightRay(x, y) {
+            return {
+                x: x, y: y,
+                angle: Math.random() * Math.PI * 2,
+                length: 50 + Math.random() * 200,
+                width: 2 + Math.random() * 6,
+                life: 1.0,
+                colorIdx: Math.floor(Math.random() * CRYSTAL_COLORS.length),
+                spread: 0.05 + Math.random() * 0.15
+            };
+        }
+
+        // -- Stalactites (cavern geometry) --
+        function createStalactite(fromTop) {
+            var x = Math.random() * W;
+            return {
+                x: x,
+                y: fromTop ? 0 : H,
+                length: 40 + Math.random() * 120,
+                width: 4 + Math.random() * 12,
+                fromTop: fromTop,
+                colorIdx: Math.floor(Math.random() * DEEP_COLORS.length),
+                glowPhase: Math.random() * Math.PI * 2
+            };
+        }
+
+        // -- Reflections (water surface at bottom) --
+        function createReflection() {
+            return {
+                x: Math.random() * W,
+                width: 20 + Math.random() * 60,
+                phase: Math.random() * Math.PI * 2,
+                colorIdx: Math.floor(Math.random() * CRYSTAL_COLORS.length),
+                speed: 0.5 + Math.random() * 1.5
+            };
+        }
+
+        // -- Cavern background --
+        function drawCavernBg(ctx, energy) {
+            // Deep gradient
+            var grad = ctx.createLinearGradient(0, 0, 0, H);
+            grad.addColorStop(0, '#030612');
+            grad.addColorStop(0.3, '#060818');
+            grad.addColorStop(0.7, '#0a0c28');
+            grad.addColorStop(1, '#080620');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, W, H);
+
+            // Subtle ambient glow from crystals
+            if (activity > 0.1) {
+                ctx.save();
+                ctx.globalCompositeOperation = 'lighter';
+                var ambientGrad = ctx.createRadialGradient(W * 0.5, H * 0.4, 0, W * 0.5, H * 0.4, Math.max(W, H) * 0.6);
+                var ambCol = crystalColor(Math.floor(globalTime * 0.3) % CRYSTAL_COLORS.length);
+                ambientGrad.addColorStop(0, rgbaStr(ambCol, 0.015 + energy * 0.02));
+                ambientGrad.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.fillStyle = ambientGrad;
+                ctx.fillRect(0, 0, W, H);
+                ctx.restore();
+            }
+        }
+
+        // -- Stalactite drawing --
+        function drawStalactites(ctx, energy) {
+            for (var i = 0; i < stalactites.length; i++) {
+                var s = stalactites[i];
+                var col = DEEP_COLORS[s.colorIdx % DEEP_COLORS.length];
+                var glowAmount = 0.15 + Math.sin(s.glowPhase + globalTime * 0.8) * 0.08 + energy * 0.1;
+
+                ctx.save();
+                ctx.fillStyle = rgbaStr(col, glowAmount);
+
+                var tipY = s.fromTop ? s.length : H - s.length;
+                ctx.beginPath();
+                ctx.moveTo(s.x - s.width * 0.5, s.y);
+                ctx.lineTo(s.x + s.width * 0.5, s.y);
+                ctx.lineTo(s.x, tipY);
+                ctx.closePath();
+                ctx.fill();
+
+                // Tiny glow at tip
+                if (activity > 0.3) {
+                    ctx.shadowBlur = 8 + energy * 10;
+                    ctx.shadowColor = crystalColor(s.colorIdx % CRYSTAL_COLORS.length);
+                    ctx.fillStyle = rgbaStr(crystalColor(s.colorIdx % CRYSTAL_COLORS.length), glowAmount * 0.5);
+                    ctx.beginPath();
+                    ctx.arc(s.x, tipY, 2 + energy * 2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                ctx.restore();
+            }
+        }
+
+        // -- Water reflections at bottom --
+        function drawWaterSurface(ctx, energy) {
+            if (activity < 0.1) return;
+
+            var waterY = H * 0.88;
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+
+            // Subtle water line
+            var waterGrad = ctx.createLinearGradient(0, waterY - 10, 0, H);
+            waterGrad.addColorStop(0, 'rgba(0,0,0,0)');
+            waterGrad.addColorStop(0.1, rgbaStr('#7eb8ff', 0.03 + energy * 0.03));
+            waterGrad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = waterGrad;
+            ctx.fillRect(0, waterY - 10, W, H - waterY + 10);
+
+            // Moving reflections
+            for (var i = 0; i < reflections.length; i++) {
+                var r = reflections[i];
+                var rx = r.x + Math.sin(r.phase + globalTime * r.speed) * 30;
+                var ry = waterY + 5 + Math.sin(r.phase * 2 + globalTime * 0.7) * 8;
+                var rAlpha = (0.05 + energy * 0.08 + beatPulse * 0.05) * activity;
+                var rcol = crystalColor(r.colorIdx);
+
+                ctx.fillStyle = rgbaStr(rcol, rAlpha);
+                ctx.shadowBlur = 6;
+                ctx.shadowColor = rcol;
+                ctx.beginPath();
+                ctx.ellipse(rx, ry, r.width * 0.5, 2, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            ctx.restore();
+        }
+
+        // -- Prismatic light burst (bell accents) --
+        function drawLightRays(ctx) {
+            if (lightRays.length === 0) return;
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            for (var i = lightRays.length - 1; i >= 0; i--) {
+                var ray = lightRays[i];
+                var col = crystalColor(ray.colorIdx);
+                var alpha = ray.life * 0.5;
+
+                ctx.save();
+                ctx.translate(ray.x, ray.y);
+                ctx.rotate(ray.angle);
+
+                var grad = ctx.createLinearGradient(0, 0, ray.length * ray.life, 0);
+                grad.addColorStop(0, rgbaStr(col, alpha));
+                grad.addColorStop(1, 'rgba(0,0,0,0)');
+
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.moveTo(0, -ray.width * 0.5);
+                ctx.lineTo(ray.length * ray.life, -ray.spread * ray.length * 0.5);
+                ctx.lineTo(ray.length * ray.life, ray.spread * ray.length * 0.5);
+                ctx.lineTo(0, ray.width * 0.5);
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.restore();
+            }
+            ctx.restore();
+        }
+
+        // -- Title --
+        function drawTitle(ctx) {
+            if (titleAlpha < 0.01) return;
+            var fontSize = Math.max(16, Math.min(W * 0.04, 48));
+            ctx.save();
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.font = '700 ' + fontSize + 'px "Cinzel", serif';
+
+            var text = 'CRYSTAL CAVERNS';
+            var y = H * 0.12;
+
+            ctx.globalAlpha = titleAlpha * 0.5;
+            ctx.shadowColor = '#7eb8ff';
+            ctx.shadowBlur = 60;
+            ctx.fillStyle = '#7eb8ff';
+            ctx.fillText(text, W / 2, y);
+
+            ctx.globalAlpha = titleAlpha;
+            ctx.shadowBlur = 30;
+            ctx.fillStyle = '#e0e8ff';
+            ctx.fillText(text, W / 2, y);
+
+            ctx.restore();
+        }
+
+        // -- Flash overlay --
+        function drawFlash(ctx) {
+            if (flashAlpha < 0.005) return;
+            ctx.save();
+            var grad = ctx.createRadialGradient(W * 0.5, H * 0.5, 0, W * 0.5, H * 0.5, Math.max(W, H) * 0.5);
+            grad.addColorStop(0, rgbaStr('#b388ff', flashAlpha * 0.4));
+            grad.addColorStop(0.5, rgbaStr('#7eb8ff', flashAlpha * 0.2));
+            grad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, W, H);
+            ctx.restore();
+        }
+
+        // -- Init --
+        function init(ctx, width, height, anal) {
+            W = width; H = height;
+            analysis = anal;
+            globalTime = 0;
+            beatPulse = 0;
+            flashAlpha = 0;
+            lastSeqIndex = -1;
+            sectionName = 'silence';
+            activity = 0;
+            activityTarget = 0;
+            titleAlpha = 0;
+            titleTarget = 0;
+
+            // Floating crystals
+            crystals = [];
+            for (var i = 0; i < 18; i++) crystals.push(createCrystal());
+
+            // Initial sparkle cloud
+            sparkles = [];
+            for (var s = 0; s < 40; s++) sparkles.push(createSparkle(Math.random() * W, Math.random() * H));
+
+            // Stalactites
+            stalactites = [];
+            for (var t = 0; t < 12; t++) stalactites.push(createStalactite(true));
+            for (var b = 0; b < 8; b++) stalactites.push(createStalactite(false));
+
+            // Water reflections
+            reflections = [];
+            for (var r = 0; r < 15; r++) reflections.push(createReflection());
+
+            ripples = [];
+            lightRays = [];
+        }
+
+        // -- Resize --
+        function resize(width, height) {
+            W = width; H = height;
+            // Rebuild stalactites for new dimensions
+            stalactites = [];
+            for (var t = 0; t < 12; t++) stalactites.push(createStalactite(true));
+            for (var b = 0; b < 8; b++) stalactites.push(createStalactite(false));
+            reflections = [];
+            for (var r = 0; r < 15; r++) reflections.push(createReflection());
+        }
+
+        // -- Main render --
+        function render(frameData) {
+            var ctx = frameData.ctx;
+            var dt = frameData.dt || 1/60;
+            var cursor = frameData.cursor;
+            beatPulse = frameData.beatPulse;
+
+            globalTime += dt;
+
+            // Idle state
+            if (!cursor) {
+                drawCavernBg(ctx, 0);
+                drawStalactites(ctx, 0);
+                // A few gently drifting crystals
+                for (var ic = 0; ic < 5; ic++) {
+                    var c = crystals[ic];
+                    c.rotation += c.rotSpeed * dt * 0.3;
+                    c.x = c.baseX + Math.sin(c.driftPhase + globalTime * 0.3) * c.driftAmpX * 0.3;
+                    c.y = c.baseY + Math.cos(c.driftPhase + globalTime * 0.2) * c.driftAmpY * 0.3;
+                    drawCrystal(ctx, c, 0.1);
+                }
+                return;
+            }
+
+            var seqIdx = cursor.seqIndex;
+            var energy = analysis ? (analysis.energy[cursor.timelineIndex] || 0) : 0;
+            var notes = frameData.currentNotes;
+
+            // -- Section transitions --
+            if (seqIdx !== lastSeqIndex) {
+                sectionName = mapSection(seqIdx);
+                activityTarget = mapActivity(sectionName);
+                lastSeqIndex = seqIdx;
+
+                // Spawn extra crystals on major transitions
+                if (sectionName === 'fullcrystal' || sectionName === 'climax') {
+                    for (var nc = 0; nc < 3; nc++) {
+                        if (crystals.length < 30) crystals.push(createCrystal());
+                    }
+                }
+            }
+
+            activity = lerpExp(activity, activityTarget, 2, dt);
+
+            // Title visibility
+            titleTarget = (sectionName === 'climax' || sectionName === 'fullcrystal') ? 1 : 0;
+            titleAlpha = lerpExp(titleAlpha, titleTarget, 3, dt);
+
+            // -- Beat events --
+            if (frameData.beatChanged) {
+                // Check channels for instrument-specific reactions
+                // Ch0: Vibraphone (i=0) or Bells (i=2) -- ripples
+                var ch0 = notes[0];
+                if (ch0 && ch0.midi > 0) {
+                    var targetCrystal = crystals[Math.floor(Math.random() * crystals.length)];
+                    ripples.push(createRipple(targetCrystal.x, targetCrystal.y, targetCrystal.colorIdx));
+                    targetCrystal.pulse = 0.6 + energy * 0.4;
+
+                    // Bell accents (instrument 2) create prismatic light bursts
+                    if (ch0.instrument === 2 || ch0.wave === 'fm') {
+                        var burstCount = 3 + Math.floor(energy * 5);
+                        for (var lb = 0; lb < burstCount; lb++) {
+                            lightRays.push(createLightRay(targetCrystal.x, targetCrystal.y));
+                        }
+                        flashAlpha = 0.1 + energy * 0.15;
+                    }
+                }
+
+                // Ch1: Harp arpeggios (i=1) -- trailing sparkles
+                var ch1 = notes[1];
+                if (ch1 && ch1.midi > 0) {
+                    var spawnX = W * (0.2 + (ch1.normalized || 0.5) * 0.6);
+                    var spawnY = H * (0.3 + Math.random() * 0.4);
+                    var numSparkles = 4 + Math.floor(energy * 8);
+                    for (var sp = 0; sp < numSparkles; sp++) {
+                        if (sparkles.length < 300) {
+                            sparkles.push(createSparkle(spawnX + rand(-30, 30), spawnY + rand(-20, 20)));
+                        }
+                    }
+                }
+
+                // Ch3: Water drops / Cave kick -- subtle crystal pulses
+                var ch3 = notes[3];
+                if (ch3 && ch3.midi > 0 && ch3.instrument === 3) {
+                    // Water drop: pulse a random crystal
+                    var dropCrystal = crystals[Math.floor(Math.random() * crystals.length)];
+                    dropCrystal.pulse = 0.3;
+                }
+
+                // General beat: pulse all crystals slightly
+                if (energy > 0.3) {
+                    for (var pc = 0; pc < crystals.length; pc++) {
+                        crystals[pc].pulse = Math.max(crystals[pc].pulse, energy * 0.3);
+                    }
+                    flashAlpha = Math.max(flashAlpha, energy * 0.08);
+                }
+            }
+
+            // Decay flash
+            flashAlpha *= Math.exp(-5 * dt);
+
+            // -- Update crystals --
+            for (var uc = 0; uc < crystals.length; uc++) {
+                var cr = crystals[uc];
+                cr.rotation += cr.rotSpeed * dt * (0.5 + activity * 0.5 + cr.pulse * 2);
+                cr.driftPhase += dt * 0.5;
+                cr.x = cr.baseX + Math.sin(cr.driftPhase + globalTime * 0.3) * cr.driftAmpX * (0.3 + activity * 0.7);
+                cr.y = cr.baseY + Math.cos(cr.driftPhase * 0.7 + globalTime * 0.2) * cr.driftAmpY * (0.3 + activity * 0.7);
+                cr.pulse *= Math.exp(-4 * dt);
+                cr.refractionAngle += dt * 0.1 * (1 + beatPulse * 3);
+            }
+
+            // -- Update sparkles --
+            for (var us = sparkles.length - 1; us >= 0; us--) {
+                var sk = sparkles[us];
+                sk.x += sk.vx * dt;
+                sk.y += sk.vy * dt;
+                sk.vy -= 5 * dt; // gentle upward drift
+                sk.vx *= 0.98;
+                sk.vy *= 0.98;
+                sk.life -= dt * 0.3;
+                sk.twinklePhase += dt * 8;
+                if (sk.life <= 0 || sk.x < -20 || sk.x > W + 20 || sk.y < -20 || sk.y > H + 20) {
+                    if (sparkles.length > 30) {
+                        sparkles.splice(us, 1);
+                    } else {
+                        sparkles[us] = createSparkle(Math.random() * W, Math.random() * H);
+                    }
+                }
+            }
+
+            // -- Update ripples --
+            for (var ur = ripples.length - 1; ur >= 0; ur--) {
+                var rp = ripples[ur];
+                rp.radius += rp.speed * dt;
+                rp.life -= dt * 0.6;
+                if (rp.life <= 0 || rp.radius > rp.maxRadius) {
+                    ripples.splice(ur, 1);
+                }
+            }
+
+            // -- Update light rays --
+            for (var ul = lightRays.length - 1; ul >= 0; ul--) {
+                var lr = lightRays[ul];
+                lr.life -= dt * 1.5;
+                lr.angle += dt * 0.3;
+                if (lr.life <= 0) {
+                    lightRays.splice(ul, 1);
+                }
+            }
+
+            // ========== DRAW ==========
+
+            // 1. Cavern background
+            drawCavernBg(ctx, energy);
+
+            // 2. Stalactites
+            drawStalactites(ctx, energy);
+
+            // 3. Ripples (behind crystals)
+            if (ripples.length > 0) {
+                ctx.save();
+                ctx.globalCompositeOperation = 'lighter';
+                for (var dr = 0; dr < ripples.length; dr++) {
+                    var rip = ripples[dr];
+                    var rcol = crystalColor(rip.colorIdx);
+                    ctx.strokeStyle = rgbaStr(rcol, rip.life * 0.4);
+                    ctx.lineWidth = 1.5 + rip.life;
+                    ctx.shadowBlur = 10;
+                    ctx.shadowColor = rcol;
+                    ctx.beginPath();
+                    ctx.arc(rip.x, rip.y, rip.radius, 0, Math.PI * 2);
+                    ctx.stroke();
+                    // Second ring
+                    if (rip.radius > 15) {
+                        ctx.strokeStyle = rgbaStr(rcol, rip.life * 0.2);
+                        ctx.beginPath();
+                        ctx.arc(rip.x, rip.y, rip.radius * 0.6, 0, Math.PI * 2);
+                        ctx.stroke();
+                    }
+                }
+                ctx.restore();
+            }
+
+            // 4. Light rays (prismatic bell bursts)
+            drawLightRays(ctx);
+
+            // 5. Crystals
+            var numVisible = Math.floor(3 + activity * (crystals.length - 3));
+            for (var dc = 0; dc < Math.min(numVisible, crystals.length); dc++) {
+                drawCrystal(ctx, crystals[dc], energy * activity);
+            }
+
+            // 6. Sparkles
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            for (var ds = 0; ds < sparkles.length; ds++) {
+                var spk = sparkles[ds];
+                var twinkle = 0.5 + Math.sin(spk.twinklePhase) * 0.5;
+                var spAlpha = spk.life * twinkle * activity;
+                if (spAlpha < 0.01) continue;
+                var spcol = crystalColor(spk.colorIdx);
+
+                ctx.fillStyle = rgbaStr(spcol, spAlpha);
+                ctx.shadowBlur = 4 + energy * 6;
+                ctx.shadowColor = spcol;
+
+                // 4-point star shape
+                var sz = spk.size * (0.5 + twinkle * 0.5 + beatPulse * 0.3);
+                ctx.beginPath();
+                ctx.moveTo(spk.x, spk.y - sz * 2);
+                ctx.lineTo(spk.x + sz * 0.4, spk.y);
+                ctx.lineTo(spk.x, spk.y + sz * 2);
+                ctx.lineTo(spk.x - sz * 0.4, spk.y);
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.moveTo(spk.x - sz * 2, spk.y);
+                ctx.lineTo(spk.x, spk.y + sz * 0.4);
+                ctx.lineTo(spk.x + sz * 2, spk.y);
+                ctx.lineTo(spk.x, spk.y - sz * 0.4);
+                ctx.closePath();
+                ctx.fill();
+            }
+            ctx.restore();
+
+            // 7. Water surface reflections
+            drawWaterSurface(ctx, energy);
+
+            // 8. Flash overlay
+            drawFlash(ctx);
+
+            // 9. Title
+            drawTitle(ctx);
+
+            // 10. Darkness fade for intro/outro
+            if (sectionName === 'silence' || sectionName === 'drips') {
+                var introFade = sectionName === 'drips' ?
+                    Math.max(0, 0.6 - cursor.elapsed * 0.08) :
+                    0.85;
+                ctx.save();
+                ctx.fillStyle = 'rgba(6,8,24,' + introFade + ')';
+                ctx.fillRect(0, 0, W, H);
+                ctx.restore();
+            } else if (sectionName === 'lastlight') {
+                var outroFade = Math.min(0.8, cursor.elapsed * 0.03);
+                ctx.save();
+                ctx.fillStyle = 'rgba(6,8,24,' + outroFade + ')';
+                ctx.fillRect(0, 0, W, H);
+                ctx.restore();
+            }
+        }
+
+        BaseRenderer('crystal-caverns-video', 'Crystal Caverns', {
+            beatDecay: 7,
+            init: init,
+            render: render,
+            resize: resize
+        });
+    })();
+
+    // -- Page bootstrap --
+    (function() {
+        var canvas = document.getElementById('viz-canvas');
+        var overlay = document.getElementById('play-overlay');
+
+        Visualizer.init(canvas);
+        Visualizer.setRenderer('crystal-caverns-video');
+
+        function loadAndPlay(json) {
+            Visualizer.loadSong(json);
+            Visualizer.play();
+        }
+
+        function fetchSong() {
+            var url = '../audio-tracker/songs/crystal-caverns.json';
+            if (window.fetch && location.protocol !== 'file:') {
+                return fetch(url).then(function(r) { return r.json(); });
+            }
+            return new Promise(function(resolve, reject) {
+                var xhr = new XMLHttpRequest();
+                xhr.open('GET', url, true);
+                xhr.onload = function() {
+                    if (xhr.status === 200 || xhr.status === 0) {
+                        resolve(JSON.parse(xhr.responseText));
+                    } else {
+                        reject(new Error('XHR failed: ' + xhr.status));
+                    }
+                };
+                xhr.onerror = function() { reject(new Error('XHR error')); };
+                xhr.send();
+            });
+        }
+
+        overlay.addEventListener('click', function() {
+            overlay.classList.add('hidden');
+            fetchSong().then(loadAndPlay).catch(function(err) {
+                console.error('Failed to load song:', err);
+                overlay.classList.remove('hidden');
+            });
+        });
+
+        if (new URLSearchParams(window.location.search).get('autoplay') === '1') {
+            overlay.click();
+        }
+
+        canvas.addEventListener('click', function() {
+            if (overlay.classList.contains('hidden')) {
+                if (Visualizer.isPlaying()) {
+                    Visualizer.stop();
+                } else {
+                    Visualizer.play();
+                }
+            }
+        });
+    })();
+    </script>
+</body>
+</html>

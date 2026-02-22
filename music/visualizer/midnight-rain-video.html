@@ -1,0 +1,1046 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Midnight Rain — Music Video</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inconsolata:wght@300;400&family=Cormorant+Garamond:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="video-base-styles.css">
+    <style>
+        :root {
+            --vid-bg: #060810;
+            --vid-bg-rgb: 6,8,16;
+            --vid-font: 'Cormorant Garamond', serif;
+            --vid-accent: #7a6ef0;
+            --vid-accent-r: 122;
+            --vid-accent-g: 110;
+            --vid-accent-b: 240;
+            --vid-overlay-alpha: 0.93;
+            --vid-title-weight: 600;
+            --vid-title-spacing: 0.08em;
+        }
+    </style>
+</head>
+<body>
+    <a href="music-videos/index.html" class="back-link">&larr; Music Videos</a>
+    <canvas id="viz-canvas"></canvas>
+    <div class="play-overlay" id="play-overlay">
+        <div class="play-title">Midnight Rain</div>
+        <div class="play-sub">a rainy night through the window</div>
+        <div class="play-btn"></div>
+    </div>
+
+    <script src="../audio-tracker/playback-engine.js"></script>
+    <script src="engine.js"></script>
+    <script src="video-utils.js"></script>
+    <script src="base-renderer.js"></script>
+    <script>
+    // -- Midnight Rain Video Renderer --
+    (function() {
+        "use strict";
+
+        var W = 0, H = 0;
+        var analysis = null;
+        var beatPulse = 0;
+        var flashAlpha = 0;
+
+        // -- Colors --
+        var BG_DARK = '#060810';
+        var NEON_PURPLE = '#b060ff';
+        var NEON_PINK = '#ff3080';
+        var NEON_BLUE = '#40a0ff';
+        var NEON_CYAN = '#20e0d0';
+        var NEON_GREEN = '#30ff90';
+        var WARM_AMBER = '#f0a838';
+        var LAMP_WARM = '#f5c860';
+        var RAIN_COLOR = '#8090b0';
+        var GLASS_TINT = 'rgba(20,25,40,0.12)';
+
+        // Neon sign palette
+        var NEON_COLORS = [NEON_PURPLE, NEON_PINK, NEON_BLUE, NEON_CYAN, NEON_GREEN];
+
+        // -- State --
+        var lastSeqIndex = -1;
+
+        // Rain drops on glass
+        var rainDrops = [];
+        var MAX_RAIN_DROPS = 120;
+
+        // Rain streaks (long vertical trails on glass)
+        var rainStreaks = [];
+        var MAX_STREAKS = 35;
+
+        // Falling rain (outside, behind glass)
+        var fallingRain = [];
+        var MAX_FALLING = 200;
+
+        // Buildings (outside, seen through window)
+        var outsideBuildings = [];
+        var NUM_BUILDINGS = 14;
+
+        // Neon signs (on buildings)
+        var neonSigns = [];
+        var NUM_NEONS = 5;
+
+        // Puddle reflections
+        var puddleReflections = [];
+
+        // Room interior elements
+        var lampGlow = 0;
+        var lampGlowTarget = 0.7;
+
+        // Pixel cat on windowsill
+        var catPhase = 0;
+        var catEarTwitch = 0;
+        var catTailPhase = 0;
+        var catBlinkTimer = 0;
+        var catEyesOpen = true;
+
+        // Window sill and frame
+        var windowSillY = 0;
+        var windowTopY = 0;
+
+        // Condensation (foggy glass effect)
+        var condensation = [];
+        var MAX_CONDENSATION = 40;
+
+        // Title
+        var titleAlpha = 0;
+        var titleTarget = 0;
+
+        // Section tracking
+        var sectionMood = 'intro';
+
+        // -- Rain drops on glass --
+        function createRainDrop(randomPos) {
+            return {
+                x: rand(0, W),
+                y: randomPos ? rand(windowTopY, windowSillY) : rand(windowTopY - 20, windowTopY),
+                size: rand(1.5, 4),
+                speedY: rand(8, 30),
+                wobble: rand(-0.3, 0.3),
+                alpha: rand(0.3, 0.7),
+                life: rand(2, 8),
+                age: 0,
+                merged: false
+            };
+        }
+
+        function initRainDrops() {
+            rainDrops = [];
+            for (var i = 0; i < MAX_RAIN_DROPS; i++) {
+                rainDrops.push(createRainDrop(true));
+            }
+        }
+
+        // -- Rain streaks on glass --
+        function createStreak() {
+            var sx = rand(W * 0.05, W * 0.95);
+            return {
+                x: sx,
+                y: rand(windowTopY, windowTopY + (windowSillY - windowTopY) * 0.3),
+                length: rand(30, 120),
+                speed: rand(15, 50),
+                width: rand(1, 2.5),
+                alpha: rand(0.15, 0.4),
+                wobbleAmp: rand(1, 5),
+                wobbleFreq: rand(2, 6),
+                phase: Math.random() * Math.PI * 2,
+                trail: [] // points along the streak path
+            };
+        }
+
+        function initStreaks() {
+            rainStreaks = [];
+            for (var i = 0; i < MAX_STREAKS; i++) {
+                rainStreaks.push(createStreak());
+            }
+        }
+
+        // -- Falling rain (outside) --
+        function createFallingDrop(randomY) {
+            return {
+                x: rand(-20, W + 20),
+                y: randomY ? rand(0, H) : rand(-40, -5),
+                speed: rand(200, 450),
+                length: rand(8, 22),
+                alpha: rand(0.08, 0.25),
+                wind: rand(-15, -5)
+            };
+        }
+
+        function initFallingRain() {
+            fallingRain = [];
+            for (var i = 0; i < MAX_FALLING; i++) {
+                fallingRain.push(createFallingDrop(true));
+            }
+        }
+
+        // -- Buildings (blurry, through rain-covered glass) --
+        function initBuildings() {
+            outsideBuildings = [];
+            for (var i = 0; i < NUM_BUILDINGS; i++) {
+                var bw = rand(W * 0.04, W * 0.1);
+                var bh = rand(H * 0.12, H * 0.4);
+                var bx = (i / NUM_BUILDINGS) * W * 0.95 + rand(-W * 0.01, W * 0.01);
+                var depth = rand(0.3, 1);
+                var windowRows = Math.floor(bh / 24);
+                var windowCols = Math.floor(bw / 18);
+                var windows = [];
+                for (var wy = 0; wy < windowRows; wy++) {
+                    for (var wx = 0; wx < windowCols; wx++) {
+                        windows.push({
+                            row: wy, col: wx,
+                            lit: Math.random() > 0.55,
+                            warmth: rand(0.4, 1),
+                            flickerPhase: Math.random() * Math.PI * 2,
+                            flickerSpeed: rand(0.2, 2)
+                        });
+                    }
+                }
+                outsideBuildings.push({
+                    x: bx, w: bw, h: bh, depth: depth,
+                    windows: windows, windowRows: windowRows, windowCols: windowCols,
+                    color: 'rgb(' + Math.floor(rand(10, 25)) + ',' + Math.floor(rand(12, 28)) + ',' + Math.floor(rand(20, 40)) + ')'
+                });
+            }
+            outsideBuildings.sort(function(a, b) { return b.depth - a.depth; });
+        }
+
+        // -- Neon signs --
+        function initNeons() {
+            neonSigns = [];
+            for (var i = 0; i < NUM_NEONS; i++) {
+                var color = pickRandom(NEON_COLORS);
+                neonSigns.push({
+                    x: rand(W * 0.08, W * 0.92),
+                    y: rand(H * 0.2, H * 0.55),
+                    w: rand(20, 60),
+                    h: rand(8, 20),
+                    color: color,
+                    rgb: hexToRgb(color),
+                    flickerPhase: Math.random() * Math.PI * 2,
+                    flickerSpeed: rand(1, 5),
+                    baseAlpha: rand(0.4, 0.8),
+                    style: randInt(0, 2) // 0=rect, 1=circle, 2=line
+                });
+            }
+        }
+
+        // -- Condensation spots --
+        function initCondensation() {
+            condensation = [];
+            for (var i = 0; i < MAX_CONDENSATION; i++) {
+                condensation.push({
+                    x: rand(W * 0.05, W * 0.95),
+                    y: rand(windowSillY - (windowSillY - windowTopY) * 0.4, windowSillY),
+                    r: rand(15, 50),
+                    alpha: rand(0.02, 0.06)
+                });
+            }
+        }
+
+        // -- Puddle reflections on street --
+        function initPuddles() {
+            puddleReflections = [];
+            var streetY = windowSillY + (H - windowSillY) * 0.15;
+            for (var i = 0; i < 6; i++) {
+                puddleReflections.push({
+                    x: rand(W * 0.1, W * 0.9),
+                    y: streetY + rand(-5, 15),
+                    w: rand(30, 80),
+                    h: rand(4, 10),
+                    neonIdx: randInt(0, NUM_NEONS - 1),
+                    ripplePhase: Math.random() * Math.PI * 2,
+                    rippleSpeed: rand(1, 3)
+                });
+            }
+        }
+
+        // -- Draw helpers --
+
+        function drawSky(ctx) {
+            var grad = ctx.createLinearGradient(0, 0, 0, windowSillY);
+            grad.addColorStop(0, '#030508');
+            grad.addColorStop(0.4, '#080c18');
+            grad.addColorStop(1, '#0a1020');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, W, H);
+        }
+
+        function drawOutsideBuildings(ctx, energy) {
+            var streetY = windowSillY - (windowSillY - windowTopY) * 0.05;
+            ctx.save();
+            // Slight blur effect through glass (we simulate with extra alpha)
+            ctx.globalAlpha = 0.7;
+            for (var i = 0; i < outsideBuildings.length; i++) {
+                var b = outsideBuildings[i];
+                var bBot = streetY;
+                var bTop = bBot - b.h;
+
+                ctx.fillStyle = b.color;
+                ctx.fillRect(b.x, bTop, b.w, b.h);
+
+                // Lit windows
+                if (b.windowCols > 0 && b.windowRows > 0) {
+                    var ww = 6, wh = 7;
+                    var padX = (b.w - b.windowCols * (ww + 4)) * 0.5 + 2;
+                    var padY = 8;
+                    for (var wi = 0; wi < b.windows.length; wi++) {
+                        var win = b.windows[wi];
+                        if (!win.lit) continue;
+                        var wx = b.x + padX + win.col * (ww + 4);
+                        var wy = bTop + padY + win.row * (wh + 6);
+                        if (wy > bBot - 8) continue;
+
+                        var flicker = 0.6 + 0.4 * Math.sin(win.flickerPhase);
+                        win.flickerPhase += win.flickerSpeed * (1/60);
+                        var warmAlpha = flicker * win.warmth * (0.5 + beatPulse * 0.1);
+
+                        ctx.fillStyle = 'rgba(240,180,60,' + warmAlpha + ')';
+                        ctx.fillRect(wx, wy, ww, wh);
+                    }
+                }
+            }
+            ctx.restore();
+        }
+
+        function drawNeonSigns(ctx, energy) {
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            for (var i = 0; i < neonSigns.length; i++) {
+                var n = neonSigns[i];
+                n.flickerPhase += n.flickerSpeed * (1/60);
+                var flicker = 0.5 + 0.5 * Math.sin(n.flickerPhase);
+                // Occasional rapid flicker
+                if (Math.sin(n.flickerPhase * 7) > 0.95) flicker *= 0.3;
+
+                var alpha = n.baseAlpha * flicker * (0.7 + energy * 0.3 + beatPulse * 0.15);
+                var glowR = Math.max(n.w, n.h) * 1.5;
+
+                // Glow halo
+                var gx = n.x + n.w * 0.5;
+                var gy = n.y + n.h * 0.5;
+                var grad = ctx.createRadialGradient(gx, gy, 2, gx, gy, glowR);
+                grad.addColorStop(0, 'rgba(' + n.rgb.r + ',' + n.rgb.g + ',' + n.rgb.b + ',' + (alpha * 0.5) + ')');
+                grad.addColorStop(0.4, 'rgba(' + n.rgb.r + ',' + n.rgb.g + ',' + n.rgb.b + ',' + (alpha * 0.15) + ')');
+                grad.addColorStop(1, 'rgba(' + n.rgb.r + ',' + n.rgb.g + ',' + n.rgb.b + ',0)');
+                ctx.fillStyle = grad;
+                ctx.fillRect(gx - glowR, gy - glowR, glowR * 2, glowR * 2);
+
+                // Sign shape
+                ctx.globalAlpha = alpha;
+                ctx.fillStyle = n.color;
+                if (n.style === 0) {
+                    ctx.fillRect(n.x, n.y, n.w, n.h);
+                } else if (n.style === 1) {
+                    ctx.beginPath();
+                    ctx.arc(gx, gy, Math.min(n.w, n.h) * 0.5, 0, Math.PI * 2);
+                    ctx.fill();
+                } else {
+                    ctx.strokeStyle = n.color;
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.moveTo(n.x, gy);
+                    ctx.lineTo(n.x + n.w, gy);
+                    ctx.stroke();
+                }
+                ctx.globalAlpha = 1;
+            }
+            ctx.restore();
+        }
+
+        function drawFallingRain(ctx, energy) {
+            ctx.save();
+            ctx.strokeStyle = RAIN_COLOR;
+            ctx.lineWidth = 1;
+            var density = Math.floor(MAX_FALLING * (0.4 + energy * 0.6));
+            for (var i = 0; i < fallingRain.length; i++) {
+                var d = fallingRain[i];
+                if (i >= density) continue;
+                ctx.globalAlpha = d.alpha;
+                ctx.beginPath();
+                ctx.moveTo(d.x, d.y);
+                ctx.lineTo(d.x + d.wind * 0.1, d.y + d.length);
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        function updateFallingRain(dt, energy) {
+            for (var i = 0; i < fallingRain.length; i++) {
+                var d = fallingRain[i];
+                d.y += d.speed * dt;
+                d.x += d.wind * dt;
+                if (d.y > H + 10) {
+                    d.y = rand(-30, -5);
+                    d.x = rand(-20, W + 20);
+                    d.speed = rand(200, 450);
+                }
+            }
+        }
+
+        function drawRainStreaks(ctx, energy) {
+            ctx.save();
+            ctx.lineCap = 'round';
+            for (var i = 0; i < rainStreaks.length; i++) {
+                var s = rainStreaks[i];
+                if (s.y > windowSillY) continue;
+                if (s.y + s.length < windowTopY) continue;
+
+                ctx.globalAlpha = s.alpha * (0.6 + energy * 0.4);
+                ctx.strokeStyle = 'rgba(160,180,210,' + s.alpha + ')';
+                ctx.lineWidth = s.width;
+
+                ctx.beginPath();
+                var points = 8;
+                for (var p = 0; p <= points; p++) {
+                    var t = p / points;
+                    var py = s.y + t * s.length;
+                    var px = s.x + Math.sin(s.phase + t * s.wobbleFreq) * s.wobbleAmp;
+                    if (p === 0) ctx.moveTo(px, py);
+                    else ctx.lineTo(px, py);
+                }
+                ctx.stroke();
+
+                // Bright dot at the bottom (the drop)
+                var dropY = s.y + s.length;
+                var dropX = s.x + Math.sin(s.phase + s.wobbleFreq) * s.wobbleAmp;
+                ctx.globalAlpha = s.alpha * 1.5;
+                ctx.fillStyle = 'rgba(200,215,240,0.6)';
+                ctx.beginPath();
+                ctx.arc(dropX, dropY, s.width + 1, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+
+        function updateRainStreaks(dt, energy) {
+            for (var i = 0; i < rainStreaks.length; i++) {
+                var s = rainStreaks[i];
+                s.y += s.speed * dt * (0.5 + energy * 0.5);
+                s.phase += 0.5 * dt;
+                if (s.y > windowSillY + 10) {
+                    rainStreaks[i] = createStreak();
+                }
+            }
+        }
+
+        function drawRainDropsOnGlass(ctx, energy) {
+            ctx.save();
+            for (var i = 0; i < rainDrops.length; i++) {
+                var d = rainDrops[i];
+                if (d.merged) continue;
+                if (d.y < windowTopY || d.y > windowSillY) continue;
+
+                // Each drop refracts neon light behind it
+                var nearestNeon = null;
+                var nearestDist = Infinity;
+                for (var ni = 0; ni < neonSigns.length; ni++) {
+                    var nx = neonSigns[ni].x + neonSigns[ni].w * 0.5;
+                    var ny = neonSigns[ni].y + neonSigns[ni].h * 0.5;
+                    var dist = Math.abs(d.x - nx) + Math.abs(d.y - ny);
+                    if (dist < nearestDist) { nearestDist = dist; nearestNeon = neonSigns[ni]; }
+                }
+
+                var dropColor = 'rgba(180,200,230,' + (d.alpha * 0.6) + ')';
+                if (nearestNeon && nearestDist < 150) {
+                    var refractAlpha = d.alpha * (1 - nearestDist / 150) * 0.5;
+                    dropColor = 'rgba(' + nearestNeon.rgb.r + ',' + nearestNeon.rgb.g + ',' + nearestNeon.rgb.b + ',' + refractAlpha + ')';
+                }
+
+                ctx.globalAlpha = d.alpha;
+                ctx.fillStyle = dropColor;
+                ctx.beginPath();
+                ctx.arc(d.x, d.y, d.size, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Highlight on drop
+                ctx.globalAlpha = d.alpha * 0.5;
+                ctx.fillStyle = 'rgba(255,255,255,0.4)';
+                ctx.beginPath();
+                ctx.arc(d.x - d.size * 0.3, d.y - d.size * 0.3, d.size * 0.35, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+
+        function updateRainDrops(dt, energy, beatChanged) {
+            for (var i = 0; i < rainDrops.length; i++) {
+                var d = rainDrops[i];
+                if (d.merged) continue;
+                d.y += d.speedY * dt * (0.3 + energy * 0.7);
+                d.x += d.wobble * dt * 10;
+                d.age += dt;
+
+                if (d.age > d.life || d.y > windowSillY + 5) {
+                    rainDrops[i] = createRainDrop(false);
+                }
+            }
+
+            // On beat: spawn a cluster of new drops
+            if (beatChanged) {
+                var spawnCount = Math.floor(3 + energy * 5);
+                for (var s = 0; s < spawnCount; s++) {
+                    var idx = randInt(0, rainDrops.length - 1);
+                    rainDrops[idx] = createRainDrop(false);
+                    rainDrops[idx].size = rand(2, 5);
+                    rainDrops[idx].alpha = rand(0.5, 0.9);
+                }
+            }
+        }
+
+        function drawCondensation(ctx) {
+            ctx.save();
+            for (var i = 0; i < condensation.length; i++) {
+                var c = condensation[i];
+                var grad = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, c.r);
+                grad.addColorStop(0, 'rgba(150,170,200,' + c.alpha + ')');
+                grad.addColorStop(1, 'rgba(150,170,200,0)');
+                ctx.fillStyle = grad;
+                ctx.fillRect(c.x - c.r, c.y - c.r, c.r * 2, c.r * 2);
+            }
+            ctx.restore();
+        }
+
+        // -- Pixel cat on windowsill --
+        function drawPixelCat(ctx, energy) {
+            var catW = Math.max(20, W * 0.035);
+            var catH = catW * 1.1;
+            var catX = W * 0.75;
+            var catY = windowSillY - catH;
+
+            var px = catW / 10; // pixel size
+
+            ctx.save();
+            ctx.translate(catX, catY);
+
+            // Cat silhouette color (dark with warm edge light from lamp)
+            var bodyColor = 'rgba(25,20,35,0.9)';
+            var edgeColor = 'rgba(80,60,40,' + (0.3 + lampGlow * 0.3) + ')';
+
+            // Body (rounded rectangle)
+            ctx.fillStyle = bodyColor;
+            roundRect(ctx, px * 2, px * 4, px * 6, px * 5, px);
+            ctx.fill();
+
+            // Head
+            ctx.fillStyle = bodyColor;
+            roundRect(ctx, px * 2.5, px * 1.5, px * 5, px * 3.5, px * 0.8);
+            ctx.fill();
+
+            // Ears
+            var earTwitch = Math.sin(catEarTwitch) * px * 0.3;
+            ctx.beginPath();
+            ctx.moveTo(px * 2.5, px * 2);
+            ctx.lineTo(px * 1.5 + earTwitch, px * 0);
+            ctx.lineTo(px * 3.5, px * 1.5);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(px * 6.5, px * 2);
+            ctx.lineTo(px * 7.5 - earTwitch, px * 0);
+            ctx.lineTo(px * 5.5, px * 1.5);
+            ctx.closePath();
+            ctx.fill();
+
+            // Inner ears
+            ctx.fillStyle = 'rgba(100,60,80,0.4)';
+            ctx.beginPath();
+            ctx.moveTo(px * 2.8, px * 2);
+            ctx.lineTo(px * 2 + earTwitch, px * 0.6);
+            ctx.lineTo(px * 3.3, px * 1.7);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(px * 6.2, px * 2);
+            ctx.lineTo(px * 7 - earTwitch, px * 0.6);
+            ctx.lineTo(px * 5.7, px * 1.7);
+            ctx.closePath();
+            ctx.fill();
+
+            // Eyes
+            if (catEyesOpen) {
+                // Glowing eyes reflecting neon
+                ctx.fillStyle = 'rgba(100,220,180,' + (0.6 + beatPulse * 0.2) + ')';
+                ctx.beginPath();
+                ctx.ellipse(px * 3.8, px * 3, px * 0.5, px * 0.6, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(px * 6.2, px * 3, px * 0.5, px * 0.6, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Pupils (vertical slits)
+                ctx.fillStyle = 'rgba(10,10,20,0.9)';
+                ctx.beginPath();
+                ctx.ellipse(px * 3.8, px * 3, px * 0.15, px * 0.5, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(px * 6.2, px * 3, px * 0.15, px * 0.5, 0, 0, Math.PI * 2);
+                ctx.fill();
+            } else {
+                // Closed eyes - lines
+                ctx.strokeStyle = 'rgba(100,220,180,0.3)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(px * 3.3, px * 3);
+                ctx.lineTo(px * 4.3, px * 3);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(px * 5.7, px * 3);
+                ctx.lineTo(px * 6.7, px * 3);
+                ctx.stroke();
+            }
+
+            // Tail (curving up)
+            var tailCurve = Math.sin(catTailPhase) * px * 2;
+            ctx.strokeStyle = bodyColor;
+            ctx.lineWidth = px * 0.8;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(px * 8, px * 7);
+            ctx.quadraticCurveTo(px * 9.5 + tailCurve, px * 5, px * 9 + tailCurve * 0.5, px * 2.5);
+            ctx.stroke();
+
+            // Warm edge light from lamp (right side)
+            ctx.strokeStyle = edgeColor;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(px * 7.5, px * 2);
+            ctx.lineTo(px * 8, px * 4);
+            ctx.lineTo(px * 8, px * 8.5);
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        function roundRect(ctx, x, y, w, h, r) {
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.lineTo(x + w - r, y);
+            ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+            ctx.lineTo(x + w, y + h - r);
+            ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+            ctx.lineTo(x + r, y + h);
+            ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+            ctx.lineTo(x, y + r);
+            ctx.quadraticCurveTo(x, y, x + r, y);
+            ctx.closePath();
+        }
+
+        // -- Room interior (warm cozy glow) --
+        function drawRoomInterior(ctx, energy) {
+            // Room is visible at the bottom of the canvas (below window sill)
+            // and at the sides (window frame area)
+
+            // Window sill surface
+            ctx.fillStyle = 'rgba(40,30,25,0.95)';
+            ctx.fillRect(0, windowSillY, W, H * 0.03);
+
+            // Warm lamp glow on the left side of the room
+            var lampX = W * 0.15;
+            var lampY = windowSillY + H * 0.08;
+
+            // Lamp body (small warm circle)
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            var lampR = H * 0.08;
+            var lGrad = ctx.createRadialGradient(lampX, lampY, 2, lampX, lampY, lampR);
+            lGrad.addColorStop(0, 'rgba(245,200,96,' + (lampGlow * 0.5) + ')');
+            lGrad.addColorStop(0.3, 'rgba(245,180,80,' + (lampGlow * 0.2) + ')');
+            lGrad.addColorStop(1, 'rgba(245,180,80,0)');
+            ctx.fillStyle = lGrad;
+            ctx.fillRect(lampX - lampR, lampY - lampR, lampR * 2, lampR * 2);
+            ctx.restore();
+
+            // Warm ambient light on sill from lamp
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            var sillGrad = ctx.createLinearGradient(0, windowSillY, 0, windowSillY + H * 0.04);
+            sillGrad.addColorStop(0, 'rgba(200,160,80,' + (lampGlow * 0.08) + ')');
+            sillGrad.addColorStop(1, 'rgba(200,160,80,0)');
+            ctx.fillStyle = sillGrad;
+            ctx.fillRect(0, windowSillY, W, H * 0.04);
+            ctx.restore();
+
+            // Room darkness below
+            var roomGrad = ctx.createLinearGradient(0, windowSillY + H * 0.03, 0, H);
+            roomGrad.addColorStop(0, 'rgba(20,15,25,0.9)');
+            roomGrad.addColorStop(1, 'rgba(8,6,12,1)');
+            ctx.fillStyle = roomGrad;
+            ctx.fillRect(0, windowSillY + H * 0.03, W, H - windowSillY);
+        }
+
+        // -- Puddle reflections (street below, seen through lower window) --
+        function drawPuddleReflections(ctx, energy) {
+            var streetY = windowSillY - (windowSillY - windowTopY) * 0.03;
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            for (var i = 0; i < puddleReflections.length; i++) {
+                var p = puddleReflections[i];
+                var neon = neonSigns[p.neonIdx];
+                if (!neon) continue;
+
+                p.ripplePhase += p.rippleSpeed * (1/60);
+                var ripple = 0.5 + 0.5 * Math.sin(p.ripplePhase);
+                var alpha = 0.08 + ripple * 0.08 + beatPulse * 0.04;
+
+                var grad = ctx.createLinearGradient(p.x, streetY - 5, p.x, streetY + p.h + 5);
+                grad.addColorStop(0, 'rgba(' + neon.rgb.r + ',' + neon.rgb.g + ',' + neon.rgb.b + ',0)');
+                grad.addColorStop(0.3, 'rgba(' + neon.rgb.r + ',' + neon.rgb.g + ',' + neon.rgb.b + ',' + alpha + ')');
+                grad.addColorStop(0.7, 'rgba(' + neon.rgb.r + ',' + neon.rgb.g + ',' + neon.rgb.b + ',' + (alpha * 0.5) + ')');
+                grad.addColorStop(1, 'rgba(' + neon.rgb.r + ',' + neon.rgb.g + ',' + neon.rgb.b + ',0)');
+
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.ellipse(p.x, streetY, p.w * 0.5 + ripple * 5, p.h, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+
+        // -- Window frame --
+        function drawWindowFrame(ctx) {
+            var frameW = W * 0.015;
+            var frameColor = 'rgba(35,28,22,0.95)';
+
+            ctx.fillStyle = frameColor;
+            // Left frame
+            ctx.fillRect(0, windowTopY, frameW, windowSillY - windowTopY);
+            // Right frame
+            ctx.fillRect(W - frameW, windowTopY, frameW, windowSillY - windowTopY);
+            // Top frame
+            ctx.fillRect(0, windowTopY - frameW * 0.5, W, frameW * 0.5);
+
+            // Center divider (vertical)
+            ctx.fillRect(W * 0.5 - frameW * 0.3, windowTopY, frameW * 0.6, windowSillY - windowTopY);
+
+            // Horizontal divider
+            var midY = windowTopY + (windowSillY - windowTopY) * 0.45;
+            ctx.fillRect(0, midY - frameW * 0.25, W, frameW * 0.5);
+        }
+
+        // -- Glass tint and reflections --
+        function drawGlassOverlay(ctx, energy) {
+            // Slight tint for glass
+            ctx.save();
+            ctx.fillStyle = 'rgba(15,20,35,' + (0.06 + energy * 0.02) + ')';
+            ctx.fillRect(0, windowTopY, W, windowSillY - windowTopY);
+
+            // Neon reflections on glass surface
+            ctx.globalCompositeOperation = 'lighter';
+            for (var i = 0; i < neonSigns.length; i++) {
+                var n = neonSigns[i];
+                var flicker = 0.5 + 0.5 * Math.sin(n.flickerPhase);
+                var refAlpha = 0.015 * flicker * (0.6 + beatPulse * 0.2);
+
+                // Diffuse reflection across glass
+                var rGrad = ctx.createRadialGradient(
+                    n.x + n.w * 0.5, n.y,
+                    10,
+                    n.x + n.w * 0.5, n.y,
+                    Math.max(W, H) * 0.3
+                );
+                rGrad.addColorStop(0, 'rgba(' + n.rgb.r + ',' + n.rgb.g + ',' + n.rgb.b + ',' + refAlpha + ')');
+                rGrad.addColorStop(1, 'rgba(' + n.rgb.r + ',' + n.rgb.g + ',' + n.rgb.b + ',0)');
+                ctx.fillStyle = rGrad;
+                ctx.fillRect(0, windowTopY, W, windowSillY - windowTopY);
+            }
+            ctx.restore();
+        }
+
+        // -- Title --
+        function drawTitle(ctx) {
+            if (titleAlpha < 0.01) return;
+
+            ctx.save();
+            ctx.textBaseline = 'middle';
+            ctx.textAlign = 'center';
+
+            var fontSize = Math.max(16, Math.min(W * 0.04, 48));
+            ctx.font = '600 ' + fontSize + 'px "Cormorant Garamond", serif';
+
+            ctx.globalAlpha = titleAlpha;
+            ctx.shadowColor = 'rgba(122,110,240,0.5)';
+            ctx.shadowBlur = 30;
+            ctx.fillStyle = '#c0b8f0';
+            ctx.fillText('Midnight Rain', W * 0.5, H * 0.13);
+
+            var subSize = Math.max(10, Math.min(W * 0.016, 18));
+            ctx.font = '300 ' + subSize + 'px "Inconsolata", monospace';
+            ctx.globalAlpha = titleAlpha * 0.4;
+            ctx.shadowBlur = 15;
+            ctx.fillStyle = '#8888b0';
+            ctx.fillText('C minor / 75 bpm', W * 0.5, H * 0.13 + fontSize * 0.85);
+
+            ctx.restore();
+        }
+
+        // -- Section mapping --
+        function mapSection(seqIdx, totalSeqs) {
+            var t = totalSeqs > 0 ? seqIdx / totalSeqs : 0;
+            if (t < 0.1) return 'intro';
+            if (t < 0.3) return 'verse1';
+            if (t < 0.45) return 'chorus1';
+            if (t < 0.55) return 'bridge';
+            if (t < 0.7) return 'verse2';
+            if (t < 0.85) return 'chorus2';
+            return 'outro';
+        }
+
+        // -- Init --
+        function init(ctx, width, height, anal) {
+            W = width; H = height;
+            analysis = anal;
+            beatPulse = 0;
+            flashAlpha = 0;
+            lastSeqIndex = -1;
+            sectionMood = 'intro';
+            lampGlow = 0.7;
+            lampGlowTarget = 0.7;
+            catPhase = 0;
+            catEarTwitch = 0;
+            catTailPhase = 0;
+            catBlinkTimer = rand(2, 6);
+            catEyesOpen = true;
+            titleAlpha = 0;
+            titleTarget = 0;
+
+            windowTopY = H * 0.08;
+            windowSillY = H * 0.75;
+
+            initBuildings();
+            initNeons();
+            initRainDrops();
+            initStreaks();
+            initFallingRain();
+            initCondensation();
+            initPuddles();
+        }
+
+        // -- Resize --
+        function resize(width, height) {
+            W = width; H = height;
+            windowTopY = H * 0.08;
+            windowSillY = H * 0.75;
+            initBuildings();
+            initNeons();
+            initCondensation();
+            initPuddles();
+        }
+
+        // -- Main render --
+        function render(frameData) {
+            var ctx = frameData.ctx;
+            var dt = frameData.dt || 1/60;
+            var cursor = frameData.cursor;
+            beatPulse = frameData.beatPulse;
+
+            // -- Idle state --
+            if (!cursor) {
+                drawSky(ctx);
+                drawOutsideBuildings(ctx, 0);
+                drawNeonSigns(ctx, 0.3);
+                drawFallingRain(ctx, 0.3);
+                drawRainStreaks(ctx, 0.3);
+                drawRainDropsOnGlass(ctx, 0.3);
+                drawCondensation(ctx);
+                drawGlassOverlay(ctx, 0);
+                drawWindowFrame(ctx);
+                drawRoomInterior(ctx, 0);
+                drawPixelCat(ctx, 0);
+
+                updateFallingRain(dt, 0.3);
+                updateRainStreaks(dt, 0.3);
+                updateRainDrops(dt, 0.3, false);
+
+                // Vignette
+                drawVignette(ctx);
+                return;
+            }
+
+            var seqIdx = cursor.seqIndex;
+            var energy = analysis ? (analysis.energy[cursor.timelineIndex] || 0) : 0;
+            var totalSeqs = (analysis && analysis.sectionChanges) ? analysis.sectionChanges.length : 20;
+
+            // -- Section transitions --
+            if (seqIdx !== lastSeqIndex) {
+                sectionMood = mapSection(seqIdx, totalSeqs);
+                lastSeqIndex = seqIdx;
+
+                // Lamp glow varies by section
+                if (sectionMood === 'chorus1' || sectionMood === 'chorus2') {
+                    lampGlowTarget = 0.9;
+                } else if (sectionMood === 'bridge') {
+                    lampGlowTarget = 0.5;
+                } else if (sectionMood === 'outro') {
+                    lampGlowTarget = 0.6;
+                } else {
+                    lampGlowTarget = 0.7;
+                }
+            }
+
+            // -- Beat effects --
+            if (frameData.beatChanged) {
+                flashAlpha = 0.06 + energy * 0.06;
+
+                // Cat ear twitch on some beats
+                if (Math.random() > 0.6) {
+                    catEarTwitch += rand(0.5, 1.5);
+                }
+            }
+
+            // -- Update systems --
+            flashAlpha *= Math.exp(-5 * dt);
+            lampGlow = lerpExp(lampGlow, lampGlowTarget, 2, dt);
+            catPhase += dt * 0.5;
+            catTailPhase += dt * (0.8 + energy * 0.5);
+            catEarTwitch += dt * 3;
+
+            // Cat blinking
+            catBlinkTimer -= dt;
+            if (catBlinkTimer <= 0) {
+                catEyesOpen = !catEyesOpen;
+                catBlinkTimer = catEyesOpen ? rand(2, 7) : rand(0.1, 0.3);
+            }
+
+            // Title logic
+            titleTarget = (sectionMood === 'intro' || sectionMood === 'outro') ? 1 : 0;
+            titleAlpha = lerpExp(titleAlpha, titleTarget, 3, dt);
+
+            updateFallingRain(dt, energy);
+            updateRainStreaks(dt, energy);
+            updateRainDrops(dt, energy, frameData.beatChanged);
+
+            // -- Draw scene (back to front) --
+
+            // 1. Sky / outside scene
+            drawSky(ctx);
+
+            // 2. Buildings (through glass, blurry)
+            drawOutsideBuildings(ctx, energy);
+
+            // 3. Neon signs
+            drawNeonSigns(ctx, energy);
+
+            // 4. Puddle reflections (on the street)
+            drawPuddleReflections(ctx, energy);
+
+            // 5. Falling rain (outside)
+            drawFallingRain(ctx, energy);
+
+            // 6. Glass overlay (tint + neon reflections)
+            drawGlassOverlay(ctx, energy);
+
+            // 7. Condensation on glass
+            drawCondensation(ctx);
+
+            // 8. Rain streaks on glass
+            drawRainStreaks(ctx, energy);
+
+            // 9. Rain drops on glass
+            drawRainDropsOnGlass(ctx, energy);
+
+            // 10. Window frame
+            drawWindowFrame(ctx);
+
+            // 11. Room interior
+            drawRoomInterior(ctx, energy);
+
+            // 12. Pixel cat
+            drawPixelCat(ctx, energy);
+
+            // 13. Beat flash
+            if (flashAlpha > 0.005) {
+                ctx.save();
+                ctx.globalAlpha = flashAlpha;
+                ctx.fillStyle = 'rgba(122,110,240,0.3)';
+                ctx.fillRect(0, 0, W, H);
+                ctx.restore();
+            }
+
+            // 14. Title
+            drawTitle(ctx);
+
+            // 15. Vignette
+            drawVignette(ctx);
+        }
+
+        function drawVignette(ctx) {
+            var vigGrad = ctx.createRadialGradient(W * 0.5, H * 0.5, W * 0.2, W * 0.5, H * 0.5, W * 0.75);
+            vigGrad.addColorStop(0, 'rgba(0,0,0,0)');
+            vigGrad.addColorStop(1, 'rgba(0,0,0,0.45)');
+            ctx.fillStyle = vigGrad;
+            ctx.fillRect(0, 0, W, H);
+        }
+
+        BaseRenderer('midnight-rain-video', 'Midnight Rain', {
+            beatDecay: 6,
+            init: init,
+            render: render,
+            resize: resize
+        });
+    })();
+
+    // -- Page bootstrap --
+    (function() {
+        var canvas = document.getElementById('viz-canvas');
+        var overlay = document.getElementById('play-overlay');
+
+        Visualizer.init(canvas);
+        Visualizer.setRenderer('midnight-rain-video');
+
+        function loadAndPlay(json) {
+            Visualizer.loadSong(json);
+            Visualizer.play();
+        }
+
+        function fetchSong() {
+            var url = '../audio-tracker/songs/midnight-rain.json';
+            if (window.fetch && location.protocol !== 'file:') {
+                return fetch(url).then(function(r) { return r.json(); });
+            }
+            return new Promise(function(resolve, reject) {
+                var xhr = new XMLHttpRequest();
+                xhr.open('GET', url, true);
+                xhr.onload = function() {
+                    if (xhr.status === 200 || xhr.status === 0) {
+                        resolve(JSON.parse(xhr.responseText));
+                    } else {
+                        reject(new Error('XHR failed: ' + xhr.status));
+                    }
+                };
+                xhr.onerror = function() { reject(new Error('XHR error')); };
+                xhr.send();
+            });
+        }
+
+        overlay.addEventListener('click', function() {
+            overlay.classList.add('hidden');
+            fetchSong().then(loadAndPlay).catch(function(err) {
+                console.error('Failed to load song:', err);
+                overlay.classList.remove('hidden');
+            });
+        });
+
+        if (new URLSearchParams(window.location.search).get('autoplay') === '1') {
+            overlay.click();
+        }
+
+        canvas.addEventListener('click', function() {
+            if (overlay.classList.contains('hidden')) {
+                if (Visualizer.isPlaying()) {
+                    Visualizer.stop();
+                } else {
+                    Visualizer.play();
+                }
+            }
+        });
+    })();
+    </script>
+</body>
+</html>

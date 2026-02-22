@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Highway — Music Video</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="video-base-styles.css">
+    <style>
+        :root {
+            --vid-bg: #06000e;
+            --vid-bg-rgb: 6,0,14;
+            --vid-font: 'Orbitron', sans-serif;
+            --vid-accent: #ff2eaa;
+            --vid-accent-r: 255;
+            --vid-accent-g: 46;
+            --vid-accent-b: 170;
+            --vid-title-min: 22px;
+            --vid-title-max: 52px;
+            --vid-title-weight: 900;
+            --vid-sub-min: 11px;
+            --vid-sub-vw: 1.8vw;
+            --vid-sub-max: 16px;
+            --vid-back-font: 'Orbitron', sans-serif;
+        }
+        .play-sub { letter-spacing: 0.2em; }
+    </style>
+</head>
+<body>
+    <a href="music-videos/index.html" class="back-link">&#8592; Music Videos</a>
+    <canvas id="viz-canvas"></canvas>
+    <div class="play-overlay" id="play-overlay">
+        <div class="play-title">Neon Highway</div>
+        <div class="play-sub">outrun night drive at 128 bpm</div>
+        <div class="play-btn"></div>
+    </div>
+
+    <script src="../audio-tracker/playback-engine.js"></script>
+    <script src="engine.js"></script>
+    <script src="video-utils.js"></script>
+    <script src="base-renderer.js"></script>
+    <script>
+    // ── Neon Highway Video Renderer ──────────────────────────────────
+    (function() {
+        "use strict";
+
+        var W = 0, H = 0;
+        var analysis = null;
+
+        // ── Palette ──
+        var BG = '#06000e';
+        var MAGENTA = '#ff2eaa';
+        var CYAN = '#00e5ff';
+        var ORANGE = '#ff6a00';
+        var YELLOW = '#ffe066';
+        var PURPLE = '#9933ff';
+        var SUNSET_TOP = '#1a0030';
+        var SUNSET_MID = '#ff2eaa';
+        var SUNSET_BOT = '#ff6a00';
+
+        // ── State ──
+        var beatPulse = 0;
+        var flashAlpha = 0;
+        var elapsed = 0;
+        var lastSeqIndex = -1;
+        var sectionMood = 'intro';
+        var introFadeIn = 0;
+        var outroFadeOut = 1;
+
+        // ── Grid road ──
+        var gridPhase = 0;
+        var horizonY = 0;
+        var roadBottom = 0;
+
+        // ── Road lines (center dashes) ──
+        var dashOffset = 0;
+
+        // ── Sun ──
+        var sunPulse = 0;
+
+        // ── Palm trees ──
+        var palms = [];
+
+        // ── Skyline ──
+        var skyBuildings = [];
+
+        // ── Speed lines ──
+        var speedLines = [];
+
+        // ── Stars ──
+        var stars = [];
+
+        // ── Dashboard ──
+        var rpmNeedle = 0;
+        var rpmTarget = 0;
+
+        // ── Title ──
+        var titleAlpha = 0;
+        var titleTarget = 0;
+
+        // ── Section mapping for 11-entry sequence ──
+        // seq 0-1: intro (ambient build)
+        // seq 2: buildup (bass + hats enter)
+        // seq 3-4: verse (lead + arp)
+        // seq 5-6: chorus (full energy)
+        // seq 7: breakdown
+        // seq 8-9: chorus2 (peak)
+        // seq 10: outro
+        function mapSection(seqIndex) {
+            if (seqIndex <= 1) return 'intro';
+            if (seqIndex === 2) return 'buildup';
+            if (seqIndex <= 4) return 'verse';
+            if (seqIndex <= 6) return 'chorus';
+            if (seqIndex === 7) return 'breakdown';
+            if (seqIndex <= 9) return 'chorus';
+            return 'outro';
+        }
+
+        // ── Init palms ──
+        function initPalms() {
+            palms = [];
+            for (var i = 0; i < 16; i++) {
+                palms.push({
+                    z: 0.05 + (i / 16) * 0.95,
+                    side: i % 2 === 0 ? -1 : 1,
+                    sway: rand(0, Math.PI * 2),
+                    height: rand(80, 160),
+                    fronds: randInt(5, 8)
+                });
+            }
+            palms.sort(function(a, b) { return a.z - b.z; });
+        }
+
+        // ── Init skyline ──
+        function initSkyline() {
+            skyBuildings = [];
+            for (var i = 0; i < 30; i++) {
+                skyBuildings.push({
+                    x: i / 30,
+                    w: rand(0.015, 0.05),
+                    h: rand(0.02, 0.12),
+                    lit: Math.random() > 0.4,
+                    color: pickRandom([MAGENTA, CYAN, PURPLE, ORANGE])
+                });
+            }
+        }
+
+        // ── Init stars ──
+        function initStars() {
+            stars = [];
+            for (var i = 0; i < 80; i++) {
+                stars.push({
+                    x: Math.random(),
+                    y: Math.random() * 0.4,
+                    size: rand(0.5, 2),
+                    twinkle: rand(0, Math.PI * 2),
+                    speed: rand(0.3, 1.5)
+                });
+            }
+        }
+
+        // ── Init speed lines ──
+        function initSpeedLines() {
+            speedLines = [];
+            for (var i = 0; i < 40; i++) {
+                speedLines.push({
+                    x: Math.random(),
+                    y: Math.random(),
+                    len: rand(0.02, 0.08),
+                    speed: rand(0.5, 1.5),
+                    alpha: rand(0.05, 0.2)
+                });
+            }
+        }
+
+        // ── Init ──
+        function init(ctx, width, height, anal) {
+            W = width; H = height;
+            analysis = anal;
+            beatPulse = 0;
+            flashAlpha = 0;
+            elapsed = 0;
+            lastSeqIndex = -1;
+            sectionMood = 'intro';
+            introFadeIn = 0;
+            outroFadeOut = 1;
+            gridPhase = 0;
+            dashOffset = 0;
+            sunPulse = 0;
+            rpmNeedle = 0;
+            rpmTarget = 0;
+            titleAlpha = 0;
+            titleTarget = 0;
+            horizonY = H * 0.42;
+            roadBottom = H * 0.82;
+
+            initPalms();
+            initSkyline();
+            initStars();
+            initSpeedLines();
+        }
+
+        // ── Resize ──
+        function resize(width, height) {
+            W = width; H = height;
+            horizonY = H * 0.42;
+            roadBottom = H * 0.82;
+            initSpeedLines();
+        }
+
+        // ── Draw synthwave sunset ──
+        function drawSunset(ctx, energy) {
+            // Sky gradient
+            var skyGrad = ctx.createLinearGradient(0, 0, 0, horizonY + 20);
+            skyGrad.addColorStop(0, '#020008');
+            skyGrad.addColorStop(0.3, SUNSET_TOP);
+            skyGrad.addColorStop(0.7, '#660044');
+            skyGrad.addColorStop(1, SUNSET_BOT);
+            ctx.fillStyle = skyGrad;
+            ctx.fillRect(0, 0, W, horizonY + 20);
+
+            // Sun
+            var sunR = Math.min(W, H) * 0.12 + sunPulse * 8;
+            var sunX = W * 0.5;
+            var sunY = horizonY - sunR * 0.3;
+
+            // Sun glow
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            var glowGrad = ctx.createRadialGradient(sunX, sunY, sunR * 0.5, sunX, sunY, sunR * 3);
+            glowGrad.addColorStop(0, rgba(MAGENTA, 0.15 + energy * 0.1));
+            glowGrad.addColorStop(0.5, rgba(ORANGE, 0.05));
+            glowGrad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = glowGrad;
+            ctx.fillRect(0, 0, W, horizonY + 50);
+            ctx.restore();
+
+            // Sun body with horizontal stripe cutouts
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(sunX, sunY, sunR, 0, Math.PI * 2);
+            ctx.clip();
+
+            var sunBodyGrad = ctx.createLinearGradient(sunX, sunY - sunR, sunX, sunY + sunR);
+            sunBodyGrad.addColorStop(0, '#ffee44');
+            sunBodyGrad.addColorStop(0.4, ORANGE);
+            sunBodyGrad.addColorStop(0.7, MAGENTA);
+            sunBodyGrad.addColorStop(1, '#660033');
+            ctx.fillStyle = sunBodyGrad;
+            ctx.fillRect(sunX - sunR, sunY - sunR, sunR * 2, sunR * 2);
+
+            // Horizontal stripes cut out of sun (classic outrun)
+            ctx.globalCompositeOperation = 'destination-out';
+            var stripeCount = 7;
+            for (var i = 0; i < stripeCount; i++) {
+                var t = (i + 1) / (stripeCount + 1);
+                var sy = sunY - sunR + t * sunR * 2;
+                var gap = 1 + t * 4;
+                ctx.fillStyle = 'rgba(0,0,0,1)';
+                ctx.fillRect(sunX - sunR, sy, sunR * 2, gap);
+            }
+            ctx.restore();
+        }
+
+        // ── Draw stars ──
+        function drawStars(ctx) {
+            ctx.save();
+            for (var i = 0; i < stars.length; i++) {
+                var s = stars[i];
+                var twinkle = 0.3 + 0.7 * Math.abs(Math.sin(s.twinkle + elapsed * s.speed));
+                ctx.globalAlpha = twinkle * introFadeIn * outroFadeOut;
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(s.x * W, s.y * H, s.size, s.size);
+            }
+            ctx.restore();
+        }
+
+        // ── Draw distant skyline ──
+        function drawSkyline(ctx, energy) {
+            ctx.save();
+            for (var i = 0; i < skyBuildings.length; i++) {
+                var b = skyBuildings[i];
+                var bx = b.x * W;
+                var bw = b.w * W;
+                var bh = b.h * H * 0.4;
+                var by = horizonY - bh;
+
+                // Building silhouette
+                ctx.fillStyle = '#0a0018';
+                ctx.fillRect(bx, by, bw, bh + 2);
+
+                // Neon edge glow on beat
+                if (b.lit && energy > 0.2) {
+                    ctx.strokeStyle = rgba(b.color, 0.2 + beatPulse * 0.3);
+                    ctx.lineWidth = 1;
+                    ctx.shadowColor = b.color;
+                    ctx.shadowBlur = 6 + beatPulse * 8;
+                    ctx.strokeRect(bx, by, bw, bh);
+                    ctx.shadowBlur = 0;
+                }
+            }
+            ctx.restore();
+        }
+
+        // ── Draw perspective grid road ──
+        function drawRoad(ctx, energy, speedMult) {
+            var vpX = W * 0.5;
+            var vpY = horizonY;
+
+            // Road surface
+            var roadGrad = ctx.createLinearGradient(0, vpY, 0, roadBottom);
+            roadGrad.addColorStop(0, '#0a0018');
+            roadGrad.addColorStop(1, '#040008');
+            ctx.fillStyle = roadGrad;
+            ctx.beginPath();
+            ctx.moveTo(vpX - 2, vpY);
+            ctx.lineTo(0, roadBottom);
+            ctx.lineTo(W, roadBottom);
+            ctx.lineTo(vpX + 2, vpY);
+            ctx.closePath();
+            ctx.fill();
+
+            // Perspective vertical grid lines (converge to vanishing point)
+            var numV = 20;
+            var roadWidthBottom = W * 1.2;
+            var roadLeft = (W - roadWidthBottom) / 2;
+            ctx.strokeStyle = rgba(CYAN, 0.06 + energy * 0.08 + beatPulse * 0.04);
+            ctx.lineWidth = 1;
+            for (var i = 0; i <= numV; i++) {
+                var t = i / numV;
+                var bx = roadLeft + t * roadWidthBottom;
+                ctx.beginPath();
+                ctx.moveTo(vpX, vpY);
+                ctx.lineTo(bx, roadBottom);
+                ctx.stroke();
+            }
+
+            // Scrolling horizontal grid lines (perspective spacing)
+            var lineCount = 20;
+            var pulseColor = sectionMood === 'chorus' ? MAGENTA : CYAN;
+            for (var j = 0; j < lineCount; j++) {
+                var raw = ((j / lineCount) + gridPhase) % 1;
+                var perspT = Math.pow(raw, 2.2);
+                var y = vpY + perspT * (roadBottom - vpY);
+                var xSpread = perspT;
+                var lx = vpX - xSpread * roadWidthBottom * 0.5;
+                var rx = vpX + xSpread * roadWidthBottom * 0.5;
+
+                var lineAlpha = perspT * (0.08 + energy * 0.12 + beatPulse * 0.06);
+                ctx.strokeStyle = rgba(pulseColor, Math.min(lineAlpha, 0.5));
+                ctx.lineWidth = 1 + perspT * 1.5;
+                ctx.beginPath();
+                ctx.moveTo(lx, y);
+                ctx.lineTo(rx, y);
+                ctx.stroke();
+            }
+
+            // Center dashes
+            ctx.save();
+            ctx.strokeStyle = rgba(YELLOW, 0.4 + beatPulse * 0.2);
+            ctx.lineWidth = 2;
+            ctx.setLineDash([12, 20]);
+            ctx.lineDashOffset = -dashOffset;
+            ctx.beginPath();
+            ctx.moveTo(vpX, vpY);
+            ctx.lineTo(vpX, roadBottom);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.restore();
+
+            // Road edge glow lines
+            ctx.save();
+            ctx.strokeStyle = MAGENTA;
+            ctx.lineWidth = 2;
+            ctx.shadowColor = MAGENTA;
+            ctx.shadowBlur = 10 + beatPulse * 8;
+
+            // Left edge
+            ctx.beginPath();
+            ctx.moveTo(vpX - 1, vpY);
+            ctx.lineTo(roadLeft - W * 0.05, roadBottom);
+            ctx.stroke();
+
+            // Right edge
+            ctx.beginPath();
+            ctx.moveTo(vpX + 1, vpY);
+            ctx.lineTo(roadLeft + roadWidthBottom + W * 0.05, roadBottom);
+            ctx.stroke();
+
+            ctx.shadowBlur = 0;
+            ctx.restore();
+        }
+
+        // ── Draw palm tree ──
+        function drawPalm(ctx, screenX, screenY, scale, sway, height, fronds, energy) {
+            if (scale < 0.02) return;
+            ctx.save();
+            ctx.translate(screenX, screenY);
+
+            var s = scale;
+            var trunkH = height * s;
+            var swayX = Math.sin(sway) * 8 * s;
+
+            // Trunk
+            ctx.strokeStyle = '#1a0030';
+            ctx.lineWidth = Math.max(1, 4 * s);
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.quadraticCurveTo(swayX * 0.5, -trunkH * 0.5, swayX, -trunkH);
+            ctx.stroke();
+
+            // Neon trunk edge
+            ctx.strokeStyle = rgba(MAGENTA, 0.3 + energy * 0.2);
+            ctx.lineWidth = Math.max(0.5, 1.5 * s);
+            ctx.shadowColor = MAGENTA;
+            ctx.shadowBlur = 4 * s;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.quadraticCurveTo(swayX * 0.5, -trunkH * 0.5, swayX, -trunkH);
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            // Fronds
+            var topX = swayX;
+            var topY = -trunkH;
+            var frondLen = trunkH * 0.6;
+            ctx.strokeStyle = rgba(CYAN, 0.15 + energy * 0.15 + beatPulse * 0.1);
+            ctx.lineWidth = Math.max(0.5, 2 * s);
+            ctx.shadowColor = CYAN;
+            ctx.shadowBlur = 6 * s;
+
+            for (var f = 0; f < fronds; f++) {
+                var angle = -Math.PI * 0.8 + (f / (fronds - 1)) * Math.PI * 0.6;
+                angle += Math.sin(sway + f) * 0.15;
+                var fx = topX + Math.cos(angle) * frondLen;
+                var fy = topY + Math.sin(angle) * frondLen * 0.7;
+                var cpx = topX + Math.cos(angle) * frondLen * 0.5;
+                var cpy = topY + Math.sin(angle) * frondLen * 0.2;
+                ctx.beginPath();
+                ctx.moveTo(topX, topY);
+                ctx.quadraticCurveTo(cpx, cpy, fx, fy);
+                ctx.stroke();
+            }
+
+            ctx.shadowBlur = 0;
+            ctx.restore();
+        }
+
+        // ── Draw all palms ──
+        function drawPalms(ctx, energy) {
+            var vpX = W * 0.5;
+            var vpY = horizonY;
+            var roadWidthBottom = W * 1.2;
+            var roadLeft = (W - roadWidthBottom) / 2;
+
+            for (var i = 0; i < palms.length; i++) {
+                var p = palms[i];
+                var perspT = Math.pow(p.z, 2.2);
+                var y = vpY + perspT * (roadBottom - vpY);
+                var xSpread = perspT * roadWidthBottom * 0.55;
+                var x = vpX + p.side * xSpread;
+                var scale = perspT * 1.2;
+
+                drawPalm(ctx, x, y, scale, p.sway + elapsed * 0.3, p.height, p.fronds, energy);
+            }
+        }
+
+        // ── Draw dashboard silhouette ──
+        function drawDashboard(ctx, energy) {
+            var dashY = roadBottom;
+            var dashH = H - dashY;
+            if (dashH < 10) return;
+
+            ctx.save();
+
+            // Dashboard body
+            ctx.fillStyle = '#020006';
+            ctx.beginPath();
+            ctx.moveTo(0, dashY + dashH * 0.1);
+            ctx.quadraticCurveTo(W * 0.2, dashY, W * 0.5, dashY + dashH * 0.05);
+            ctx.quadraticCurveTo(W * 0.8, dashY, W, dashY + dashH * 0.1);
+            ctx.lineTo(W, H);
+            ctx.lineTo(0, H);
+            ctx.closePath();
+            ctx.fill();
+
+            // Steering column (center bump)
+            ctx.fillStyle = '#050010';
+            ctx.beginPath();
+            ctx.ellipse(W * 0.5, dashY + dashH * 0.2, W * 0.12, dashH * 0.3, 0, Math.PI, 0);
+            ctx.fill();
+
+            // Neon dash trim
+            ctx.strokeStyle = rgba(CYAN, 0.3 + beatPulse * 0.2);
+            ctx.lineWidth = 1.5;
+            ctx.shadowColor = CYAN;
+            ctx.shadowBlur = 8;
+            ctx.beginPath();
+            ctx.moveTo(W * 0.05, dashY + dashH * 0.15);
+            ctx.quadraticCurveTo(W * 0.5, dashY - dashH * 0.05, W * 0.95, dashY + dashH * 0.15);
+            ctx.stroke();
+
+            // RPM gauge (left side)
+            var gaugeX = W * 0.25;
+            var gaugeY = dashY + dashH * 0.45;
+            var gaugeR = Math.min(dashH * 0.3, W * 0.06);
+
+            if (gaugeR > 8) {
+                // Gauge ring
+                ctx.strokeStyle = rgba(MAGENTA, 0.4);
+                ctx.lineWidth = 1.5;
+                ctx.shadowColor = MAGENTA;
+                ctx.shadowBlur = 6;
+                ctx.beginPath();
+                ctx.arc(gaugeX, gaugeY, gaugeR, 0, Math.PI * 2);
+                ctx.stroke();
+
+                // Needle
+                var needleAngle = -Math.PI * 0.75 + rpmNeedle * Math.PI * 1.5;
+                ctx.strokeStyle = rpmNeedle > 0.7 ? '#ff3333' : CYAN;
+                ctx.lineWidth = 2;
+                ctx.shadowColor = rpmNeedle > 0.7 ? '#ff3333' : CYAN;
+                ctx.shadowBlur = 8;
+                ctx.beginPath();
+                ctx.moveTo(gaugeX, gaugeY);
+                ctx.lineTo(
+                    gaugeX + Math.cos(needleAngle) * gaugeR * 0.8,
+                    gaugeY + Math.sin(needleAngle) * gaugeR * 0.8
+                );
+                ctx.stroke();
+
+                // Gauge ticks
+                ctx.strokeStyle = rgba(MAGENTA, 0.2);
+                ctx.lineWidth = 1;
+                ctx.shadowBlur = 0;
+                for (var t = 0; t < 8; t++) {
+                    var tickAng = -Math.PI * 0.75 + (t / 7) * Math.PI * 1.5;
+                    ctx.beginPath();
+                    ctx.moveTo(
+                        gaugeX + Math.cos(tickAng) * gaugeR * 0.85,
+                        gaugeY + Math.sin(tickAng) * gaugeR * 0.85
+                    );
+                    ctx.lineTo(
+                        gaugeX + Math.cos(tickAng) * gaugeR * 0.95,
+                        gaugeY + Math.sin(tickAng) * gaugeR * 0.95
+                    );
+                    ctx.stroke();
+                }
+            }
+
+            ctx.shadowBlur = 0;
+            ctx.restore();
+        }
+
+        // ── Draw speed lines ──
+        function drawSpeedLines(ctx, energy) {
+            if (energy < 0.15) return;
+            ctx.save();
+            var vpX = W * 0.5;
+            var vpY = horizonY;
+
+            for (var i = 0; i < speedLines.length; i++) {
+                var sl = speedLines[i];
+                var angle = Math.atan2(sl.y * H - vpY, sl.x * W - vpX);
+                var dist = Math.sqrt(Math.pow(sl.x * W - vpX, 2) + Math.pow(sl.y * H - vpY, 2));
+                var lineLen = sl.len * W * energy;
+
+                var x1 = sl.x * W;
+                var y1 = sl.y * H;
+                var x2 = x1 + Math.cos(angle) * lineLen;
+                var y2 = y1 + Math.sin(angle) * lineLen;
+
+                ctx.globalAlpha = sl.alpha * energy * introFadeIn;
+                ctx.strokeStyle = CYAN;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        // ── Draw flash ──
+        function drawFlash(ctx) {
+            if (flashAlpha < 0.01) return;
+            ctx.save();
+            ctx.globalAlpha = flashAlpha;
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(0, 0, W, H);
+            ctx.restore();
+        }
+
+        // ── Draw title ──
+        function drawTitle(ctx) {
+            if (titleAlpha < 0.01) return;
+            ctx.save();
+            ctx.textBaseline = 'middle';
+            ctx.textAlign = 'center';
+
+            var fontSize = Math.max(16, Math.min(W * 0.06, 64));
+            ctx.font = '900 ' + fontSize + 'px "Orbitron", sans-serif';
+
+            // Glow
+            ctx.globalAlpha = titleAlpha * 0.4;
+            ctx.shadowColor = MAGENTA;
+            ctx.shadowBlur = 60;
+            ctx.fillStyle = MAGENTA;
+            ctx.fillText('NEON HIGHWAY', W / 2, H * 0.18);
+
+            ctx.globalAlpha = titleAlpha;
+            ctx.shadowColor = CYAN;
+            ctx.shadowBlur = 30;
+            ctx.fillStyle = CYAN;
+            ctx.fillText('NEON HIGHWAY', W / 2, H * 0.18);
+
+            ctx.shadowBlur = 0;
+            ctx.globalAlpha = titleAlpha * 0.9;
+            ctx.fillStyle = '#fff';
+            ctx.fillText('NEON HIGHWAY', W / 2, H * 0.18);
+
+            ctx.restore();
+        }
+
+        // ── Horizon glow line ──
+        function drawHorizonGlow(ctx, energy) {
+            ctx.save();
+            ctx.strokeStyle = MAGENTA;
+            ctx.lineWidth = 1.5 + beatPulse * 2;
+            ctx.shadowColor = MAGENTA;
+            ctx.shadowBlur = 15 + beatPulse * 15 + energy * 10;
+            ctx.beginPath();
+            ctx.moveTo(0, horizonY);
+            ctx.lineTo(W, horizonY);
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+            ctx.restore();
+        }
+
+        // ── Main render ──
+        function render(frameData) {
+            var ctx = frameData.ctx;
+            var dt = frameData.dt || 1/60;
+            var cursor = frameData.cursor;
+            beatPulse = frameData.beatPulse;
+
+            // Background
+            ctx.fillStyle = BG;
+            ctx.fillRect(0, 0, W, H);
+
+            if (!cursor) {
+                // Idle state
+                drawSunset(ctx, 0);
+                drawStars(ctx);
+                drawSkyline(ctx, 0);
+                drawHorizonGlow(ctx, 0);
+                drawRoad(ctx, 0, 0);
+                drawPalms(ctx, 0);
+                drawDashboard(ctx, 0);
+                return;
+            }
+
+            var seqIdx = cursor.seqIndex;
+            var energy = analysis ? (analysis.energy[cursor.timelineIndex] || 0) : 0;
+            elapsed = cursor.elapsed;
+
+            // ── Section transitions ──
+            var newSection = mapSection(seqIdx);
+            if (seqIdx !== lastSeqIndex) {
+                var oldSection = sectionMood;
+                sectionMood = newSection;
+
+                if (newSection === 'chorus' && oldSection !== 'chorus') {
+                    flashAlpha = 0.25;
+                }
+                if (newSection === 'buildup' && oldSection === 'intro') {
+                    flashAlpha = 0.1;
+                }
+                lastSeqIndex = seqIdx;
+            }
+
+            // ── Intro fade ──
+            if (sectionMood === 'intro') {
+                introFadeIn = Math.min(1, introFadeIn + dt * 0.3);
+            } else {
+                introFadeIn = 1;
+            }
+
+            // ── Outro fade ──
+            if (sectionMood === 'outro') {
+                outroFadeOut = Math.max(0, outroFadeOut - dt * 0.15);
+            } else {
+                outroFadeOut = 1;
+            }
+
+            // ── Speed based on section ──
+            var targetSpeed;
+            switch (sectionMood) {
+                case 'intro': targetSpeed = 0.2 + introFadeIn * 0.3; break;
+                case 'buildup': targetSpeed = 0.7 + energy * 0.3; break;
+                case 'verse': targetSpeed = 1.0; break;
+                case 'chorus': targetSpeed = 1.6 + energy * 0.6; break;
+                case 'breakdown': targetSpeed = 0.3; break;
+                case 'outro': targetSpeed = 0.4 * outroFadeOut; break;
+                default: targetSpeed = 1.0;
+            }
+            var speedMult = lerpExp(gridPhase > 0 ? targetSpeed : 0.2, targetSpeed, 4, dt);
+
+            // ── Beat effects ──
+            if (frameData.beatChanged) {
+                sunPulse = 1;
+                if (sectionMood === 'chorus' && energy > 0.3) {
+                    flashAlpha = Math.max(flashAlpha, 0.04 + energy * 0.05);
+                }
+            }
+            flashAlpha *= Math.exp(-5 * dt);
+            sunPulse *= Math.exp(-6 * dt);
+
+            // ── Scroll grid ──
+            gridPhase = (gridPhase + speedMult * dt * 0.6) % 1;
+            dashOffset += speedMult * 300 * dt;
+
+            // ── RPM gauge ──
+            rpmTarget = 0.2 + speedMult * 0.35 + energy * 0.15;
+            if (sectionMood === 'chorus') rpmTarget = Math.min(1, rpmTarget + 0.15);
+            rpmNeedle = lerpExp(rpmNeedle, clamp01(rpmTarget), 6, dt);
+
+            // ── Title ──
+            titleTarget = (sectionMood === 'chorus') ? 1 : 0;
+            titleAlpha = lerpExp(titleAlpha, titleTarget, 4, dt);
+
+            // ── Speed line movement ──
+            var vpX = W * 0.5, vpY = horizonY;
+            for (var si = 0; si < speedLines.length; si++) {
+                var sl = speedLines[si];
+                var angle = Math.atan2(sl.y * H - vpY, sl.x * W - vpX);
+                var moveSpeed = sl.speed * speedMult * 0.3;
+                sl.x += Math.cos(angle) * moveSpeed * dt / W;
+                sl.y += Math.sin(angle) * moveSpeed * dt / H;
+                // Reset if off screen
+                if (sl.x < -0.1 || sl.x > 1.1 || sl.y < -0.1 || sl.y > 1.1) {
+                    // Respawn near vanishing point
+                    var a = rand(0, Math.PI * 2);
+                    var d = rand(0.02, 0.15);
+                    sl.x = 0.5 + Math.cos(a) * d;
+                    sl.y = (horizonY / H) + Math.sin(a) * d * 0.5;
+                }
+            }
+
+            // ── Draw scene (back to front) ──
+
+            // 1. Sunset sky + sun
+            drawSunset(ctx, energy);
+
+            // 2. Stars
+            drawStars(ctx);
+
+            // 3. Distant skyline
+            drawSkyline(ctx, energy);
+
+            // 4. Horizon glow
+            drawHorizonGlow(ctx, energy);
+
+            // 5. Grid road
+            drawRoad(ctx, energy, speedMult);
+
+            // 6. Palm trees
+            drawPalms(ctx, energy);
+
+            // 7. Speed lines
+            drawSpeedLines(ctx, energy);
+
+            // 8. Dashboard
+            ctx.save();
+            ctx.globalAlpha = introFadeIn * outroFadeOut;
+            drawDashboard(ctx, energy);
+            ctx.restore();
+
+            // 9. Title
+            drawTitle(ctx);
+
+            // 10. Vignette
+            var vigGrad = ctx.createRadialGradient(W/2, H/2, W*0.15, W/2, H/2, W*0.85);
+            vigGrad.addColorStop(0, 'rgba(6,0,14,0)');
+            vigGrad.addColorStop(1, 'rgba(6,0,14,' + (0.5 + beatPulse * 0.1) + ')');
+            ctx.fillStyle = vigGrad;
+            ctx.fillRect(0, 0, W, H);
+
+            // 11. Beat pulse border glow (chorus only)
+            if (beatPulse > 0.1 && sectionMood === 'chorus') {
+                ctx.save();
+                ctx.globalAlpha = beatPulse * 0.12;
+                ctx.strokeStyle = MAGENTA;
+                ctx.lineWidth = 4;
+                ctx.shadowColor = MAGENTA;
+                ctx.shadowBlur = 25;
+                ctx.strokeRect(0, 0, W, H);
+                ctx.restore();
+            }
+
+            // 12. Flash
+            drawFlash(ctx);
+
+            // 13. Outro fade to black
+            if (outroFadeOut < 1) {
+                ctx.save();
+                ctx.globalAlpha = 1 - outroFadeOut;
+                ctx.fillStyle = '#000';
+                ctx.fillRect(0, 0, W, H);
+                ctx.restore();
+            }
+        }
+
+        BaseRenderer('neon-highway-video', 'Neon Highway', {
+            beatDecay: 8,
+            init: init,
+            render: render,
+            resize: resize
+        });
+    })();
+
+    // ── Page bootstrap ──
+    (function() {
+        var canvas = document.getElementById('viz-canvas');
+        var overlay = document.getElementById('play-overlay');
+
+        Visualizer.init(canvas);
+        Visualizer.setRenderer('neon-highway-video');
+
+        function loadAndPlay(json) {
+            Visualizer.loadSong(json);
+            Visualizer.play();
+        }
+
+        function fetchSong() {
+            var url = '../audio-tracker/songs/neon-highway.json';
+            if (window.fetch && location.protocol !== 'file:') {
+                return fetch(url).then(function(r) { return r.json(); });
+            }
+            return new Promise(function(resolve, reject) {
+                var xhr = new XMLHttpRequest();
+                xhr.open('GET', url, true);
+                xhr.onload = function() {
+                    if (xhr.status === 200 || xhr.status === 0) {
+                        resolve(JSON.parse(xhr.responseText));
+                    } else {
+                        reject(new Error('XHR failed: ' + xhr.status));
+                    }
+                };
+                xhr.onerror = function() { reject(new Error('XHR error')); };
+                xhr.send();
+            });
+        }
+
+        overlay.addEventListener('click', function() {
+            overlay.classList.add('hidden');
+            fetchSong().then(loadAndPlay).catch(function(err) {
+                console.error('Failed to load song:', err);
+                overlay.classList.remove('hidden');
+            });
+        });
+
+        if (new URLSearchParams(window.location.search).get('autoplay') === '1') {
+            overlay.click();
+        }
+
+        canvas.addEventListener('click', function() {
+            if (overlay.classList.contains('hidden')) {
+                if (Visualizer.isPlaying()) {
+                    Visualizer.stop();
+                } else {
+                    Visualizer.play();
+                }
+            }
+        });
+    })();
+    </script>
+</body>
+</html>

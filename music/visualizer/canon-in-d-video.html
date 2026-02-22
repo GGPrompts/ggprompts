@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canon in D — Music Video</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="video-base-styles.css">
+    <style>
+        :root {
+            --vid-bg: #1a0a04;
+            --vid-bg-rgb: 26,10,4;
+            --vid-font: 'Cinzel', serif;
+            --vid-accent: #e8a832;
+            --vid-accent-r: 232;
+            --vid-accent-g: 168;
+            --vid-accent-b: 50;
+            --vid-overlay-alpha: 0.92;
+            --vid-sub-alpha: 0.5;
+        }
+    </style>
+</head>
+<body>
+    <a href="music-videos/index.html" class="back-link">&larr; Music Videos</a>
+    <canvas id="viz-canvas"></canvas>
+    <div class="play-overlay" id="play-overlay">
+        <div class="play-title">Canon in D</div>
+        <div class="play-sub">cascading geometric mandala</div>
+        <div class="play-btn"></div>
+    </div>
+
+    <script src="../audio-tracker/playback-engine.js"></script>
+    <script src="engine.js"></script>
+    <script src="video-utils.js"></script>
+    <script src="base-renderer.js"></script>
+    <script>
+    // ── Canon in D Video Renderer ──────────────────────────────────────
+    (function() {
+        "use strict";
+
+        var W = 0, H = 0;
+        var analysis = null;
+        var rpb = 4;
+
+        // ── Warm sunset palette ──
+        var BG = '#1a0a04';
+        var GOLD = '#e8a832';
+        var AMBER = '#d4781c';
+        var CORAL = '#e05a3a';
+        var WARM_WHITE = '#fff4e0';
+        var DEEP_ROSE = '#c43a5a';
+        var SOFT_PEACH = '#f0b88a';
+        var DARK_WINE = '#4a1020';
+
+        // Voice colors (each canon voice gets its own hue)
+        var VOICE_COLORS = [GOLD, CORAL, DEEP_ROSE, AMBER];
+
+        // ── State ──
+        var beatPulse = 0;
+        var globalTime = 0;
+        var lastSeqIndex = -1;
+        var flashAlpha = 0;
+
+        // Mandala layers — each voice adds a layer
+        var voiceLayers = [];   // array of layer objects
+        var activeVoices = 0;   // how many voices are currently active (0-4)
+        var mandalaRotation = 0;
+        var mandalaScale = 1;
+
+        // Bass orbit circles
+        var bassCircles = [];
+        var BASS_NOTES = [62, 57, 59, 54, 55, 50, 55, 57]; // D A B F# G D G A (the canonical bass)
+        var bassIndex = 0;
+
+        // Particle system for beat bursts
+        var particles = [];
+
+        // Section tracking
+        var sectionName = 'intro';
+        var sectionIntensity = 0;
+
+        // Title
+        var titleAlpha = 0;
+        var titleTarget = 0;
+
+        // ── Layer definition ──
+        function createLayer(voiceIndex) {
+            return {
+                voiceIndex: voiceIndex,
+                color: VOICE_COLORS[voiceIndex],
+                sides: [6, 8, 12, 16][voiceIndex],       // polygon complexity increases
+                innerRadius: 0.15 + voiceIndex * 0.12,    // fraction of mandala radius
+                outerRadius: 0.3 + voiceIndex * 0.15,
+                rotationSpeed: (0.15 + voiceIndex * 0.08) * (voiceIndex % 2 === 0 ? 1 : -1),
+                rotation: 0,
+                pulsePhase: voiceIndex * Math.PI * 0.5,
+                opacity: 0,
+                targetOpacity: 0,
+                petalCount: [3, 4, 6, 8][voiceIndex],
+                dotCount: [6, 8, 12, 16][voiceIndex]
+            };
+        }
+
+        // ── Particle ──
+        function emitParticle(x, y, color, speed) {
+            if (particles.length > 200) return;
+            var angle = Math.random() * Math.PI * 2;
+            var spd = (speed || 40) + Math.random() * 60;
+            particles.push({
+                x: x, y: y,
+                vx: Math.cos(angle) * spd,
+                vy: Math.sin(angle) * spd,
+                life: 0.8 + Math.random() * 1.2,
+                maxLife: 0.8 + Math.random() * 1.2,
+                size: 1.5 + Math.random() * 2.5,
+                color: color || GOLD
+            });
+        }
+
+        // ── Bass circle ──
+        function createBassCircle(angle) {
+            return {
+                angle: angle,
+                radius: 0,
+                targetRadius: 1,
+                opacity: 1,
+                pulseSize: 0,
+                noteIndex: bassIndex
+            };
+        }
+
+        // ── Map sequence index to section ──
+        // 42 sequences total (0-41)
+        // 0-1: bass only intro
+        // 2-3: first voice enters (bass + melody hint)
+        // 4-7: two voices layering
+        // 8-12: three voices building
+        // 13-19: full four voices, development
+        // 20-27: climax and variations
+        // 28-34: recapitulation
+        // 35-38: final flourish
+        // 39-41: fade/coda
+        function mapSection(seqIdx) {
+            if (seqIdx <= 1) return 'intro';
+            if (seqIdx <= 3) return 'firstVoice';
+            if (seqIdx <= 7) return 'twoVoices';
+            if (seqIdx <= 12) return 'threeVoices';
+            if (seqIdx <= 19) return 'fullCanon';
+            if (seqIdx <= 27) return 'climax';
+            if (seqIdx <= 34) return 'recapitulation';
+            if (seqIdx <= 38) return 'flourish';
+            return 'coda';
+        }
+
+        function getActiveVoiceCount(section) {
+            switch (section) {
+                case 'intro': return 1;
+                case 'firstVoice': return 2;
+                case 'twoVoices': return 2;
+                case 'threeVoices': return 3;
+                case 'fullCanon': return 4;
+                case 'climax': return 4;
+                case 'recapitulation': return 4;
+                case 'flourish': return 4;
+                case 'coda': return 2;
+                default: return 1;
+            }
+        }
+
+        function getSectionIntensity(section) {
+            switch (section) {
+                case 'intro': return 0.2;
+                case 'firstVoice': return 0.35;
+                case 'twoVoices': return 0.5;
+                case 'threeVoices': return 0.65;
+                case 'fullCanon': return 0.8;
+                case 'climax': return 1.0;
+                case 'recapitulation': return 0.75;
+                case 'flourish': return 0.9;
+                case 'coda': return 0.3;
+                default: return 0.2;
+            }
+        }
+
+        // ── Draw a single mandala layer ──
+        function drawLayer(ctx, layer, cx, cy, baseR, energy, time) {
+            if (layer.opacity < 0.01) return;
+
+            var sides = layer.sides;
+            var innerR = baseR * layer.innerRadius;
+            var outerR = baseR * layer.outerRadius;
+            var petals = layer.petalCount;
+            var rot = layer.rotation;
+            var pulse = Math.sin(time * 2 + layer.pulsePhase) * 0.08 * beatPulse;
+
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.rotate(rot);
+            ctx.globalAlpha = layer.opacity;
+
+            var color = layer.color;
+
+            // ── Petal arcs ──
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1.5 + beatPulse * 1.5;
+            for (var p = 0; p < petals; p++) {
+                var pAngle = (p / petals) * Math.PI * 2;
+                var pInner = innerR * (1 + pulse);
+                var pOuter = outerR * (1 + pulse * 0.5);
+
+                ctx.beginPath();
+                // Draw petal as a pointed ellipse-like shape
+                var tipX = Math.cos(pAngle) * pOuter;
+                var tipY = Math.sin(pAngle) * pOuter;
+                var leftAngle = pAngle - 0.25;
+                var rightAngle = pAngle + 0.25;
+                var midR = (pInner + pOuter) * 0.5;
+
+                ctx.moveTo(Math.cos(pAngle) * pInner, Math.sin(pAngle) * pInner);
+                ctx.quadraticCurveTo(
+                    Math.cos(leftAngle) * midR,
+                    Math.sin(leftAngle) * midR,
+                    tipX, tipY
+                );
+                ctx.quadraticCurveTo(
+                    Math.cos(rightAngle) * midR,
+                    Math.sin(rightAngle) * midR,
+                    Math.cos(pAngle) * pInner,
+                    Math.sin(pAngle) * pInner
+                );
+                ctx.stroke();
+
+                // Fill with low alpha
+                ctx.fillStyle = rgba(color, 0.08 + energy * 0.06);
+                ctx.fill();
+            }
+
+            // ── Polygon ring ──
+            ctx.beginPath();
+            var ringR = (innerR + outerR) * 0.5 * (1 + pulse * 0.3);
+            for (var s = 0; s <= sides; s++) {
+                var sAngle = (s / sides) * Math.PI * 2;
+                var sx = Math.cos(sAngle) * ringR;
+                var sy = Math.sin(sAngle) * ringR;
+                if (s === 0) ctx.moveTo(sx, sy);
+                else ctx.lineTo(sx, sy);
+            }
+            ctx.strokeStyle = rgba(color, 0.4 + beatPulse * 0.3);
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            // ── Dots at vertices ──
+            var dots = layer.dotCount;
+            var dotR = 2 + beatPulse * 2;
+            ctx.fillStyle = color;
+            for (var d = 0; d < dots; d++) {
+                var dAngle = (d / dots) * Math.PI * 2;
+                var dR = outerR * (1 + pulse * 0.5);
+                var dx = Math.cos(dAngle) * dR;
+                var dy = Math.sin(dAngle) * dR;
+                ctx.globalAlpha = layer.opacity * (0.5 + beatPulse * 0.5);
+                ctx.beginPath();
+                ctx.arc(dx, dy, dotR, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // ── Inner connecting lines (star pattern) ──
+            if (sides >= 6) {
+                ctx.globalAlpha = layer.opacity * 0.2;
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 0.5;
+                var starR = innerR * (1 + pulse);
+                for (var st = 0; st < sides; st++) {
+                    var stAngle1 = (st / sides) * Math.PI * 2;
+                    var stAngle2 = ((st + Math.floor(sides / 3)) / sides) * Math.PI * 2;
+                    ctx.beginPath();
+                    ctx.moveTo(Math.cos(stAngle1) * starR, Math.sin(stAngle1) * starR);
+                    ctx.lineTo(Math.cos(stAngle2) * starR, Math.sin(stAngle2) * starR);
+                    ctx.stroke();
+                }
+            }
+
+            ctx.restore();
+        }
+
+        // ── Draw bass orbit ──
+        function drawBassOrbit(ctx, cx, baseY, maxR, energy) {
+            var orbitR = maxR * 0.85;
+            var circleR = 6 + energy * 8 + beatPulse * 4;
+
+            ctx.save();
+
+            // Orbit path (elliptical at bottom)
+            ctx.strokeStyle = rgba(AMBER, 0.15);
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.ellipse(cx, baseY, orbitR, orbitR * 0.3, 0, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // Bass circles
+            for (var i = bassCircles.length - 1; i >= 0; i--) {
+                var bc = bassCircles[i];
+                bc.radius = lerpExp(bc.radius, bc.targetRadius, 3, 1/60);
+                bc.pulseSize *= Math.exp(-4 * (1/60));
+
+                var bx = cx + Math.cos(bc.angle) * orbitR * bc.radius;
+                var by = baseY + Math.sin(bc.angle) * orbitR * 0.3 * bc.radius;
+                var r = circleR * (0.6 + bc.pulseSize * 0.4);
+
+                // Glow
+                ctx.globalAlpha = bc.opacity * 0.3;
+                ctx.shadowColor = AMBER;
+                ctx.shadowBlur = 15 + bc.pulseSize * 10;
+                ctx.fillStyle = AMBER;
+                ctx.beginPath();
+                ctx.arc(bx, by, r * 1.3, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Solid circle
+                ctx.shadowBlur = 0;
+                ctx.globalAlpha = bc.opacity * 0.7;
+                ctx.fillStyle = GOLD;
+                ctx.beginPath();
+                ctx.arc(bx, by, r, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Inner dot
+                ctx.globalAlpha = bc.opacity;
+                ctx.fillStyle = WARM_WHITE;
+                ctx.beginPath();
+                ctx.arc(bx, by, r * 0.3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            ctx.restore();
+        }
+
+        // ── Draw center mandala core ──
+        function drawMandalaCore(ctx, cx, cy, baseR, energy) {
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.rotate(mandalaRotation * 0.3);
+
+            // Central glow
+            var glowR = baseR * 0.12 * (1 + beatPulse * 0.3);
+            var grad = ctx.createRadialGradient(0, 0, 0, 0, 0, glowR * 3);
+            grad.addColorStop(0, rgba(GOLD, 0.3 + beatPulse * 0.2));
+            grad.addColorStop(0.5, rgba(AMBER, 0.1));
+            grad.addColorStop(1, 'rgba(26,10,4,0)');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(0, 0, glowR * 3, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Center circle
+            ctx.fillStyle = rgba(GOLD, 0.6 + beatPulse * 0.3);
+            ctx.beginPath();
+            ctx.arc(0, 0, glowR, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Inner ring
+            ctx.strokeStyle = rgba(WARM_WHITE, 0.4);
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(0, 0, glowR * 1.8, 0, Math.PI * 2);
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        // ── Draw outer frame ring ──
+        function drawOuterRing(ctx, cx, cy, baseR, energy) {
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.rotate(-mandalaRotation * 0.1);
+
+            var ringR = baseR * 0.95;
+            var segments = 36;
+
+            ctx.strokeStyle = rgba(SOFT_PEACH, 0.15 + energy * 0.1);
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(0, 0, ringR, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // Tick marks around the outer ring
+            for (var t = 0; t < segments; t++) {
+                var tAngle = (t / segments) * Math.PI * 2;
+                var isTick = t % 4 === 0;
+                var tickLen = isTick ? baseR * 0.05 : baseR * 0.025;
+                var r1 = ringR - tickLen;
+                var r2 = ringR + tickLen;
+
+                ctx.globalAlpha = isTick ? 0.3 : 0.15;
+                ctx.strokeStyle = SOFT_PEACH;
+                ctx.lineWidth = isTick ? 1.5 : 0.5;
+                ctx.beginPath();
+                ctx.moveTo(Math.cos(tAngle) * r1, Math.sin(tAngle) * r1);
+                ctx.lineTo(Math.cos(tAngle) * r2, Math.sin(tAngle) * r2);
+                ctx.stroke();
+            }
+
+            ctx.restore();
+        }
+
+        // ── Draw particles ──
+        function drawParticles(ctx) {
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            for (var i = particles.length - 1; i >= 0; i--) {
+                var p = particles[i];
+                var lifeRatio = p.life / p.maxLife;
+                ctx.globalAlpha = lifeRatio * 0.7;
+                ctx.fillStyle = p.color;
+                ctx.shadowColor = p.color;
+                ctx.shadowBlur = 6;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size * lifeRatio, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+
+        // ── Draw ambient background geometry ──
+        function drawBackground(ctx, energy) {
+            var cx = W * 0.5;
+            var cy = H * 0.45;
+
+            // Warm radial gradient
+            ctx.save();
+            var bgGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(W, H) * 0.7);
+            var bgAlpha = 0.04 + energy * 0.03 + beatPulse * 0.02;
+            bgGrad.addColorStop(0, rgba(GOLD, bgAlpha));
+            bgGrad.addColorStop(0.4, rgba(AMBER, bgAlpha * 0.5));
+            bgGrad.addColorStop(0.7, rgba(CORAL, bgAlpha * 0.2));
+            bgGrad.addColorStop(1, 'rgba(26,10,4,0)');
+            ctx.fillStyle = bgGrad;
+            ctx.fillRect(0, 0, W, H);
+            ctx.restore();
+
+            // Subtle rotating grid lines behind mandala
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.rotate(globalTime * 0.02);
+            ctx.strokeStyle = rgba(AMBER, 0.03 + energy * 0.02);
+            ctx.lineWidth = 0.5;
+            var gridR = Math.max(W, H) * 0.6;
+            var gridLines = 12;
+            for (var g = 0; g < gridLines; g++) {
+                var gAngle = (g / gridLines) * Math.PI;
+                ctx.beginPath();
+                ctx.moveTo(Math.cos(gAngle) * -gridR, Math.sin(gAngle) * -gridR);
+                ctx.lineTo(Math.cos(gAngle) * gridR, Math.sin(gAngle) * gridR);
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        // ── Draw vignette ──
+        function drawVignette(ctx, intensity) {
+            var cx = W * 0.5;
+            var cy = H * 0.5;
+            var outerR = Math.max(W, H) * 0.7;
+
+            ctx.save();
+            var grad = ctx.createRadialGradient(cx, cy, outerR * 0.35, cx, cy, outerR);
+            grad.addColorStop(0, 'rgba(26,10,4,0)');
+            grad.addColorStop(1, 'rgba(26,10,4,' + (0.5 + intensity * 0.4) + ')');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, W, H);
+            ctx.restore();
+        }
+
+        // ── Draw title ──
+        function drawTitle(ctx) {
+            if (titleAlpha < 0.01) return;
+
+            var baseFontSize = Math.max(14, Math.min(W * 0.035, 44));
+            var y = H * 0.92;
+
+            ctx.save();
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.font = '700 ' + baseFontSize + 'px "Cinzel", serif';
+            ctx.globalAlpha = titleAlpha * 0.9;
+            ctx.shadowColor = GOLD;
+            ctx.shadowBlur = 30;
+            ctx.fillStyle = GOLD;
+            ctx.fillText('CANON IN D', W * 0.5, y);
+
+            ctx.globalAlpha = titleAlpha * 0.4;
+            ctx.shadowBlur = 60;
+            ctx.fillText('CANON IN D', W * 0.5, y);
+            ctx.restore();
+        }
+
+        // ── Update particles ──
+        function updateParticles(dt) {
+            for (var i = particles.length - 1; i >= 0; i--) {
+                var p = particles[i];
+                p.x += p.vx * dt;
+                p.y += p.vy * dt;
+                p.vx *= Math.exp(-1.5 * dt);
+                p.vy *= Math.exp(-1.5 * dt);
+                p.life -= dt;
+                if (p.life <= 0) particles.splice(i, 1);
+            }
+        }
+
+        // ── Init ──
+        function init(ctx, width, height, anal) {
+            W = width; H = height;
+            analysis = anal;
+            if (anal) rpb = anal.rpb || 4;
+
+            // Create 4 voice layers
+            voiceLayers = [];
+            for (var v = 0; v < 4; v++) {
+                voiceLayers.push(createLayer(v));
+            }
+
+            // Bass circles: 8 evenly spaced
+            bassCircles = [];
+            for (var b = 0; b < 8; b++) {
+                var bc = createBassCircle((b / 8) * Math.PI * 2 - Math.PI * 0.5);
+                bc.opacity = 0.3;
+                bc.radius = 1;
+                bassCircles.push(bc);
+            }
+
+            particles = [];
+            beatPulse = 0;
+            globalTime = 0;
+            lastSeqIndex = -1;
+            flashAlpha = 0;
+            mandalaRotation = 0;
+            mandalaScale = 1;
+            activeVoices = 0;
+            bassIndex = 0;
+            sectionName = 'intro';
+            sectionIntensity = 0;
+            titleAlpha = 0;
+            titleTarget = 0;
+        }
+
+        // ── Resize ──
+        function resize(width, height) {
+            W = width; H = height;
+        }
+
+        // ── Main render ──
+        function render(frameData) {
+            var ctx = frameData.ctx;
+            var dt = Math.min(frameData.dt || 1/60, 0.1);
+            var cursor = frameData.cursor;
+            beatPulse = frameData.beatPulse;
+
+            globalTime += dt;
+
+            // ── Background ──
+            ctx.fillStyle = BG;
+            ctx.fillRect(0, 0, W, H);
+
+            if (!cursor) {
+                // Idle: draw faint mandala
+                var idleCx = W * 0.5;
+                var idleCy = H * 0.45;
+                var idleR = Math.min(W, H) * 0.35;
+                drawBackground(ctx, 0);
+                drawOuterRing(ctx, idleCx, idleCy, idleR, 0);
+                drawMandalaCore(ctx, idleCx, idleCy, idleR, 0);
+                drawVignette(ctx, 0.3);
+                return;
+            }
+
+            var beat = cursor.beat;
+            var seqIdx = cursor.seqIndex;
+            var energy = analysis ? (analysis.energy[cursor.timelineIndex] || 0) : 0;
+            var notes = frameData.currentNotes;
+
+            // ── Section transitions ──
+            var newSection = mapSection(seqIdx);
+            if (seqIdx !== lastSeqIndex) {
+                sectionName = newSection;
+                lastSeqIndex = seqIdx;
+
+                // Flash on section change
+                if (seqIdx > 0) {
+                    flashAlpha = 0.15 + getSectionIntensity(newSection) * 0.15;
+                }
+            }
+
+            activeVoices = getActiveVoiceCount(sectionName);
+            var targetIntensity = getSectionIntensity(sectionName);
+            sectionIntensity = lerpExp(sectionIntensity, targetIntensity, 2, dt);
+
+            // ── Update voice layers ──
+            for (var v = 0; v < 4; v++) {
+                var layer = voiceLayers[v];
+                layer.targetOpacity = v < activeVoices ? (0.4 + sectionIntensity * 0.6) : 0;
+                layer.opacity = lerpExp(layer.opacity, layer.targetOpacity, 3, dt);
+
+                // Rotation
+                var speedMult = 0.5 + energy * 0.5 + beatPulse * 0.3;
+                layer.rotation += layer.rotationSpeed * speedMult * dt;
+            }
+
+            // ── Mandala rotation ──
+            mandalaRotation += (0.05 + energy * 0.1) * dt;
+
+            // ── Bass orbit angle ──
+            for (var bi = 0; bi < bassCircles.length; bi++) {
+                var bcirc = bassCircles[bi];
+                bcirc.angle += (0.3 + energy * 0.2) * dt;
+                bcirc.pulseSize = lerpExp(bcirc.pulseSize, 0, 4, dt);
+            }
+
+            // ── Beat effects ──
+            if (frameData.beatChanged) {
+                // Pulse the current bass circle
+                var bassI = Math.floor(cursor.beat) % 8;
+                bassCircles[bassI].pulseSize = 1;
+                bassCircles[bassI].opacity = 1;
+                bassIndex = (bassIndex + 1) % 8;
+
+                // Particle burst from mandala center
+                var cx = W * 0.5;
+                var cy = H * 0.45;
+                var burstCount = Math.floor(3 + energy * 8);
+                for (var pb = 0; pb < burstCount; pb++) {
+                    var pAngle = Math.random() * Math.PI * 2;
+                    var pDist = Math.min(W, H) * (0.05 + Math.random() * 0.15);
+                    var pColor = pickRandom(VOICE_COLORS);
+                    emitParticle(
+                        cx + Math.cos(pAngle) * pDist,
+                        cy + Math.sin(pAngle) * pDist,
+                        pColor,
+                        20 + energy * 40
+                    );
+                }
+
+                // During climax, extra particles at mandala edge
+                if (sectionName === 'climax' || sectionName === 'flourish') {
+                    var edgeR = Math.min(W, H) * 0.32;
+                    for (var ec = 0; ec < 4; ec++) {
+                        var eAngle = (ec / 4) * Math.PI * 2 + mandalaRotation;
+                        emitParticle(
+                            cx + Math.cos(eAngle) * edgeR,
+                            cy + Math.sin(eAngle) * edgeR,
+                            WARM_WHITE,
+                            30
+                        );
+                    }
+                }
+            }
+
+            // ── Flash decay ──
+            flashAlpha *= Math.exp(-5 * dt);
+
+            // ── Update particles ──
+            updateParticles(dt);
+
+            // ── Title visibility ──
+            if (sectionName === 'intro' || sectionName === 'coda') {
+                titleTarget = 1;
+            } else {
+                titleTarget = 0;
+            }
+            titleAlpha = lerpExp(titleAlpha, titleTarget, 3, dt);
+
+            // ── Fade bass circle opacity smoothly ──
+            for (var bj = 0; bj < bassCircles.length; bj++) {
+                bassCircles[bj].opacity = lerpExp(bassCircles[bj].opacity, 0.4, 1.5, dt);
+            }
+
+            // ═══════════════════════════════════
+            // ── Draw scene ──
+            // ═══════════════════════════════════
+
+            var mandalaCx = W * 0.5;
+            var mandalaCy = H * 0.45;
+            var mandalaR = Math.min(W, H) * 0.38;
+
+            // 1. Background geometry
+            drawBackground(ctx, energy);
+
+            // 2. Outer ring
+            drawOuterRing(ctx, mandalaCx, mandalaCy, mandalaR, energy);
+
+            // 3. Voice layers (back to front)
+            for (var lv = 3; lv >= 0; lv--) {
+                drawLayer(ctx, voiceLayers[lv], mandalaCx, mandalaCy, mandalaR, energy, globalTime);
+            }
+
+            // 4. Center core
+            drawMandalaCore(ctx, mandalaCx, mandalaCy, mandalaR, energy);
+
+            // 5. Bass orbit at bottom
+            drawBassOrbit(ctx, mandalaCx, H * 0.82, mandalaR * 0.7, energy);
+
+            // 6. Particles
+            drawParticles(ctx);
+
+            // 7. Beat flash overlay
+            if (flashAlpha > 0.005) {
+                ctx.save();
+                ctx.globalAlpha = flashAlpha;
+                ctx.fillStyle = WARM_WHITE;
+                ctx.fillRect(0, 0, W, H);
+                ctx.restore();
+            }
+
+            // 8. Title
+            drawTitle(ctx);
+
+            // 9. Vignette
+            drawVignette(ctx, 0.2 + (1 - sectionIntensity) * 0.2);
+
+            // 10. Coda fade
+            if (sectionName === 'coda') {
+                var codaFade = clamp01((seqIdx - 38) / 3);
+                ctx.fillStyle = 'rgba(26,10,4,' + (codaFade * 0.6) + ')';
+                ctx.fillRect(0, 0, W, H);
+            }
+        }
+
+        BaseRenderer('canon-in-d-video', 'Canon in D', {
+            beatDecay: 6,
+            init: init,
+            render: render,
+            resize: resize
+        });
+    })();
+
+    // ── Page bootstrap ──
+    (function() {
+        var canvas = document.getElementById('viz-canvas');
+        var overlay = document.getElementById('play-overlay');
+
+        Visualizer.init(canvas);
+        Visualizer.setRenderer('canon-in-d-video');
+
+        function loadAndPlay(json) {
+            Visualizer.loadSong(json);
+            Visualizer.play();
+        }
+
+        function fetchSong() {
+            var url = '../audio-tracker/songs/canon-in-d.json';
+            if (window.fetch && location.protocol !== 'file:') {
+                return fetch(url).then(function(r) { return r.json(); });
+            }
+            return new Promise(function(resolve, reject) {
+                var xhr = new XMLHttpRequest();
+                xhr.open('GET', url, true);
+                xhr.onload = function() {
+                    if (xhr.status === 200 || xhr.status === 0) {
+                        resolve(JSON.parse(xhr.responseText));
+                    } else {
+                        reject(new Error('XHR failed: ' + xhr.status));
+                    }
+                };
+                xhr.onerror = function() { reject(new Error('XHR error')); };
+                xhr.send();
+            });
+        }
+
+        overlay.addEventListener('click', function() {
+            overlay.classList.add('hidden');
+            fetchSong().then(loadAndPlay).catch(function(err) {
+                console.error('Failed to load song:', err);
+                overlay.classList.remove('hidden');
+            });
+        });
+
+        if (new URLSearchParams(window.location.search).get('autoplay') === '1') {
+            overlay.click();
+        }
+
+        canvas.addEventListener('click', function() {
+            if (overlay.classList.contains('hidden')) {
+                if (Visualizer.isPlaying()) {
+                    Visualizer.stop();
+                } else {
+                    Visualizer.play();
+                }
+            }
+        });
+    })();
+    </script>
+</body>
+</html>
