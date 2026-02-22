@@ -515,23 +515,26 @@ var Synth = (function () {
     }
 
     // Body resonance filters for warmth (peaking EQ)
+    // Scale air boost down for bright instruments to avoid screechiness
+    var airGain = brightness > 5000 ? 0.5 : brightness > 3500 ? 1.0 : 1.5;
+
     var bodyLow = ctx.createBiquadFilter();
     bodyLow.type = "peaking";
     bodyLow.frequency.setValueAtTime(190, t);
-    bodyLow.Q.setValueAtTime(1.5, t);
-    bodyLow.gain.setValueAtTime(4, t);
+    bodyLow.Q.setValueAtTime(0.8, t);
+    bodyLow.gain.setValueAtTime(3, t);
 
     var bodyMid = ctx.createBiquadFilter();
     bodyMid.type = "peaking";
     bodyMid.frequency.setValueAtTime(820, t);
-    bodyMid.Q.setValueAtTime(1.2, t);
-    bodyMid.gain.setValueAtTime(3, t);
+    bodyMid.Q.setValueAtTime(0.7, t);
+    bodyMid.gain.setValueAtTime(2, t);
 
     var bodyAir = ctx.createBiquadFilter();
     bodyAir.type = "peaking";
     bodyAir.frequency.setValueAtTime(2800, t);
-    bodyAir.Q.setValueAtTime(1.0, t);
-    bodyAir.gain.setValueAtTime(2, t);
+    bodyAir.Q.setValueAtTime(0.6, t);
+    bodyAir.gain.setValueAtTime(airGain, t);
 
     // Chain: envGain → bodyLow → bodyMid → bodyAir → output
     envGain.connect(bodyLow);
