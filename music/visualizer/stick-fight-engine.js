@@ -426,12 +426,12 @@
         // ── Knees ────────────────────────────────────────────────
         var kneeBaseY = -shin + bounceOff + gaitBounce;
         var kneeL = {
-            x: ankleL.x * 0.6 + leanOff * 0.3 + p.kneeL * fH * 0.06 * facing,
+            x: ankleL.x * 0.6 + leanOff * 0.3 - p.kneeL * fH * 0.06 * facing,
             y: kneeBaseY + Math.abs(p.kneeL) * fH * 0.03
                 - leftLift * liftAmount * 0.7
         };
         var kneeR = {
-            x: ankleR.x * 0.6 + leanOff * 0.3 + p.kneeR * fH * 0.06 * facing,
+            x: ankleR.x * 0.6 + leanOff * 0.3 - p.kneeR * fH * 0.06 * facing,
             y: kneeBaseY + Math.abs(p.kneeR) * fH * 0.03
                 - rightLift * liftAmount * 0.7
         };
@@ -461,22 +461,22 @@
         var raAng = p.armRAngle;
 
         var elbowL = {
-            x: shoulderL.x + Math.sin(laAng) * uArm * facing,
+            x: shoulderL.x - Math.sin(laAng) * uArm * facing,
             y: shoulderL.y + Math.cos(laAng) * uArm
         };
         var elbowR = {
-            x: shoulderR.x + Math.sin(raAng) * uArm * facing,
+            x: shoulderR.x - Math.sin(raAng) * uArm * facing,
             y: shoulderR.y + Math.cos(raAng) * uArm
         };
 
         var lBend = laAng + p.elbowLBend * 1.2;
         var rBend = raAng + p.elbowRBend * 1.2;
         var handL = {
-            x: elbowL.x + Math.sin(lBend) * fArm * facing,
+            x: elbowL.x - Math.sin(lBend) * fArm * facing,
             y: elbowL.y + Math.cos(lBend) * fArm
         };
         var handR = {
-            x: elbowR.x + Math.sin(rBend) * fArm * facing,
+            x: elbowR.x - Math.sin(rBend) * fArm * facing,
             y: elbowR.y + Math.cos(rBend) * fArm
         };
 
