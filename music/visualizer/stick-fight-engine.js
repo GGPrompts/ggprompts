@@ -122,6 +122,41 @@
         return cur + (tgt - cur) * (1 - Math.exp(-speed * dt));
     }
 
+    // ── Stance / handedness helpers ──────────────────────────────────
+    // resolveHand(fig, 'lead') → 'L' or 'R' based on fig.leadSide
+    // resolveHand(fig, 'rear') → opposite of lead
+    function resolveHand(fig, which) {
+        var leadIsLeft = (fig.leadSide || 'left') === 'left';
+        if (which === 'lead') return leadIsLeft ? 'L' : 'R';
+        return leadIsLeft ? 'R' : 'L';  // rear
+    }
+
+    // Swap L↔R references in pose property names within keyframes.
+    // e.g. { armLAngle: -0.1, elbowRBend: 0.4 }
+    //    → { armRAngle: -0.1, elbowLBend: 0.4 }
+    // Returns a new array (does not mutate the original).
+    var _mirrorMap = {
+        armLAngle: 'armRAngle', armRAngle: 'armLAngle',
+        elbowLBend: 'elbowRBend', elbowRBend: 'elbowLBend',
+        kneeL: 'kneeR', kneeR: 'kneeL'
+    };
+
+    function mirrorKeyframes(keyframes) {
+        var out = [];
+        for (var i = 0; i < keyframes.length; i++) {
+            var kf = keyframes[i];
+            var newPose = {};
+            for (var k in kf.pose) {
+                if (kf.pose.hasOwnProperty(k)) {
+                    var mapped = _mirrorMap[k] || k;
+                    newPose[mapped] = kf.pose[k];
+                }
+            }
+            out.push({ t: kf.t, pose: newPose });
+        }
+        return out;
+    }
+
     // ── Locomotion constants ────────────────────────────────────────
     var GAIT = {
         velocityThreshold: 2,     // px/s below which gait influence fades out
@@ -164,6 +199,10 @@
             gaitInfluence: 0,     // 0..1 blend weight (fades in/out with velocity)
             plantFootLX: 0,       // world-x of left foot plant position
             plantFootRX: 0,       // world-x of right foot plant position
+
+            // stance / handedness
+            weaponHand:  opts.weaponHand || 'left',   // 'left' or 'right' — which hand holds the weapon
+            leadSide:    opts.leadSide   || 'left',   // 'left' or 'right' — forward foot/arm in stance
 
             // combat state
             hp:          opts.hp || 100,
@@ -392,7 +431,7 @@
         if (fig.params.swordLen > 0) {
             var sLen = fig.params.swordLen * fig.figH;
             var sAng = fig.params.swordAngle;
-            var hand = joints.handL; // lead hand (left relative, but facing flips)
+            var hand = (fig.weaponHand === 'right') ? joints.handR : joints.handL;
             var tipX = hand.x + Math.cos(sAng) * sLen * fig.facing;
             var tipY = hand.y + Math.sin(sAng) * sLen;
 
@@ -849,8 +888,13 @@
         var progress = Math.min(atk.elapsed / move.duration, 1);
 
         // Drive pose targets from keyframes
+        // Mirror L↔R when the figure's lead side is right
         if (move.keyframes) {
-            var posed = sampleKeyframes(move.keyframes, progress);
+            var kfs = move.keyframes;
+            if ((fig.leadSide || 'left') === 'right') {
+                kfs = mirrorKeyframes(kfs);
+            }
+            var posed = sampleKeyframes(kfs, progress);
             for (var k in posed) {
                 if (posed.hasOwnProperty(k)) {
                     fig.targets[k] = posed[k];
@@ -881,23 +925,29 @@
         var aJoints = computeJoints(attacker);
         var tJoints = computeJoints(target);
 
-        // Determine weapon tip: sword tip for slash/lunge with sword, handL for punches, handR for punch_r
+        // Resolve which joints are lead/rear based on stance
+        var leadH = (attacker.leadSide === 'right') ? 'handR' : 'handL';
+        var rearH = (attacker.leadSide === 'right') ? 'handL' : 'handR';
+        var leadA = (attacker.leadSide === 'right') ? 'ankleR' : 'ankleL';
+        var weaponH = (attacker.weaponHand === 'right') ? 'handR' : 'handL';
+
+        // Determine weapon tip: sword tip for slash/lunge with sword, else striking limb
         var tipX, tipY;
         if ((atk.moveName === 'slash' || atk.moveName === 'lunge') && attacker.params.swordLen > 0) {
             var sLen = attacker.params.swordLen * attacker.figH;
             var sAng = attacker.params.swordAngle;
-            var hand = aJoints.handL;
+            var hand = aJoints[weaponH];
             tipX = attacker.x + hand.x + Math.cos(sAng) * sLen * attacker.facing;
             tipY = attacker.y + hand.y + Math.sin(sAng) * sLen;
         } else if (atk.moveName === 'punch_r' || atk.moveName === 'uppercut' || atk.moveName === 'haymaker' || atk.moveName === 'overhead') {
-            tipX = attacker.x + aJoints.handR.x;
-            tipY = attacker.y + aJoints.handR.y;
+            tipX = attacker.x + aJoints[rearH].x;
+            tipY = attacker.y + aJoints[rearH].y;
         } else if (atk.moveName === 'kick_high') {
-            tipX = attacker.x + aJoints.ankleL.x;
-            tipY = attacker.y + aJoints.ankleL.y;
+            tipX = attacker.x + aJoints[leadA].x;
+            tipY = attacker.y + aJoints[leadA].y;
         } else {
-            tipX = attacker.x + aJoints.handL.x;
-            tipY = attacker.y + aJoints.handL.y;
+            tipX = attacker.x + aJoints[leadH].x;
+            tipY = attacker.y + aJoints[leadH].y;
         }
 
         // Target torso center (midpoint between hip and neck)
@@ -1266,6 +1316,10 @@
         applyDeath:     applyDeathWrapped,
         updateEffects:  updateEffects,
         drawEffects:    drawEffects,
+
+        // Stance / handedness helpers
+        resolveHand:    resolveHand,
+        mirrorKeyframes: mirrorKeyframes,
 
         // Expose for custom use
         lerpExp:        lerpExp,
