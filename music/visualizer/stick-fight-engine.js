@@ -54,16 +54,16 @@
             legSpread: 0.1, kneeL: 0, kneeR: 0
         },
         guard: {
-            bounce: -0.05, lean: 0.1,
-            armLAngle: -1.0, armRAngle: -1.0,
-            elbowLBend: 0.8, elbowRBend: 0.85,
+            bounce: -0.05, lean: 0.15,
+            armLAngle: -0.8, armRAngle: -0.6,
+            elbowLBend: 0.6, elbowRBend: 0.5,
             legSpread: 0.3, kneeL: -0.1, kneeR: 0,
             swordAngle: -0.8
         },
         lunge: {
             bounce: -0.1, lean: 0.5,
-            armLAngle: -0.1, armRAngle: 0.2,
-            elbowLBend: 0.15, elbowRBend: 0.4,
+            armLAngle: -0.1, armRAngle: 0.5,
+            elbowLBend: 0.15, elbowRBend: 0.2,
             legSpread: 0.6, kneeL: -0.3, kneeR: 0.1,
             swordAngle: -0.1
         },
@@ -80,18 +80,18 @@
             legSpread: 0.5, kneeL: -0.6, kneeR: 0.1
         },
         block: {
-            bounce: -0.08, lean: -0.15,
-            armLAngle: -1.1, armRAngle: -1.1,
-            elbowLBend: 0.85, elbowRBend: 0.85,
-            legSpread: 0.25, kneeL: 0, kneeR: 0.05,
+            bounce: -0.05, lean: 0.05,
+            armLAngle: -1.1, armRAngle: -0.5,
+            elbowLBend: 0.85, elbowRBend: 0.4,
+            legSpread: 0.25, kneeL: -0.05, kneeR: 0.05,
             swordAngle: -1.5
         },
         recoil: {
-            bounce: 0.1, lean: -0.4,
-            armLAngle: 0.6, armRAngle: 0.5,
+            bounce: 0.05, lean: -0.2,
+            armLAngle: 0.3, armRAngle: -0.3,
             elbowLBend: 0.5, elbowRBend: 0.4,
-            legSpread: 0.15, kneeL: 0.1, kneeR: 0.15,
-            swordAngle: 0.4
+            legSpread: 0.2, kneeL: 0.05, kneeR: 0.1,
+            swordAngle: 0.3
         },
         dance_basic: {
             bounce: 0.2, lean: 0,
@@ -883,28 +883,28 @@
             duration: 0.28, hitAt: 0.14, hitRange: 0.25,
             damage: 25, impulseX: 500, impulseY: -200,
             keyframes: [
-                { t: 0.0,  pose: { lean: 0.1, armLAngle: -0.8, elbowLBend: 0.2, swordAngle: -1.2 } },
-                { t: 0.4,  pose: { lean: 0.4, armLAngle: 0.2, elbowLBend: 0.1, swordAngle: 0.5 } },
-                { t: 0.7,  pose: { lean: 0.4, armLAngle: 0.3, elbowLBend: 0.15, swordAngle: 0.6 } },
-                { t: 1.0,  pose: { lean: 0.1, armLAngle: 0.1, elbowLBend: 0.3, swordAngle: 0 } }
+                { t: 0.0,  pose: { lean: 0.15, armLAngle: -0.8, elbowLBend: 0.2, armRAngle: -0.5, elbowRBend: 0.4, swordAngle: -1.2 } },
+                { t: 0.4,  pose: { lean: 0.4, armLAngle: 0.2, elbowLBend: 0.1, armRAngle: 0.3, elbowRBend: 0.25, swordAngle: 0.5 } },
+                { t: 0.7,  pose: { lean: 0.35, armLAngle: 0.3, elbowLBend: 0.15, armRAngle: 0.2, elbowRBend: 0.3, swordAngle: 0.6 } },
+                { t: 1.0,  pose: { lean: 0.15, armLAngle: 0.1, elbowLBend: 0.3, armRAngle: -0.5, elbowRBend: 0.4, swordAngle: 0 } }
             ]
         },
         lunge: {
             duration: 0.35, hitAt: 0.20, hitRange: 0.30,
             damage: 30, impulseX: 600, impulseY: -180,
             keyframes: [
-                { t: 0.0,  pose: { lean: 0.1, legSpread: 0.2, armLAngle: 0.1, elbowLBend: 0.4, swordAngle: -0.6 } },
-                { t: 0.5,  pose: { lean: 0.5, legSpread: 0.6, armLAngle: -0.1, elbowLBend: 0.15, swordAngle: -0.1 } },
-                { t: 0.75, pose: { lean: 0.5, legSpread: 0.6, armLAngle: -0.1, elbowLBend: 0.15, swordAngle: -0.1 } },
-                { t: 1.0,  pose: { lean: 0.1, legSpread: 0.3, armLAngle: 0.1, elbowLBend: 0.3, swordAngle: -0.4 } }
+                { t: 0.0,  pose: { lean: 0.15, legSpread: 0.2, armLAngle: 0.1, elbowLBend: 0.4, armRAngle: -0.4, elbowRBend: 0.4, swordAngle: -0.6 } },
+                { t: 0.5,  pose: { lean: 0.5, legSpread: 0.6, armLAngle: -0.1, elbowLBend: 0.15, armRAngle: 0.6, elbowRBend: 0.15, swordAngle: -0.1 } },
+                { t: 0.75, pose: { lean: 0.5, legSpread: 0.6, armLAngle: -0.1, elbowLBend: 0.15, armRAngle: 0.6, elbowRBend: 0.15, swordAngle: -0.1 } },
+                { t: 1.0,  pose: { lean: 0.15, legSpread: 0.3, armLAngle: 0.1, elbowLBend: 0.3, armRAngle: -0.4, elbowRBend: 0.4, swordAngle: -0.4 } }
             ]
         },
         block: {
             duration: 0.40,
             keyframes: [
-                { t: 0.0, pose: { lean: -0.1, armLAngle: -1.1, armRAngle: -1.1, elbowLBend: 0.85, elbowRBend: 0.85, swordAngle: -1.5 } },
-                { t: 0.3, pose: { lean: -0.15, armLAngle: -1.1, armRAngle: -1.1, elbowLBend: 0.85, elbowRBend: 0.85, swordAngle: -1.5 } },
-                { t: 1.0, pose: { lean: 0, armLAngle: 0.4, armRAngle: 0.4, elbowLBend: 0.3, elbowRBend: 0.3, swordAngle: 0 } }
+                { t: 0.0, pose: { lean: 0.05, armLAngle: -1.1, armRAngle: -0.5, elbowLBend: 0.85, elbowRBend: 0.4, swordAngle: -1.5 } },
+                { t: 0.3, pose: { lean: 0.0, armLAngle: -1.1, armRAngle: -0.5, elbowLBend: 0.85, elbowRBend: 0.4, swordAngle: -1.5 } },
+                { t: 1.0, pose: { lean: 0.1, armLAngle: -0.8, armRAngle: -0.5, elbowLBend: 0.6, elbowRBend: 0.4, swordAngle: -0.8 } }
             ]
         },
         grab: {
