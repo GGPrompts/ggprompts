@@ -1075,6 +1075,7 @@
         transparent 70%
       );
       pointer-events: none;
+      transition: transform 0.1s;
     }
 
     .sconce-cup {
@@ -1140,6 +1141,17 @@
     .candle--left .sconce-bracket::after { right: calc(50% + 26px); }
     .candle--right .sconce-bracket::before { left: 50%; margin-left: -2px; }
     .candle--right .sconce-bracket::after { left: calc(50% + 26px); }
+
+    /* ---- Gargoyle Canvases ---- */
+    .gargoyle {
+      position: fixed;
+      z-index: 50;
+      pointer-events: none;
+      width: 80px;
+      height: 100px;
+    }
+    .gargoyle--left { left: 8px; top: 50%; transform: translateY(-50%); }
+    .gargoyle--right { right: 8px; top: 50%; transform: translateY(-50%); }
 
     @keyframes flicker {
       0%   { transform: translateX(-50%) scale(1) rotate(-1deg); opacity: 1; }
@@ -2257,6 +2269,7 @@
        ═══════════════════════════════════════════════════ */
     @media (max-width: 768px) {
       .candle { display: none; }
+      .gargoyle { display: none; }
 
       .card-styleguides {
         grid-column: span 1;
@@ -2865,6 +2878,11 @@
     <div class="candle-glow"></div>
   </div>
 
+  <!-- Gargoyle: Left -->
+  <canvas class="gargoyle gargoyle--left" id="gargoyle-left" width="160" height="200"></canvas>
+  <!-- Gargoyle: Right -->
+  <canvas class="gargoyle gargoyle--right" id="gargoyle-right" width="160" height="200"></canvas>
+
   <!-- Atmospheric Fog -->
   </div>
 
@@ -2919,6 +2937,396 @@
     var sfCanvas = document.getElementById('starfield');
     sfRenderer.initStandalone(sfCanvas);
     // Frame data fed from Visualizer once initialized (see initAudio below)
+  })();
+  </script>
+  <script>
+  // ─── GARGOYLES & MUSIC-REACTIVE CANDLES ───
+  (function() {
+    "use strict";
+
+    // ---- Canvas setup ----
+    var canvasL = document.getElementById('gargoyle-left');
+    var canvasR = document.getElementById('gargoyle-right');
+    var ctxL = canvasL.getContext('2d');
+    var ctxR = canvasR.getContext('2d');
+    var CW = 160, CH = 200; // canvas pixels (2x CSS for retina)
+
+    // ---- Stone texture (cached offscreen) ----
+    var stoneTexture = null;
+    (function createStoneTexture() {
+      var tc = document.createElement('canvas');
+      tc.width = CW; tc.height = CH;
+      var tctx = tc.getContext('2d');
+      var imgData = tctx.createImageData(CW, CH);
+      var d = imgData.data;
+      for (var i = 0; i < d.length; i += 4) {
+        var n = (Math.random() - 0.5) * 25 | 0;
+        d[i] = 58 + n; d[i+1] = 48 + n; d[i+2] = 60 + n; d[i+3] = 40;
+      }
+      tctx.putImageData(imgData, 0, 0);
+      stoneTexture = tc;
+    })();
+
+    // ---- Gargoyle state per side ----
+    function makeGargoyle(phase) {
+      return {
+        phase: phase,           // offset for sine waves
+        blinkTimer: 4 + Math.random() * 4,
+        blinkState: 0,          // 0 = open, >0 = closing/opening
+        twitchTimer: 10 + Math.random() * 10,
+        twitchAmount: 0,
+        eyeDriftX: 0,
+        eyeDriftY: 0,
+        headNod: 0,
+        // Music reactivity
+        energy: 0,
+        mouthOpen: 0,
+        browFurrow: 0,
+        eyeGlow: 0,
+        headBob: 0
+      };
+    }
+    var gargL = makeGargoyle(0);
+    var gargR = makeGargoyle(Math.PI * 0.7);
+
+    // ---- Drawing helpers ----
+    var STONE_DARK = '#2a2230';
+    var STONE_MID  = '#3a3040';
+    var STONE_LITE = '#4a4050';
+
+    function drawGargoyle(ctx, g, mirror) {
+      ctx.save();
+      ctx.clearRect(0, 0, CW, CH);
+
+      if (mirror) {
+        ctx.translate(CW, 0);
+        ctx.scale(-1, 1);
+      }
+
+      var nod = g.headNod + g.headBob;
+
+      // Head shape — trapezoidal block
+      ctx.save();
+      ctx.translate(0, nod);
+
+      // Stone base fill
+      ctx.beginPath();
+      ctx.moveTo(35, 45);          // top-left of brow
+      ctx.lineTo(125, 45);         // top-right of brow
+      ctx.quadraticCurveTo(135, 55, 130, 90);  // right cheek
+      ctx.quadraticCurveTo(128, 130, 115, 155); // right jaw
+      ctx.lineTo(95, 170);         // chin right
+      ctx.quadraticCurveTo(80, 178, 65, 170);   // chin curve
+      ctx.lineTo(45, 155);         // left jaw
+      ctx.quadraticCurveTo(32, 130, 30, 90);    // left cheek
+      ctx.quadraticCurveTo(25, 55, 35, 45);     // back to top
+      ctx.closePath();
+
+      // Stone gradient fill
+      var grad = ctx.createLinearGradient(30, 40, 130, 180);
+      grad.addColorStop(0, STONE_LITE);
+      grad.addColorStop(0.4, STONE_MID);
+      grad.addColorStop(1, STONE_DARK);
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      // Stone texture overlay
+      ctx.globalAlpha = 0.35;
+      ctx.drawImage(stoneTexture, 0, 0);
+      ctx.globalAlpha = 1;
+
+      // Brow ridge — pronounced overhang
+      var browDrop = g.browFurrow;
+      ctx.beginPath();
+      ctx.moveTo(28, 52 + browDrop);
+      ctx.quadraticCurveTo(50, 38 + browDrop, 80, 42 + browDrop);
+      ctx.quadraticCurveTo(110, 38 + browDrop, 132, 52 + browDrop);
+      ctx.lineWidth = 7;
+      ctx.strokeStyle = STONE_DARK;
+      ctx.stroke();
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = STONE_LITE;
+      ctx.stroke();
+
+      // Horns
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = STONE_MID;
+      ctx.lineCap = 'round';
+      // Left horn
+      ctx.beginPath();
+      ctx.moveTo(42, 48);
+      ctx.quadraticCurveTo(28, 28, 22, 12);
+      ctx.stroke();
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = STONE_DARK;
+      ctx.beginPath();
+      ctx.moveTo(42, 48);
+      ctx.quadraticCurveTo(28, 28, 22, 12);
+      ctx.stroke();
+      // Right horn
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = STONE_MID;
+      ctx.beginPath();
+      ctx.moveTo(118, 48);
+      ctx.quadraticCurveTo(132, 28, 138, 12);
+      ctx.stroke();
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = STONE_DARK;
+      ctx.beginPath();
+      ctx.moveTo(118, 48);
+      ctx.quadraticCurveTo(132, 28, 138, 12);
+      ctx.stroke();
+
+      // Eye sockets
+      var eyeY = 72 + browDrop * 0.5;
+      // Left eye socket
+      ctx.beginPath();
+      ctx.ellipse(60, eyeY, 14, 10, 0, 0, Math.PI * 2);
+      ctx.fillStyle = '#1a1220';
+      ctx.fill();
+      // Right eye socket
+      ctx.beginPath();
+      ctx.ellipse(100, eyeY, 14, 10, 0, 0, Math.PI * 2);
+      ctx.fillStyle = '#1a1220';
+      ctx.fill();
+
+      // Eye pupils with glow
+      var pupilAlpha = 0.6 + g.eyeGlow * 0.4;
+      var pupilR = 5 + g.eyeGlow * 2;
+      var driftX = g.eyeDriftX;
+      var driftY = g.eyeDriftY;
+
+      // Blink — shrink pupil vertically
+      var blinkScale = 1 - g.blinkState;
+
+      // Left pupil
+      ctx.save();
+      ctx.translate(60 + driftX, eyeY + driftY);
+      ctx.scale(1, blinkScale);
+      var pGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, pupilR + 3);
+      pGrad.addColorStop(0, 'rgba(255, 210, 80, ' + pupilAlpha + ')');
+      pGrad.addColorStop(0.5, 'rgba(200, 150, 40, ' + (pupilAlpha * 0.7) + ')');
+      pGrad.addColorStop(1, 'rgba(150, 100, 20, 0)');
+      ctx.beginPath();
+      ctx.arc(0, 0, pupilR + 3, 0, Math.PI * 2);
+      ctx.fillStyle = pGrad;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(0, 0, pupilR, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255, 200, 60, ' + pupilAlpha + ')';
+      ctx.fill();
+      ctx.restore();
+
+      // Right pupil
+      ctx.save();
+      ctx.translate(100 + driftX, eyeY + driftY);
+      ctx.scale(1, blinkScale);
+      ctx.beginPath();
+      ctx.arc(0, 0, pupilR + 3, 0, Math.PI * 2);
+      ctx.fillStyle = pGrad;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(0, 0, pupilR, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255, 200, 60, ' + pupilAlpha + ')';
+      ctx.fill();
+      ctx.restore();
+
+      // Eyelid overlay for blink
+      if (g.blinkState > 0.05) {
+        var lidH = g.blinkState * 12;
+        ctx.fillStyle = STONE_MID;
+        // Left lid
+        ctx.beginPath();
+        ctx.ellipse(60, eyeY - 10 + lidH, 15, lidH, 0, 0, Math.PI);
+        ctx.fill();
+        // Right lid
+        ctx.beginPath();
+        ctx.ellipse(100, eyeY - 10 + lidH, 15, lidH, 0, 0, Math.PI);
+        ctx.fill();
+      }
+
+      // Nose — small triangular protrusion
+      ctx.beginPath();
+      ctx.moveTo(75, 92);
+      ctx.lineTo(80, 105);
+      ctx.lineTo(85, 92);
+      ctx.closePath();
+      ctx.fillStyle = STONE_DARK;
+      ctx.fill();
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = STONE_LITE;
+      ctx.stroke();
+
+      // Nostrils
+      ctx.beginPath();
+      ctx.arc(77, 100, 2.5, 0, Math.PI * 2);
+      ctx.arc(83, 100, 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = '#1a1220';
+      ctx.fill();
+
+      // Mouth — wide carved line, opens with music
+      var mouthOpen = g.mouthOpen;
+      var mouthY = 130 + g.twitchAmount;
+      ctx.beginPath();
+      ctx.moveTo(55, mouthY);
+      ctx.quadraticCurveTo(70, mouthY + 6 + mouthOpen * 10, 80, mouthY + mouthOpen * 12);
+      ctx.quadraticCurveTo(90, mouthY + 6 + mouthOpen * 10, 105, mouthY);
+      ctx.lineWidth = 3 + mouthOpen * 2;
+      ctx.strokeStyle = '#1a1220';
+      ctx.stroke();
+
+      // Mouth interior when open
+      if (mouthOpen > 0.15) {
+        ctx.beginPath();
+        ctx.moveTo(58, mouthY + 1);
+        ctx.quadraticCurveTo(70, mouthY + 5 + mouthOpen * 8, 80, mouthY + mouthOpen * 10);
+        ctx.quadraticCurveTo(90, mouthY + 5 + mouthOpen * 8, 102, mouthY + 1);
+        ctx.closePath();
+        ctx.fillStyle = '#0e0818';
+        ctx.fill();
+      }
+
+      // Edge highlights for stone carving look
+      ctx.beginPath();
+      ctx.moveTo(35, 45);
+      ctx.lineTo(125, 45);
+      ctx.quadraticCurveTo(135, 55, 130, 90);
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(120, 110, 130, 0.3)';
+      ctx.stroke();
+
+      ctx.restore(); // undo nod translation
+      ctx.restore(); // undo mirror
+    }
+
+    // ---- Animation loop ----
+    var lastTime = 0;
+
+    function updateGargoyle(g, dt, time) {
+      // Eye drift — slow sine wave
+      g.eyeDriftX = Math.sin(time * 0.8 + g.phase) * 4;
+      g.eyeDriftY = Math.sin(time * 0.5 + g.phase + 1.5) * 2;
+
+      // Blink timer
+      g.blinkTimer -= dt;
+      if (g.blinkTimer <= 0) {
+        g.blinkState = 1;
+        g.blinkTimer = 4 + Math.random() * 4;
+      }
+      // Blink decay (quick close, slower open)
+      if (g.blinkState > 0) {
+        g.blinkState -= dt * 7;
+        if (g.blinkState < 0) g.blinkState = 0;
+      }
+
+      // Head nod — slow sine
+      g.headNod = Math.sin(time * 0.6 + g.phase * 2) * 1.5;
+
+      // Mouth twitch
+      g.twitchTimer -= dt;
+      if (g.twitchTimer <= 0) {
+        g.twitchAmount = 2;
+        g.twitchTimer = 10 + Math.random() * 10;
+      }
+      if (g.twitchAmount > 0) {
+        g.twitchAmount *= Math.exp(-4 * dt);
+        if (g.twitchAmount < 0.05) g.twitchAmount = 0;
+      }
+
+      // Music reactivity decay (when no music data, these decay to 0)
+      g.mouthOpen *= Math.exp(-6 * dt);
+      g.browFurrow *= Math.exp(-4 * dt);
+      g.eyeGlow *= Math.exp(-3 * dt);
+      g.headBob *= Math.exp(-8 * dt);
+    }
+
+    var animTime = 0;
+    function animate(timestamp) {
+      requestAnimationFrame(animate);
+      var now = timestamp / 1000;
+      var dt = lastTime ? now - lastTime : 1/60;
+      lastTime = now;
+      if (dt > 0.1) dt = 1/60;
+      animTime += dt;
+
+      updateGargoyle(gargL, dt, animTime);
+      updateGargoyle(gargR, dt, animTime);
+
+      drawGargoyle(ctxL, gargL, false);
+      drawGargoyle(ctxR, gargR, true);
+    }
+    requestAnimationFrame(animate);
+
+    // ---- Music reactivity (called from Visualizer frame callback) ----
+    // Also drives candle reactivity
+    var candleFlames = document.querySelectorAll('.candle-flame');
+    var candleGlows = document.querySelectorAll('.candle-glow');
+    var smoothEnergy = 0;
+
+    window._gargoyleOnFrame = function(frameData) {
+      var cursor = frameData.cursor;
+      var analysis = frameData.analysis;
+
+      if (!cursor || !analysis) {
+        // Music stopped — clear candle inline styles
+        smoothEnergy *= 0.95;
+        if (smoothEnergy < 0.01) smoothEnergy = 0;
+        for (var i = 0; i < candleFlames.length; i++) {
+          candleFlames[i].style.removeProperty('transform');
+          candleFlames[i].style.removeProperty('opacity');
+        }
+        for (var j = 0; j < candleGlows.length; j++) {
+          candleGlows[j].style.removeProperty('transform');
+        }
+        return;
+      }
+
+      var energy = analysis.energy[cursor.timelineIndex] || 0;
+      smoothEnergy += (energy - smoothEnergy) * 0.15;
+
+      // ---- Candle reactivity ----
+      for (var ci = 0; ci < candleFlames.length; ci++) {
+        var offset = ci * 0.2;
+        var e = smoothEnergy + Math.sin(animTime * 3 + offset * 5) * 0.05;
+        var flameScale = 1 + e * 0.6;
+        var flameOpacity = 0.85 + e * 0.15;
+        candleFlames[ci].style.transform = 'translateX(-50%) scale(' + flameScale.toFixed(3) + ')';
+        candleFlames[ci].style.opacity = flameOpacity.toFixed(3);
+      }
+      for (var gi = 0; gi < candleGlows.length; gi++) {
+        var glowScale = 1 + smoothEnergy * 0.5;
+        candleGlows[gi].style.transform = 'translateX(-50%) scale(' + glowScale.toFixed(3) + ')';
+      }
+
+      // ---- Gargoyle reactivity ----
+      var gargoyles = [gargL, gargR];
+      for (var k = 0; k < gargoyles.length; k++) {
+        var g = gargoyles[k];
+        g.energy = smoothEnergy;
+
+        // Eye glow intensifies
+        g.eyeGlow = Math.max(g.eyeGlow, smoothEnergy * 1.2);
+
+        // Mouth opens on strong energy
+        if (energy > 0.5) {
+          g.mouthOpen = Math.max(g.mouthOpen, energy * 0.8);
+        }
+
+        // Head bob on beats
+        var currentBeat = Math.floor(cursor.totalFracRow / (analysis.rpb || 4));
+        if (currentBeat !== g._lastBeat) {
+          g._lastBeat = currentBeat;
+          if (energy > 0.3) {
+            g.headBob = -3 * energy;
+          }
+        }
+
+        // Brow furrow on high energy
+        if (energy > 0.7) {
+          g.browFurrow = Math.max(g.browFurrow, (energy - 0.7) * 6);
+        }
+      }
+    };
   })();
   </script>
   <script>
@@ -3114,6 +3522,8 @@
         // Feed frame data to background starfield
         var sfr = window.Renderers['starfield'];
         if (sfr && sfr.onFrame) Visualizer.addFrameCallback(sfr.onFrame);
+        // Feed frame data to gargoyles & candles
+        if (window._gargoyleOnFrame) Visualizer.addFrameCallback(window._gargoyleOnFrame);
         initialized = true;
         resolve();
       } catch (e) {
