@@ -20,6 +20,8 @@ var Tracker = (function () {
   var currentSeqRow = 0;
   var nextRowTime = 0;           // AudioContext time the next row fires
   var activeVoices = [null, null, null, null]; // per-channel voice refs
+  var activePluckVoices = [[], [], [], []];    // per-channel pluck tail pool
+  var MAX_PLUCK_OVERLAP = 4;
 
   var onRowChange = null;
   var onRowChangeListeners = [];
@@ -139,6 +141,53 @@ var Tracker = (function () {
 
   function secondsPerRow() {
     return 60 / song.bpm / (song.rowsPerBeat || 4);
+  }
+
+  function prunePluckVoices(ch) {
+    var list = activePluckVoices[ch];
+    for (var i = list.length - 1; i >= 0; i--) {
+      if (!list[i] || list[i].released) list.splice(i, 1);
+    }
+  }
+
+  function addPluckVoice(ch, voice, time) {
+    if (!voice || voice.type !== 'pluck') return;
+    var list = activePluckVoices[ch];
+    prunePluckVoices(ch);
+    if (list.indexOf(voice) !== -1) return;
+    list.push(voice);
+    while (list.length > MAX_PLUCK_OVERLAP) {
+      var oldest = list.shift();
+      if (oldest && !oldest.released && typeof Synth !== 'undefined' && Synth.noteOff) {
+        Synth.noteOff(oldest, time || 0, false);
+      }
+    }
+  }
+
+  function releaseChannelVoices(ch, time, quickCut) {
+    var lead = activeVoices[ch];
+    var plucks = activePluckVoices[ch];
+    var handles = [];
+
+    if (lead) handles.push(lead);
+    for (var i = 0; i < plucks.length; i++) {
+      if (plucks[i] && handles.indexOf(plucks[i]) === -1) {
+        handles.push(plucks[i]);
+      }
+    }
+
+    if (typeof Synth !== 'undefined' && Synth.noteOff) {
+      for (var h = 0; h < handles.length; h++) {
+        var v = handles[h];
+        if (!v || v.released) continue;
+        // Never hard-cut plucks; even forced cleanup should be a short fade.
+        var cut = (v.type === 'pluck') ? false : !!quickCut;
+        Synth.noteOff(v, time || 0, cut);
+      }
+    }
+
+    activeVoices[ch] = null;
+    activePluckVoices[ch] = [];
   }
 
   function normalizeCell(rawCell) {
@@ -619,23 +668,38 @@ var Tracker = (function () {
 
       if (cell.note === -1) {
         // Note-off
-        if (activeVoices[ch] !== null) {
-          if (typeof Synth !== 'undefined' && Synth.noteOff) {
-            Synth.noteOff(activeVoices[ch], time);
-          }
-          activeVoices[ch] = null;
-        }
+        releaseChannelVoices(ch, time, false);
       } else if (cell.note >= 0) {
         // Note-on: stop previous voice on this channel first.
         // Use quickCut to avoid overlapping release tails at fast tempos.
+        // For pluck instruments, avoid quickCut because the 3ms chop causes
+        // audible artifacts on rapid guitar-style passages.
         // Exception: legato pluck voices are retuned instead of restarted.
-        var skipCut = inst.wave === 'pluck' && inst.legato
-          && activeVoices[ch] !== null
-          && activeVoices[ch].type === 'pluck'
-          && !activeVoices[ch].released;
-        if (activeVoices[ch] !== null && !skipCut) {
+        var isPluck = inst.wave === 'pluck';
+        var prevVoice = activeVoices[ch];
+        prunePluckVoices(ch);
+
+        // When switching away from plucks, clear trailing pluck tails so the
+        // next non-pluck sound remains tight.
+        if (!isPluck && activePluckVoices[ch].length > 0) {
+          releaseChannelVoices(ch, time, true);
+          prevVoice = null;
+        }
+
+        var skipCut = isPluck && inst.legato
+          && prevVoice !== null
+          && prevVoice.type === 'pluck'
+          && !prevVoice.released;
+
+        var keepPluckTail = isPluck
+          && prevVoice !== null
+          && prevVoice.type === 'pluck'
+          && !skipCut
+          && !prevVoice.released;
+
+        if (prevVoice !== null && !skipCut && !keepPluckTail) {
           if (typeof Synth !== 'undefined' && Synth.noteOff) {
-            Synth.noteOff(activeVoices[ch], time, true);
+            Synth.noteOff(prevVoice, time, !isPluck);
           }
           activeVoices[ch] = null;
         }
@@ -648,6 +712,9 @@ var Tracker = (function () {
             voice = Synth.noteOn(ch, cell.note, inst, time);
           }
           activeVoices[ch] = voice;
+          if (isPluck && voice) {
+            addPluckVoice(ch, voice, time);
+          }
 
           // Cross-boundary duration: if note-off falls at or past the
           // pattern boundary, schedule a precise future note-off via
@@ -737,6 +804,7 @@ var Tracker = (function () {
       currentSeqRow = 0;
     }
     activeVoices = [null, null, null, null];
+    activePluckVoices = [[], [], [], []];
 
     if (typeof Synth !== 'undefined' && Synth.getContext) {
       var ctx = Synth.getContext();
@@ -767,12 +835,11 @@ var Tracker = (function () {
         ? Synth.getContext().currentTime
         : 0;
       for (var ch = 0; ch < 4; ch++) {
-        if (activeVoices[ch] !== null) {
-          Synth.noteOff(activeVoices[ch], now);
-          activeVoices[ch] = null;
-        }
+        releaseChannelVoices(ch, now, false);
       }
     }
+    activeVoices = [null, null, null, null];
+    activePluckVoices = [[], [], [], []];
 
     currentRow = 0;
     currentSeqRow = 0;
@@ -789,12 +856,11 @@ var Tracker = (function () {
         ? Synth.getContext().currentTime
         : 0;
       for (var ch = 0; ch < 4; ch++) {
-        if (activeVoices[ch] !== null) {
-          Synth.noteOff(activeVoices[ch], now);
-          activeVoices[ch] = null;
-        }
+        releaseChannelVoices(ch, now, false);
       }
     }
+    activeVoices = [null, null, null, null];
+    activePluckVoices = [[], [], [], []];
 
     currentSeqRow = target;
     currentRow = 0;
