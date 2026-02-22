@@ -192,7 +192,7 @@ Borrow chords from the parallel minor (or major) for color:
 - **Phrygian Half (iv6-V)**: Distinctive bass half-step descent, great for dramatic pauses
 
 ### Modulation (Key Changes)
-For 3-4 minute tracks, modulation prevents monotony:
+For ~1.5 minute tracks, modulation prevents monotony:
 - **Pivot chord**: Find a chord that exists in both keys (smoothest transition)
 - **Common-tone**: Hold one note while harmony shifts around it (elegant, easy in tracker)
 - **Direct/phrase**: Just start the new section in a new key at a phrase boundary
@@ -278,7 +278,7 @@ Row 7: Hi-hat
 - A' (8-16 bars): Return of theme in home key, resolution
 - Total: 24-48 bars of unique material, arranged via sequence
 
-### Rondo (ABACA) — Best for 3-4 min tracks
+### Rondo (ABACA) — Best for ~1.5 min tracks
 - A = Refrain (8 bars): The memorable hook that keeps returning
 - B = Episode 1 (8-16 bars): Contrasting material, different key
 - A = Refrain return

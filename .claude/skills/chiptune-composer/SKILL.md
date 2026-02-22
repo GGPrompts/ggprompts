@@ -1,6 +1,6 @@
 ---
 name: chiptune-composer
-description: Compose full-length (3-4 minute) chiptune songs in the audio tracker's compact JSON format. Supports RPG battle themes, town music, overworld adventures, classical arrangements, ambient dungeon tracks, and more. This skill should be used when creating songs for the audio tracker, composing game music, or generating .json song files.
+description: Compose full-length (~1.5 minute) chiptune songs in the audio tracker's compact JSON format. Supports RPG battle themes, town music, overworld adventures, classical arrangements, ambient dungeon tracks, and more. This skill should be used when creating songs for the audio tracker, composing game music, or generating .json song files.
 argument-hint: <style> [key] [bpm] [description]
 allow-model-invocation: true
 ---
@@ -9,7 +9,7 @@ allow-model-invocation: true
 
 Compose a full-length chiptune song using **$ARGUMENTS**.
 
-Output a complete `.json` song file in the compact event format defined by `music/audio-tracker/AI-SONG-FORMAT.md`. The song should be 3-4 minutes long with full structural development — not a short loop.
+Output a complete `.json` song file in the compact event format defined by `music/audio-tracker/AI-SONG-FORMAT.md`. The song should be ~1.5 minutes long (~90 seconds) with full structural development — not a short loop.
 
 ## Phase 0 — Parse Request & Plan
 
@@ -21,7 +21,7 @@ Output a complete `.json` song file in the compact event format defined by `musi
 6. Plan the song structure:
    - Key, mode, BPM, time feel
    - Song form (e.g., AABA, ABACBA, Intro-Verse-Chorus-Bridge-Chorus-Outro)
-   - Number of unique patterns needed (typically 8-20 for a 3-4 min track)
+   - Number of unique patterns needed (typically 5-12 for a ~1.5 min track)
    - Instrument palette (4 channels: melody, harmony/countermelody, bass, percussion)
    - Harmonic plan: chord progression per section, modulation points
    - Melodic motif(s): the 3-6 note seed that unifies the track
@@ -66,16 +66,16 @@ Smooth transitions between patterns are critical — abrupt simultaneous channel
 
 ### Pattern & Sequence Math
 
-For a 3-4 minute song:
-- At 120 BPM, rpb=4, 32-row patterns: each pattern = 4 bars = 8 seconds. Need ~22-30 sequence entries.
-- At 80 BPM, rpb=4, 32-row patterns: each pattern = 4 bars = 12 seconds. Need ~15-20 sequence entries.
-- At 160 BPM, rpb=4, 32-row patterns: each pattern = 4 bars = 6 seconds. Need ~30-40 sequence entries.
+For a ~1.5 minute song (~90 seconds):
+- At 120 BPM, rpb=4, 32-row patterns: each pattern = 4 bars = 8 seconds. Need ~11-12 sequence entries.
+- At 80 BPM, rpb=4, 32-row patterns: each pattern = 4 bars = 12 seconds. Need ~7-8 sequence entries.
+- At 160 BPM, rpb=4, 32-row patterns: each pattern = 4 bars = 6 seconds. Need ~15 sequence entries.
 
 Reuse patterns via the sequence array — compose 8-20 unique patterns, arrange them into a full song via sequencing.
 
 ## Phase 1b — Relay Mode (for epic-length compositions)
 
-For songs longer than 4 minutes, or when the user requests multiple parallel/sequential compositions, use the **Haiku Relay Pattern** instead of composing in a single agent. This was proven with a 130-pattern, 5.2-minute power metal epic.
+For songs longer than 3 minutes, or when the user requests multiple parallel/sequential compositions, use the **Haiku Relay Pattern** instead of composing in a single agent. This was proven with a 130-pattern, 5.2-minute power metal epic.
 
 ### How It Works
 
@@ -142,7 +142,7 @@ Let ring 2-4 rows before new notes.
 ```
 
 ### When to Use Relay Mode
-- User requests a song longer than 4 minutes
+- User requests a song longer than 3 minutes
 - User asks for "epic", "through-composed", or "suite" style compositions
 - User wants to compose in a specific genre that benefits from many distinct sections (power metal, progressive rock, symphony)
 - User explicitly asks for parallel or sequential agent composition
