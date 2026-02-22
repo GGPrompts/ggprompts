@@ -440,9 +440,7 @@ var Synth = (function () {
    */
   function retunePluck(handle, midiNote, instrument, time) {
     var freq = midiToFreq(midiNote);
-    var brightness = instrument.filterFreq || 4000;
-    var period = 1 / freq - 1 / (2 * Math.PI * brightness);
-    if (period < 1 / ctx.sampleRate) period = 1 / ctx.sampleRate;
+    var period = 1 / freq;
     var t = time || ctx.currentTime;
     var slideTime = 0.02; // 20ms pitch slide
 
@@ -455,8 +453,7 @@ var Synth = (function () {
     if (handle.delay2) {
       var d2 = instrument.detuneAmount || 7;
       var freq2 = freq * Math.pow(2, d2 / 1200);
-      var period2 = 1 / freq2 - 1 / (2 * Math.PI * brightness);
-      if (period2 < 1 / ctx.sampleRate) period2 = 1 / ctx.sampleRate;
+      var period2 = 1 / freq2;
       handle.delay2.delayTime.cancelScheduledValues(t);
       handle.delay2.delayTime.setValueAtTime(handle.delay2.delayTime.value, t);
       handle.delay2.delayTime.exponentialRampToValueAtTime(period2, t + slideTime);
@@ -498,12 +495,7 @@ var Synth = (function () {
     // Feedback filter cutoff controls brightness (reuse filterFreq)
     var brightness = instrument.filterFreq || 4000;
 
-    // Delay period = 1/freq, compensated for the lowpass filter's group delay.
-    // The feedback filter introduces a phase shift that lengthens the effective
-    // loop, making the pitch flat. Subtract the approximate group delay of a
-    // first-order lowpass: 1 / (2π × cutoff).
-    var period = 1 / freq - 1 / (2 * Math.PI * brightness);
-    if (period < 1 / ctx.sampleRate) period = 1 / ctx.sampleRate;
+    var period = 1 / freq;
 
     // Noise burst duration — short excitation
     var burstDur = 0.02;
@@ -549,8 +541,7 @@ var Synth = (function () {
     if (instrument.detuneOsc) {
       var d2 = instrument.detuneAmount || 7;
       var freq2 = freq * Math.pow(2, d2 / 1200);
-      var period2 = 1 / freq2 - 1 / (2 * Math.PI * brightness);
-      if (period2 < 1 / ctx.sampleRate) period2 = 1 / ctx.sampleRate;
+      var period2 = 1 / freq2;
 
       var burstBuffer2 = createNoiseBuffer(burstDur + 0.01);
       burstSource2 = ctx.createBufferSource();
