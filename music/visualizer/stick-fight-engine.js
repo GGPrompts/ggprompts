@@ -1538,6 +1538,206 @@
         }
     }
 
+    // ══════════════════════════════════════════════════════════════════
+    //  PHASE 5 — Battle Direction (Choreography, Camera, Contact FX)
+    // ══════════════════════════════════════════════════════════════════
+
+    // ── 5a. Choreography layer ──────────────────────────────────────
+    // Plays a scripted exchange between two figures.
+    //
+    // sequence = [
+    //   { beat: 0, attacker: 'A', move: 'slash', defender: 'block' },
+    //   { beat: 1, attacker: 'B', move: 'punch_r', defender: 'recoil' },
+    //   { beat: 3, attacker: 'A', move: 'lunge', result: 'hit' },
+    //   { beat: 4, spacing: true },  // both return to guard
+    // ]
+
+    function choreograph(figA, figB, sequence) {
+        return {
+            figA: figA,
+            figB: figB,
+            sequence: sequence,
+            currentBeat: -1,
+            elapsed: 0,
+            beatDuration: 0,       // set by advanceChoreography caller or defaults to dt-based
+            isActive: true,
+            lastContact: null,
+            _stepIndex: 0          // which sequence entry we're on
+        };
+    }
+
+    function advanceChoreography(choreo, dt) {
+        if (!choreo.isActive) return;
+
+        choreo.elapsed += dt;
+
+        // Walk through sequence entries whose beat has arrived
+        while (choreo._stepIndex < choreo.sequence.length) {
+            var step = choreo.sequence[choreo._stepIndex];
+            var beatTime = step.beat;
+
+            // If beatDuration is set, convert beat index to elapsed time
+            // Otherwise treat beats as already-elapsed seconds (caller manages timing)
+            var stepTime = choreo.beatDuration > 0 ? beatTime * choreo.beatDuration : beatTime;
+
+            if (choreo.elapsed < stepTime) break;  // not yet
+
+            choreo.currentBeat = step.beat;
+
+            // Resolve attacker/defender figures
+            var attacker = step.attacker === 'B' ? choreo.figB : choreo.figA;
+            var defender = step.attacker === 'B' ? choreo.figA : choreo.figB;
+
+            if (step.spacing) {
+                // Both return to guard, breathing room
+                setPose(choreo.figA, 'guard');
+                setPose(choreo.figB, 'guard');
+            } else if (step.move) {
+                // Attacker performs the move
+                attack(attacker, step.move, defender);
+
+                // Defender reaction
+                if (step.defender) {
+                    setPose(defender, step.defender);
+                }
+
+                // Whiff: defender dodges back, no contact
+                if (step.result === 'whiff') {
+                    // Cancel hit detection by clearing the target
+                    if (attacker.attacking) {
+                        attacker.attacking.target = null;
+                        attacker.attacking.hit = true;  // prevent hit check
+                    }
+                    setPose(defender, 'recoil');
+                }
+
+                // Explicit hit: let normal hit detection run (target stays set)
+                // result: 'hit' is just documentation — the engine already does hit checks
+            }
+
+            choreo._stepIndex++;
+        }
+
+        // Check if we've processed all steps and last attack is finished
+        if (choreo._stepIndex >= choreo.sequence.length) {
+            var aAtk = choreo.figA.attacking;
+            var bAtk = choreo.figB.attacking;
+            if (!aAtk && !bAtk) {
+                choreo.isActive = false;
+            }
+        }
+
+        // Track last contact from either figure
+        if (choreo.figA.lastContact) {
+            choreo.lastContact = choreo.figA.lastContact;
+        }
+        if (choreo.figB.lastContact) {
+            choreo.lastContact = choreo.figB.lastContact;
+        }
+    }
+
+    // ── 5b. Camera / director helpers ───────────────────────────────
+
+    // hitStop: freezes a figure's pose lerp for N frames
+    function hitStop(fig, frames) {
+        fig._hitStop = {
+            originalSpeed: fig.poseSpeed,
+            framesRemaining: frames
+        };
+        fig.poseSpeed = 0;
+    }
+
+    // Patch updateFigure to handle hitStop countdown
+    var _origUpdateFigure = updateFigure;
+    updateFigure = function(fig, dt) {
+        // Tick hitStop
+        if (fig._hitStop) {
+            fig._hitStop.framesRemaining--;
+            if (fig._hitStop.framesRemaining <= 0) {
+                fig.poseSpeed = fig._hitStop.originalSpeed;
+                fig._hitStop = null;
+            }
+        }
+
+        // Tick freezeFrame
+        if (fig._freeze) {
+            fig._freeze.remaining -= dt;
+            if (fig._freeze.remaining <= 0) {
+                fig.poseSpeed = fig._freeze.originalSpeed;
+                fig._freeze = null;
+            } else {
+                // Still frozen — skip normal update but still step ragdoll
+                if (fig.mode === 'ragdoll' && fig.ragdoll) {
+                    stepRagdoll(fig.ragdoll, dt);
+                }
+                return;
+            }
+        }
+
+        _origUpdateFigure(fig, dt);
+    };
+
+    // screenShake: returns a shake object that the video reads for canvas translate
+    function screenShake(intensity, duration) {
+        return {
+            intensity: intensity,
+            duration: duration,
+            elapsed: 0,
+            x: 0,
+            y: 0,
+            active: true
+        };
+    }
+
+    function updateShake(shake, dt) {
+        if (!shake.active) return;
+        shake.elapsed += dt;
+        if (shake.elapsed >= shake.duration) {
+            shake.x = 0;
+            shake.y = 0;
+            shake.active = false;
+            return;
+        }
+        var decay = 1 - (shake.elapsed / shake.duration);
+        var mag = shake.intensity * decay;
+        shake.x = (Math.random() * 2 - 1) * mag;
+        shake.y = (Math.random() * 2 - 1) * mag;
+    }
+
+    // freezeFrame: pauses all figures temporarily
+    function freezeFrame(figs, duration) {
+        for (var i = 0; i < figs.length; i++) {
+            var fig = figs[i];
+            if (!fig._freeze) {
+                fig._freeze = {
+                    originalSpeed: fig.poseSpeed,
+                    remaining: duration
+                };
+                fig.poseSpeed = 0;
+            }
+        }
+    }
+
+    // ── 5c. Contact-driven FX callbacks ─────────────────────────────
+    var _contactCallbacks = [];
+
+    function onContact(callback) {
+        _contactCallbacks.push(callback);
+    }
+
+    // Patch applyHit to fire contact callbacks
+    var _origApplyHit = applyHit;
+    applyHit = function(target, move, attacker, contact) {
+        _origApplyHit(target, move, attacker, contact);
+
+        // Fire all registered contact callbacks
+        if (contact) {
+            for (var i = 0; i < _contactCallbacks.length; i++) {
+                _contactCallbacks[i](contact, attacker, target);
+            }
+        }
+    };
+
     // ── Public API ────────────────────────────────────────────────────
     window.StickFight = {
         BONE:       BONE,
@@ -1570,6 +1770,15 @@
         // Stance / handedness helpers
         resolveHand:    resolveHand,
         mirrorKeyframes: mirrorKeyframes,
+
+        // Phase 5 — Battle Direction
+        choreograph:          choreograph,
+        advanceChoreography:  advanceChoreography,
+        hitStop:              hitStop,
+        screenShake:          screenShake,
+        updateShake:          updateShake,
+        freezeFrame:          freezeFrame,
+        onContact:            onContact,
 
         // Expose for custom use
         lerpExp:        lerpExp,
