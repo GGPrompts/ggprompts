@@ -126,6 +126,97 @@
         return cur + (tgt - cur) * (1 - Math.exp(-speed * dt));
     }
 
+    // ── Segment-vs-segment closest point distance ─────────────────────
+    // Returns { dist, pointA: {x,y}, pointB: {x,y} } where pointA is on
+    // segment (a1→a2) and pointB is on segment (b1→b2).
+    function segmentDistance(a1, a2, b1, b2) {
+        var dAx = a2.x - a1.x, dAy = a2.y - a1.y;
+        var dBx = b2.x - b1.x, dBy = b2.y - b1.y;
+        var rABx = a1.x - b1.x, rABy = a1.y - b1.y;
+
+        var lenA2 = dAx * dAx + dAy * dAy;
+        var lenB2 = dBx * dBx + dBy * dBy;
+        var f = dBx * rABx + dBy * rABy;
+
+        var s, t;
+        var EPS = 1e-8;
+
+        if (lenA2 < EPS && lenB2 < EPS) {
+            // Both degenerate to points
+            s = 0; t = 0;
+        } else if (lenA2 < EPS) {
+            // Segment A is a point
+            s = 0;
+            t = f / lenB2;
+            if (t < 0) t = 0; else if (t > 1) t = 1;
+        } else {
+            var c = dAx * rABx + dAy * rABy;
+            if (lenB2 < EPS) {
+                // Segment B is a point
+                t = 0;
+                s = -c / lenA2;
+                if (s < 0) s = 0; else if (s > 1) s = 1;
+            } else {
+                // General case
+                var b = dAx * dBx + dAy * dBy;
+                var denom = lenA2 * lenB2 - b * b;
+
+                if (denom > EPS) {
+                    s = (b * f - c * lenB2) / denom;
+                    if (s < 0) s = 0; else if (s > 1) s = 1;
+                } else {
+                    s = 0;
+                }
+
+                t = (b * s + f) / lenB2;
+
+                if (t < 0) {
+                    t = 0;
+                    s = -c / lenA2;
+                    if (s < 0) s = 0; else if (s > 1) s = 1;
+                } else if (t > 1) {
+                    t = 1;
+                    s = (b - c) / lenA2;
+                    if (s < 0) s = 0; else if (s > 1) s = 1;
+                }
+            }
+        }
+
+        var pAx = a1.x + dAx * s;
+        var pAy = a1.y + dAy * s;
+        var pBx = b1.x + dBx * t;
+        var pBy = b1.y + dBy * t;
+        var dx = pAx - pBx;
+        var dy = pAy - pBy;
+
+        return {
+            dist: Math.sqrt(dx * dx + dy * dy),
+            pointA: { x: pAx, y: pAy },
+            pointB: { x: pBx, y: pBy }
+        };
+    }
+
+    // ── Point-to-segment distance ─────────────────────────────────────
+    // Returns { dist, closest: {x,y} } — closest point on segment (s1→s2) to point p.
+    function pointSegmentDist(p, s1, s2) {
+        var dx = s2.x - s1.x, dy = s2.y - s1.y;
+        var len2 = dx * dx + dy * dy;
+        var t;
+        if (len2 < 1e-8) {
+            t = 0;
+        } else {
+            t = ((p.x - s1.x) * dx + (p.y - s1.y) * dy) / len2;
+            if (t < 0) t = 0; else if (t > 1) t = 1;
+        }
+        var cx = s1.x + dx * t;
+        var cy = s1.y + dy * t;
+        var ex = p.x - cx, ey = p.y - cy;
+        return {
+            dist: Math.sqrt(ex * ex + ey * ey),
+            closest: { x: cx, y: cy }
+        };
+    }
+
     // ── Stance / handedness helpers ──────────────────────────────────
     // resolveHand(fig, 'lead') → 'L' or 'R' based on fig.leadSide
     // resolveHand(fig, 'rear') → opposite of lead
@@ -212,7 +303,8 @@
             hp:          opts.hp || 100,
             attacking:   null,
             combo:       0,
-            lastHitTime: 0
+            lastHitTime: 0,
+            lastContact: null
         };
     }
 
@@ -734,6 +826,22 @@
     //  PHASE 3 — Combat System
     // ══════════════════════════════════════════════════════════════════
 
+    // ── Target hit zones ─────────────────────────────────────────────
+    // Each zone defines one or more body segments on the target, plus
+    // a damage multiplier.  Segments reference joint names from computeJoints.
+    // 'radius' (optional) adds a sphere test around the endpoint (for head).
+    var HIT_ZONES = {
+        head:  { segments: [['neck', 'head']], radiusJoint: 'head', radiusKey: 'headR', dmgMul: 1.5 },
+        torso: { segments: [['hip', 'neck']], dmgMul: 1.0 },
+        armL:  { segments: [['shoulderL', 'elbowL'], ['elbowL', 'handL']], dmgMul: 0.7 },
+        armR:  { segments: [['shoulderR', 'elbowR'], ['elbowR', 'handR']], dmgMul: 0.7 },
+        legL:  { segments: [['hip', 'kneeL'], ['kneeL', 'ankleL']], dmgMul: 0.7 },
+        legR:  { segments: [['hip', 'kneeR'], ['kneeR', 'ankleR']], dmgMul: 0.7 }
+    };
+
+    // Zone check order — head first so headshots are prioritised when equidistant
+    var HIT_ZONE_ORDER = ['head', 'torso', 'armL', 'armR', 'legL', 'legR'];
+
     // ── Move Library ─────────────────────────────────────────────────
     var MOVES = {
         punch_r: {
@@ -912,7 +1020,10 @@
 
         // Check hit at the hitAt timing (once)
         if (!atk.hit && move.hitAt && atk.elapsed >= move.hitAt && atk.target) {
-            checkHit(fig, atk.target);
+            var contact = checkHit(fig, atk.target);
+            if (contact) {
+                applyHit(atk.target, move, fig, contact);
+            }
             atk.hit = true;
         }
 
@@ -922,71 +1033,194 @@
         }
     }
 
-    // ── Hit detection ────────────────────────────────────────────────
-    function checkHit(attacker, target) {
-        if (target.mode === 'ragdoll') return;
-
-        var atk = attacker.attacking;
-        if (!atk) return;
-        var move = atk.move;
-
-        var aJoints = computeJoints(attacker);
-        var tJoints = computeJoints(target);
-
-        // Resolve which joints are lead/rear based on stance
+    // ── Resolve the attacking limb segment (world coords) ───────────
+    // Returns { p1: {x,y}, p2: {x,y} } — the segment of the attacking limb.
+    function getAttackSegment(attacker, aJoints, moveName) {
+        var leadE = (attacker.leadSide === 'right') ? 'elbowR' : 'elbowL';
+        var rearE = (attacker.leadSide === 'right') ? 'elbowL' : 'elbowR';
         var leadH = (attacker.leadSide === 'right') ? 'handR' : 'handL';
         var rearH = (attacker.leadSide === 'right') ? 'handL' : 'handR';
+        var leadK = (attacker.leadSide === 'right') ? 'kneeR' : 'kneeL';
         var leadA = (attacker.leadSide === 'right') ? 'ankleR' : 'ankleL';
         var weaponH = (attacker.weaponHand === 'right') ? 'handR' : 'handL';
+        var weaponE = (attacker.weaponHand === 'right') ? 'elbowR' : 'elbowL';
 
-        // Determine weapon tip: sword tip for slash/lunge with sword, else striking limb
-        var tipX, tipY;
-        if ((atk.moveName === 'slash' || atk.moveName === 'lunge') && attacker.params.swordLen > 0) {
+        var ax = attacker.x, ay = attacker.y;
+        var p1, p2;
+
+        if ((moveName === 'slash' || moveName === 'lunge') && attacker.params.swordLen > 0) {
+            // Sword: hand → tip
             var sLen = attacker.params.swordLen * attacker.figH;
             var sAng = attacker.params.swordAngle;
             var hand = aJoints[weaponH];
-            tipX = attacker.x + hand.x + Math.cos(sAng) * sLen * attacker.facing;
-            tipY = attacker.y + hand.y + Math.sin(sAng) * sLen;
-        } else if (atk.moveName === 'punch_r' || atk.moveName === 'uppercut' || atk.moveName === 'haymaker' || atk.moveName === 'overhead') {
-            tipX = attacker.x + aJoints[rearH].x;
-            tipY = attacker.y + aJoints[rearH].y;
-        } else if (atk.moveName === 'kick_high') {
-            tipX = attacker.x + aJoints[leadA].x;
-            tipY = attacker.y + aJoints[leadA].y;
+            p1 = { x: ax + hand.x, y: ay + hand.y };
+            p2 = { x: p1.x + Math.cos(sAng) * sLen * attacker.facing,
+                    y: p1.y + Math.sin(sAng) * sLen };
+        } else if (moveName === 'punch_r' || moveName === 'uppercut' || moveName === 'haymaker' || moveName === 'overhead') {
+            // Rear-hand punch: elbow → hand
+            p1 = { x: ax + aJoints[rearE].x, y: ay + aJoints[rearE].y };
+            p2 = { x: ax + aJoints[rearH].x, y: ay + aJoints[rearH].y };
+        } else if (moveName === 'punch_l') {
+            // Lead-hand punch: elbow → hand
+            p1 = { x: ax + aJoints[leadE].x, y: ay + aJoints[leadE].y };
+            p2 = { x: ax + aJoints[leadH].x, y: ay + aJoints[leadH].y };
+        } else if (moveName === 'kick_high') {
+            // Kick: knee → ankle
+            p1 = { x: ax + aJoints[leadK].x, y: ay + aJoints[leadK].y };
+            p2 = { x: ax + aJoints[leadA].x, y: ay + aJoints[leadA].y };
+        } else if (moveName === 'grab') {
+            // Grab uses both hands — use lead elbow → hand
+            p1 = { x: ax + aJoints[leadE].x, y: ay + aJoints[leadE].y };
+            p2 = { x: ax + aJoints[leadH].x, y: ay + aJoints[leadH].y };
         } else {
-            tipX = attacker.x + aJoints[leadH].x;
-            tipY = attacker.y + aJoints[leadH].y;
+            // Default: lead elbow → hand
+            p1 = { x: ax + aJoints[leadE].x, y: ay + aJoints[leadE].y };
+            p2 = { x: ax + aJoints[leadH].x, y: ay + aJoints[leadH].y };
         }
 
-        // Target torso center (midpoint between hip and neck)
-        var tHip = tJoints.hip;
-        var tNeck = tJoints.neck;
-        var tcX = target.x + (tHip.x + tNeck.x) * 0.5;
-        var tcY = target.y + (tHip.y + tNeck.y) * 0.5;
-
-        var dx = tipX - tcX;
-        var dy = tipY - tcY;
-        var dist = Math.sqrt(dx * dx + dy * dy);
-        var range = move.hitRange * attacker.figH;
-
-        if (dist < range) {
-            applyHit(target, move, attacker);
-        }
+        return { p1: p1, p2: p2 };
     }
 
-    // ── Apply hit damage and reactions ───────────────────────────────
-    function applyHit(target, move, attacker) {
-        var damage = move.damage;
+    // ── Hit detection (swept segment) ─────────────────────────────────
+    // Returns a contact event object or null.
+    function checkHit(attacker, target) {
+        if (target.mode === 'ragdoll') return null;
 
-        // Block check: is target currently in block pose?
-        var t = target.targets;
-        var isBlocking = (
+        var atk = attacker.attacking;
+        if (!atk) return null;
+        var move = atk.move;
+        var range = move.hitRange * attacker.figH;
+
+        var aJoints = computeJoints(attacker);
+        var tJoints = computeJoints(target);
+        var tx = target.x, ty = target.y;
+
+        // Get the attacking limb segment in world coords
+        var atkSeg = getAttackSegment(attacker, aJoints, atk.moveName);
+
+        // ── Swept segment test against all target zones ──
+        var bestDist = Infinity;
+        var bestZone = null;
+        var bestPoint = null;    // contact point on target body
+        var bestAtkPt = null;    // contact point on attacking limb
+        var bestMul = 1.0;
+
+        for (var zi = 0; zi < HIT_ZONE_ORDER.length; zi++) {
+            var zoneName = HIT_ZONE_ORDER[zi];
+            var zone = HIT_ZONES[zoneName];
+            var segs = zone.segments;
+
+            for (var si = 0; si < segs.length; si++) {
+                var jA = tJoints[segs[si][0]];
+                var jB = tJoints[segs[si][1]];
+                // Convert to world coords
+                var b1 = { x: tx + jA.x, y: ty + jA.y };
+                var b2 = { x: tx + jB.x, y: ty + jB.y };
+
+                var result = segmentDistance(atkSeg.p1, atkSeg.p2, b1, b2);
+                if (result.dist < bestDist) {
+                    bestDist = result.dist;
+                    bestZone = zoneName;
+                    bestPoint = result.pointB;
+                    bestAtkPt = result.pointA;
+                    bestMul = zone.dmgMul;
+                }
+            }
+
+            // Head sphere: also test attack segment vs head center point
+            if (zone.radiusJoint) {
+                var headJ = tJoints[zone.radiusJoint];
+                var headW = { x: tx + headJ.x, y: ty + headJ.y };
+                var headR = tJoints[zone.radiusKey] || 0;
+                var psd = pointSegmentDist(headW, atkSeg.p1, atkSeg.p2);
+                var effective = psd.dist - headR;
+                if (effective < 0) effective = 0;
+                if (effective < bestDist) {
+                    bestDist = effective;
+                    bestZone = zoneName;
+                    bestPoint = headW;
+                    bestAtkPt = psd.closest;
+                    bestMul = zone.dmgMul;
+                }
+            }
+        }
+
+        // ── Check if best zone hit is within range ──
+        if (bestDist < range && bestZone) {
+            return buildContact(attacker, atk, bestPoint, bestAtkPt, bestZone, bestMul, move);
+        }
+
+        // ── Fallback: legacy torso-center check ──
+        var tHip = tJoints.hip;
+        var tNeck = tJoints.neck;
+        var tcX = tx + (tHip.x + tNeck.x) * 0.5;
+        var tcY = ty + (tHip.y + tNeck.y) * 0.5;
+        // Use midpoint of attack segment as the test point for fallback
+        var midAx = (atkSeg.p1.x + atkSeg.p2.x) * 0.5;
+        var midAy = (atkSeg.p1.y + atkSeg.p2.y) * 0.5;
+        var dx = midAx - tcX;
+        var dy = midAy - tcY;
+        var dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist < range) {
+            var fallbackPt = { x: tcX, y: tcY };
+            return buildContact(attacker, atk, fallbackPt, { x: midAx, y: midAy }, 'torso', 1.0, move);
+        }
+
+        return null;
+    }
+
+    // ── Build a contact event object ──────────────────────────────────
+    function buildContact(attacker, atk, contactPt, atkPt, zoneName, dmgMul, move) {
+        // Normal: direction from attacker's strike point toward target contact
+        var nx = contactPt.x - atkPt.x;
+        var ny = contactPt.y - atkPt.y;
+        var nLen = Math.sqrt(nx * nx + ny * ny);
+        if (nLen > 1e-6) { nx /= nLen; ny /= nLen; }
+        else { nx = attacker.facing; ny = 0; }
+
+        // Strength: peak at hitAt, fall off before/after
+        var progress = atk.elapsed / move.duration;
+        var hitNorm = move.hitAt / move.duration;
+        var strength = 1 - Math.abs(progress - hitNorm) / Math.max(hitNorm, 1 - hitNorm);
+        if (strength < 0) strength = 0;
+
+        // Block check
+        var t = atk.target ? atk.target.targets : null;
+        var isBlocking = t && (
             t.armLAngle < -0.4 && t.armRAngle < -0.3 &&
             t.elbowLBend > 0.5 && t.elbowRBend > 0.4 &&
             t.lean < 0
         );
-        if (isBlocking) {
-            damage = Math.round(damage * 0.4);
+        var baseDamage = move.damage * dmgMul;
+        if (isBlocking) baseDamage *= 0.4;
+        var damage = Math.round(baseDamage);
+
+        return {
+            point:    { x: contactPt.x, y: contactPt.y },
+            normal:   { x: nx, y: ny },
+            strength: strength,
+            moveName: atk.moveName,
+            zone:     zoneName,
+            damage:   damage
+        };
+    }
+
+    // ── Apply hit damage and reactions ───────────────────────────────
+    function applyHit(target, move, attacker, contact) {
+        var damage = contact ? contact.damage : move.damage;
+
+        // If no contact provided, do legacy block check
+        if (!contact) {
+            var t = target.targets;
+            var isBlocking = (
+                t.armLAngle < -0.4 && t.armRAngle < -0.3 &&
+                t.elbowLBend > 0.5 && t.elbowRBend > 0.4 &&
+                t.lean < 0
+            );
+            if (isBlocking) {
+                damage = Math.round(damage * 0.4);
+            }
         }
 
         target.hp -= damage;
@@ -999,6 +1233,11 @@
             attacker.combo = 1;
         }
         attacker.lastHitTime = now;
+
+        // Store contact on attacker for video FX
+        if (contact) {
+            attacker.lastContact = contact;
+        }
 
         // Apply recoil pose to target (if not already ragdolled)
         if (target.hp <= 0) {
@@ -1317,6 +1556,9 @@
 
         goRagdoll:      goRagdoll,
         attack:         attack,
+        checkHit:       checkHit,
+        segmentDistance: segmentDistance,
+        HIT_ZONES:      HIT_ZONES,
 
         // Phase 4 — Gore & Effects
         spawnBlood:     spawnBlood,
