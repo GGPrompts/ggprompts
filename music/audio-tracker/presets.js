@@ -217,10 +217,34 @@ const Presets = {
       filterFreq: 5000, filterQ: 1,
       volume: 0.75
     },
+    { // 18
+      name: "Legato Lead",
+      wave: "pluck",
+      detune: 0,
+      detuneOsc: false,
+      detuneAmount: 0,
+      attack: 0.001, decay: 0.4, sustain: 0.0, release: 0.3,
+      filterType: "none",
+      filterFreq: 5000, filterQ: 1,
+      volume: 0.8,
+      legato: true
+    },
+    { // 19
+      name: "Legato Nylon",
+      wave: "pluck",
+      detune: 0,
+      detuneOsc: false,
+      detuneAmount: 0,
+      attack: 0.001, decay: 0.5, sustain: 0.0, release: 0.3,
+      filterType: "none",
+      filterFreq: 2500, filterQ: 1,
+      volume: 0.75,
+      legato: true
+    },
 
     // --- FM Synthesis --------------------------------------------------------
 
-    { // 18
+    { // 20
       name: "FM Electric Piano",
       wave: "fm",
       detune: 0,
@@ -232,7 +256,7 @@ const Presets = {
       volume: 0.7,
       fmRatio: 1, fmDepth: 150, fmWave: "sine"
     },
-    { // 19
+    { // 21
       name: "FM Bells",
       wave: "fm",
       detune: 0,
@@ -244,7 +268,7 @@ const Presets = {
       volume: 0.6,
       fmRatio: 3.5, fmDepth: 500, fmWave: "sine"
     },
-    { // 20
+    { // 22
       name: "FM Metallic Lead",
       wave: "fm",
       detune: 0,
@@ -256,7 +280,7 @@ const Presets = {
       volume: 0.7,
       fmRatio: 2, fmDepth: 400, fmWave: "sine"
     },
-    { // 21
+    { // 23
       name: "FM Bass",
       wave: "fm",
       detune: 0,
@@ -268,7 +292,7 @@ const Presets = {
       volume: 0.85,
       fmRatio: 1, fmDepth: 80, fmWave: "sine"
     },
-    { // 22
+    { // 24
       name: "FM Vibraphone",
       wave: "fm",
       detune: 0,

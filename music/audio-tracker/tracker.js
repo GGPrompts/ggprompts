@@ -320,7 +320,8 @@ var Tracker = (function () {
       volume: (rawInst.volume !== undefined) ? rawInst.volume : (rawInst.vol !== undefined ? rawInst.vol : 0.8),
       fmRatio: (rawInst.fmRatio !== undefined) ? rawInst.fmRatio : 2,
       fmDepth: (rawInst.fmDepth !== undefined) ? rawInst.fmDepth : 200,
-      fmWave: rawInst.fmWave || 'sine'
+      fmWave: rawInst.fmWave || 'sine',
+      legato: !!rawInst.legato
     };
   }
 
@@ -627,7 +628,12 @@ var Tracker = (function () {
       } else if (cell.note >= 0) {
         // Note-on: stop previous voice on this channel first.
         // Use quickCut to avoid overlapping release tails at fast tempos.
-        if (activeVoices[ch] !== null) {
+        // Exception: legato pluck voices are retuned instead of restarted.
+        var skipCut = inst.wave === 'pluck' && inst.legato
+          && activeVoices[ch] !== null
+          && activeVoices[ch].type === 'pluck'
+          && !activeVoices[ch].released;
+        if (activeVoices[ch] !== null && !skipCut) {
           if (typeof Synth !== 'undefined' && Synth.noteOff) {
             Synth.noteOff(activeVoices[ch], time, true);
           }
@@ -858,6 +864,10 @@ var Tracker = (function () {
         ci.fmRatio = src.fmRatio !== undefined ? src.fmRatio : 2;
         ci.fmDepth = src.fmDepth !== undefined ? src.fmDepth : 200;
         ci.fmWave = src.fmWave || 'sine';
+      }
+      // Only include legato for pluck instruments
+      if (src.wave === 'pluck' && src.legato) {
+        ci.legato = true;
       }
       compact.instruments.push(ci);
     }

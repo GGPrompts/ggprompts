@@ -53,6 +53,15 @@ var Synth = (function () {
     return Math.max(0, Math.min(3, ch | 0));
   }
 
+  function getChannelVoice(channel) {
+    var ch = clampChannel(channel);
+    for (var i = activeVoices.length - 1; i >= 0; i--) {
+      var v = activeVoices[i];
+      if (v.channel === ch && !v.released) return v;
+    }
+    return null;
+  }
+
   // ---- Public API ----
 
   function init() {
@@ -165,6 +174,12 @@ var Synth = (function () {
       return triggerNoise(ch, instrument, t);
     }
     if (wave === "pluck") {
+      if (instrument.legato) {
+        var prev = getChannelVoice(ch);
+        if (prev && prev.type === "pluck" && !prev.released) {
+          return retunePluck(prev, midiNote, instrument, t);
+        }
+      }
       return triggerPluck(ch, midiNote, instrument, t);
     }
     if (wave === "fm") {
@@ -400,6 +415,55 @@ var Synth = (function () {
   }
 
   /**
+   * retunePluck — retune an existing pluck voice for legato (hammer-on/pull-off).
+   * Slides the delay line(s) to the new pitch over ~20ms and resets the decay.
+   */
+  function retunePluck(handle, midiNote, instrument, time) {
+    var freq = midiToFreq(midiNote);
+    var brightness = instrument.filterFreq || 4000;
+    var period = 1 / freq - 1 / (2 * Math.PI * brightness);
+    if (period < 1 / ctx.sampleRate) period = 1 / ctx.sampleRate;
+    var t = time || ctx.currentTime;
+    var slideTime = 0.02; // 20ms pitch slide
+
+    // Retune primary delay line
+    handle.delay.delayTime.cancelScheduledValues(t);
+    handle.delay.delayTime.setValueAtTime(handle.delay.delayTime.value, t);
+    handle.delay.delayTime.exponentialRampToValueAtTime(period, t + slideTime);
+
+    // Retune secondary delay line (detuneOsc) if present
+    if (handle.delay2) {
+      var d2 = instrument.detuneAmount || 7;
+      var freq2 = freq * Math.pow(2, d2 / 1200);
+      var period2 = 1 / freq2 - 1 / (2 * Math.PI * brightness);
+      if (period2 < 1 / ctx.sampleRate) period2 = 1 / ctx.sampleRate;
+      handle.delay2.delayTime.cancelScheduledValues(t);
+      handle.delay2.delayTime.setValueAtTime(handle.delay2.delayTime.value, t);
+      handle.delay2.delayTime.exponentialRampToValueAtTime(period2, t + slideTime);
+    }
+
+    // Reset feedback decay: cancel pending ramp, restart from current value
+    var decayTime = (instrument.decay || 0.1) + (instrument.release || 0.15) + 1.5;
+    var fg = handle.feedbackGain.gain;
+    fg.cancelScheduledValues(t);
+    fg.setValueAtTime(fg.value, t);
+    fg.linearRampToValueAtTime(0, t + decayTime);
+
+    if (handle.feedbackGain2) {
+      var fg2 = handle.feedbackGain2.gain;
+      fg2.cancelScheduledValues(t);
+      fg2.setValueAtTime(fg2.value, t);
+      fg2.linearRampToValueAtTime(0, t + decayTime);
+    }
+
+    // Update handle metadata
+    handle.decayTime = decayTime;
+    handle.instrument = instrument;
+
+    return handle;
+  }
+
+  /**
    * triggerPluck — Karplus-Strong plucked string synthesis.
    * Noise burst → delay line (tuned to pitch) → lowpass → feedback loop.
    */
@@ -411,14 +475,18 @@ var Synth = (function () {
     var freq = midiToFreq(midiNote);
     var vol = instrument.volume !== undefined ? instrument.volume : 0.8;
 
-    // Delay period = 1/freq (tuned delay line)
-    var period = 1 / freq;
+    // Feedback filter cutoff controls brightness (reuse filterFreq)
+    var brightness = instrument.filterFreq || 4000;
+
+    // Delay period = 1/freq, compensated for the lowpass filter's group delay.
+    // The feedback filter introduces a phase shift that lengthens the effective
+    // loop, making the pitch flat. Subtract the approximate group delay of a
+    // first-order lowpass: 1 / (2π × cutoff).
+    var period = 1 / freq - 1 / (2 * Math.PI * brightness);
+    if (period < 1 / ctx.sampleRate) period = 1 / ctx.sampleRate;
 
     // Noise burst duration — short excitation
     var burstDur = 0.02;
-
-    // Feedback filter cutoff controls brightness (reuse filterFreq)
-    var brightness = instrument.filterFreq || 4000;
 
     // ADSR-derived total sustain time (pluck decays naturally, but we
     // use release as a rough guide for how long the feedback sustains)
@@ -461,7 +529,8 @@ var Synth = (function () {
     if (instrument.detuneOsc) {
       var d2 = instrument.detuneAmount || 7;
       var freq2 = freq * Math.pow(2, d2 / 1200);
-      var period2 = 1 / freq2;
+      var period2 = 1 / freq2 - 1 / (2 * Math.PI * brightness);
+      if (period2 < 1 / ctx.sampleRate) period2 = 1 / ctx.sampleRate;
 
       var burstBuffer2 = createNoiseBuffer(burstDur + 0.01);
       burstSource2 = ctx.createBufferSource();
@@ -734,6 +803,8 @@ var Synth = (function () {
     triggerNoise: triggerNoise,
     triggerPluck: triggerPluck,
     triggerFM: triggerFM,
+    retunePluck: retunePluck,
+    getChannelVoice: getChannelVoice,
     setMasterVolume: setMasterVolume,
     setChannelVolume: setChannelVolume,
     dispose: dispose,

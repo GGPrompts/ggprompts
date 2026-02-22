@@ -470,6 +470,12 @@ var UI = (function () {
     html += '</select></label>';
     html += '</div>';
 
+    // Legato (only visible for pluck)
+    var legatoDisplay = (inst.wave === 'pluck') ? '' : ' style="display:none"';
+    html += '<div class="inst-row" id="legato-params"' + legatoDisplay + '>';
+    html += '<label><input type="checkbox" id="inst-legato"' + (inst.legato ? ' checked' : '') + '> Legato (hammer-on)</label>';
+    html += '</div>';
+
     // Volume
     html += '<div class="inst-row">';
     html += '<label>Volume: <input type="range" id="inst-volume" min="0" max="1" step="0.01" value="' + (inst.volume !== undefined ? inst.volume : 0.8) + '"> <span id="inst-volume-val">' + (inst.volume !== undefined ? inst.volume : 0.8).toFixed(2) + '</span></label>';
@@ -532,14 +538,19 @@ var UI = (function () {
     bindInstNumber('inst-fmratio', 'fmRatio');
     bindInstNumber('inst-fmdepth', 'fmDepth');
     bindInstSelect('inst-fmwave', 'fmWave');
+    bindInstCheck('inst-legato', 'legato');
 
-    // Toggle FM params visibility when wave type changes
+    // Toggle FM / legato params visibility when wave type changes
     var waveSelect = document.getElementById('inst-wave');
     if (waveSelect) {
       waveSelect.addEventListener('change', function () {
         var fmParams = document.getElementById('fm-params');
         if (fmParams) {
           fmParams.style.display = (this.value === 'fm') ? '' : 'none';
+        }
+        var legatoParams = document.getElementById('legato-params');
+        if (legatoParams) {
+          legatoParams.style.display = (this.value === 'pluck') ? '' : 'none';
         }
       });
     }
