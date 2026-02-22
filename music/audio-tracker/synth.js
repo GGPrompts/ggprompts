@@ -250,7 +250,7 @@ var Synth = (function () {
 
     var t = time || ctx.currentTime;
 
-    // --- Pluck voices: kill the feedback loop ---
+    // --- Pluck voices: kill the feedback loop, then disconnect ---
     if (handle.type === "pluck") {
       var fadeTime = quickCut ? 0.003 : 0.05;
       handle.feedbackGain.gain.cancelScheduledValues(t);
@@ -264,6 +264,26 @@ var Synth = (function () {
       handle.envGain.gain.cancelScheduledValues(t);
       handle.envGain.gain.setValueAtTime(handle.envGain.gain.value, t);
       handle.envGain.gain.linearRampToValueAtTime(0, t + fadeTime + 0.01);
+
+      // Disconnect nodes shortly after fade completes to free resources.
+      // Without this, zombie delay lines accumulate until the original
+      // auto-cleanup timeout fires (~2.5s), causing distortion in
+      // pluck-heavy songs.
+      var pluckCleanup = (t + fadeTime + 0.06 - ctx.currentTime) * 1000;
+      if (pluckCleanup < 50) pluckCleanup = 50;
+      setTimeout(function () {
+        try {
+          handle.delay.disconnect();
+          if (handle.delay2) handle.delay2.disconnect();
+          handle.feedbackGain.disconnect();
+          if (handle.feedbackGain2) handle.feedbackGain2.disconnect();
+          handle.feedbackFilter.disconnect();
+          if (handle.feedbackFilter2) handle.feedbackFilter2.disconnect();
+          if (handle.filter) handle.filter.disconnect();
+          handle.envGain.disconnect();
+        } catch (e) {}
+        removeVoice(handle);
+      }, pluckCleanup);
       return;
     }
 

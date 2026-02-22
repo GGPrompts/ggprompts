@@ -91,9 +91,10 @@ var ChipPlayer = (function () {
       src.stop(endTime);
     } else if (wave === "pluck") {
       // Karplus-Strong plucked string (self-contained, fire-and-forget)
-      var period = 1 / freq;
-      var burstDur = 0.02;
       var brightness = inst.filterFreq || 4000;
+      var period = 1 / freq - 1 / (2 * Math.PI * brightness);
+      if (period < 1 / ctx.sampleRate) period = 1 / ctx.sampleRate;
+      var burstDur = 0.02;
 
       var burstLen = Math.ceil(ctx.sampleRate * (burstDur + 0.01));
       var burstBuf = ctx.createBuffer(1, burstLen, ctx.sampleRate);
@@ -127,6 +128,8 @@ var ChipPlayer = (function () {
       // Optional detuned 2nd pluck
       if (inst.detuneOsc && inst.detuneAmount) {
         var freq2p = freq * Math.pow(2, inst.detuneAmount / 1200);
+        var period2p = 1 / freq2p - 1 / (2 * Math.PI * brightness);
+        if (period2p < 1 / ctx.sampleRate) period2p = 1 / ctx.sampleRate;
         var burstBuf2 = ctx.createBuffer(1, burstLen, ctx.sampleRate);
         var bd2 = burstBuf2.getChannelData(0);
         for (var bi2 = 0; bi2 < burstLen; bi2++) bd2[bi2] = Math.random() * 2 - 1;
@@ -135,7 +138,7 @@ var ChipPlayer = (function () {
         burstSrc2.buffer = burstBuf2;
 
         var pluckDelay2 = ctx.createDelay(1);
-        pluckDelay2.delayTime.setValueAtTime(1 / freq2p, time);
+        pluckDelay2.delayTime.setValueAtTime(period2p, time);
 
         var fbGain2 = ctx.createGain();
         fbGain2.gain.setValueAtTime(0.996, time);
