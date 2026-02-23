@@ -3540,6 +3540,7 @@
   var currentDuration = 0;
   var currentVideoUrl = null;
   var playStartTime = 0;
+  var pausedElapsed = 0;
   var initialized = false;
   var isPlaying = false;
   var shuffleOn = true;
@@ -3714,9 +3715,9 @@
   }
 
   // ---- Progress bar ----
-  function startProgressTracking() {
+  function startProgressTracking(resumeOffset) {
     stopProgressTracking();
-    playStartTime = Date.now();
+    playStartTime = Date.now() - (resumeOffset || 0) * 1000;
     (function tick() {
       if (!isPlaying) return;
       var elapsed = (Date.now() - playStartTime) / 1000;
@@ -3793,6 +3794,7 @@
             Visualizer.setVolume(parseInt(elVolume.value, 10) / 100);
           }
           Visualizer.play();
+          pausedElapsed = 0;
           isPlaying = true;
           updatePlayButton();
           updateUnmuteButton();
@@ -3837,11 +3839,12 @@
   function togglePlay() {
     if (!initialized || !currentSongData) return;
     if (isPlaying) {
+      pausedElapsed = (Date.now() - playStartTime) / 1000;
       if (currentVideoUrl) {
         // Blank the iframe to stop its audio
         elVideoFrame.src = "";
       }
-      Visualizer.stop();
+      Visualizer.pause();
       isPlaying = false;
       if (advanceTimer) { clearTimeout(advanceTimer); advanceTimer = null; }
       stopProgressTracking();
@@ -3854,12 +3857,16 @@
       } else {
         Visualizer.setVolume(parseInt(elVolume.value, 10) / 100);
       }
-      Visualizer.play();
+      if (Visualizer.isPaused()) {
+        Visualizer.resume();
+      } else {
+        Visualizer.play();
+        pausedElapsed = 0;
+      }
       isPlaying = true;
       updateStatus("Now Playing");
-      var elapsed = (Date.now() - playStartTime) / 1000;
-      var remaining = Math.max(1, currentDuration - elapsed);
-      startProgressTracking();
+      var remaining = Math.max(1, currentDuration - pausedElapsed);
+      startProgressTracking(pausedElapsed);
       advanceTimer = setTimeout(function () {
         advanceToNext();
       }, remaining * 1000);
