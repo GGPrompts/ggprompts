@@ -526,6 +526,9 @@
     // ── Pose Presets (delegate to StickFight) ────────────────────────
     var POSE_PRESETS = Object.keys(StickFight.POSES);
 
+    // ── Move Sequence Names (combat moves from StickFight) ─────────
+    var MOVE_NAMES = Object.keys(StickFight.MOVES);
+
     function applyPose(fig, poseName) {
         var pose = StickFight.POSES[poseName];
         if (!pose) return;
@@ -537,6 +540,63 @@
         }
     }
 
+    // ── Insert Move Sequence ──────────────────────────────────────────
+    // Converts a StickFight.MOVES attack into animator keyframes at insertTime.
+    function insertMoveSequence(animation, figures, figIdx, moveName, insertTime) {
+        var move = StickFight.MOVES[moveName];
+        if (!move || figIdx < 0 || figIdx >= figures.length) return [];
+
+        var fig = figures[figIdx];
+        var figId = fig._animId;
+        var baseState = captureFigureState(fig);
+        var generatedIds = [];
+
+        for (var i = 0; i < move.keyframes.length; i++) {
+            var mkf = move.keyframes[i];
+            var absTime = insertTime + (mkf.t * move.duration);
+
+            // Start from a full clone of the current figure state
+            var poseParams = deepClone(baseState.params);
+
+            // Overlay the move's sparse pose onto the full params
+            var pose = mkf.pose;
+            for (var k in pose) {
+                if (pose.hasOwnProperty(k)) {
+                    poseParams[k] = pose[k];
+                }
+            }
+
+            // Build figureStates: selected figure gets the move pose,
+            // other figures hold their current state
+            var figureStates = {};
+            for (var fi = 0; fi < figures.length; fi++) {
+                if (fi === figIdx) {
+                    figureStates[figId] = {
+                        x: baseState.x,
+                        y: baseState.y,
+                        facing: baseState.facing,
+                        params: poseParams
+                    };
+                } else {
+                    figureStates[figures[fi]._animId] = captureFigureState(figures[fi]);
+                }
+            }
+
+            var kf = {
+                id: uid('kf'),
+                time: absTime,
+                duration: 0,
+                easing: 'linear',
+                figureStates: figureStates
+            };
+
+            animation.keyframes.push(kf);
+            generatedIds.push(kf.id);
+        }
+
+        return generatedIds;
+    }
+
     // ── Public API ───────────────────────────────────────────────────
     window.AnimatorEngine = {
         uid: uid,
@@ -545,6 +605,7 @@
         JOINT_NAMES: JOINT_NAMES,
         HANDLE_RADIUS: HANDLE_RADIUS,
         POSE_PRESETS: POSE_PRESETS,
+        MOVE_NAMES: MOVE_NAMES,
 
         createFigure: createFigure,
         captureFigureState: captureFigureState,
@@ -557,6 +618,7 @@
         solveIK: solveIK,
         drawOnionSkin: drawOnionSkin,
         applyPose: applyPose,
+        insertMoveSequence: insertMoveSequence,
         serializeFigure: serializeFigure,
 
         createAnimation: createAnimation,
