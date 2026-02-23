@@ -2500,7 +2500,7 @@
 
             <!-- Video / Visualizer viewport -->
             <div class="jukebox-viewport" id="jb-viewport">
-              <iframe id="jukebox-video-frame" allowfullscreen></iframe>
+              <iframe id="jukebox-video-frame" allowfullscreen title="Music video player"></iframe>
               <canvas id="jukebox-viz-canvas"></canvas>
             </div>
 
@@ -2511,18 +2511,18 @@
 
             <!-- Transport controls -->
             <div class="jukebox-controls">
-              <button class="jb-btn active" id="jb-videos-only" title="Videos Only">&#x1F3AC;</button>
-              <button class="jb-btn" id="jb-shuffle" title="Shuffle">&#x1F500;</button>
-              <button class="jb-btn" id="jb-prev" title="Previous">&#x23EE;</button>
-              <button class="jb-btn jb-btn-play" id="jb-play" title="Play / Pause">&#x25B6;</button>
-              <button class="jb-btn" id="jb-next" title="Next">&#x23ED;</button>
-              <button class="jb-btn jb-btn-fullscreen" id="jb-fullscreen" title="Fullscreen" style="display:none;">&#x26F6;</button>
+              <button class="jb-btn active" id="jb-videos-only" title="Videos Only" aria-label="Videos Only">&#x1F3AC;</button>
+              <button class="jb-btn" id="jb-shuffle" title="Shuffle" aria-label="Shuffle">&#x1F500;</button>
+              <button class="jb-btn" id="jb-prev" title="Previous" aria-label="Previous track">&#x23EE;</button>
+              <button class="jb-btn jb-btn-play" id="jb-play" title="Play / Pause" aria-label="Play or Pause">&#x25B6;</button>
+              <button class="jb-btn" id="jb-next" title="Next" aria-label="Next track">&#x23ED;</button>
+              <button class="jb-btn jb-btn-fullscreen" id="jb-fullscreen" title="Fullscreen" aria-label="Fullscreen" style="display:none;">&#x26F6;</button>
             </div>
 
             <!-- Volume -->
             <div class="jukebox-volume">
-              <span class="jukebox-volume-label" id="jb-vol-icon">&#x1F508;</span>
-              <input type="range" class="jukebox-volume-slider" id="jb-volume" min="0" max="100" value="50">
+              <span class="jukebox-volume-label" id="jb-vol-icon" aria-hidden="true">&#x1F508;</span>
+              <input type="range" class="jukebox-volume-slider" id="jb-volume" min="0" max="100" value="50" aria-label="Volume">
             </div>
 
             <!-- Info line -->
@@ -2765,7 +2765,7 @@
               <span class="iface-badge">TYPESCRIPT</span>
               <span class="iface-badge">XTERM.JS</span>
             </div>
-            <span class="tabz-demo-link" onclick="event.preventDefault(); event.stopPropagation(); window.open('https://youtu.be/uY-YbAW7yg4', '_blank');">&#9654; Watch Demo</span>
+            <a class="tabz-demo-link" href="https://youtu.be/uY-YbAW7yg4" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();">&#9654; Watch Demo</a>
           </div>
         </a>
 
@@ -2997,8 +2997,9 @@
   <script>
   // ─── STARFIELD (visualizer-driven) ───
   (function() {
-    var sfRenderer = window.Renderers['starfield'];
+    var sfRenderer = window.Renderers && window.Renderers['starfield'];
     var sfCanvas = document.getElementById('starfield');
+    if (!sfRenderer || !sfCanvas) return;
     sfRenderer.initStandalone(sfCanvas);
     // Frame data fed from Visualizer once initialized (see initAudio below)
   })();
@@ -3605,6 +3606,8 @@
   var isPlaying = false;
   var shuffleOn = true;
   var videosOnlyOn = true;
+  var manifestReady = false;
+  var pendingIntroSong = null;
   var advanceTimer = null;
   var progressRAF = null;
 
@@ -3728,6 +3731,34 @@
       remaining[k] = tmp;
     }
     queue = queue.slice(0, queuePos + 1).concat(remaining);
+  }
+
+  function setQueuePositionByFile(filename) {
+    var manifestIdx = -1;
+    for (var i = 0; i < manifest.length; i++) {
+      if (manifest[i].file === filename) {
+        manifestIdx = i;
+        break;
+      }
+    }
+    if (manifestIdx < 0) return false;
+
+    // If the file is filtered out by current queue mode, rebuild queue around it.
+    var visibleInCurrentMode = (!videosOnlyOn) || hasVideo(manifestIdx);
+    if (!visibleInCurrentMode || queue.length === 0) {
+      buildQueue(filename);
+      return queue.length > 0;
+    }
+
+    for (var q = 0; q < queue.length; q++) {
+      if (queue[q] === manifestIdx) {
+        queuePos = q;
+        return true;
+      }
+    }
+
+    buildQueue(filename);
+    return queue.length > 0;
   }
 
   // ---- UI updates ----
@@ -4029,9 +4060,12 @@
     if (!currentVideoUrl) return;
     var el = elViewport;
     if (document.fullscreenElement === el || document.webkitFullscreenElement === el) {
-      (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      var exitFn = document.exitFullscreen || document.webkitExitFullscreen;
+      if (exitFn) exitFn.call(document);
     } else {
-      var p = (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+      var enterFn = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (!enterFn) return;
+      var p = enterFn.call(el);
       // Try to lock landscape on mobile for better video viewing
       if (p && p.then && screen.orientation && screen.orientation.lock) {
         p.then(function () {
@@ -4054,36 +4088,20 @@
   document.addEventListener("fullscreenchange", onFullscreenChange);
   document.addEventListener("webkitfullscreenchange", onFullscreenChange);
 
-  // Expose for intro sequence: start playback with a specific song (audio only, no video)
-  window.jukeboxStartWithSong = function (filename) {
+  // Expose for intro sequence: start playback with a specific song.
+  // Defaults to audio/visualizer mode (no video handoff).
+  window.jukeboxStartWithSong = function (filename, opts) {
+    var skipVideo = !opts || opts.skipVideo !== false;
     initAudio().then(function () {
-      // Find this song in the manifest and set queue position
-      for (var i = 0; i < manifest.length; i++) {
-        if (manifest[i].file === filename) {
-          // Find where this manifest index appears in the queue
-          for (var q = 0; q < queue.length; q++) {
-            if (queue[q] === i) { queuePos = q; break; }
-          }
-          break;
-        }
+      if (!manifestReady) {
+        pendingIntroSong = { file: filename, skipVideo: skipVideo };
+        updateStatus("Loading song list…");
+        return;
       }
-      if (queuePos >= 0) loadAndPlay(queuePos, true);
+      if (setQueuePositionByFile(filename) && queuePos >= 0) {
+        loadAndPlay(queuePos, skipVideo);
+      }
     });
-  };
-
-  // Expose for intro sequence: enable video for the currently playing song after doors open
-  window.jukeboxEnableVideo = function () {
-    if (queuePos < 0 || !isPlaying) return;
-    var entry = manifest[queue[queuePos]];
-    var videoUrl = getVideoUrl(entry.file);
-    if (videoUrl) {
-      currentVideoUrl = videoUrl;
-      elViewport.classList.add("has-video");
-      elVideoFrame.src = videoUrl + "?autoplay=1";
-      elFullscreen.style.display = "";
-      Visualizer.setVolume(0);
-      updateUnmuteButton();
-    }
   };
 
   // ---- Initialize ----
@@ -4097,12 +4115,21 @@
         updateStatus("No songs found");
         return;
       }
+      manifestReady = true;
       buildQueue("bonus-stage-bounce.json");
       elShuffle.classList.add("active");
       updateCount();
       var first = manifest[queue[0]];
       if (first) updateTitle(first.title);
       updateStatus("Ready \u2014 press play");
+
+      if (pendingIntroSong) {
+        var pending = pendingIntroSong;
+        pendingIntroSong = null;
+        if (setQueuePositionByFile(pending.file) && queuePos >= 0) {
+          loadAndPlay(queuePos, pending.skipVideo);
+        }
+      }
     })
     .catch(function (err) {
       console.error("Jukebox: failed to load manifest", err);
@@ -4380,6 +4407,12 @@
     var doorLeft = document.getElementById("intro-door-left");
     var doorRight = document.getElementById("intro-door-right");
     var lightSpill = document.getElementById("intro-light-spill");
+    var INTRO_TIMINGS = {
+      lightSpillMs: 2500,
+      doorsOpenMs: 6000,
+      fadeOutMs: 8500,
+      revealMs: 9500
+    };
 
     // Skip intro if already seen this session
     if (sessionStorage.getItem("intro-seen")) {
@@ -4411,12 +4444,12 @@
       doorLeft.classList.add("shaking");
       doorRight.classList.add("shaking");
 
-      // At ~1s: light spill appears through the door crack
+      // Light spill appears through the door crack during the musical build.
       setTimeout(function () {
         lightSpill.classList.add("active");
-      }, 1000);
+      }, INTRO_TIMINGS.lightSpillMs);
 
-      // At ~1.5s: doors swing open (2.5s CSS transition)
+      // Doors swing open closer to the musical peak (2.5s CSS transition).
       setTimeout(function () {
         doorLeft.classList.remove("shaking");
         doorRight.classList.remove("shaking");
@@ -4424,20 +4457,19 @@
         void doorLeft.offsetHeight;
         doorLeft.classList.add("opening");
         doorRight.classList.add("opening");
-      }, 1500);
+      }, INTRO_TIMINGS.doorsOpenMs);
 
-      // At ~4s: fade out overlay (song keeps playing through jukebox)
+      // Fade out overlay near the top of the phrase.
       setTimeout(function () {
         overlay.classList.add("fade-out");
         sessionStorage.setItem("intro-seen", "1");
-      }, 4000);
+      }, INTRO_TIMINGS.fadeOutMs);
 
-      // At ~5s: remove overlay from DOM, enable the video, launch the spaceship
+      // Remove overlay and launch the spaceship reveal.
       setTimeout(function () {
         overlay.remove();
-        if (window.jukeboxEnableVideo) window.jukeboxEnableVideo();
         if (window.startBannerPull) window.startBannerPull();
-      }, 5000);
+      }, INTRO_TIMINGS.revealMs);
     });
   })();
   </script>
