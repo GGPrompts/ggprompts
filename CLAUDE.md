@@ -1,6 +1,6 @@
 # HTML Style Guides Project
 
-A collection of CSS design system showcases, interactive educational stories, styled tech reference guides, a chiptune music studio, and browser games. Everything runs on GitHub Pages with zero build tools or frameworks.
+A collection of CSS design system showcases, interactive educational stories, styled tech reference guides, a chiptune music studio, browser games, and creative tools. Everything runs on GitHub Pages with zero build tools or frameworks.
 
 ## Project Structure
 
@@ -37,6 +37,14 @@ A collection of CSS design system showcases, interactive educational stories, st
 │       ├── video-utils.js  # Shared helpers (lerp, rand, rgba, etc.)
 │       ├── video-base-styles.css  # Shared video CSS with CSS vars
 │       └── base-renderer.js      # Video renderer factory
+├── tools/                  # Creative tools (interactive editors)
+│   ├── CLAUDE.md           # How to build tools
+│   ├── index.html          # Hub page (Rococo-themed card grid)
+│   └── animator/           # Stick Figure Animation Studio
+│       ├── index.html      # Editor (Darkroom-themed, full app)
+│       ├── animator-engine.js  # Figure management, IK, keyframes, undo
+│       ├── timeline.js     # Timeline UI with scrubber + playback
+│       └── gif-export.js   # Pure-JS GIF encoder (LZW + quantizer)
 └── games/                  # Browser games (modular JS)
     ├── casino-audio-engine.js  # Shared CasinoAudio for casino games
     ├── casino-theme.css        # Shared Vegas palette for casino games
@@ -52,8 +60,8 @@ A collection of CSS design system showcases, interactive educational stories, st
 ### Style guides & tech guides — single-file, self-contained
 - Each is one `.html` file with inline `<style>` and optional inline `<script>`. No external CSS/JS.
 
-### Stories & games — modular is fine
-- Stories and games can use multiple files (shared JS, theme configs, JSON data, media assets).
+### Stories, games & tools — modular is fine
+- Stories, games, and tools can use multiple files (shared JS, theme configs, JSON data, media assets).
 - The only hard rule: it must work on GitHub Pages with no build step.
 - Stories may embed YouTube iframes and link to external resources (Wikipedia, etc.).
 
@@ -72,6 +80,13 @@ The 3 casino games share:
 - **`casino-audio-engine.js`** — `window.CasinoAudio` IIFE with `init()`, `play(type)`, `register(name, fn)` + 7 built-in sounds (flip, deal, place, click, buttonClick, win, fanfare, coin). Each game registers its unique sounds via `CasinoAudio.register()`.
 - **`casino-theme.css`** — 23 shared `:root` variables for the Vegas aesthetic (`--felt-green`, `--gold`, `--neon-pink`, `--chrome`, font stacks, gradients, glows). Each game adds only its unique variables inline.
 
+### Stick Figure Animation Studio (`tools/animator/`)
+The animator loads shared modules from `music/visualizer/` (unmodified):
+- **`stick-fight-engine.js`** — `window.StickFight` skeleton/pose/ragdoll toolkit (13 joints, 12 named poses, FK/IK)
+- **`video-utils.js`** — `lerp`, `clamp01`, `rand`, etc.
+
+See `tools/CLAUDE.md` for the animator architecture, IK solver, keyframe format, and how to extend it.
+
 ## Cross-Cutting Patterns
 
 - **Naming**: All files use kebab-case (`dark-academia.html`, `curl-wget.html`)
@@ -85,6 +100,7 @@ When adding new content, update the relevant index:
 - Style guides: `/index.html` (add card with `.card-{name}` class + CSS)
 - Stories: `/stories/index.html` (add card with metadata tags)
 - Tech guides: `/techguides/index.html` (add card in appropriate tier)
+- Tools: `/tools/index.html` (add Rococo card linking to the tool)
 
 Also update the counts/descriptions in the master `/index.html` nav links if applicable.
 
