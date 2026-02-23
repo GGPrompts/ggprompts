@@ -171,13 +171,16 @@ The synth engine supports these wave types for instruments:
 - `sawtooth` — sawtooth wave (SNES-style lead), rich harmonics
 - `sine` — pure sine, good for pads and sub-bass
 - `noise` — white noise for percussion
+- `fm` — FM synthesis, use for guitars, harps, bells, and plucked strings
+
+**Do NOT use `"wave": "pluck"`** — the Karplus-Strong pluck synthesis sounds bad. Always use `"wave": "fm"` instead for guitar, harp, and plucked-string instruments.
 
 ### Instrument Parameters
 
 ```json
 {
   "name": "Display Name",
-  "wave": "square|pulse25|pulse12|triangle|sawtooth|sine|noise",
+  "wave": "square|pulse25|pulse12|triangle|sawtooth|sine|noise|fm",
   "a": 0.01,          // attack time (seconds)
   "d": 0.1,           // decay time
   "s": 0.6,           // sustain level (0-1)
@@ -188,8 +191,37 @@ The synth engine supports these wave types for instruments:
   "detuneAmount": 7,   // detune amount for 2nd osc (optional)
   "filterType": "none|lowpass|highpass|bandpass",  // optional
   "filterFreq": 2000,  // filter cutoff Hz (optional)
-  "filterQ": 1         // filter resonance (optional)
+  "filterQ": 1,        // filter resonance (optional)
+  "fmRatio": 2,        // FM only: modulator/carrier freq ratio (1=warm, 2=bell, 3+=metallic)
+  "fmDepth": 200,      // FM only: modulation depth in Hz (80=mellow, 200=bright, 500=harsh)
+  "fmWave": "sine"     // FM only: modulator waveform
 }
+```
+
+### FM Guitar/String Recipes
+
+Use these proven FM presets for guitar and plucked-string instruments:
+
+```jsonc
+// Nylon Guitar — warm, mellow
+{ "wave": "fm", "fmRatio": 1, "fmDepth": 120, "fmWave": "sine",
+  "filterType": "lowpass", "filterFreq": 2200, "filterQ": 0.8,
+  "a": 0.002, "d": 0.45, "s": 0.05, "r": 0.3, "vol": 0.7 }
+
+// 12-String Guitar — chorus shimmer (detuned pair)
+{ "wave": "fm", "fmRatio": 1, "fmDepth": 140, "fmWave": "sine",
+  "detuneOsc": true, "detuneAmount": 7,
+  "a": 0.002, "d": 0.4, "s": 0.05, "r": 0.25, "vol": 0.55 }
+
+// Crystal Harp / Pizzicato — bright, bell-like
+{ "wave": "fm", "fmRatio": 2, "fmDepth": 200, "fmWave": "sine",
+  "a": 0.001, "d": 0.6, "s": 0.05, "r": 0.4, "vol": 0.6 }
+
+// Pluck Bass — deep, warm
+{ "wave": "fm", "fmRatio": 1, "fmDepth": 80, "fmWave": "sine",
+  "filterType": "lowpass", "filterFreq": 1600, "filterQ": 0.8,
+  "a": 0.003, "d": 0.3, "s": 0.1, "r": 0.18, "vol": 0.55 }
+```
 ```
 
 ### Organ Stop Presets
