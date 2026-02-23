@@ -36,6 +36,10 @@
             legSpread:  0,     // 0..1  stance width
             kneeL:      0,     // -1..1 knee offset (negative = forward)
             kneeR:      0,
+            legLStride: 0,     // -1..1 left foot forward/back (positive = forward in facing dir)
+            legRStride: 0,     // -1..1 right foot forward/back
+            legLLift:   0,     // 0..1  left foot lift off ground
+            legRLift:   0,     // 0..1  right foot lift off ground
             torsoTwist: 0,     // -1..1  shoulder twist around spine axis
             hipShift:   0,     // -1..1  lateral hip displacement
             headTilt:   0,     // -1..1  head tilt left/right
@@ -123,6 +127,82 @@
             elbowLBend: 0.15, elbowRBend: 0.4,
             legSpread: 0.05, kneeL: 0, kneeR: 0,
             swordAngle: -1.5
+        },
+
+        // ── Run cycle (4 key poses, alternate L/R for full cycle) ────
+        run_contact: {
+            // Front foot plants, back leg trailing
+            bounce: -0.08, lean: 0.25,
+            armLAngle: -0.9, armRAngle: 0.6,
+            elbowLBend: 0.6, elbowRBend: 0.5,
+            legSpread: 0.05, kneeL: -0.2, kneeR: 0.15,
+            legLStride: 0.7, legRStride: -0.6,
+            legLLift: 0, legRLift: 0.05
+        },
+        run_down: {
+            // Absorbing impact, body dips on front leg
+            bounce: -0.2, lean: 0.2,
+            armLAngle: -0.6, armRAngle: 0.3,
+            elbowLBend: 0.5, elbowRBend: 0.5,
+            legSpread: 0.05, kneeL: -0.3, kneeR: 0.1,
+            legLStride: 0.4, legRStride: -0.35,
+            legLLift: 0, legRLift: 0.1
+        },
+        run_pass: {
+            // Legs crossing under body, back leg swings forward
+            bounce: -0.05, lean: 0.15,
+            armLAngle: -0.2, armRAngle: -0.2,
+            elbowLBend: 0.5, elbowRBend: 0.5,
+            legSpread: 0.02, kneeL: -0.1, kneeR: -0.3,
+            legLStride: 0.05, legRStride: 0.05,
+            legLLift: 0, legRLift: 0.35
+        },
+        run_flight: {
+            // Both feet off ground, body at highest point
+            bounce: 0.1, lean: 0.2,
+            armLAngle: 0.5, armRAngle: -0.8,
+            elbowLBend: 0.5, elbowRBend: 0.6,
+            legSpread: 0.03, kneeL: 0.1, kneeR: -0.25,
+            legLStride: -0.5, legRStride: 0.6,
+            legLLift: 0.15, legRLift: 0.25
+        },
+
+        // ── Walk cycle (4 key poses) ─────────────────────────────────
+        walk_contact: {
+            // Front heel strikes, arms opposite to legs
+            bounce: 0, lean: 0.1,
+            armLAngle: -0.5, armRAngle: 0.4,
+            elbowLBend: 0.35, elbowRBend: 0.3,
+            legSpread: 0.05, kneeL: -0.05, kneeR: 0.05,
+            legLStride: 0.45, legRStride: -0.4,
+            legLLift: 0, legRLift: 0
+        },
+        walk_down: {
+            // Weight transfers onto front foot, slight dip
+            bounce: -0.08, lean: 0.08,
+            armLAngle: -0.3, armRAngle: 0.2,
+            elbowLBend: 0.35, elbowRBend: 0.3,
+            legSpread: 0.05, kneeL: -0.15, kneeR: 0.05,
+            legLStride: 0.3, legRStride: -0.25,
+            legLLift: 0, legRLift: 0
+        },
+        walk_pass: {
+            // Back leg passes under body
+            bounce: 0.04, lean: 0.05,
+            armLAngle: -0.1, armRAngle: -0.1,
+            elbowLBend: 0.3, elbowRBend: 0.3,
+            legSpread: 0.02, kneeL: -0.05, kneeR: -0.15,
+            legLStride: 0.05, legRStride: 0.05,
+            legLLift: 0, legRLift: 0.15
+        },
+        walk_push: {
+            // Back foot pushes off, front leg reaches
+            bounce: 0.02, lean: 0.1,
+            armLAngle: 0.3, armRAngle: -0.4,
+            elbowLBend: 0.3, elbowRBend: 0.35,
+            legSpread: 0.05, kneeL: 0.05, kneeR: -0.05,
+            legLStride: -0.35, legRStride: 0.4,
+            legLLift: 0.05, legRLift: 0
         }
     };
 
@@ -238,7 +318,9 @@
     var _mirrorMap = {
         armLAngle: 'armRAngle', armRAngle: 'armLAngle',
         elbowLBend: 'elbowRBend', elbowRBend: 'elbowLBend',
-        kneeL: 'kneeR', kneeR: 'kneeL'
+        kneeL: 'kneeR', kneeR: 'kneeL',
+        legLStride: 'legRStride', legRStride: 'legLStride',
+        legLLift: 'legRLift', legRLift: 'legLLift'
     };
 
     function mirrorKeyframes(keyframes) {
@@ -380,14 +462,20 @@
         // Vertical bob from gait (subtle, double-frequency)
         var gaitBounce = -Math.abs(sinHalf) * 0.015 * fH * gi;
 
+        // ── Per-leg stride & lift from pose params ────────────────
+        var poseStrideL = (p.legLStride || 0) * fH * 0.18 * facing;
+        var poseStrideR = (p.legRStride || 0) * fH * 0.18 * facing;
+        var poseLiftL   = (p.legLLift   || 0) * fH * 0.15;
+        var poseLiftR   = (p.legRLift   || 0) * fH * 0.15;
+
         // ── Base ankle positions ─────────────────────────────────
         var ankleL = {
-            x: -spread - fH * 0.02 + leftSwingFwd  * strideAmount * strideDir,
-            y: 0 - leftLift * liftAmount
+            x: -spread - fH * 0.02 + leftSwingFwd  * strideAmount * strideDir + poseStrideL,
+            y: 0 - leftLift * liftAmount - poseLiftL
         };
         var ankleR = {
-            x:  spread + fH * 0.02 + rightSwingFwd * strideAmount * strideDir,
-            y: 0 - rightLift * liftAmount
+            x:  spread + fH * 0.02 + rightSwingFwd * strideAmount * strideDir + poseStrideR,
+            y: 0 - rightLift * liftAmount - poseLiftR
         };
 
         // ── Anti-slide: foot planting ────────────────────────────

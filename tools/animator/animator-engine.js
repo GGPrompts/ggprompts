@@ -297,19 +297,27 @@
         var facing = fig.facing;
         var hipJ = joints.hip;
 
-        // Knee offset: horizontal displacement from hip-to-ankle midpoint
-        var dx = tx - hipJ.x;
-        var kneeVal = clamp(-dx * facing / (fH * 0.06), -1, 1);
+        // Compute neutral ankle position (where foot would be with current legSpread, no stride/lift)
+        var spread = fig.params.legSpread * fH * 0.15;
+        var neutralX = side === 'L' ? -spread - fH * 0.02 : spread + fH * 0.02;
 
-        fig.params['knee' + side] = kneeVal;
-        fig.targets['knee' + side] = kneeVal;
+        // Per-leg stride: horizontal offset from neutral (forward/back in facing direction)
+        var strideKey = 'leg' + side + 'Stride';
+        var strideVal = clamp((tx - neutralX) * facing / (fH * 0.18), -1, 1);
+        fig.params[strideKey] = strideVal;
+        fig.targets[strideKey] = strideVal;
 
-        // Leg spread from ankle horizontal distance
-        var ankleBase = side === 'L' ? -fH * 0.02 : fH * 0.02;
-        var spread = Math.abs(tx - ankleBase) / (fH * 0.15);
-        // Only adjust spread if dragging ankle
-        fig.params.legSpread = clamp(spread, 0, 1);
-        fig.targets.legSpread = clamp(spread, 0, 1);
+        // Per-leg lift: vertical offset (how high foot is raised)
+        var liftKey = 'leg' + side + 'Lift';
+        var liftVal = clamp(-ty / (fH * 0.15), 0, 1);
+        fig.params[liftKey] = liftVal;
+        fig.targets[liftKey] = liftVal;
+
+        // Knee offset: bias from stride direction for natural bend
+        var kneeKey = 'knee' + side;
+        var kneeVal = clamp(-strideVal * 0.5, -1, 1);
+        fig.params[kneeKey] = kneeVal;
+        fig.targets[kneeKey] = kneeVal;
     }
 
     function clamp(v, min, max) {
