@@ -1,0 +1,1335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stick Figure Animation Studio</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Special+Elite&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --font-mono: 'IBM Plex Mono', 'Courier New', monospace;
+            --font-typewriter: 'Special Elite', 'Courier New', monospace;
+
+            --darkroom-black: #0d0a08;
+            --darkroom-near-black: #151110;
+            --darkroom-dark: #1a1513;
+            --darkroom-charcoal: #231d1a;
+            --darkroom-warm-gray: #2d2522;
+            --darkroom-medium-gray: #3d3330;
+            --darkroom-light-gray: #5a4d48;
+            --darkroom-pale: #8a7a72;
+
+            --safelight-deep: #4a0d0d;
+            --safelight-dark: #6b1515;
+            --safelight-red: #8b1e1e;
+            --safelight-medium: #a52a2a;
+            --safelight-bright: #c43c3c;
+            --safelight-glow: #d94545;
+
+            --text-primary: #c4b8b0;
+            --text-secondary: #8a7a72;
+            --text-muted: #5a4d48;
+            --bg-primary: var(--darkroom-black);
+            --bg-secondary: var(--darkroom-near-black);
+            --bg-elevated: var(--darkroom-dark);
+            --border-color: var(--darkroom-warm-gray);
+            --border-subtle: var(--darkroom-charcoal);
+            --accent: var(--safelight-red);
+            --accent-glow: var(--safelight-glow);
+
+            --glow-subtle: 0 0 10px rgba(139, 30, 30, 0.3);
+            --glow-medium: 0 0 20px rgba(139, 30, 30, 0.4), 0 0 40px rgba(139, 30, 30, 0.2);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: var(--font-mono);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            height: 100vh;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        /* ── Layout Grid ─────────────────────────────────────────── */
+        .app {
+            display: grid;
+            grid-template-columns: 140px 1fr 260px;
+            grid-template-rows: 44px 1fr 180px;
+            height: 100vh;
+            gap: 1px;
+            background: var(--border-subtle);
+        }
+
+        .toolbar    { grid-column: 1 / -1; grid-row: 1; }
+        .fig-panel  { grid-column: 1; grid-row: 2; }
+        .canvas-area { grid-column: 2; grid-row: 2; }
+        .props-panel { grid-column: 3; grid-row: 2; }
+        .timeline-area { grid-column: 1 / -1; grid-row: 3; }
+
+        /* ── Toolbar ─────────────────────────────────────────────── */
+        .toolbar {
+            background: var(--bg-secondary);
+            display: flex;
+            align-items: center;
+            padding: 0 12px;
+            gap: 6px;
+        }
+
+        .toolbar-title {
+            font-family: var(--font-typewriter);
+            font-size: 14px;
+            color: var(--accent-glow);
+            margin-right: 16px;
+            text-shadow: var(--glow-subtle);
+        }
+
+        .toolbar-sep {
+            width: 1px;
+            height: 24px;
+            background: var(--border-color);
+            margin: 0 6px;
+        }
+
+        .btn {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            color: var(--text-primary);
+            background: var(--darkroom-charcoal);
+            border: 1px solid var(--border-color);
+            padding: 5px 10px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .btn:hover {
+            background: var(--darkroom-warm-gray);
+            border-color: var(--darkroom-light-gray);
+        }
+        .btn:active { background: var(--darkroom-medium-gray); }
+        .btn.accent {
+            background: var(--safelight-deep);
+            border-color: var(--safelight-dark);
+            color: var(--accent-glow);
+        }
+        .btn.accent:hover {
+            background: var(--safelight-dark);
+            border-color: var(--safelight-red);
+        }
+        .btn:disabled {
+            opacity: 0.4;
+            cursor: default;
+        }
+
+        /* ── Figure Panel ────────────────────────────────────────── */
+        .fig-panel {
+            background: var(--bg-secondary);
+            overflow-y: auto;
+            padding: 8px;
+        }
+
+        .fig-panel h3 {
+            font-family: var(--font-typewriter);
+            font-size: 11px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+
+        .fig-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 8px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            margin-bottom: 2px;
+            font-size: 11px;
+        }
+        .fig-item:hover { background: var(--darkroom-charcoal); }
+        .fig-item.selected {
+            border-color: var(--safelight-dark);
+            background: var(--safelight-deep);
+        }
+
+        .fig-swatch {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+            flex-shrink: 0;
+        }
+
+        .fig-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        .add-fig-btn {
+            width: 100%;
+            margin-top: 8px;
+            text-align: center;
+        }
+
+        /* ── Canvas Area ─────────────────────────────────────────── */
+        .canvas-area {
+            background: var(--bg-primary);
+            position: relative;
+            overflow: hidden;
+        }
+
+        #main-canvas {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            cursor: crosshair;
+        }
+
+        /* ── Properties Panel ────────────────────────────────────── */
+        .props-panel {
+            background: var(--bg-secondary);
+            overflow-y: auto;
+            padding: 10px;
+        }
+
+        .props-panel h3 {
+            font-family: var(--font-typewriter);
+            font-size: 11px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+            margin-top: 12px;
+        }
+        .props-panel h3:first-child { margin-top: 0; }
+
+        .prop-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 4px;
+            gap: 6px;
+        }
+
+        .prop-label {
+            font-size: 10px;
+            color: var(--text-secondary);
+            width: 70px;
+            flex-shrink: 0;
+        }
+
+        .prop-input {
+            flex: 1;
+            font-family: var(--font-mono);
+            font-size: 11px;
+            color: var(--text-primary);
+            background: var(--darkroom-charcoal);
+            border: 1px solid var(--border-color);
+            padding: 3px 6px;
+            outline: none;
+        }
+        .prop-input:focus { border-color: var(--safelight-dark); }
+
+        input[type="color"].prop-input {
+            width: 32px;
+            height: 24px;
+            padding: 1px;
+            cursor: pointer;
+        }
+
+        input[type="range"].prop-slider {
+            flex: 1;
+            accent-color: var(--safelight-red);
+            height: 4px;
+        }
+
+        .prop-value {
+            font-size: 10px;
+            color: var(--text-muted);
+            width: 36px;
+            text-align: right;
+        }
+
+        /* Pose preset buttons */
+        .pose-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-bottom: 8px;
+        }
+
+        .pose-btn {
+            font-family: var(--font-mono);
+            font-size: 9px;
+            color: var(--text-secondary);
+            background: var(--darkroom-charcoal);
+            border: 1px solid var(--border-color);
+            padding: 3px 7px;
+            cursor: pointer;
+        }
+        .pose-btn:hover {
+            color: var(--accent-glow);
+            border-color: var(--safelight-dark);
+        }
+
+        /* Keyframe properties */
+        .kf-props {
+            border-top: 1px solid var(--border-color);
+            padding-top: 8px;
+            margin-top: 8px;
+        }
+
+        /* ── Timeline ────────────────────────────────────────────── */
+        .timeline-area {
+            background: var(--bg-primary);
+            position: relative;
+        }
+
+        .timeline-controls {
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 32px;
+            background: var(--bg-secondary);
+            display: flex;
+            align-items: center;
+            padding: 0 8px;
+            gap: 4px;
+            z-index: 2;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .tl-btn {
+            font-family: var(--font-mono);
+            font-size: 18px;
+            color: var(--text-secondary);
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 2px 6px;
+            line-height: 1;
+        }
+        .tl-btn:hover { color: var(--accent-glow); }
+        .tl-btn.active { color: var(--accent-glow); text-shadow: var(--glow-subtle); }
+
+        .tl-speed {
+            font-size: 10px;
+            color: var(--text-secondary);
+            margin-left: 8px;
+        }
+
+        .tl-label {
+            font-size: 10px;
+            color: var(--text-muted);
+            margin-left: auto;
+        }
+
+        #timeline-canvas-wrap {
+            position: absolute;
+            top: 32px; left: 0; right: 0; bottom: 0;
+        }
+
+        /* ── Export Dialog ────────────────────────────────────────── */
+        .dialog-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+        }
+        .dialog-overlay.show { display: flex; }
+
+        .dialog {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            padding: 24px;
+            min-width: 320px;
+            box-shadow: var(--glow-medium);
+        }
+
+        .dialog h2 {
+            font-family: var(--font-typewriter);
+            font-size: 16px;
+            color: var(--accent-glow);
+            margin-bottom: 16px;
+        }
+
+        .dialog .prop-row { margin-bottom: 8px; }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: var(--darkroom-charcoal);
+            margin-top: 12px;
+            display: none;
+        }
+        .progress-fill {
+            height: 100%;
+            background: var(--safelight-red);
+            width: 0%;
+            transition: width 0.1s;
+        }
+
+        .dialog-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+            justify-content: flex-end;
+        }
+
+        /* ── Scrollbar ───────────────────────────────────────────── */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg-primary); }
+        ::-webkit-scrollbar-thumb { background: var(--darkroom-warm-gray); }
+        ::-webkit-scrollbar-thumb:hover { background: var(--darkroom-medium-gray); }
+
+        /* ── Responsive ──────────────────────────────────────────── */
+        @media (max-width: 768px) {
+            .app {
+                grid-template-columns: 1fr;
+                grid-template-rows: 44px auto 1fr 140px;
+            }
+            .fig-panel { grid-column: 1; grid-row: 2; max-height: 80px; overflow-x: auto; display: flex; gap: 4px; padding: 4px; }
+            .fig-panel h3 { display: none; }
+            .fig-item { white-space: nowrap; }
+            .canvas-area { grid-column: 1; grid-row: 3; }
+            .props-panel { display: none; }
+            .timeline-area { grid-column: 1; grid-row: 4; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <!-- Toolbar -->
+        <div class="toolbar">
+            <span class="toolbar-title">Animation Studio</span>
+            <button class="btn" id="btn-new" title="New animation">New</button>
+            <button class="btn" id="btn-open" title="Open JSON file">Open</button>
+            <button class="btn" id="btn-save" title="Save as JSON">Save</button>
+            <div class="toolbar-sep"></div>
+            <button class="btn accent" id="btn-export" title="Export GIF">Export GIF</button>
+            <div class="toolbar-sep"></div>
+            <button class="btn" id="btn-undo" title="Undo (Ctrl+Z)" disabled>Undo</button>
+            <button class="btn" id="btn-redo" title="Redo (Ctrl+Shift+Z)" disabled>Redo</button>
+            <div style="flex:1"></div>
+            <a href="../index.html" class="btn" style="text-decoration:none;font-size:10px;color:var(--text-secondary)">Tools Hub</a>
+        </div>
+
+        <!-- Figure Panel -->
+        <div class="fig-panel" id="fig-panel">
+            <h3>Figures</h3>
+            <div id="fig-list"></div>
+            <button class="btn add-fig-btn" id="btn-add-fig">+ Add Figure</button>
+            <button class="btn add-fig-btn" id="btn-del-fig" style="margin-top:4px;font-size:10px;color:var(--text-muted)">Remove</button>
+        </div>
+
+        <!-- Canvas -->
+        <div class="canvas-area" id="canvas-area">
+            <canvas id="main-canvas"></canvas>
+        </div>
+
+        <!-- Properties Panel -->
+        <div class="props-panel" id="props-panel">
+            <h3>Figure</h3>
+            <div id="fig-props">
+                <p style="font-size:11px;color:var(--text-muted)">Select a figure to edit properties.</p>
+            </div>
+
+            <h3>Pose Presets</h3>
+            <div class="pose-grid" id="pose-grid"></div>
+
+            <h3>Parameters</h3>
+            <div id="param-sliders"></div>
+
+            <div class="kf-props" id="kf-props" style="display:none">
+                <h3>Keyframe</h3>
+                <div id="kf-props-inner"></div>
+            </div>
+        </div>
+
+        <!-- Timeline -->
+        <div class="timeline-area">
+            <div class="timeline-controls">
+                <button class="tl-btn" id="tl-play" title="Play/Pause (Space)">&#9654;</button>
+                <button class="tl-btn" id="tl-stop" title="Stop">&#9632;</button>
+                <button class="tl-btn" id="tl-prev" title="Previous keyframe">&laquo;</button>
+                <button class="tl-btn" id="tl-next" title="Next keyframe">&raquo;</button>
+                <span class="tl-speed" id="tl-speed">1x</span>
+                <div class="toolbar-sep"></div>
+                <button class="tl-btn" id="tl-add-kf" title="Add keyframe at current time" style="font-size:12px">+&#9670;</button>
+                <button class="tl-btn" id="tl-del-kf" title="Delete selected keyframe" style="font-size:12px">-&#9670;</button>
+                <div class="toolbar-sep"></div>
+                <button class="tl-btn" id="tl-onion" title="Toggle onion skinning">&#128507;</button>
+                <button class="tl-btn" id="tl-loop" title="Toggle loop" class="active">&#128257;</button>
+                <span class="tl-label" id="tl-info">0 keyframes</span>
+            </div>
+            <div id="timeline-canvas-wrap"></div>
+        </div>
+    </div>
+
+    <!-- Export Dialog -->
+    <div class="dialog-overlay" id="export-dialog">
+        <div class="dialog">
+            <h2>Export GIF</h2>
+            <div class="prop-row">
+                <span class="prop-label">Width</span>
+                <input type="number" class="prop-input" id="gif-width" value="400" min="100" max="1200">
+            </div>
+            <div class="prop-row">
+                <span class="prop-label">Height</span>
+                <input type="number" class="prop-input" id="gif-height" value="300" min="100" max="900">
+            </div>
+            <div class="prop-row">
+                <span class="prop-label">FPS</span>
+                <select class="prop-input" id="gif-fps">
+                    <option value="12">12</option>
+                    <option value="24" selected>24</option>
+                    <option value="30">30</option>
+                </select>
+            </div>
+            <div class="prop-row">
+                <span class="prop-label">Loop</span>
+                <input type="checkbox" id="gif-loop" checked>
+            </div>
+            <div class="progress-bar" id="gif-progress">
+                <div class="progress-fill" id="gif-progress-fill"></div>
+            </div>
+            <div class="dialog-actions">
+                <button class="btn" id="gif-cancel">Cancel</button>
+                <button class="btn accent" id="gif-start">Export</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden file input -->
+    <input type="file" id="file-input" accept=".json" style="display:none">
+
+    <!-- Dependencies -->
+    <script src="../../music/visualizer/stick-fight-engine.js"></script>
+    <script src="../../music/visualizer/video-utils.js"></script>
+    <script src="animator-engine.js"></script>
+    <script src="timeline.js"></script>
+    <script src="gif-export.js"></script>
+
+    <script>
+    (function() {
+        "use strict";
+
+        var AE = AnimatorEngine;
+
+        // ── State ────────────────────────────────────────────────────
+        var animation = AE.createAnimation('Untitled Animation');
+        var figures = [];
+        var selectedFigIdx = -1;
+        var selectedJoint = null;
+        var isDraggingJoint = false;
+        var isDraggingFigure = false;
+        var dragOffset = { x: 0, y: 0 };
+        var isPlaying = false;
+
+        // Canvas
+        var canvasArea = document.getElementById('canvas-area');
+        var canvas = document.getElementById('main-canvas');
+        var ctx = canvas.getContext('2d');
+
+        // ── Init ─────────────────────────────────────────────────────
+        function init() {
+            resizeCanvas();
+
+            // Try loading autosave
+            var saved = AE.loadAutosave();
+            if (saved && saved.figures && saved.figures.length > 0) {
+                animation = saved;
+                animation.keyframes = animation.keyframes || [];
+                for (var i = 0; i < saved.figures.length; i++) {
+                    var fd = saved.figures[i];
+                    var fig = AE.createFigure(fd);
+                    figures.push(fig);
+                }
+                // Apply first keyframe state if exists
+                if (animation.keyframes.length > 0) {
+                    AE.sampleAnimation(animation, 0, figures);
+                }
+            }
+
+            AE.resetHistory(animation, figures);
+
+            // Init timeline
+            Timeline.init({
+                container: document.getElementById('timeline-canvas-wrap'),
+                animation: animation,
+                figures: figures,
+                onTimeChange: onTimeChange,
+                onKeyframeSelect: onKeyframeSelect,
+                onPlaybackChange: onPlaybackChange
+            });
+
+            // Build UI
+            buildPosePresets();
+            renderFigureList();
+            renderProps();
+            renderCanvas();
+
+            // Bind events
+            bindToolbar();
+            bindCanvas();
+            bindTimeline();
+            bindKeyboard();
+
+            // Autosave interval
+            setInterval(function() {
+                AE.autosave(animation, figures);
+            }, 5000);
+
+            window.addEventListener('resize', function() {
+                resizeCanvas();
+                Timeline.resize();
+                renderCanvas();
+            });
+        }
+
+        // ── Canvas ───────────────────────────────────────────────────
+        function resizeCanvas() {
+            var rect = canvasArea.getBoundingClientRect();
+            var dpr = window.devicePixelRatio || 1;
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            canvas._cssW = rect.width;
+            canvas._cssH = rect.height;
+        }
+
+        function renderCanvas() {
+            var W = canvas._cssW || 800;
+            var H = canvas._cssH || 600;
+
+            // Background
+            ctx.fillStyle = animation.canvas.bgColor || '#0d0a08';
+            ctx.fillRect(0, 0, W, H);
+
+            // Grid lines
+            ctx.strokeStyle = 'rgba(139, 30, 30, 0.08)';
+            ctx.lineWidth = 0.5;
+            var gridSize = 40;
+            for (var gx = gridSize; gx < W; gx += gridSize) {
+                ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, H); ctx.stroke();
+            }
+            for (var gy = gridSize; gy < H; gy += gridSize) {
+                ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(W, gy); ctx.stroke();
+            }
+
+            // Ground line hint
+            ctx.strokeStyle = 'rgba(139, 30, 30, 0.15)';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath(); ctx.moveTo(0, H * 0.75); ctx.lineTo(W, H * 0.75); ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Onion skinning
+            if (Timeline.getOnion() && !Timeline.isPlaying()) {
+                drawOnionSkins();
+            }
+
+            // Draw all figures
+            ctx.shadowColor = 'transparent';
+            ctx.shadowBlur = 0;
+            StickFight.drawAll(ctx, figures);
+
+            // Draw handles for selected figure
+            if (selectedFigIdx >= 0 && selectedFigIdx < figures.length && !Timeline.isPlaying()) {
+                AE.drawHandles(ctx, figures[selectedFigIdx], selectedJoint);
+            }
+        }
+
+        function drawOnionSkins() {
+            var kfs = animation.keyframes.slice().sort(function(a, b) { return a.time - b.time; });
+            var t = Timeline.getTime();
+
+            // Find prev and next keyframes
+            var prev = null, next = null;
+            for (var i = 0; i < kfs.length; i++) {
+                if (kfs[i].time < t - 0.01) prev = kfs[i];
+                if (kfs[i].time > t + 0.01 && !next) next = kfs[i];
+            }
+
+            for (var fi = 0; fi < figures.length; fi++) {
+                var fig = figures[fi];
+                if (prev && prev.figureStates[fig._animId]) {
+                    AE.drawOnionSkin(ctx, fig, prev.figureStates[fig._animId], '#4488cc', 0.15);
+                }
+                if (next && next.figureStates[fig._animId]) {
+                    AE.drawOnionSkin(ctx, fig, next.figureStates[fig._animId], '#cc4444', 0.15);
+                }
+            }
+        }
+
+        // ── Figure List ──────────────────────────────────────────────
+        function renderFigureList() {
+            var list = document.getElementById('fig-list');
+            list.innerHTML = '';
+            for (var i = 0; i < figures.length; i++) {
+                var fig = figures[i];
+                var div = document.createElement('div');
+                div.className = 'fig-item' + (i === selectedFigIdx ? ' selected' : '');
+                div.innerHTML = '<div class="fig-swatch" style="background:' + fig.color + '"></div>' +
+                    '<span class="fig-name">' + fig._animName + '</span>';
+                div.dataset.idx = i;
+                div.addEventListener('click', function(e) {
+                    selectFigure(parseInt(this.dataset.idx));
+                });
+                list.appendChild(div);
+            }
+            updateInfo();
+        }
+
+        function selectFigure(idx) {
+            selectedFigIdx = idx;
+            selectedJoint = null;
+            renderFigureList();
+            renderProps();
+            renderCanvas();
+        }
+
+        // ── Properties Panel ─────────────────────────────────────────
+        function renderProps() {
+            var propsDiv = document.getElementById('fig-props');
+            var slidersDiv = document.getElementById('param-sliders');
+
+            if (selectedFigIdx < 0 || selectedFigIdx >= figures.length) {
+                propsDiv.innerHTML = '<p style="font-size:11px;color:var(--text-muted)">Select a figure to edit properties.</p>';
+                slidersDiv.innerHTML = '';
+                return;
+            }
+
+            var fig = figures[selectedFigIdx];
+
+            propsDiv.innerHTML =
+                '<div class="prop-row">' +
+                    '<span class="prop-label">Name</span>' +
+                    '<input type="text" class="prop-input" id="prop-name" value="' + fig._animName + '">' +
+                '</div>' +
+                '<div class="prop-row">' +
+                    '<span class="prop-label">Color</span>' +
+                    '<input type="color" class="prop-input" id="prop-color" value="' + fig.color + '">' +
+                '</div>' +
+                '<div class="prop-row">' +
+                    '<span class="prop-label">Height</span>' +
+                    '<input type="number" class="prop-input" id="prop-figh" value="' + fig.figH + '" min="40" max="300">' +
+                '</div>' +
+                '<div class="prop-row">' +
+                    '<span class="prop-label">Facing</span>' +
+                    '<select class="prop-input" id="prop-facing">' +
+                        '<option value="1"' + (fig.facing === 1 ? ' selected' : '') + '>Right</option>' +
+                        '<option value="-1"' + (fig.facing === -1 ? ' selected' : '') + '>Left</option>' +
+                    '</select>' +
+                '</div>' +
+                '<div class="prop-row">' +
+                    '<span class="prop-label">Sword</span>' +
+                    '<input type="range" class="prop-slider" id="prop-sword" min="0" max="0.5" step="0.05" value="' + (fig._swordLen || 0) + '">' +
+                    '<span class="prop-value" id="prop-sword-val">' + (fig._swordLen || 0).toFixed(2) + '</span>' +
+                '</div>';
+
+            // Bind prop changes
+            document.getElementById('prop-name').addEventListener('change', function() {
+                fig._animName = this.value;
+                renderFigureList();
+                Timeline.render();
+            });
+            document.getElementById('prop-color').addEventListener('input', function() {
+                fig.color = this.value;
+                renderFigureList();
+                renderCanvas();
+            });
+            document.getElementById('prop-figh').addEventListener('change', function() {
+                fig.figH = parseInt(this.value) || 120;
+                renderCanvas();
+            });
+            document.getElementById('prop-facing').addEventListener('change', function() {
+                fig.facing = parseInt(this.value);
+                renderCanvas();
+            });
+            document.getElementById('prop-sword').addEventListener('input', function() {
+                var v = parseFloat(this.value);
+                fig._swordLen = v;
+                fig.params.swordLen = v;
+                fig.targets.swordLen = v;
+                document.getElementById('prop-sword-val').textContent = v.toFixed(2);
+                renderCanvas();
+            });
+
+            // Param sliders
+            buildParamSliders(fig, slidersDiv);
+        }
+
+        var SLIDER_PARAMS = [
+            { key: 'bounce',     label: 'Bounce',   min: -1, max: 1, step: 0.05 },
+            { key: 'lean',       label: 'Lean',     min: -1, max: 1, step: 0.05 },
+            { key: 'armLAngle',  label: 'Arm L',    min: -2, max: 2, step: 0.05 },
+            { key: 'armRAngle',  label: 'Arm R',    min: -2, max: 2, step: 0.05 },
+            { key: 'elbowLBend', label: 'Elbow L',  min: 0,  max: 1, step: 0.05 },
+            { key: 'elbowRBend', label: 'Elbow R',  min: 0,  max: 1, step: 0.05 },
+            { key: 'legSpread',  label: 'Legs',     min: 0,  max: 1, step: 0.05 },
+            { key: 'kneeL',      label: 'Knee L',   min: -1, max: 1, step: 0.05 },
+            { key: 'kneeR',      label: 'Knee R',   min: -1, max: 1, step: 0.05 },
+            { key: 'torsoTwist', label: 'Twist',    min: -1, max: 1, step: 0.05 },
+            { key: 'hipShift',   label: 'Hip',      min: -1, max: 1, step: 0.05 },
+            { key: 'headTilt',   label: 'Head Tilt', min: -1, max: 1, step: 0.05 },
+            { key: 'headBob',    label: 'Head Bob',  min: -1, max: 1, step: 0.05 },
+            { key: 'swordAngle', label: 'Sword Ang', min: -3.14, max: 3.14, step: 0.1 }
+        ];
+
+        function buildParamSliders(fig, container) {
+            container.innerHTML = '';
+            for (var i = 0; i < SLIDER_PARAMS.length; i++) {
+                var sp = SLIDER_PARAMS[i];
+                var val = fig.params[sp.key] || 0;
+                var row = document.createElement('div');
+                row.className = 'prop-row';
+                row.innerHTML =
+                    '<span class="prop-label">' + sp.label + '</span>' +
+                    '<input type="range" class="prop-slider" data-key="' + sp.key + '" ' +
+                    'min="' + sp.min + '" max="' + sp.max + '" step="' + sp.step + '" value="' + val + '">' +
+                    '<span class="prop-value" id="sv-' + sp.key + '">' + val.toFixed(2) + '</span>';
+                container.appendChild(row);
+
+                row.querySelector('input').addEventListener('input', (function(key) {
+                    return function() {
+                        var v = parseFloat(this.value);
+                        fig.params[key] = v;
+                        fig.targets[key] = v;
+                        document.getElementById('sv-' + key).textContent = v.toFixed(2);
+                        renderCanvas();
+                    };
+                })(sp.key));
+            }
+        }
+
+        function refreshSliders() {
+            if (selectedFigIdx < 0 || selectedFigIdx >= figures.length) return;
+            var fig = figures[selectedFigIdx];
+            for (var i = 0; i < SLIDER_PARAMS.length; i++) {
+                var sp = SLIDER_PARAMS[i];
+                var slider = document.querySelector('input[data-key="' + sp.key + '"]');
+                var valSpan = document.getElementById('sv-' + sp.key);
+                if (slider && valSpan) {
+                    var v = fig.params[sp.key] || 0;
+                    slider.value = v;
+                    valSpan.textContent = v.toFixed(2);
+                }
+            }
+        }
+
+        // ── Pose Presets ─────────────────────────────────────────────
+        function buildPosePresets() {
+            var grid = document.getElementById('pose-grid');
+            var presets = AE.POSE_PRESETS;
+            for (var i = 0; i < presets.length; i++) {
+                var btn = document.createElement('button');
+                btn.className = 'pose-btn';
+                btn.textContent = presets[i];
+                btn.dataset.pose = presets[i];
+                btn.addEventListener('click', function() {
+                    if (selectedFigIdx < 0) return;
+                    var fig = figures[selectedFigIdx];
+                    AE.applyPose(fig, this.dataset.pose);
+                    refreshSliders();
+                    renderCanvas();
+                    pushUndoState();
+                });
+                grid.appendChild(btn);
+            }
+        }
+
+        // ── Canvas Mouse Events ──────────────────────────────────────
+        function bindCanvas() {
+            canvas.addEventListener('mousedown', onCanvasDown);
+            canvas.addEventListener('mousemove', onCanvasMove);
+            canvas.addEventListener('mouseup', onCanvasUp);
+        }
+
+        function getCanvasCoords(e) {
+            var rect = canvas.getBoundingClientRect();
+            return {
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top
+            };
+        }
+
+        function onCanvasDown(e) {
+            if (Timeline.isPlaying()) return;
+            var m = getCanvasCoords(e);
+
+            // Try to hit a joint on selected figure first
+            if (selectedFigIdx >= 0 && selectedFigIdx < figures.length) {
+                var fig = figures[selectedFigIdx];
+                var joint = AE.hitTestJoint(fig, m.x, m.y);
+                if (joint) {
+                    selectedJoint = joint;
+                    isDraggingJoint = true;
+                    renderCanvas();
+                    return;
+                }
+            }
+
+            // Try to hit any figure body
+            for (var i = figures.length - 1; i >= 0; i--) {
+                if (AE.hitTestFigure(figures[i], m.x, m.y)) {
+                    selectFigure(i);
+                    isDraggingFigure = true;
+                    dragOffset.x = m.x - figures[i].x;
+                    dragOffset.y = m.y - figures[i].y;
+                    canvas.style.cursor = 'move';
+                    return;
+                }
+            }
+
+            // Click on empty space — deselect
+            selectedFigIdx = -1;
+            selectedJoint = null;
+            renderFigureList();
+            renderProps();
+            renderCanvas();
+        }
+
+        function onCanvasMove(e) {
+            var m = getCanvasCoords(e);
+
+            if (isDraggingJoint && selectedFigIdx >= 0) {
+                var fig = figures[selectedFigIdx];
+                AE.solveIK(fig, selectedJoint.name, m.x, m.y);
+                // Update selectedJoint position
+                selectedJoint = AE.hitTestJoint(fig, m.x, m.y) || selectedJoint;
+                refreshSliders();
+                renderCanvas();
+                return;
+            }
+
+            if (isDraggingFigure && selectedFigIdx >= 0) {
+                var fig2 = figures[selectedFigIdx];
+                fig2.x = m.x - dragOffset.x;
+                fig2.y = m.y - dragOffset.y;
+                renderCanvas();
+                return;
+            }
+
+            // Hover cursor
+            if (!Timeline.isPlaying()) {
+                var onJoint = false;
+                if (selectedFigIdx >= 0 && selectedFigIdx < figures.length) {
+                    if (AE.hitTestJoint(figures[selectedFigIdx], m.x, m.y)) {
+                        onJoint = true;
+                    }
+                }
+                if (!onJoint) {
+                    for (var i = 0; i < figures.length; i++) {
+                        if (AE.hitTestFigure(figures[i], m.x, m.y)) { onJoint = true; break; }
+                    }
+                }
+                canvas.style.cursor = onJoint ? 'pointer' : 'crosshair';
+            }
+        }
+
+        function onCanvasUp() {
+            if (isDraggingJoint || isDraggingFigure) {
+                pushUndoState();
+            }
+            isDraggingJoint = false;
+            isDraggingFigure = false;
+            canvas.style.cursor = 'crosshair';
+        }
+
+        // ── Toolbar ──────────────────────────────────────────────────
+        function bindToolbar() {
+            document.getElementById('btn-new').addEventListener('click', function() {
+                if (figures.length > 0 && !confirm('Discard current animation?')) return;
+                animation = AE.createAnimation('Untitled Animation');
+                figures = [];
+                selectedFigIdx = -1;
+                AE.resetHistory(animation, figures);
+                Timeline.setAnimation(animation);
+                Timeline.setFigures(figures);
+                Timeline.setTime(0);
+                renderFigureList();
+                renderProps();
+                renderCanvas();
+            });
+
+            document.getElementById('btn-open').addEventListener('click', function() {
+                document.getElementById('file-input').click();
+            });
+
+            document.getElementById('file-input').addEventListener('change', function(e) {
+                var file = e.target.files[0];
+                if (!file) return;
+                var reader = new FileReader();
+                reader.onload = function(ev) {
+                    try {
+                        var data = AE.loadFromJSON(ev.target.result);
+                        loadAnimation(data);
+                    } catch(err) {
+                        alert('Invalid animation file: ' + err.message);
+                    }
+                };
+                reader.readAsText(file);
+                this.value = '';
+            });
+
+            document.getElementById('btn-save').addEventListener('click', function() {
+                var json = AE.saveToJSON(animation, figures);
+                var blob = new Blob([json], { type: 'application/json' });
+                var url = URL.createObjectURL(blob);
+                var a = document.createElement('a');
+                a.href = url;
+                a.download = (animation.name || 'animation').replace(/[^a-z0-9-_]/gi, '-') + '.json';
+                a.click();
+                URL.revokeObjectURL(url);
+            });
+
+            document.getElementById('btn-export').addEventListener('click', function() {
+                document.getElementById('export-dialog').classList.add('show');
+            });
+
+            document.getElementById('btn-undo').addEventListener('click', doUndo);
+            document.getElementById('btn-redo').addEventListener('click', doRedo);
+
+            document.getElementById('btn-add-fig').addEventListener('click', function() {
+                var W = canvas._cssW || 800;
+                var H = canvas._cssH || 600;
+                var fig = AE.createFigure({
+                    x: W / 2 + (figures.length - 1) * 80,
+                    y: H * 0.75,
+                    figH: 120,
+                    color: ['#c43c3c', '#4488cc', '#44aa44', '#cc8844', '#8844cc', '#cc44aa'][figures.length % 6]
+                });
+                figures.push(fig);
+                selectFigure(figures.length - 1);
+                Timeline.setFigures(figures);
+                pushUndoState();
+            });
+
+            document.getElementById('btn-del-fig').addEventListener('click', function() {
+                if (selectedFigIdx < 0 || selectedFigIdx >= figures.length) return;
+                var figId = figures[selectedFigIdx]._animId;
+                figures.splice(selectedFigIdx, 1);
+                // Remove from keyframes
+                for (var i = 0; i < animation.keyframes.length; i++) {
+                    delete animation.keyframes[i].figureStates[figId];
+                }
+                selectedFigIdx = Math.min(selectedFigIdx, figures.length - 1);
+                Timeline.setFigures(figures);
+                renderFigureList();
+                renderProps();
+                renderCanvas();
+                pushUndoState();
+            });
+
+            // Export dialog
+            document.getElementById('gif-cancel').addEventListener('click', function() {
+                document.getElementById('export-dialog').classList.remove('show');
+            });
+
+            document.getElementById('gif-start').addEventListener('click', startGIFExport);
+        }
+
+        function loadAnimation(data) {
+            animation = data;
+            animation.keyframes = animation.keyframes || [];
+            animation.canvas = animation.canvas || { width: 800, height: 600, bgColor: '#0d0a08' };
+            figures = [];
+            for (var i = 0; i < (data.figures || []).length; i++) {
+                figures.push(AE.createFigure(data.figures[i]));
+            }
+            if (animation.keyframes.length > 0) {
+                AE.sampleAnimation(animation, 0, figures);
+            }
+            selectedFigIdx = figures.length > 0 ? 0 : -1;
+            AE.resetHistory(animation, figures);
+            Timeline.setAnimation(animation);
+            Timeline.setFigures(figures);
+            Timeline.setTime(0);
+            renderFigureList();
+            renderProps();
+            renderCanvas();
+        }
+
+        // ── Timeline Controls ────────────────────────────────────────
+        function bindTimeline() {
+            document.getElementById('tl-play').addEventListener('click', function() {
+                Timeline.togglePlay();
+            });
+            document.getElementById('tl-stop').addEventListener('click', function() {
+                Timeline.stop();
+                if (animation.keyframes.length > 0) {
+                    AE.sampleAnimation(animation, 0, figures);
+                }
+                renderCanvas();
+            });
+            document.getElementById('tl-prev').addEventListener('click', function() { Timeline.stepBackward(); });
+            document.getElementById('tl-next').addEventListener('click', function() { Timeline.stepForward(); });
+
+            document.getElementById('tl-add-kf').addEventListener('click', function() {
+                var t = Timeline.getTime();
+                var kf = AE.createKeyframe(t, figures);
+                animation.keyframes.push(kf);
+                Timeline.setSelectedKeyframeId(kf.id);
+                Timeline.render();
+                pushUndoState();
+                updateInfo();
+            });
+
+            document.getElementById('tl-del-kf').addEventListener('click', function() {
+                var selId = Timeline.getSelectedKeyframeId();
+                if (!selId) return;
+                for (var i = 0; i < animation.keyframes.length; i++) {
+                    if (animation.keyframes[i].id === selId) {
+                        animation.keyframes.splice(i, 1);
+                        break;
+                    }
+                }
+                Timeline.setSelectedKeyframeId(null);
+                Timeline.render();
+                pushUndoState();
+                updateInfo();
+            });
+
+            var speedLevels = [0.25, 0.5, 1, 1.5, 2];
+            var speedIdx = 2;
+            document.getElementById('tl-speed').addEventListener('click', function() {
+                speedIdx = (speedIdx + 1) % speedLevels.length;
+                var s = speedLevels[speedIdx];
+                Timeline.setSpeed(s);
+                this.textContent = s + 'x';
+            });
+
+            document.getElementById('tl-onion').addEventListener('click', function() {
+                Timeline.setOnion(!Timeline.getOnion());
+                this.classList.toggle('active', Timeline.getOnion());
+                renderCanvas();
+            });
+
+            document.getElementById('tl-loop').addEventListener('click', function() {
+                Timeline.setLoop(!Timeline.getLoop());
+                this.classList.toggle('active', Timeline.getLoop());
+            });
+            // Init loop as active
+            document.getElementById('tl-loop').classList.add('active');
+        }
+
+        function onTimeChange(time) {
+            if (animation.keyframes.length > 0) {
+                AE.sampleAnimation(animation, time, figures);
+            }
+            refreshSliders();
+            renderCanvas();
+        }
+
+        function onKeyframeSelect(kf) {
+            renderKeyframeProps(kf);
+        }
+
+        function onPlaybackChange(state) {
+            var playBtn = document.getElementById('tl-play');
+            if (state === 'playing') {
+                playBtn.innerHTML = '&#9646;&#9646;';
+                canvas.style.cursor = 'default';
+            } else {
+                playBtn.innerHTML = '&#9654;';
+                canvas.style.cursor = 'crosshair';
+            }
+        }
+
+        function renderKeyframeProps(kf) {
+            var kfDiv = document.getElementById('kf-props');
+            var inner = document.getElementById('kf-props-inner');
+            if (!kf) {
+                kfDiv.style.display = 'none';
+                return;
+            }
+            kfDiv.style.display = 'block';
+            inner.innerHTML =
+                '<div class="prop-row">' +
+                    '<span class="prop-label">Time</span>' +
+                    '<input type="number" class="prop-input" id="kf-time" value="' + kf.time.toFixed(2) + '" step="0.05" min="0">' +
+                '</div>' +
+                '<div class="prop-row">' +
+                    '<span class="prop-label">Hold</span>' +
+                    '<input type="number" class="prop-input" id="kf-dur" value="' + kf.duration.toFixed(2) + '" step="0.05" min="0">' +
+                '</div>' +
+                '<div class="prop-row">' +
+                    '<span class="prop-label">Easing</span>' +
+                    '<select class="prop-input" id="kf-ease">' +
+                        '<option value="smooth"' + (kf.easing === 'smooth' ? ' selected' : '') + '>Smooth</option>' +
+                        '<option value="linear"' + (kf.easing === 'linear' ? ' selected' : '') + '>Linear</option>' +
+                        '<option value="snap"' + (kf.easing === 'snap' ? ' selected' : '') + '>Snap</option>' +
+                    '</select>' +
+                '</div>';
+
+            document.getElementById('kf-time').addEventListener('change', function() {
+                kf.time = Math.max(0, parseFloat(this.value) || 0);
+                Timeline.render();
+                pushUndoState();
+            });
+            document.getElementById('kf-dur').addEventListener('change', function() {
+                kf.duration = Math.max(0, parseFloat(this.value) || 0);
+                Timeline.render();
+                pushUndoState();
+            });
+            document.getElementById('kf-ease').addEventListener('change', function() {
+                kf.easing = this.value;
+                pushUndoState();
+            });
+        }
+
+        function updateInfo() {
+            document.getElementById('tl-info').textContent = animation.keyframes.length + ' keyframe' + (animation.keyframes.length !== 1 ? 's' : '');
+        }
+
+        // ── Undo/Redo ────────────────────────────────────────────────
+        function pushUndoState() {
+            AE.pushHistory(animation, figures);
+            updateUndoButtons();
+        }
+
+        function doUndo() {
+            var state = AE.undo();
+            if (!state) return;
+            restoreState(state);
+            updateUndoButtons();
+        }
+
+        function doRedo() {
+            var state = AE.redo();
+            if (!state) return;
+            restoreState(state);
+            updateUndoButtons();
+        }
+
+        function restoreState(state) {
+            animation = state.animation;
+            // Rebuild figures from state
+            for (var i = 0; i < state.figStates.length; i++) {
+                var fs = state.figStates[i];
+                var fig = null;
+                for (var j = 0; j < figures.length; j++) {
+                    if (figures[j]._animId === fs.animId) { fig = figures[j]; break; }
+                }
+                if (fig) {
+                    AE.applyFigureState(fig, fs.state);
+                }
+            }
+            Timeline.setAnimation(animation);
+            Timeline.setFigures(figures);
+            Timeline.render();
+            renderFigureList();
+            renderProps();
+            renderCanvas();
+        }
+
+        function updateUndoButtons() {
+            document.getElementById('btn-undo').disabled = !AE.canUndo();
+            document.getElementById('btn-redo').disabled = !AE.canRedo();
+        }
+
+        // ── Keyboard Shortcuts ───────────────────────────────────────
+        function bindKeyboard() {
+            document.addEventListener('keydown', function(e) {
+                // Don't intercept when typing in inputs
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
+
+                if (e.code === 'Space') {
+                    e.preventDefault();
+                    Timeline.togglePlay();
+                }
+                else if (e.code === 'ArrowLeft') {
+                    e.preventDefault();
+                    Timeline.stepBackward();
+                }
+                else if (e.code === 'ArrowRight') {
+                    e.preventDefault();
+                    Timeline.stepForward();
+                }
+                else if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ') {
+                    e.preventDefault();
+                    if (e.shiftKey) doRedo();
+                    else doUndo();
+                }
+                else if ((e.ctrlKey || e.metaKey) && e.code === 'KeyY') {
+                    e.preventDefault();
+                    doRedo();
+                }
+                else if ((e.ctrlKey || e.metaKey) && e.code === 'KeyS') {
+                    e.preventDefault();
+                    document.getElementById('btn-save').click();
+                }
+                else if (e.code === 'Delete' || e.code === 'Backspace') {
+                    // Delete selected keyframe
+                    var selId = Timeline.getSelectedKeyframeId();
+                    if (selId) {
+                        e.preventDefault();
+                        document.getElementById('tl-del-kf').click();
+                    }
+                }
+            });
+        }
+
+        // ── GIF Export ───────────────────────────────────────────────
+        function startGIFExport() {
+            var w = parseInt(document.getElementById('gif-width').value) || 400;
+            var h = parseInt(document.getElementById('gif-height').value) || 300;
+            var fps = parseInt(document.getElementById('gif-fps').value) || 24;
+            var loop = document.getElementById('gif-loop').checked;
+
+            var progressBar = document.getElementById('gif-progress');
+            var progressFill = document.getElementById('gif-progress-fill');
+            progressBar.style.display = 'block';
+            progressFill.style.width = '0%';
+            document.getElementById('gif-start').disabled = true;
+
+            var scaleX = w / (canvas._cssW || 800);
+            var scaleY = h / (canvas._cssH || 600);
+
+            GIFExport.exportGIF({
+                animation: animation,
+                figures: figures,
+                width: w,
+                height: h,
+                fps: fps,
+                loop: loop,
+                onProgress: function(p) {
+                    progressFill.style.width = (p * 100) + '%';
+                },
+                drawFrame: function(offCtx, fw, fh, time) {
+                    offCtx.save();
+                    offCtx.scale(scaleX, scaleY);
+
+                    // Background
+                    offCtx.fillStyle = animation.canvas.bgColor || '#0d0a08';
+                    offCtx.fillRect(0, 0, fw / scaleX, fh / scaleY);
+
+                    // Apply animation state
+                    AE.sampleAnimation(animation, time, figures);
+
+                    // Draw figures
+                    offCtx.shadowColor = 'transparent';
+                    offCtx.shadowBlur = 0;
+                    StickFight.drawAll(offCtx, figures);
+
+                    offCtx.restore();
+                }
+            }).then(function(blob) {
+                GIFExport.downloadBlob(blob, (animation.name || 'animation') + '.gif');
+                progressBar.style.display = 'none';
+                document.getElementById('gif-start').disabled = false;
+                document.getElementById('export-dialog').classList.remove('show');
+
+                // Restore current time pose
+                AE.sampleAnimation(animation, Timeline.getTime(), figures);
+                renderCanvas();
+            });
+        }
+
+        // ── Boot ─────────────────────────────────────────────────────
+        init();
+    })();
+    </script>
+</body>
+</html>
