@@ -118,3 +118,4 @@ Master mapping of all 105 style guides and their usage across tech guides and st
 | y2k | | |
 | seasonal-scroll | | |
 | terminal-2031 | | |
+| codex-terminal-2031 | | |
