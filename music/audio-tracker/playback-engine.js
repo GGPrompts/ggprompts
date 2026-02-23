@@ -11,6 +11,7 @@ var ChipPlayer = (function () {
   var noiseBuffer = null;
   var pulseWaves = {};
   var playing = false;
+  var paused = false;
   var song = null;
   var timerID = null;
   var nextNoteTime = 0;
@@ -390,6 +391,7 @@ var ChipPlayer = (function () {
       if (!ctx) this.init();
       if (ctx.state === "suspended") ctx.resume();
       playing = true;
+      paused = false;
       seqIndex = 0;
       rowIndex = 0;
       nextNoteTime = ctx.currentTime + 0.05;
@@ -403,7 +405,32 @@ var ChipPlayer = (function () {
     },
 
     stop: function () {
+      paused = false;
       stopInternal();
+    },
+
+    pause: function () {
+      if (!playing || paused) return;
+      paused = true;
+      if (timerID) { clearInterval(timerID); timerID = null; }
+      if (ctx && ctx.suspend) ctx.suspend();
+    },
+
+    resume: function () {
+      if (!playing || !paused) return;
+      paused = false;
+      if (ctx && ctx.resume) {
+        ctx.resume().then(function () {
+          nextNoteTime = ctx.currentTime + 0.05;
+          timerID = setInterval(function () {
+            while (nextNoteTime < ctx.currentTime + SCHEDULE_AHEAD) {
+              scheduleRow(nextNoteTime);
+              advanceWithLoop();
+              nextNoteTime += secondsPerRow();
+            }
+          }, TIMER_INTERVAL);
+        });
+      }
     },
 
     setVolume: function (v) {
@@ -412,6 +439,10 @@ var ChipPlayer = (function () {
 
     isPlaying: function () {
       return playing;
+    },
+
+    isPaused: function () {
+      return paused;
     },
 
     setShortMode: function (enabled) { shortMode = !!enabled; },

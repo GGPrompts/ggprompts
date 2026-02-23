@@ -618,6 +618,23 @@ window.Visualizer = (function () {
       }
     },
 
+    pause: function () {
+      if (!playing) return;
+      playing = false;
+      if (rafID) cancelAnimationFrame(rafID);
+      rafID = null;
+      if (window.ChipPlayer) ChipPlayer.pause();
+    },
+
+    resume: function () {
+      if (playing || !song) return;
+      if (!window.ChipPlayer || !ChipPlayer.isPaused()) return;
+      playing = true;
+      lastFrameTime = 0;
+      ChipPlayer.resume();
+      rafID = requestAnimationFrame(frame);
+    },
+
     setVolume: function (v) {
       if (masterGain && ctx) {
         masterGain.gain.setValueAtTime(v, ctx.currentTime);
@@ -626,6 +643,10 @@ window.Visualizer = (function () {
 
     isPlaying: function () {
       return playing;
+    },
+
+    isPaused: function () {
+      return !playing && window.ChipPlayer && ChipPlayer.isPaused();
     },
 
     getRendererList: function () {
