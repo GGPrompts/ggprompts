@@ -117,3 +117,4 @@ Master mapping of all 105 style guides and their usage across tech guides and st
 | wireframe | | |
 | y2k | | |
 | seasonal-scroll | | |
+| terminal-2031 | | |
