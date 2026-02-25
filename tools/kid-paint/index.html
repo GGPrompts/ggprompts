@@ -187,6 +187,13 @@
     cursor: crosshair;
     touch-action: none;
     max-width: 100%; max-height: 100%;
+    transition: box-shadow 0.3s;
+  }
+  #draw-canvas.dark-canvas {
+    box-shadow: 0 4px 24px rgba(0,0,0,0.3), 0 0 0 3px #9B59B6;
+  }
+  #btn-darkmode.active {
+    background: #333; color: #FFD700; border-color: #9B59B6;
   }
 
   /* Shape preview overlay */
@@ -320,6 +327,7 @@
     <button class="action-btn" id="btn-redo" title="Redo (Ctrl+Y)">&#8631; <span class="btn-text">Redo</span></button>
     <button class="action-btn" id="btn-save" title="Save as PNG">&#128190; <span class="btn-text">Save</span></button>
     <button class="action-btn danger" id="btn-clear" title="Clear Canvas">&#128465; <span class="btn-text">Clear</span></button>
+    <button class="action-btn" id="btn-darkmode" title="Toggle Dark Canvas">&#127769; <span class="btn-text">Dark</span></button>
   </div>
 
   <!-- Canvas -->
@@ -355,7 +363,7 @@
 (function() {
   'use strict';
 
-  const { SFX, Stamps, nextRainbowColor, drawGlitter, drawSpray, floodFill,
+  const { SFX, Stamps, RAINBOW, nextRainbowColor, drawGlitter, drawSpray, floodFill,
           pushUndo, undo, redo, STAMP_NAMES } = window.KidPaint;
 
   /* ---- State ---- */
@@ -367,6 +375,8 @@
   let drawing = false;
   let lastX = 0, lastY = 0;
   let shapeStartX = 0, shapeStartY = 0;
+  let darkMode = false;
+  function canvasBg() { return darkMode ? '#1a1a2e' : '#FFFFFF'; }
 
   /* ---- Canvas setup ---- */
   const canvas = document.getElementById('draw-canvas');
@@ -399,8 +409,8 @@
     preview.style.width = canvasRect.width + 'px';
     preview.style.height = canvasRect.height + 'px';
 
-    // White background
-    ctx.fillStyle = '#FFFFFF';
+    // Canvas background
+    ctx.fillStyle = canvasBg();
     ctx.fillRect(0, 0, w, h);
     if (imgData) ctx.putImageData(imgData, 0, 0);
 
@@ -646,7 +656,7 @@
       // Redraw white underneath
       ctx.save();
       ctx.globalCompositeOperation = 'destination-over';
-      ctx.fillStyle = '#FFFFFF';
+      ctx.fillStyle = canvasBg();
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.restore();
     } else if (currentTool === 'glitter') {
@@ -679,7 +689,7 @@
       ctx.restore();
       ctx.save();
       ctx.globalCompositeOperation = 'destination-over';
-      ctx.fillStyle = '#FFFFFF';
+      ctx.fillStyle = canvasBg();
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.restore();
       if (Date.now() - sfxThrottle > 120) { SFX.erase(); sfxThrottle = Date.now(); }
@@ -697,15 +707,37 @@
     }
   }
 
+  /* ---- Rainbow gradient helper for shapes ---- */
+  function makeRainbowGradient(targetCtx, x1, y1, x2, y2) {
+    const grad = targetCtx.createLinearGradient(x1, y1, x2, y2);
+    const colors = RAINBOW;
+    for (let i = 0; i < colors.length; i++) {
+      grad.addColorStop(i / (colors.length - 1), colors[i]);
+    }
+    return grad;
+  }
+
   /* ---- Shape preview & commit ---- */
   function drawShapePreview(mx, my) {
     previewCtx.clearRect(0, 0, preview.width, preview.height);
-    const c = isRainbowColor ? nextRainbowColor() : currentColor;
-    previewCtx.strokeStyle = c;
     previewCtx.lineWidth = brushSize;
     previewCtx.lineCap = 'round';
     previewCtx.lineJoin = 'round';
     previewCtx.setLineDash([6, 4]);
+
+    if (isRainbowColor) {
+      if (currentTool === 'line') {
+        previewCtx.strokeStyle = makeRainbowGradient(previewCtx, shapeStartX, shapeStartY, mx, my);
+      } else if (currentTool === 'rect') {
+        const x = Math.min(shapeStartX, mx), y = Math.min(shapeStartY, my);
+        previewCtx.strokeStyle = makeRainbowGradient(previewCtx, x, y, x + Math.abs(mx - shapeStartX), y + Math.abs(my - shapeStartY));
+      } else if (currentTool === 'circle') {
+        const x = Math.min(shapeStartX, mx), y = Math.min(shapeStartY, my);
+        previewCtx.strokeStyle = makeRainbowGradient(previewCtx, x, y, x + Math.abs(mx - shapeStartX), y + Math.abs(my - shapeStartY));
+      }
+    } else {
+      previewCtx.strokeStyle = currentColor;
+    }
 
     if (currentTool === 'line') {
       previewCtx.beginPath();
@@ -727,11 +759,23 @@
   }
 
   function commitShape(mx, my) {
-    const c = isRainbowColor ? nextRainbowColor() : currentColor;
-    ctx.strokeStyle = c;
     ctx.lineWidth = brushSize;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
+
+    if (isRainbowColor) {
+      if (currentTool === 'line') {
+        ctx.strokeStyle = makeRainbowGradient(ctx, shapeStartX, shapeStartY, mx, my);
+      } else if (currentTool === 'rect') {
+        const x = Math.min(shapeStartX, mx), y = Math.min(shapeStartY, my);
+        ctx.strokeStyle = makeRainbowGradient(ctx, x, y, x + Math.abs(mx - shapeStartX), y + Math.abs(my - shapeStartY));
+      } else if (currentTool === 'circle') {
+        const x = Math.min(shapeStartX, mx), y = Math.min(shapeStartY, my);
+        ctx.strokeStyle = makeRainbowGradient(ctx, x, y, x + Math.abs(mx - shapeStartX), y + Math.abs(my - shapeStartY));
+      }
+    } else {
+      ctx.strokeStyle = currentColor;
+    }
 
     if (currentTool === 'line') {
       ctx.beginPath();
@@ -779,7 +823,7 @@
   });
   document.getElementById('confirm-yes').addEventListener('click', () => {
     pushUndo(canvas);
-    ctx.fillStyle = '#FFFFFF';
+    ctx.fillStyle = canvasBg();
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     document.getElementById('confirm-overlay').classList.remove('open');
     SFX.clear();
@@ -803,6 +847,56 @@
       if (e.key === 's' || e.key === 'S') {
         e.preventDefault();
         document.getElementById('btn-save').click();
+      }
+    }
+  });
+
+  /* ---- Dark mode toggle ---- */
+  const darkBtn = document.getElementById('btn-darkmode');
+  darkBtn.addEventListener('click', () => {
+    pushUndo(canvas);
+    darkMode = !darkMode;
+    darkBtn.classList.toggle('active', darkMode);
+    darkBtn.innerHTML = darkMode
+      ? '&#9728;&#65039; <span class="btn-text">Light</span>'
+      : '&#127769; <span class="btn-text">Dark</span>';
+    canvas.classList.toggle('dark-canvas', darkMode);
+
+    // Swap canvas background: recolor all old-bg pixels to new-bg
+    const oldBg = darkMode ? '#FFFFFF' : '#1a1a2e';
+    const newBg = canvasBg();
+    const w = canvas.width, h = canvas.height;
+    const imgData = ctx.getImageData(0, 0, w, h);
+    const d = imgData.data;
+
+    // Parse old/new bg colors
+    const tmp = document.createElement('canvas');
+    tmp.width = tmp.height = 1;
+    const tc = tmp.getContext('2d');
+    tc.fillStyle = oldBg; tc.fillRect(0, 0, 1, 1);
+    const ob = tc.getImageData(0, 0, 1, 1).data;
+    tc.fillStyle = newBg; tc.fillRect(0, 0, 1, 1);
+    const nb = tc.getImageData(0, 0, 1, 1).data;
+
+    const tol = 10;
+    for (let i = 0; i < d.length; i += 4) {
+      if (Math.abs(d[i] - ob[0]) + Math.abs(d[i+1] - ob[1]) + Math.abs(d[i+2] - ob[2]) <= tol) {
+        d[i] = nb[0]; d[i+1] = nb[1]; d[i+2] = nb[2]; d[i+3] = nb[3];
+      }
+    }
+    ctx.putImageData(imgData, 0, 0);
+
+    // If the current color matches the old background, swap it to the default drawing color
+    if (!isRainbowColor) {
+      const oldDefault = darkMode ? '#222222' : '#FFFFFF';
+      if (currentColor.toUpperCase() === oldDefault.toUpperCase() ||
+          currentColor.toUpperCase() === oldBg.toUpperCase()) {
+        currentColor = darkMode ? '#FFFFFF' : '#FF0000';
+        // Activate the matching swatch
+        const target = darkMode ? '#FFFFFF' : '#FF0000';
+        swatches.forEach(s => {
+          s.classList.toggle('active', s.dataset.color === target);
+        });
       }
     }
   });
