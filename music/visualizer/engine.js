@@ -692,9 +692,14 @@ if (!window.Renderers) window.Renderers = {};
   }
 })();
 
-// Listen for volume commands from parent (jukebox iframe embedding)
+// Listen for commands from parent (jukebox iframe embedding)
 window.addEventListener('message', function (e) {
-  if (e.data && e.data.type === 'jukebox-volume' && typeof e.data.volume === 'number') {
+  if (!e.data || !e.data.type) return;
+  if (e.data.type === 'jukebox-volume' && typeof e.data.volume === 'number') {
     Visualizer.setVolume(e.data.volume);
+  } else if (e.data.type === 'jukebox-pause') {
+    Visualizer.pause();
+  } else if (e.data.type === 'jukebox-resume') {
+    Visualizer.resume();
   }
 });
