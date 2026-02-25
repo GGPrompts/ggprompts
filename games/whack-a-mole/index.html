@@ -157,6 +157,8 @@ body::before {
   position: relative;
   transition: transform 0.1s, box-shadow 0.1s;
   box-shadow: 6px 6px 0 var(--black);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 .pop-btn:hover {
   transform: translate(-2px, -2px);
@@ -228,6 +230,8 @@ body::before {
   position: relative;
   aspect-ratio: 1;
   cursor: crosshair;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .hole-bg {
@@ -567,10 +571,6 @@ body::before {
   .gameover-stats { padding: 16px 20px; }
   .combo-display { top: 75px; right: 10px; font-size: 1.3rem; }
 }
-
-@media (max-width: 400px) {
-  .board { grid-template-columns: repeat(3, 1fr); }
-}
 </style>
 </head>
 <body>
@@ -588,7 +588,7 @@ body::before {
   <div class="start-instructions">
     <p>Faces pop up from holes &mdash; CLICK or TAP to whack them!</p>
     <p style="margin-top:8px; color: var(--pop-blue);">
-      <strong style="color:var(--pop-green)">GREEN bonus</strong> = extra points &bull;
+      <strong style="color:var(--pop-orange)">GOLDEN glow</strong> = extra points &bull;
       <strong style="color:var(--black)">DARK bombs</strong> = lose points!
     </p>
     <p style="margin-top:8px; font-size:0.95rem; color: var(--pop-purple);">Speed increases &mdash; survive 60 seconds!</p>
@@ -644,11 +644,12 @@ body::before {
 // ============================================================
 // AUDIO ENGINE (Web Audio API)
 // ============================================================
-const Audio = (() => {
+const SFX = (() => {
   let ctx = null;
   function init() {
-    if (ctx) return;
+    if (ctx) { ctx.resume(); return; }
     ctx = new (window.AudioContext || window.webkitAudioContext)();
+    ctx.resume();
   }
   function play(type) {
     if (!ctx) return;
@@ -755,7 +756,7 @@ const Audio = (() => {
         osc.type = 'sine';
         osc.frequency.setValueAtTime(300, now);
         osc.frequency.exponentialRampToValueAtTime(600, now + 0.06);
-        gain.gain.setValueAtTime(0.08, now);
+        gain.gain.setValueAtTime(0.04, now);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
         osc.start(now);
         osc.stop(now + 0.06);
@@ -843,7 +844,7 @@ function buildBoard() {
     hole.addEventListener('pointerdown', (e) => onHoleClick(i, e));
     board.appendChild(hole);
     holes.push(hole);
-    moleStates.push({ active: false, type: 'normal', timeout: null });
+    moleStates.push({ active: false, type: 'normal', timeout: null, whackedAt: 0 });
   }
 }
 
@@ -894,7 +895,8 @@ function spawnMole() {
   moleStates[idx] = {
     active: true,
     type: type,
-    timeout: null
+    timeout: null,
+    whackedAt: 0
   };
 
   // Pop up
@@ -902,7 +904,7 @@ function spawnMole() {
     moleEl.classList.remove('whacked');
     moleEl.classList.add('up');
   });
-  Audio.play('popup');
+  SFX.play('popup');
 
   // Auto-hide after duration
   const duration = type === 'golden' ? getMoleDuration() * 0.7 : getMoleDuration();
@@ -947,7 +949,7 @@ function onHoleClick(idx, e) {
       combo = 0;
       const penalty = -25;
       score = Math.max(0, score + penalty);
-      Audio.play('bomb');
+      SFX.play('bomb');
       showHitEffect(idx, 'OUCH!', 'var(--pop-red)');
       showScorePopup(idx, penalty);
       shakeScreen();
@@ -963,10 +965,10 @@ function onHoleClick(idx, e) {
       score += points;
 
       if (state.type === 'golden') {
-        Audio.play('golden');
+        SFX.play('golden');
         showHitEffect(idx, 'JACKPOT!', 'var(--pop-yellow)');
       } else {
-        Audio.play('whack');
+        SFX.play('whack');
         const word = HIT_WORDS[Math.floor(Math.random() * HIT_WORDS.length)];
         const color = HIT_COLORS[Math.floor(Math.random() * HIT_COLORS.length)];
         showHitEffect(idx, word, color);
@@ -979,14 +981,16 @@ function onHoleClick(idx, e) {
     moleEl.classList.remove('up');
     moleStates[idx].active = false;
     moleStates[idx].timeout = null;
+    moleStates[idx].whackedAt = Date.now();
 
     updateHUD();
     updateCombo();
   } else {
-    // MISS — clicked empty hole
+    // MISS — clicked empty hole (suppress if mole was just whacked)
+    if (Date.now() - state.whackedAt < 400) return;
     misses++;
     combo = 0;
-    Audio.play('miss');
+    SFX.play('miss');
     showMissEffect(idx);
     updateCombo();
   }
@@ -1003,7 +1007,7 @@ function showHitEffect(idx, text, color) {
   burst.className = 'hit-burst-shape';
   burst.innerHTML = `<svg viewBox="0 0 140 100" xmlns="http://www.w3.org/2000/svg">
     <polygon points="70,0 85,30 140,20 100,50 130,90 70,65 10,90 40,50 0,20 55,30"
-      fill="${color}" stroke="var(--black)" stroke-width="3"/>
+      style="fill:${color}; stroke:var(--black); stroke-width:3"/>
   </svg>`;
   hole.appendChild(burst);
 
@@ -1072,7 +1076,7 @@ function startTimer() {
     const timerEl = document.getElementById('hud-timer');
     if (timeLeft <= 10) {
       timerEl.classList.add('warning');
-      Audio.play('countdown');
+      SFX.play('countdown');
     } else {
       timerEl.classList.remove('warning');
     }
@@ -1097,7 +1101,11 @@ function showStart() {
 }
 
 function startGame() {
-  Audio.init();
+  SFX.init();
+
+  // Clear any lingering intervals from a previous game
+  clearInterval(timerInterval);
+  clearTimeout(spawnInterval);
 
   score = 0;
   timeLeft = GAME_DURATION;
@@ -1110,6 +1118,7 @@ function startGame() {
   buildBoard();
   updateHUD();
   updateCombo();
+  document.getElementById('hud-timer').classList.remove('warning');
   showScreen('game-screen');
 
   // Small delay before starting
@@ -1129,7 +1138,7 @@ function endGame() {
     hideMole(i);
   }
 
-  Audio.play('gameover');
+  SFX.play('gameover');
 
   // Check high score
   const isNewHS = score > highScore;
