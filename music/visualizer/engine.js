@@ -1,3 +1,6 @@
+// Disable shortEndSeq trimming globally — play full-length songs
+window.noShortMode = true;
+
 /**
  * Visualizer Engine — Canvas music visualizer synced to ChipPlayer.
  * IIFE exposing window.Visualizer.
