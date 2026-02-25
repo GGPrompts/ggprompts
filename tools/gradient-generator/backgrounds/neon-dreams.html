@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Neon Dreams</title>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: #0a0a1a;
+  }
+  #canvas {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+  }
+  #hint {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(255,255,255,0.5);
+    font: 13px/1 system-ui, sans-serif;
+    letter-spacing: 0.05em;
+    pointer-events: none;
+    transition: opacity 1s ease;
+    z-index: 10;
+  }
+  #hint.hidden { opacity: 0; }
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<div id="hint">ESC to exit</div>
+<script>
+(function() {
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+
+  function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // Exit logic
+  function exit() {
+    const url = new URL(window.location);
+    url.searchParams.set('exit', '1');
+    window.location.href = url.toString();
+  }
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') exit(); });
+  document.addEventListener('click', exit);
+
+  // Fade hint
+  const hint = document.getElementById('hint');
+  setTimeout(() => hint.classList.add('hidden'), 3000);
+
+  // Neon band definitions
+  const neonColors = [
+    { r: 255, g: 0,   b: 170 },  // hot pink
+    { r: 0,   g: 255, b: 238 },  // electric cyan
+    { r: 170, g: 0,   b: 255 },  // vivid purple
+    { r: 0,   g: 255, b: 102 },  // acid green
+    { r: 255, g: 0,   b: 170 },  // hot pink (duplicate for more bands)
+    { r: 0,   g: 200, b: 255 },  // sky cyan
+    { r: 200, g: 0,   b: 255 },  // blue-purple
+  ];
+
+  const bands = [];
+  for (let i = 0; i < 7; i++) {
+    bands.push({
+      color: neonColors[i],
+      angle: (i / 7) * Math.PI + Math.random() * 0.5,    // spread across angles
+      speed: 0.3 + Math.random() * 0.5,                    // sweep speed
+      offset: Math.random() * Math.PI * 2,                 // phase offset
+      width: 0.04 + Math.random() * 0.04,                  // band width as fraction of diagonal
+      depth: 0.5 + Math.random() * 0.5,                    // parallax depth multiplier
+      pulsePhase: Math.random() * Math.PI * 2,
+      pulseFreq: 0.3 + Math.random() * 0.6,               // how often it pulses
+    });
+  }
+
+  let t = 0;
+
+  function draw() {
+    const w = canvas.width;
+    const h = canvas.height;
+    const diag = Math.sqrt(w * w + h * h);
+
+    // Dark base with subtle noise texture effect via gradient
+    ctx.fillStyle = '#0a0a1a';
+    ctx.fillRect(0, 0, w, h);
+
+    // Subtle dark blue ambient glow in center
+    const ambient = ctx.createRadialGradient(w * 0.5, h * 0.5, 0, w * 0.5, h * 0.5, diag * 0.5);
+    ambient.addColorStop(0, 'rgba(15, 10, 40, 0.8)');
+    ambient.addColorStop(1, 'rgba(10, 10, 26, 0)');
+    ctx.fillStyle = ambient;
+    ctx.fillRect(0, 0, w, h);
+
+    // Draw neon bands
+    ctx.globalCompositeOperation = 'screen';
+
+    for (const band of bands) {
+      const c = band.color;
+
+      // Position: the band sweeps perpendicular to its angle
+      const sweepPos = Math.sin(t * band.speed * band.depth + band.offset);
+      const bandCenter = sweepPos * diag * 0.6;
+
+      // Pulse: occasional brightness burst
+      const pulseRaw = Math.sin(t * band.pulseFreq + band.pulsePhase);
+      const pulse = pulseRaw > 0.92 ? (pulseRaw - 0.92) / 0.08 : 0; // only top 8% of sine
+      const brightness = 0.7 + pulse * 0.5;
+
+      const cosA = Math.cos(band.angle);
+      const sinA = Math.sin(band.angle);
+      const bw = band.width * diag;
+
+      // We draw the band as a wide blurred line using a gradient perpendicular to the angle
+      // Create gradient perpendicular to band angle
+      const cx = w / 2 + cosA * bandCenter;
+      const cy = h / 2 + sinA * bandCenter;
+
+      // Perpendicular direction
+      const px = -sinA;
+      const py = cosA;
+
+      // Glow layer (wider, more transparent)
+      const glowWidth = bw * 3;
+      const gx1 = cx - px * glowWidth;
+      const gy1 = cy - py * glowWidth;
+      const gx2 = cx + px * glowWidth;
+      const gy2 = cy + py * glowWidth;
+
+      const glowGrad = ctx.createLinearGradient(gx1, gy1, gx2, gy2);
+      const ga = 0.12 * brightness;
+      glowGrad.addColorStop(0, `rgba(${c.r},${c.g},${c.b},0)`);
+      glowGrad.addColorStop(0.3, `rgba(${c.r},${c.g},${c.b},${ga * 0.3})`);
+      glowGrad.addColorStop(0.5, `rgba(${c.r},${c.g},${c.b},${ga})`);
+      glowGrad.addColorStop(0.7, `rgba(${c.r},${c.g},${c.b},${ga * 0.3})`);
+      glowGrad.addColorStop(1, `rgba(${c.r},${c.g},${c.b},0)`);
+      ctx.fillStyle = glowGrad;
+      ctx.fillRect(0, 0, w, h);
+
+      // Core layer (narrow, brighter)
+      const cx1 = cx - px * bw;
+      const cy1 = cy - py * bw;
+      const cx2 = cx + px * bw;
+      const cy2 = cy + py * bw;
+
+      const coreGrad = ctx.createLinearGradient(cx1, cy1, cx2, cy2);
+      const ca = 0.35 * brightness;
+      const whiteA = 0.1 * brightness;
+      coreGrad.addColorStop(0, `rgba(${c.r},${c.g},${c.b},0)`);
+      coreGrad.addColorStop(0.25, `rgba(${c.r},${c.g},${c.b},${ca * 0.4})`);
+      coreGrad.addColorStop(0.45, `rgba(${c.r},${c.g},${c.b},${ca})`);
+      coreGrad.addColorStop(0.5, `rgba(${Math.min(255, c.r + 80)},${Math.min(255, c.g + 80)},${Math.min(255, c.b + 80)},${ca + whiteA})`);
+      coreGrad.addColorStop(0.55, `rgba(${c.r},${c.g},${c.b},${ca})`);
+      coreGrad.addColorStop(0.75, `rgba(${c.r},${c.g},${c.b},${ca * 0.4})`);
+      coreGrad.addColorStop(1, `rgba(${c.r},${c.g},${c.b},0)`);
+      ctx.fillStyle = coreGrad;
+      ctx.fillRect(0, 0, w, h);
+    }
+
+    // Additional ambient glow spots that drift slowly
+    for (let i = 0; i < 3; i++) {
+      const ax = w * (0.3 + 0.4 * Math.sin(t * 0.05 + i * 2.1));
+      const ay = h * (0.3 + 0.4 * Math.cos(t * 0.07 + i * 1.7));
+      const ac = neonColors[i];
+      const ar = diag * 0.15;
+      const aGrad = ctx.createRadialGradient(ax, ay, 0, ax, ay, ar);
+      aGrad.addColorStop(0, `rgba(${ac.r},${ac.g},${ac.b},0.06)`);
+      aGrad.addColorStop(0.5, `rgba(${ac.r},${ac.g},${ac.b},0.02)`);
+      aGrad.addColorStop(1, `rgba(${ac.r},${ac.g},${ac.b},0)`);
+      ctx.fillStyle = aGrad;
+      ctx.fillRect(0, 0, w, h);
+    }
+
+    ctx.globalCompositeOperation = 'source-over';
+
+    // Subtle vignette
+    const vig = ctx.createRadialGradient(w / 2, h / 2, diag * 0.25, w / 2, h / 2, diag * 0.7);
+    vig.addColorStop(0, 'rgba(10,10,26,0)');
+    vig.addColorStop(1, 'rgba(5,5,13,0.5)');
+    ctx.fillStyle = vig;
+    ctx.fillRect(0, 0, w, h);
+
+    t += 0.016;
+    requestAnimationFrame(draw);
+  }
+
+  requestAnimationFrame(draw);
+})();
+</script>
+</body>
+</html>

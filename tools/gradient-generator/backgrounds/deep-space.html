@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Deep Space Drift</title>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { overflow: hidden; width: 100%; height: 100%; background: #050510; }
+
+  #space {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+  }
+
+  #stars {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+  }
+
+  #clouds {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+  }
+
+  #hint {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(255,255,255,0.4);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 13px;
+    letter-spacing: 0.5px;
+    pointer-events: none;
+    transition: opacity 1.5s ease;
+    z-index: 10;
+  }
+  #hint.hidden { opacity: 0; }
+</style>
+</head>
+<body>
+<div id="space"></div>
+<div id="stars"></div>
+<div id="clouds"></div>
+<div id="hint">ESC to exit</div>
+<script>
+(function() {
+  const space = document.getElementById('space');
+  const starsEl = document.getElementById('stars');
+  const cloudsEl = document.getElementById('clouds');
+  const hint = document.getElementById('hint');
+
+  setTimeout(() => hint.classList.add('hidden'), 3000);
+
+  function exit() {
+    const url = new URL(window.location);
+    url.searchParams.set('exit', '1');
+    window.location.href = url.toString();
+  }
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') exit(); });
+  document.addEventListener('click', exit);
+
+  // Generate fixed stars as tiny radial gradient dots
+  const STAR_COUNT = 80;
+  const starDots = [];
+  for (let i = 0; i < STAR_COUNT; i++) {
+    const x = Math.random() * 100;
+    const y = Math.random() * 100;
+    const size = 0.05 + Math.random() * 0.15; // very tiny %
+    const brightness = 0.3 + Math.random() * 0.7;
+    // Slight color variation: white, blue-white, warm-white
+    const temps = [
+      '255,255,255',
+      '200,220,255',
+      '255,240,220',
+      '180,200,255',
+    ];
+    const temp = temps[Math.floor(Math.random() * temps.length)];
+    starDots.push({ x, y, size, brightness, temp, twinkleSpeed: 0.001 + Math.random() * 0.003, twinklePhase: Math.random() * Math.PI * 2 });
+  }
+
+  // Build static star background (no animation needed for positions)
+  function buildStars(t) {
+    const parts = [];
+    for (const s of starDots) {
+      const twinkle = 0.5 + 0.5 * Math.sin(t * s.twinkleSpeed + s.twinklePhase);
+      const alpha = s.brightness * (0.4 + 0.6 * twinkle);
+      parts.push(
+        `radial-gradient(circle ${s.size}vw at ${s.x}% ${s.y}%, rgba(${s.temp},${alpha}) 0%, transparent 100%)`
+      );
+    }
+    return parts.join(',');
+  }
+
+  // Deep color clouds — very slow drift
+  const cloudCount = 7;
+  const clouds = [];
+  const cloudColors = [
+    { r: 26, g: 0, b: 68 },    // deep indigo #1a0044
+    { r: 0, g: 51, b: 68 },    // dark teal #003344
+    { r: 51, g: 0, b: 17 },    // burgundy #330011
+    { r: 0, g: 0, b: 51 },     // midnight blue #000033
+    { r: 15, g: 0, b: 50 },    // violet-black
+    { r: 0, g: 30, b: 50 },    // deep ocean
+    { r: 40, g: 5, b: 30 },    // dark wine
+  ];
+
+  for (let i = 0; i < cloudCount; i++) {
+    const color = cloudColors[i % cloudColors.length];
+    clouds.push({
+      color,
+      cx: 10 + Math.random() * 80,
+      cy: 10 + Math.random() * 80,
+      rx: 5 + Math.random() * 15,
+      ry: 5 + Math.random() * 15,
+      speed: 0.000015 + Math.random() * 0.000035, // extremely slow
+      phase: Math.random() * Math.PI * 2,
+      size: 30 + Math.random() * 40,
+      opacity: 0.15 + Math.random() * 0.2,
+    });
+  }
+
+  // Bright patches that emerge and fade
+  const patchCount = 3;
+  const patches = [];
+  for (let i = 0; i < patchCount; i++) {
+    const color = cloudColors[Math.floor(Math.random() * cloudColors.length)];
+    patches.push({
+      color: { r: color.r + 40, g: color.g + 30, b: color.b + 40 },
+      cx: 20 + Math.random() * 60,
+      cy: 20 + Math.random() * 60,
+      rx: 3 + Math.random() * 8,
+      ry: 3 + Math.random() * 8,
+      driftSpeed: 0.00002 + Math.random() * 0.00003,
+      phase: Math.random() * Math.PI * 2,
+      size: 15 + Math.random() * 20,
+      // Fade cycle: long period
+      fadeSpeed: 0.0002 + Math.random() * 0.0003,
+      fadePhase: Math.random() * Math.PI * 2,
+    });
+  }
+
+  const startTime = performance.now();
+  let starFrame = 0;
+  let cachedStars = '';
+
+  function render(now) {
+    const t = now - startTime;
+
+    // Update stars every 3 frames for performance (twinkle is slow)
+    if (starFrame % 3 === 0) {
+      cachedStars = buildStars(t);
+      starsEl.style.backgroundImage = cachedStars;
+    }
+    starFrame++;
+
+    // Clouds — very slow drift
+    const cloudParts = [];
+    for (const c of clouds) {
+      const angle = c.phase + t * c.speed;
+      const x = c.cx + Math.sin(angle) * c.rx;
+      const y = c.cy + Math.cos(angle * 0.6 + 0.5) * c.ry;
+      const { r, g, b } = c.color;
+      const sizeNow = c.size + Math.sin(t * 0.00003 + c.phase) * 5;
+
+      cloudParts.push(
+        `radial-gradient(ellipse ${sizeNow}% ${sizeNow * 0.7}% at ${x}% ${y}%, rgba(${r},${g},${b},${c.opacity}) 0%, rgba(${r},${g},${b},${c.opacity * 0.3}) 50%, transparent 75%)`
+      );
+    }
+
+    // Bright patches
+    for (const p of patches) {
+      const angle = p.phase + t * p.driftSpeed;
+      const x = p.cx + Math.sin(angle) * p.rx;
+      const y = p.cy + Math.cos(angle * 0.8) * p.ry;
+      // Fade in/out slowly
+      const fade = Math.max(0, Math.sin(p.fadePhase + t * p.fadeSpeed));
+      const alpha = fade * 0.25;
+      if (alpha > 0.01) {
+        const { r, g, b } = p.color;
+        cloudParts.push(
+          `radial-gradient(ellipse ${p.size}% ${p.size * 0.6}% at ${x}% ${y}%, rgba(${r},${g},${b},${alpha}) 0%, rgba(${r},${g},${b},${alpha * 0.2}) 50%, transparent 70%)`
+        );
+      }
+    }
+
+    cloudsEl.style.backgroundImage = cloudParts.join(',');
+
+    requestAnimationFrame(render);
+  }
+
+  // Set base background
+  space.style.backgroundColor = '#050510';
+
+  requestAnimationFrame(render);
+})();
+</script>
+</body>
+</html>

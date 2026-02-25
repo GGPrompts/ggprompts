@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lava Lamp</title>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: #1a0011;
+  }
+  #canvas {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+  }
+  #hint {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(255,255,255,0.5);
+    font: 13px/1 system-ui, sans-serif;
+    letter-spacing: 0.05em;
+    pointer-events: none;
+    transition: opacity 1s ease;
+    z-index: 10;
+  }
+  #hint.hidden { opacity: 0; }
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<div id="hint">ESC to exit</div>
+<script>
+(function() {
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+
+  function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // Exit logic
+  function exit() {
+    const url = new URL(window.location);
+    url.searchParams.set('exit', '1');
+    window.location.href = url.toString();
+  }
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') exit(); });
+  document.addEventListener('click', exit);
+
+  // Fade hint
+  const hint = document.getElementById('hint');
+  setTimeout(() => hint.classList.add('hidden'), 3000);
+
+  // Blob definitions
+  const blobs = [];
+  const colors = [
+    { r: 255, g: 153, b: 0 },    // amber
+    { r: 255, g: 34,  b: 102 },   // hot pink
+    { r: 170, g: 0,   b: 102 },   // deep magenta
+    { r: 255, g: 100, b: 50 },    // warm orange
+    { r: 200, g: 0,   b: 80 },    // rose
+    { r: 255, g: 60,  b: 150 },   // bright pink
+  ];
+
+  for (let i = 0; i < 6; i++) {
+    blobs.push({
+      // sinusoidal path parameters
+      xFreq: 0.15 + Math.random() * 0.25,
+      yFreq: 0.08 + Math.random() * 0.15,
+      xPhase: Math.random() * Math.PI * 2,
+      yPhase: Math.random() * Math.PI * 2,
+      xAmp: 0.15 + Math.random() * 0.2,
+      yAmp: 0.2 + Math.random() * 0.25,
+      xCenter: 0.25 + Math.random() * 0.5,
+      yCenter: 0.25 + Math.random() * 0.5,
+      baseRadius: 0.12 + Math.random() * 0.1,
+      breathFreq: 0.2 + Math.random() * 0.3,
+      breathPhase: Math.random() * Math.PI * 2,
+      breathAmp: 0.02 + Math.random() * 0.02,
+      color: colors[i],
+      alpha: 0.55 + Math.random() * 0.2,
+    });
+  }
+
+  let t = 0;
+
+  function draw() {
+    const w = canvas.width;
+    const h = canvas.height;
+    const dim = Math.max(w, h);
+
+    // Dark base
+    ctx.fillStyle = '#1a0011';
+    ctx.fillRect(0, 0, w, h);
+
+    // Slight vignette underlayer
+    const vig = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, dim * 0.7);
+    vig.addColorStop(0, 'rgba(40, 0, 20, 0)');
+    vig.addColorStop(1, 'rgba(10, 0, 5, 0.6)');
+    ctx.fillStyle = vig;
+    ctx.fillRect(0, 0, w, h);
+
+    // Draw blobs with additive-like blending
+    ctx.globalCompositeOperation = 'screen';
+
+    for (const b of blobs) {
+      const x = (b.xCenter + Math.sin(t * b.xFreq + b.xPhase) * b.xAmp) * w;
+      const y = (b.yCenter + Math.sin(t * b.yFreq + b.yPhase) * b.yAmp) * h;
+      const breath = 1 + Math.sin(t * b.breathFreq + b.breathPhase) * b.breathAmp / b.baseRadius;
+      const r = b.baseRadius * breath * dim;
+
+      const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
+      const c = b.color;
+      grad.addColorStop(0, `rgba(${c.r},${c.g},${c.b},${b.alpha})`);
+      grad.addColorStop(0.4, `rgba(${c.r},${c.g},${c.b},${b.alpha * 0.6})`);
+      grad.addColorStop(0.7, `rgba(${c.r},${c.g},${c.b},${b.alpha * 0.2})`);
+      grad.addColorStop(1, `rgba(${c.r},${c.g},${c.b},0)`);
+
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, w, h);
+    }
+
+    // Second pass: lighter highlights for blob centers
+    ctx.globalCompositeOperation = 'lighter';
+    for (const b of blobs) {
+      const x = (b.xCenter + Math.sin(t * b.xFreq + b.xPhase) * b.xAmp) * w;
+      const y = (b.yCenter + Math.sin(t * b.yFreq + b.yPhase) * b.yAmp) * h;
+      const breath = 1 + Math.sin(t * b.breathFreq + b.breathPhase) * b.breathAmp / b.baseRadius;
+      const r = b.baseRadius * breath * dim * 0.4;
+
+      const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
+      const c = b.color;
+      grad.addColorStop(0, `rgba(${Math.min(255, c.r + 60)},${Math.min(255, c.g + 40)},${Math.min(255, c.b + 30)},0.25)`);
+      grad.addColorStop(1, `rgba(${c.r},${c.g},${c.b},0)`);
+
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, w, h);
+    }
+
+    ctx.globalCompositeOperation = 'source-over';
+
+    t += 0.016;
+    requestAnimationFrame(draw);
+  }
+
+  requestAnimationFrame(draw);
+})();
+</script>
+</body>
+</html>

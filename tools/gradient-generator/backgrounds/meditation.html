@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meditation</title>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: #1a1520;
+  }
+  #bg {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+  }
+  #hint {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(255,255,255,0.5);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 13px;
+    letter-spacing: 0.5px;
+    transition: opacity 1.5s ease;
+    pointer-events: none;
+    z-index: 10;
+  }
+  #hint.hidden { opacity: 0; }
+</style>
+</head>
+<body>
+<div id="bg"></div>
+<div id="hint">ESC to exit</div>
+<script>
+(function() {
+  const bg = document.getElementById('bg');
+  const hint = document.getElementById('hint');
+  const startTime = performance.now();
+
+  // Fade hint after 3 seconds
+  setTimeout(() => hint.classList.add('hidden'), 3000);
+
+  // Exit handler
+  function exitBg() {
+    const url = new URL(window.location);
+    url.searchParams.set('exit', '1');
+    window.location.href = url.toString();
+  }
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') exitBg(); });
+  document.addEventListener('click', exitBg);
+
+  // Color palette
+  const baseColors = [
+    [196, 176, 224], // lavender #c4b0e0
+    [232, 180, 200], // blush pink #e8b4c8
+    [232, 213, 160], // pale gold #e8d5a0
+    [240, 235, 245], // soft white
+  ];
+
+  function hslShift(r, g, b, hueOffset) {
+    // Convert RGB to HSL, shift hue, convert back
+    r /= 255; g /= 255; b /= 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    let h, s, l = (max + min) / 2;
+    if (max === min) { h = s = 0; }
+    else {
+      const d = max - min;
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      switch (max) {
+        case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+        case g: h = ((b - r) / d + 2) / 6; break;
+        case b: h = ((r - g) / d + 4) / 6; break;
+      }
+    }
+    h = (h + hueOffset) % 1;
+    if (h < 0) h += 1;
+    // HSL to RGB
+    let r2, g2, b2;
+    if (s === 0) { r2 = g2 = b2 = l; }
+    else {
+      const hue2rgb = (p, q, t) => {
+        if (t < 0) t += 1; if (t > 1) t -= 1;
+        if (t < 1/6) return p + (q - p) * 6 * t;
+        if (t < 1/2) return q;
+        if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+        return p;
+      };
+      const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+      const p = 2 * l - q;
+      r2 = hue2rgb(p, q, h + 1/3);
+      g2 = hue2rgb(p, q, h);
+      b2 = hue2rgb(p, q, h - 1/3);
+    }
+    return [Math.round(r2 * 255), Math.round(g2 * 255), Math.round(b2 * 255)];
+  }
+
+  function render(now) {
+    const t = (now - startTime) / 1000; // seconds
+
+    // Breathing cycle: 4 seconds (2s expand, 2s contract)
+    const breathPhase = (Math.sin(t * Math.PI / 2) + 1) / 2; // 0..1 over 4s cycle
+    // Breath controls gradient spread: smaller = tighter center glow
+    const breathScale = 25 + breathPhase * 30; // 25% to 55%
+
+    // Slow hue shift: 60-second cycle
+    const hueShift = (t / 60) % 1;
+
+    // Shift colors
+    const c = baseColors.map(([r, g, b]) => {
+      const [r2, g2, b2] = hslShift(r, g, b, hueShift);
+      return `${r2}, ${g2}, ${b2}`;
+    });
+
+    // Secondary breath for outer ring (slightly delayed)
+    const breathPhase2 = (Math.sin(t * Math.PI / 2 - 0.6) + 1) / 2;
+    const breathScale2 = 40 + breathPhase2 * 35;
+
+    // Tertiary ultra-slow pulse
+    const breathPhase3 = (Math.sin(t * Math.PI / 6) + 1) / 2;
+    const outerGlow = 0.15 + breathPhase3 * 0.1;
+
+    bg.style.background = `
+      radial-gradient(ellipse at 50% 50%,
+        rgba(${c[3]}, 0.9) 0%,
+        rgba(${c[0]}, 0.7) ${breathScale * 0.5}%,
+        rgba(${c[1]}, 0.5) ${breathScale}%,
+        rgba(${c[2]}, 0.3) ${breathScale2}%,
+        rgba(${c[0]}, ${outerGlow}) ${breathScale2 + 20}%,
+        rgba(26, 21, 32, 1) 100%
+      )
+    `;
+
+    requestAnimationFrame(render);
+  }
+
+  requestAnimationFrame(render);
+})();
+</script>
+</body>
+</html>

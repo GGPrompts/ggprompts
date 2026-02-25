@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Forest Canopy</title>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: #0a1f0a;
+  }
+  #bg {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+  }
+  #hint {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(255,255,255,0.35);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 13px;
+    letter-spacing: 0.5px;
+    transition: opacity 1.5s ease;
+    pointer-events: none;
+    z-index: 10;
+  }
+  #hint.hidden { opacity: 0; }
+</style>
+</head>
+<body>
+<div id="bg"></div>
+<div id="hint">ESC to exit</div>
+<script>
+(function() {
+  const bg = document.getElementById('bg');
+  const hint = document.getElementById('hint');
+  const startTime = performance.now();
+
+  setTimeout(() => hint.classList.add('hidden'), 3000);
+
+  function exitBg() {
+    const url = new URL(window.location);
+    url.searchParams.set('exit', '1');
+    window.location.href = url.toString();
+  }
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') exitBg(); });
+  document.addEventListener('click', exitBg);
+
+  // Canopy light patches — green-tinted ambient light
+  const patches = [
+    { color: [0, 136, 74],  cx: 30, cy: 25, size: 28, dx: 0.003, dy: 0.004, phase: 0 },
+    { color: [68, 102, 34], cx: 65, cy: 40, size: 32, dx: 0.004, dy: 0.003, phase: 1.2 },
+    { color: [26, 51, 0],   cx: 20, cy: 65, size: 35, dx: 0.005, dy: 0.002, phase: 2.8 },
+    { color: [0, 100, 50],  cx: 80, cy: 20, size: 25, dx: 0.003, dy: 0.005, phase: 0.5 },
+    { color: [40, 80, 20],  cx: 50, cy: 70, size: 30, dx: 0.004, dy: 0.003, phase: 3.5 },
+    { color: [15, 60, 30],  cx: 85, cy: 75, size: 26, dx: 0.002, dy: 0.004, phase: 1.8 },
+  ];
+
+  // Sunbeam spots — warm golden light
+  const sunbeams = [
+    { cx: 35, cy: 30, size: 14, dx: 0.002, dy: 0.003, phase: 0, brightPhase: 0 },
+    { cx: 60, cy: 20, size: 10, dx: 0.003, dy: 0.002, phase: 1.5, brightPhase: 2.0 },
+    { cx: 75, cy: 55, size: 12, dx: 0.002, dy: 0.004, phase: 3.0, brightPhase: 4.5 },
+    { cx: 20, cy: 50, size: 9,  dx: 0.004, dy: 0.002, phase: 2.2, brightPhase: 1.0 },
+    { cx: 50, cy: 45, size: 11, dx: 0.003, dy: 0.003, phase: 4.0, brightPhase: 3.2 },
+  ];
+
+  function render(now) {
+    const t = (now - startTime) / 1000;
+
+    const gradients = [];
+
+    // Green canopy patches
+    for (const p of patches) {
+      const x = p.cx + Math.sin(t * p.dx * Math.PI * 2 + p.phase) * 10;
+      const y = p.cy + Math.sin(t * p.dy * Math.PI * 2 + p.phase + 1) * 8;
+      const sizeB = p.size + Math.sin(t * 0.08 + p.phase) * 3;
+      const [r, g, b] = p.color;
+      const alpha = 0.25 + Math.sin(t * 0.12 + p.phase) * 0.08;
+
+      gradients.push(
+        `radial-gradient(ellipse ${sizeB}% ${sizeB * 1.1}% at ${x}% ${y}%, rgba(${r},${g},${b},${alpha}) 0%, rgba(${r},${g},${b},${alpha * 0.4}) 50%, transparent 75%)`
+      );
+    }
+
+    // Golden sunbeams
+    for (const s of sunbeams) {
+      const x = s.cx + Math.sin(t * s.dx * Math.PI * 2 + s.phase) * 6;
+      const y = s.cy + Math.sin(t * s.dy * Math.PI * 2 + s.phase + 0.8) * 5;
+
+      // Brightness pulsing: slow brighten and dim
+      const bright = Math.max(0, Math.sin(t * 0.07 + s.brightPhase));
+      const alpha = 0.05 + bright * 0.3;
+      const sizeB = s.size + bright * 4;
+
+      // Warm golden color: #ccaa44 = 204,170,68
+      gradients.push(
+        `radial-gradient(ellipse ${sizeB}% ${sizeB * 1.3}% at ${x}% ${y}%, rgba(204,170,68,${alpha}) 0%, rgba(204,170,68,${alpha * 0.3}) 40%, transparent 70%)`
+      );
+
+      // Inner bright core
+      if (bright > 0.3) {
+        const coreAlpha = (bright - 0.3) * 0.4;
+        const coreSize = sizeB * 0.4;
+        gradients.push(
+          `radial-gradient(ellipse ${coreSize}% ${coreSize * 1.2}% at ${x}% ${y}%, rgba(255,240,180,${coreAlpha}) 0%, rgba(230,210,120,${coreAlpha * 0.3}) 50%, transparent 80%)`
+        );
+      }
+    }
+
+    // Very subtle overall ambient shift
+    const ambientHue = Math.sin(t * 0.02) * 0.05;
+    const ambientR = Math.round(10 + ambientHue * 10);
+    const ambientG = Math.round(31 + ambientHue * 20);
+    const ambientB = Math.round(10 + ambientHue * 5);
+
+    gradients.push(`linear-gradient(180deg, rgba(${ambientR},${ambientG},${ambientB},1) 0%, rgba(8,25,8,1) 50%, rgba(5,15,5,1) 100%)`);
+
+    bg.style.background = gradients.join(', ');
+
+    requestAnimationFrame(render);
+  }
+
+  requestAnimationFrame(render);
+})();
+</script>
+</body>
+</html>
