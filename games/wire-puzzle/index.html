@@ -1,0 +1,1298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WIRE PUZZLE // Circuit Board Rotation Game</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Share+Tech+Mono&family=Orbitron:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --pcb-green: #1A472A;
+  --pcb-green-light: #2D5A3D;
+  --pcb-green-dark: #0F2D1A;
+  --copper: #B87333;
+  --copper-light: #D4956A;
+  --copper-bright: #E8B796;
+  --copper-dark: #8B5A2B;
+  --gold: #FFD700;
+  --gold-pale: #DAA520;
+  --silkscreen: #F5F5F0;
+  --silkscreen-dim: #C8C8C0;
+  --solder: #C0C0C0;
+  --solder-bright: #E8E8E8;
+  --powered-glow: #FF9500;
+  --powered-core: #FFD700;
+  --led-green: #33FF33;
+  --led-red: #FF3333;
+  --font-silkscreen: 'Share Tech Mono', 'Courier New', monospace;
+  --font-display: 'Orbitron', 'Arial', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Consolas', monospace;
+}
+
+body {
+  font-family: var(--font-mono);
+  background: var(--pcb-green-dark);
+  color: var(--silkscreen);
+  min-height: 100vh;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* PCB background texture */
+.pcb-bg {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  z-index: 0;
+  background:
+    repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.015) 2px, rgba(255,255,255,0.015) 4px),
+    repeating-linear-gradient(90deg, transparent, transparent 2px, rgba(255,255,255,0.015) 2px, rgba(255,255,255,0.015) 4px),
+    radial-gradient(circle at center, rgba(184,115,51,0.08) 1px, transparent 1px);
+  background-size: 4px 4px, 4px 4px, 16px 16px;
+}
+
+/* Screens */
+.screen {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.4s;
+}
+
+.screen.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Start Screen */
+#start-screen {
+  gap: 24px;
+  text-align: center;
+}
+
+.logo-frame {
+  border: 2px solid var(--copper);
+  padding: 32px 48px;
+  position: relative;
+  background: rgba(15, 45, 26, 0.9);
+}
+
+.logo-frame::before,
+.logo-frame::after {
+  content: '';
+  position: absolute;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: var(--solder);
+  box-shadow: 0 0 4px rgba(192,192,192,0.5);
+}
+
+.logo-frame::before { top: -6px; left: -6px; }
+.logo-frame::after { top: -6px; right: -6px; }
+
+.logo-corners::before,
+.logo-corners::after {
+  content: '';
+  position: absolute;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: var(--solder);
+  box-shadow: 0 0 4px rgba(192,192,192,0.5);
+}
+
+.logo-corners::before { bottom: -6px; left: -6px; }
+.logo-corners::after { bottom: -6px; right: -6px; }
+
+.game-title {
+  font-family: var(--font-display);
+  font-size: clamp(2.5rem, 7vw, 4.5rem);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--copper-light);
+  text-shadow: 0 0 20px rgba(184,115,51,0.4), 0 2px 0 var(--copper-dark);
+}
+
+.game-subtitle {
+  font-family: var(--font-silkscreen);
+  font-size: clamp(0.7rem, 2vw, 1rem);
+  color: var(--silkscreen-dim);
+  letter-spacing: 0.3em;
+  margin-top: 8px;
+}
+
+.instructions {
+  max-width: 420px;
+  font-family: var(--font-silkscreen);
+  font-size: 0.85rem;
+  line-height: 1.8;
+  color: var(--silkscreen-dim);
+  border: 1px solid rgba(184,115,51,0.3);
+  padding: 16px 24px;
+  background: rgba(15, 45, 26, 0.6);
+  text-align: left;
+}
+
+.instructions .label {
+  color: var(--copper-light);
+  font-weight: 600;
+}
+
+.btn {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  padding: 14px 48px;
+  border: 2px solid var(--copper);
+  background: linear-gradient(180deg, rgba(184,115,51,0.2), rgba(184,115,51,0.05));
+  color: var(--copper-light);
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s;
+}
+
+.btn:hover {
+  background: linear-gradient(180deg, rgba(184,115,51,0.35), rgba(184,115,51,0.15));
+  box-shadow: 0 0 20px rgba(184,115,51,0.3), inset 0 0 20px rgba(184,115,51,0.1);
+  color: var(--copper-bright);
+}
+
+.btn:active {
+  transform: scale(0.97);
+}
+
+.back-link {
+  position: fixed;
+  top: 12px; left: 16px;
+  z-index: 100;
+  font-family: var(--font-silkscreen);
+  font-size: 0.8rem;
+  color: var(--silkscreen-dim);
+  text-decoration: none;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.back-link:hover { opacity: 1; color: var(--copper-light); }
+
+/* Game Screen */
+#game-screen {
+  gap: 0;
+}
+
+.hud {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  padding: 12px 24px;
+  font-family: var(--font-silkscreen);
+  font-size: 0.85rem;
+  z-index: 20;
+}
+
+.hud-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hud-label {
+  color: var(--silkscreen-dim);
+  font-size: 0.7rem;
+  letter-spacing: 0.15em;
+}
+
+.hud-value {
+  color: var(--copper-light);
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 600;
+  min-width: 30px;
+  text-align: center;
+}
+
+.hud-value.powered {
+  color: var(--powered-core);
+  text-shadow: 0 0 8px rgba(255,215,0,0.6);
+}
+
+#game-canvas {
+  z-index: 5;
+  cursor: pointer;
+}
+
+/* Win overlay */
+#win-overlay {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 30, 15, 0.85);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.5s;
+  gap: 20px;
+}
+
+#win-overlay.show {
+  opacity: 1;
+  pointer-events: all;
+}
+
+.win-title {
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 6vw, 3.5rem);
+  font-weight: 700;
+  color: var(--powered-core);
+  text-shadow: 0 0 30px rgba(255,215,0,0.6), 0 0 60px rgba(255,149,0,0.3);
+  letter-spacing: 0.1em;
+}
+
+.win-stats {
+  font-family: var(--font-silkscreen);
+  font-size: 0.9rem;
+  color: var(--silkscreen-dim);
+  text-align: center;
+  line-height: 2;
+}
+
+.win-stats span {
+  color: var(--copper-light);
+}
+
+/* Spark canvas for celebration */
+#spark-canvas {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  z-index: 55;
+  pointer-events: none;
+}
+
+@media (max-width: 768px) {
+  .hud { gap: 16px; font-size: 0.75rem; padding: 8px 12px; }
+  .hud-value { font-size: 0.95rem; }
+  .logo-frame { padding: 20px 28px; }
+  .game-title { letter-spacing: 0.05em; }
+  .instructions { font-size: 0.75rem; padding: 12px 16px; }
+}
+</style>
+</head>
+<body>
+
+<div class="pcb-bg"></div>
+<a href="../" class="back-link">&lt; GAMES</a>
+
+<!-- Start Screen -->
+<div id="start-screen" class="screen">
+  <div class="logo-frame">
+    <div class="logo-corners"></div>
+    <div class="game-title">WIRE PUZZLE</div>
+    <div class="game-subtitle">CIRCUIT ROTATION GAME</div>
+  </div>
+  <div class="instructions">
+    <span class="label">OBJECTIVE:</span> Rotate tiles to connect the power source to the destination.<br><br>
+    <span class="label">CONTROLS:</span> Click a tile to rotate it 90 degrees clockwise.<br><br>
+    <span class="label">HINT:</span> Connected traces glow gold when power flows through them. Complete the circuit to advance.
+  </div>
+  <button class="btn" id="btn-start">START CIRCUIT</button>
+</div>
+
+<!-- Game Screen -->
+<div id="game-screen" class="screen hidden">
+  <div class="hud">
+    <div class="hud-item">
+      <span class="hud-label">LEVEL</span>
+      <span class="hud-value" id="hud-level">1</span>
+    </div>
+    <div class="hud-item">
+      <span class="hud-label">MOVES</span>
+      <span class="hud-value" id="hud-moves">0</span>
+    </div>
+    <div class="hud-item">
+      <span class="hud-label">GRID</span>
+      <span class="hud-value" id="hud-grid">5x5</span>
+    </div>
+    <div class="hud-item">
+      <span class="hud-label">POWER</span>
+      <span class="hud-value" id="hud-power">OFF</span>
+    </div>
+  </div>
+  <canvas id="game-canvas"></canvas>
+</div>
+
+<!-- Win Overlay -->
+<div id="win-overlay">
+  <div class="win-title">CIRCUIT COMPLETE</div>
+  <div class="win-stats" id="win-stats"></div>
+  <button class="btn" id="btn-next">NEXT LEVEL</button>
+</div>
+
+<canvas id="spark-canvas"></canvas>
+
+<script>
+(() => {
+  'use strict';
+
+  // ========== AUDIO ENGINE ==========
+  const Audio = (() => {
+    let ctx = null;
+    function init() {
+      if (ctx) return;
+      ctx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+
+    function play(type) {
+      if (!ctx) return;
+      const t = ctx.currentTime;
+      const g = ctx.createGain();
+      g.connect(ctx.destination);
+
+      if (type === 'rotate') {
+        // Short click/tick
+        const o = ctx.createOscillator();
+        o.type = 'square';
+        o.frequency.setValueAtTime(800, t);
+        o.frequency.exponentialRampToValueAtTime(400, t + 0.06);
+        g.gain.setValueAtTime(0.12, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+        o.connect(g);
+        o.start(t);
+        o.stop(t + 0.08);
+      } else if (type === 'connect') {
+        // Soft hum/chime when new tiles light up
+        const o = ctx.createOscillator();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(520, t);
+        o.frequency.exponentialRampToValueAtTime(660, t + 0.15);
+        g.gain.setValueAtTime(0.08, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+        o.connect(g);
+        o.start(t);
+        o.stop(t + 0.2);
+      } else if (type === 'win') {
+        // Ascending chime sequence
+        const notes = [523, 659, 784, 1047];
+        notes.forEach((freq, i) => {
+          const o = ctx.createOscillator();
+          const gn = ctx.createGain();
+          o.type = 'sine';
+          o.frequency.setValueAtTime(freq, t + i * 0.12);
+          gn.gain.setValueAtTime(0, t + i * 0.12);
+          gn.gain.linearRampToValueAtTime(0.15, t + i * 0.12 + 0.03);
+          gn.gain.exponentialRampToValueAtTime(0.001, t + i * 0.12 + 0.4);
+          o.connect(gn);
+          gn.connect(ctx.destination);
+          o.start(t + i * 0.12);
+          o.stop(t + i * 0.12 + 0.4);
+        });
+      } else if (type === 'powerup') {
+        // Electrical buzz when power reaches new area
+        const o = ctx.createOscillator();
+        o.type = 'sawtooth';
+        o.frequency.setValueAtTime(120, t);
+        o.frequency.linearRampToValueAtTime(180, t + 0.1);
+        g.gain.setValueAtTime(0.05, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+        o.connect(g);
+        o.start(t);
+        o.stop(t + 0.15);
+      }
+    }
+
+    return { init, play };
+  })();
+
+  // ========== TILE TYPES ==========
+  // Directions: 0=up, 1=right, 2=down, 3=left
+  // Each tile type defines which directions it connects in its base (rotation=0) orientation
+  const TILE_TYPES = {
+    straight: [0, 2],       // vertical line
+    corner: [0, 1],         // top-right corner
+    tee: [0, 1, 2],         // T-junction (up, right, down)
+    cross: [0, 1, 2, 3],   // all four directions
+    dead: [0],              // dead end (one direction)
+  };
+
+  // Get connections for a tile type at a given rotation (0-3)
+  function getConnections(type, rotation) {
+    const base = TILE_TYPES[type];
+    return base.map(d => (d + rotation) % 4);
+  }
+
+  // Check if two adjacent tiles connect
+  // dir: direction from tile A to tile B (0=up, 1=right, 2=down, 3=left)
+  function connects(typeA, rotA, typeB, rotB, dir) {
+    const conA = getConnections(typeA, rotA);
+    const conB = getConnections(typeB, rotB);
+    const opposite = (dir + 2) % 4;
+    return conA.includes(dir) && conB.includes(opposite);
+  }
+
+  // Direction offsets: [row, col]
+  const DIR_OFFSETS = [[-1, 0], [0, 1], [1, 0], [0, -1]];
+
+  // ========== PUZZLE GENERATOR ==========
+  function generatePuzzle(rows, cols, level) {
+    // Place source and destination
+    const sourceRow = Math.floor(Math.random() * rows);
+    const sourceCol = 0; // left edge
+    const destRow = Math.floor(Math.random() * rows);
+    const destCol = cols - 1; // right edge
+
+    // Build a solved grid using path carving
+    // Start with empty grid, carve a guaranteed path from source to dest,
+    // then fill remaining cells with random connected tiles
+
+    const grid = Array.from({ length: rows }, () =>
+      Array.from({ length: cols }, () => ({ type: 'dead', rotation: 0 }))
+    );
+
+    // Carve main path using random walk from source to dest
+    const path = carvePath(rows, cols, sourceRow, sourceCol, destRow, destCol);
+
+    // Set tile types along the path based on entry/exit directions
+    for (let i = 0; i < path.length; i++) {
+      const [r, c] = path[i];
+      const dirs = [];
+
+      if (i > 0) {
+        const [pr, pc] = path[i - 1];
+        dirs.push(dirFromTo(r, c, pr, pc));
+      } else {
+        // Source: also connects left (out of grid)
+        dirs.push(3); // left
+      }
+
+      if (i < path.length - 1) {
+        const [nr, nc] = path[i + 1];
+        dirs.push(dirFromTo(r, c, nr, nc));
+      } else {
+        // Destination: also connects right (out of grid)
+        dirs.push(1); // right
+      }
+
+      grid[r][c] = findTileForDirs(dirs);
+    }
+
+    // Add some extra branches for complexity (more at higher levels)
+    const branchCount = Math.floor(level * 1.5) + 2;
+    for (let b = 0; b < branchCount; b++) {
+      addBranch(grid, rows, cols, path);
+    }
+
+    // Fill remaining dead tiles with random types that don't mess up the puzzle
+    // Actually, leave them as dead-ends or simple pieces for visual interest
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (grid[r][c].type === 'dead' && grid[r][c].rotation === 0) {
+          // Check if any neighbor on the path connects to this cell
+          const neighborDirs = [];
+          for (let d = 0; d < 4; d++) {
+            const nr = r + DIR_OFFSETS[d][0];
+            const nc = c + DIR_OFFSETS[d][1];
+            if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
+              const n = grid[nr][nc];
+              const nCon = getConnections(n.type, n.rotation);
+              if (nCon.includes((d + 2) % 4)) {
+                neighborDirs.push(d);
+              }
+            }
+          }
+          if (neighborDirs.length > 0) {
+            grid[r][c] = findTileForDirs(neighborDirs);
+          } else {
+            // Random decorative tile
+            const types = ['straight', 'corner', 'dead'];
+            grid[r][c] = {
+              type: types[Math.floor(Math.random() * types.length)],
+              rotation: Math.floor(Math.random() * 4)
+            };
+          }
+        }
+      }
+    }
+
+    // Save solved rotations
+    const solvedRotations = grid.map(row => row.map(cell => cell.rotation));
+
+    // Randomize rotations (ensuring at least some are wrong)
+    let changedCount = 0;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (grid[r][c].type === 'cross') continue; // cross looks same at any rotation
+        const randRot = Math.floor(Math.random() * 4);
+        if (randRot !== grid[r][c].rotation) changedCount++;
+        grid[r][c].rotation = randRot;
+      }
+    }
+
+    // Ensure puzzle isn't already solved
+    if (changedCount < 3) {
+      for (let r = 0; r < rows && changedCount < 3; r++) {
+        for (let c = 0; c < cols && changedCount < 3; c++) {
+          if (grid[r][c].type !== 'cross') {
+            grid[r][c].rotation = (solvedRotations[r][c] + 1 + Math.floor(Math.random() * 3)) % 4;
+            changedCount++;
+          }
+        }
+      }
+    }
+
+    return {
+      grid,
+      rows,
+      cols,
+      sourceRow,
+      sourceCol,
+      destRow,
+      destCol,
+    };
+  }
+
+  function dirFromTo(r1, c1, r2, c2) {
+    if (r2 < r1) return 0; // up
+    if (c2 > c1) return 1; // right
+    if (r2 > r1) return 2; // down
+    return 3; // left
+  }
+
+  function findTileForDirs(dirs) {
+    // Find the tile type and rotation that matches exactly these directions
+    const sorted = [...new Set(dirs)].sort((a, b) => a - b);
+
+    for (const [typeName, baseDirs] of Object.entries(TILE_TYPES)) {
+      if (baseDirs.length !== sorted.length) continue;
+      // Try all 4 rotations
+      for (let rot = 0; rot < 4; rot++) {
+        const rotated = baseDirs.map(d => (d + rot) % 4).sort((a, b) => a - b);
+        if (rotated.length === sorted.length && rotated.every((v, i) => v === sorted[i])) {
+          return { type: typeName, rotation: rot };
+        }
+      }
+    }
+    // Fallback: use a cross
+    return { type: 'cross', rotation: 0 };
+  }
+
+  function carvePath(rows, cols, sr, sc, dr, dc) {
+    // BFS-based random path
+    const visited = Array.from({ length: rows }, () => Array(cols).fill(false));
+    const parent = Array.from({ length: rows }, () => Array(cols).fill(null));
+    visited[sr][sc] = true;
+
+    // Use randomized BFS (shuffle neighbors)
+    const queue = [[sr, sc]];
+    let found = false;
+
+    while (queue.length > 0 && !found) {
+      // Pick random from queue for more interesting paths
+      const idx = Math.floor(Math.random() * queue.length);
+      const [r, c] = queue.splice(idx, 1)[0];
+
+      if (r === dr && c === dc) {
+        found = true;
+        break;
+      }
+
+      const dirs = [0, 1, 2, 3].sort(() => Math.random() - 0.5);
+      for (const d of dirs) {
+        const nr = r + DIR_OFFSETS[d][0];
+        const nc = c + DIR_OFFSETS[d][1];
+        if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && !visited[nr][nc]) {
+          visited[nr][nc] = true;
+          parent[nr][nc] = [r, c];
+          queue.push([nr, nc]);
+        }
+      }
+    }
+
+    // Reconstruct path
+    const path = [];
+    let cur = [dr, dc];
+    while (cur) {
+      path.unshift(cur);
+      cur = parent[cur[0]][cur[1]];
+    }
+    return path;
+  }
+
+  function addBranch(grid, rows, cols, mainPath) {
+    // Pick a random point on the main path and grow a branch
+    const startIdx = Math.floor(Math.random() * mainPath.length);
+    const [sr, sc] = mainPath[startIdx];
+    const branchLen = 2 + Math.floor(Math.random() * 3);
+
+    let r = sr, c = sc;
+    const branch = [[r, c]];
+
+    for (let i = 0; i < branchLen; i++) {
+      const dirs = [0, 1, 2, 3].sort(() => Math.random() - 0.5);
+      let moved = false;
+      for (const d of dirs) {
+        const nr = r + DIR_OFFSETS[d][0];
+        const nc = c + DIR_OFFSETS[d][1];
+        if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
+          // Don't overwrite existing path tiles (except start)
+          const isOnPath = mainPath.some(([pr, pc]) => pr === nr && pc === nc);
+          if (!isOnPath || (nr === sr && nc === sc)) {
+            branch.push([nr, nc]);
+            r = nr;
+            c = nc;
+            moved = true;
+            break;
+          }
+        }
+      }
+      if (!moved) break;
+    }
+
+    // Set tile types for branch
+    for (let i = 0; i < branch.length; i++) {
+      const [br, bc] = branch[i];
+      const dirs = [];
+
+      if (i > 0) {
+        const [pr, pc] = branch[i - 1];
+        dirs.push(dirFromTo(br, bc, pr, pc));
+      }
+      if (i < branch.length - 1) {
+        const [nr, nc] = branch[i + 1];
+        dirs.push(dirFromTo(br, bc, nr, nc));
+      }
+
+      if (i === 0) {
+        // Merge with existing tile directions
+        const existing = getConnections(grid[br][bc].type, grid[br][bc].rotation);
+        const merged = [...new Set([...existing, ...dirs])];
+        grid[br][bc] = findTileForDirs(merged);
+      } else if (dirs.length > 0) {
+        if (dirs.length === 1) {
+          grid[br][bc] = findTileForDirs(dirs);
+        } else {
+          grid[br][bc] = findTileForDirs(dirs);
+        }
+      }
+    }
+  }
+
+  // ========== FLOOD FILL POWER ==========
+  function computePowered(puzzle) {
+    const { grid, rows, cols, sourceRow, sourceCol } = puzzle;
+    const powered = Array.from({ length: rows }, () => Array(cols).fill(false));
+
+    // Source tile must connect left (direction 3) to be powered from source
+    const srcCon = getConnections(grid[sourceRow][sourceCol].type, grid[sourceRow][sourceCol].rotation);
+    if (!srcCon.includes(3)) return powered;
+
+    const queue = [[sourceRow, sourceCol]];
+    powered[sourceRow][sourceCol] = true;
+
+    while (queue.length > 0) {
+      const [r, c] = queue.shift();
+      const tile = grid[r][c];
+      const con = getConnections(tile.type, tile.rotation);
+
+      for (const d of con) {
+        const nr = r + DIR_OFFSETS[d][0];
+        const nc = c + DIR_OFFSETS[d][1];
+        if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && !powered[nr][nc]) {
+          const neighbor = grid[nr][nc];
+          const opposite = (d + 2) % 4;
+          const nCon = getConnections(neighbor.type, neighbor.rotation);
+          if (nCon.includes(opposite)) {
+            powered[nr][nc] = true;
+            queue.push([nr, nc]);
+          }
+        }
+      }
+    }
+
+    return powered;
+  }
+
+  function checkWin(puzzle, powered) {
+    const { destRow, destCol, grid } = puzzle;
+    if (!powered[destRow][destCol]) return false;
+    // Dest tile must connect right (direction 1)
+    const destCon = getConnections(grid[destRow][destCol].type, grid[destRow][destCol].rotation);
+    return destCon.includes(1);
+  }
+
+  // ========== RENDERING ==========
+  const canvas = document.getElementById('game-canvas');
+  const ctx2d = canvas.getContext('2d');
+
+  let TILE_SIZE = 80;
+  let GRID_OFFSET_X = 0;
+  let GRID_OFFSET_Y = 0;
+
+  // Animation state
+  const rotationAnims = {}; // key: "r,c" -> { from, to, startTime, duration }
+  let poweredTiles = null;
+  let prevPoweredCount = 0;
+  let glowPhase = 0;
+
+  function resizeCanvas(puzzle) {
+    const dpr = window.devicePixelRatio || 1;
+    const maxW = window.innerWidth - 40;
+    const maxH = window.innerHeight - 100;
+
+    // Include space for source/dest indicators (1 tile extra on each side)
+    const totalCols = puzzle.cols + 2;
+    const totalRows = puzzle.rows;
+
+    TILE_SIZE = Math.min(
+      Math.floor(maxW / totalCols),
+      Math.floor(maxH / totalRows),
+      100
+    );
+    TILE_SIZE = Math.max(TILE_SIZE, 40);
+
+    const cw = totalCols * TILE_SIZE;
+    const ch = totalRows * TILE_SIZE;
+
+    canvas.width = cw * dpr;
+    canvas.height = ch * dpr;
+    canvas.style.width = cw + 'px';
+    canvas.style.height = ch + 'px';
+    ctx2d.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    GRID_OFFSET_X = TILE_SIZE; // 1 tile for source indicator
+    GRID_OFFSET_Y = 0;
+  }
+
+  function drawFrame(puzzle, timestamp) {
+    if (!puzzle) return;
+    const { grid, rows, cols, sourceRow, destRow } = puzzle;
+    const w = canvas.width / (window.devicePixelRatio || 1);
+    const h = canvas.height / (window.devicePixelRatio || 1);
+
+    glowPhase = (timestamp || 0) / 1000;
+
+    // Clear
+    ctx2d.fillStyle = '#0F2D1A';
+    ctx2d.fillRect(0, 0, w, h);
+
+    // Draw PCB grid dots
+    ctx2d.fillStyle = 'rgba(184, 115, 51, 0.12)';
+    for (let x = 0; x < w; x += 16) {
+      for (let y = 0; y < h; y += 16) {
+        ctx2d.beginPath();
+        ctx2d.arc(x, y, 0.8, 0, Math.PI * 2);
+        ctx2d.fill();
+      }
+    }
+
+    // Draw tile backgrounds
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const x = GRID_OFFSET_X + c * TILE_SIZE;
+        const y = GRID_OFFSET_Y + r * TILE_SIZE;
+        const isPowered = poweredTiles && poweredTiles[r][c];
+
+        // Tile background
+        ctx2d.fillStyle = isPowered
+          ? `rgba(40, 70, 30, ${0.7 + 0.1 * Math.sin(glowPhase * 3)})`
+          : 'rgba(26, 71, 42, 0.6)';
+        ctx2d.fillRect(x + 1, y + 1, TILE_SIZE - 2, TILE_SIZE - 2);
+
+        // Tile border
+        ctx2d.strokeStyle = isPowered
+          ? `rgba(255, 215, 0, ${0.3 + 0.1 * Math.sin(glowPhase * 3)})`
+          : 'rgba(184, 115, 51, 0.25)';
+        ctx2d.lineWidth = 1;
+        ctx2d.strokeRect(x + 0.5, y + 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
+      }
+    }
+
+    // Draw wires on each tile
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const tile = grid[r][c];
+        const x = GRID_OFFSET_X + c * TILE_SIZE;
+        const y = GRID_OFFSET_Y + r * TILE_SIZE;
+        const cx = x + TILE_SIZE / 2;
+        const cy = y + TILE_SIZE / 2;
+        const isPowered = poweredTiles && poweredTiles[r][c];
+
+        // Check for rotation animation
+        const key = `${r},${c}`;
+        let animRotation = tile.rotation * Math.PI / 2;
+        if (rotationAnims[key]) {
+          const anim = rotationAnims[key];
+          const elapsed = (timestamp || 0) - anim.startTime;
+          const progress = Math.min(elapsed / anim.duration, 1);
+          const eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
+          animRotation = (anim.from + (anim.to - anim.from) * eased);
+          if (progress >= 1) delete rotationAnims[key];
+        }
+
+        ctx2d.save();
+        ctx2d.translate(cx, cy);
+        ctx2d.rotate(animRotation);
+
+        drawTileWires(tile.type, isPowered, TILE_SIZE);
+
+        ctx2d.restore();
+      }
+    }
+
+    // Draw source indicator (left side)
+    {
+      const sy = GRID_OFFSET_Y + sourceRow * TILE_SIZE + TILE_SIZE / 2;
+      const sx = GRID_OFFSET_X;
+
+      // Power source box
+      ctx2d.fillStyle = '#1a1a1a';
+      ctx2d.fillRect(0, sy - TILE_SIZE * 0.35, TILE_SIZE * 0.9, TILE_SIZE * 0.7);
+      ctx2d.strokeStyle = var_copper;
+      ctx2d.lineWidth = 2;
+      ctx2d.strokeRect(0, sy - TILE_SIZE * 0.35, TILE_SIZE * 0.9, TILE_SIZE * 0.7);
+
+      // "PWR" label
+      ctx2d.fillStyle = var_led_green;
+      ctx2d.font = `bold ${Math.max(10, TILE_SIZE * 0.16)}px 'Orbitron', sans-serif`;
+      ctx2d.textAlign = 'center';
+      ctx2d.textBaseline = 'middle';
+      ctx2d.fillText('PWR', TILE_SIZE * 0.45, sy - TILE_SIZE * 0.12);
+
+      // LED indicator
+      const srcPowered = poweredTiles && poweredTiles[sourceRow][0];
+      ctx2d.beginPath();
+      ctx2d.arc(TILE_SIZE * 0.45, sy + TILE_SIZE * 0.12, 4, 0, Math.PI * 2);
+      ctx2d.fillStyle = srcPowered ? '#33FF33' : '#333';
+      ctx2d.fill();
+      if (srcPowered) {
+        ctx2d.shadowColor = '#33FF33';
+        ctx2d.shadowBlur = 8;
+        ctx2d.fill();
+        ctx2d.shadowBlur = 0;
+      }
+
+      // Trace from source box to grid
+      const gradient = ctx2d.createLinearGradient(TILE_SIZE * 0.9, sy, sx, sy);
+      gradient.addColorStop(0, srcPowered ? var_powered_core : var_copper);
+      gradient.addColorStop(1, srcPowered ? var_powered_core : var_copper);
+      ctx2d.strokeStyle = gradient;
+      ctx2d.lineWidth = TILE_SIZE * 0.08;
+      ctx2d.beginPath();
+      ctx2d.moveTo(TILE_SIZE * 0.9, sy);
+      ctx2d.lineTo(sx, sy);
+      ctx2d.stroke();
+      if (srcPowered) {
+        ctx2d.shadowColor = var_powered_glow;
+        ctx2d.shadowBlur = 10;
+        ctx2d.stroke();
+        ctx2d.shadowBlur = 0;
+      }
+    }
+
+    // Draw destination indicator (right side)
+    {
+      const dy = GRID_OFFSET_Y + destRow * TILE_SIZE + TILE_SIZE / 2;
+      const dx = GRID_OFFSET_X + cols * TILE_SIZE;
+      const boxX = dx + TILE_SIZE * 0.1;
+
+      const destPowered = poweredTiles && poweredTiles[destRow][cols - 1] &&
+        getConnections(grid[destRow][cols - 1].type, grid[destRow][cols - 1].rotation).includes(1);
+
+      // Destination box
+      ctx2d.fillStyle = '#1a1a1a';
+      ctx2d.fillRect(boxX, dy - TILE_SIZE * 0.35, TILE_SIZE * 0.9, TILE_SIZE * 0.7);
+      ctx2d.strokeStyle = var_copper;
+      ctx2d.lineWidth = 2;
+      ctx2d.strokeRect(boxX, dy - TILE_SIZE * 0.35, TILE_SIZE * 0.9, TILE_SIZE * 0.7);
+
+      // "DST" label
+      ctx2d.fillStyle = destPowered ? var_powered_core : var_led_red;
+      ctx2d.font = `bold ${Math.max(10, TILE_SIZE * 0.16)}px 'Orbitron', sans-serif`;
+      ctx2d.textAlign = 'center';
+      ctx2d.textBaseline = 'middle';
+      ctx2d.fillText('DST', boxX + TILE_SIZE * 0.45, dy - TILE_SIZE * 0.12);
+
+      // LED indicator
+      ctx2d.beginPath();
+      ctx2d.arc(boxX + TILE_SIZE * 0.45, dy + TILE_SIZE * 0.12, 4, 0, Math.PI * 2);
+      ctx2d.fillStyle = destPowered ? '#33FF33' : '#FF3333';
+      ctx2d.fill();
+      if (destPowered) {
+        ctx2d.shadowColor = '#33FF33';
+        ctx2d.shadowBlur = 8;
+        ctx2d.fill();
+        ctx2d.shadowBlur = 0;
+      }
+
+      // Trace from grid to dest box
+      ctx2d.strokeStyle = destPowered ? var_powered_core : var_copper;
+      ctx2d.lineWidth = TILE_SIZE * 0.08;
+      ctx2d.beginPath();
+      ctx2d.moveTo(dx, dy);
+      ctx2d.lineTo(boxX, dy);
+      ctx2d.stroke();
+      if (destPowered) {
+        ctx2d.shadowColor = var_powered_glow;
+        ctx2d.shadowBlur = 10;
+        ctx2d.stroke();
+        ctx2d.shadowBlur = 0;
+      }
+    }
+
+    // Draw solder points at tile corners
+    ctx2d.fillStyle = 'rgba(192, 192, 192, 0.3)';
+    for (let r = 0; r <= rows; r++) {
+      for (let c = 0; c <= cols; c++) {
+        const x = GRID_OFFSET_X + c * TILE_SIZE;
+        const y = GRID_OFFSET_Y + r * TILE_SIZE;
+        ctx2d.beginPath();
+        ctx2d.arc(x, y, 2.5, 0, Math.PI * 2);
+        ctx2d.fill();
+      }
+    }
+  }
+
+  // Color variables for canvas
+  const var_copper = '#B87333';
+  const var_copper_dark = '#8B5A2B';
+  const var_powered_core = '#FFD700';
+  const var_powered_glow = '#FF9500';
+  const var_solder = '#C0C0C0';
+  const var_led_green = '#33FF33';
+  const var_led_red = '#FF3333';
+
+  function drawTileWires(type, isPowered, size) {
+    const half = size / 2;
+    const traceW = size * 0.1;
+    const solderR = size * 0.06;
+
+    const color = isPowered ? var_powered_core : var_copper;
+    const glowColor = var_powered_glow;
+
+    ctx2d.strokeStyle = color;
+    ctx2d.lineWidth = traceW;
+    ctx2d.lineCap = 'round';
+    ctx2d.lineJoin = 'round';
+
+    if (isPowered) {
+      ctx2d.shadowColor = glowColor;
+      ctx2d.shadowBlur = 12 + 4 * Math.sin(glowPhase * 4);
+    }
+
+    // Draw based on type (at rotation 0 — the canvas is already rotated)
+    const dirs = TILE_TYPES[type];
+
+    if (type === 'straight') {
+      // Vertical line: up to down
+      ctx2d.beginPath();
+      ctx2d.moveTo(0, -half);
+      ctx2d.lineTo(0, half);
+      ctx2d.stroke();
+    } else if (type === 'corner') {
+      // Up and right
+      ctx2d.beginPath();
+      ctx2d.moveTo(0, -half);
+      ctx2d.lineTo(0, 0);
+      ctx2d.lineTo(half, 0);
+      ctx2d.stroke();
+    } else if (type === 'tee') {
+      // Up, right, down (T-shape)
+      ctx2d.beginPath();
+      ctx2d.moveTo(0, -half);
+      ctx2d.lineTo(0, half);
+      ctx2d.stroke();
+      ctx2d.beginPath();
+      ctx2d.moveTo(0, 0);
+      ctx2d.lineTo(half, 0);
+      ctx2d.stroke();
+    } else if (type === 'cross') {
+      ctx2d.beginPath();
+      ctx2d.moveTo(0, -half);
+      ctx2d.lineTo(0, half);
+      ctx2d.stroke();
+      ctx2d.beginPath();
+      ctx2d.moveTo(-half, 0);
+      ctx2d.lineTo(half, 0);
+      ctx2d.stroke();
+    } else if (type === 'dead') {
+      // Single direction: up
+      ctx2d.beginPath();
+      ctx2d.moveTo(0, -half);
+      ctx2d.lineTo(0, 0);
+      ctx2d.stroke();
+    }
+
+    ctx2d.shadowBlur = 0;
+
+    // Solder point at center
+    ctx2d.beginPath();
+    ctx2d.arc(0, 0, solderR, 0, Math.PI * 2);
+    ctx2d.fillStyle = isPowered ? var_powered_core : var_solder;
+    if (isPowered) {
+      ctx2d.shadowColor = glowColor;
+      ctx2d.shadowBlur = 6;
+    }
+    ctx2d.fill();
+    ctx2d.shadowBlur = 0;
+
+    // Solder points at endpoints
+    ctx2d.fillStyle = isPowered ? 'rgba(255,215,0,0.6)' : 'rgba(192,192,192,0.4)';
+    for (const d of dirs) {
+      let ex = 0, ey = 0;
+      if (d === 0) { ex = 0; ey = -half; }
+      else if (d === 1) { ex = half; ey = 0; }
+      else if (d === 2) { ex = 0; ey = half; }
+      else { ex = -half; ey = 0; }
+      ctx2d.beginPath();
+      ctx2d.arc(ex, ey, solderR * 0.7, 0, Math.PI * 2);
+      ctx2d.fill();
+    }
+  }
+
+  // ========== SPARK EFFECTS ==========
+  const sparkCanvas = document.getElementById('spark-canvas');
+  const sparkCtx = sparkCanvas.getContext('2d');
+  let sparks = [];
+
+  function resizeSpark() {
+    const dpr = window.devicePixelRatio || 1;
+    sparkCanvas.width = window.innerWidth * dpr;
+    sparkCanvas.height = window.innerHeight * dpr;
+    sparkCanvas.style.width = window.innerWidth + 'px';
+    sparkCanvas.style.height = window.innerHeight + 'px';
+    sparkCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function emitSparks(x, y, count) {
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 1 + Math.random() * 4;
+      sparks.push({
+        x, y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 2,
+        life: 1,
+        decay: 0.01 + Math.random() * 0.03,
+        size: 1 + Math.random() * 3,
+        color: Math.random() > 0.5 ? '#FFD700' : '#FF9500',
+      });
+    }
+  }
+
+  function emitWinSparks() {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    for (let i = 0; i < 80; i++) {
+      emitSparks(
+        Math.random() * w,
+        Math.random() * h * 0.5,
+        3
+      );
+    }
+  }
+
+  function updateSparks() {
+    for (let i = sparks.length - 1; i >= 0; i--) {
+      const s = sparks[i];
+      s.x += s.vx;
+      s.y += s.vy;
+      s.vy += 0.05;
+      s.life -= s.decay;
+      if (s.life <= 0) sparks.splice(i, 1);
+    }
+  }
+
+  function drawSparks() {
+    sparkCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+    for (const s of sparks) {
+      sparkCtx.globalAlpha = s.life;
+      sparkCtx.fillStyle = s.color;
+      sparkCtx.shadowColor = s.color;
+      sparkCtx.shadowBlur = 6;
+      sparkCtx.beginPath();
+      sparkCtx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+      sparkCtx.fill();
+    }
+    sparkCtx.globalAlpha = 1;
+    sparkCtx.shadowBlur = 0;
+  }
+
+  // ========== GAME STATE ==========
+  let currentPuzzle = null;
+  let level = 1;
+  let moves = 0;
+  let gameWon = false;
+  let animFrameId = null;
+
+  const levelConfigs = [
+    { rows: 4, cols: 4 },   // Level 1
+    { rows: 5, cols: 5 },   // Level 2
+    { rows: 5, cols: 6 },   // Level 3
+    { rows: 6, cols: 6 },   // Level 4
+    { rows: 6, cols: 7 },   // Level 5
+    { rows: 7, cols: 7 },   // Level 6
+    { rows: 7, cols: 8 },   // Level 7
+    { rows: 8, cols: 8 },   // Level 8
+    { rows: 8, cols: 9 },   // Level 9
+    { rows: 9, cols: 9 },   // Level 10+
+  ];
+
+  function getLevelConfig(lvl) {
+    const idx = Math.min(lvl - 1, levelConfigs.length - 1);
+    return levelConfigs[idx];
+  }
+
+  function startLevel(lvl) {
+    level = lvl;
+    moves = 0;
+    gameWon = false;
+    const config = getLevelConfig(lvl);
+
+    currentPuzzle = generatePuzzle(config.rows, config.cols, lvl);
+    poweredTiles = computePowered(currentPuzzle);
+    prevPoweredCount = countPowered(poweredTiles);
+
+    document.getElementById('hud-level').textContent = lvl;
+    document.getElementById('hud-moves').textContent = '0';
+    document.getElementById('hud-grid').textContent = `${config.cols}x${config.rows}`;
+    updatePowerHud();
+
+    document.getElementById('win-overlay').classList.remove('show');
+
+    resizeCanvas(currentPuzzle);
+    resizeSpark();
+  }
+
+  function countPowered(p) {
+    let c = 0;
+    for (const row of p) for (const v of row) if (v) c++;
+    return c;
+  }
+
+  function updatePowerHud() {
+    const el = document.getElementById('hud-power');
+    const isOn = poweredTiles && checkWin(currentPuzzle, poweredTiles);
+    el.textContent = isOn ? 'ON' : 'OFF';
+    el.classList.toggle('powered', isOn);
+  }
+
+  // ========== INPUT ==========
+  canvas.addEventListener('click', (e) => {
+    if (!currentPuzzle || gameWon) return;
+    Audio.init();
+
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left - GRID_OFFSET_X;
+    const my = e.clientY - rect.top - GRID_OFFSET_Y;
+
+    const col = Math.floor(mx / TILE_SIZE);
+    const row = Math.floor(my / TILE_SIZE);
+
+    if (row < 0 || row >= currentPuzzle.rows || col < 0 || col >= currentPuzzle.cols) return;
+
+    const tile = currentPuzzle.grid[row][col];
+
+    // Skip cross tiles (rotation doesn't change them)
+    if (tile.type === 'cross') return;
+
+    // Start rotation animation
+    const key = `${row},${col}`;
+    const fromAngle = tile.rotation * Math.PI / 2;
+    tile.rotation = (tile.rotation + 1) % 4;
+    const toAngle = fromAngle + Math.PI / 2;
+
+    rotationAnims[key] = {
+      from: fromAngle,
+      to: toAngle,
+      startTime: performance.now(),
+      duration: 180,
+    };
+
+    moves++;
+    document.getElementById('hud-moves').textContent = moves;
+    Audio.play('rotate');
+
+    // Emit small spark at clicked tile
+    const tileX = rect.left + GRID_OFFSET_X + col * TILE_SIZE + TILE_SIZE / 2;
+    const tileY = rect.top + GRID_OFFSET_Y + row * TILE_SIZE + TILE_SIZE / 2;
+    emitSparks(tileX, tileY, 5);
+
+    // Recompute power after a short delay (let animation start)
+    setTimeout(() => {
+      poweredTiles = computePowered(currentPuzzle);
+      const newCount = countPowered(poweredTiles);
+      if (newCount > prevPoweredCount) {
+        Audio.play('connect');
+      }
+      prevPoweredCount = newCount;
+
+      updatePowerHud();
+
+      if (checkWin(currentPuzzle, poweredTiles)) {
+        gameWon = true;
+        Audio.play('win');
+        setTimeout(() => showWin(), 600);
+      }
+    }, 100);
+  });
+
+  function showWin() {
+    emitWinSparks();
+    const overlay = document.getElementById('win-overlay');
+    const stats = document.getElementById('win-stats');
+    stats.innerHTML = `Level <span>${level}</span> completed in <span>${moves}</span> moves`;
+    overlay.classList.add('show');
+  }
+
+  // ========== SCREEN MANAGEMENT ==========
+  const startScreen = document.getElementById('start-screen');
+  const gameScreen = document.getElementById('game-screen');
+
+  document.getElementById('btn-start').addEventListener('click', () => {
+    Audio.init();
+    startScreen.classList.add('hidden');
+    gameScreen.classList.remove('hidden');
+    startLevel(1);
+  });
+
+  document.getElementById('btn-next').addEventListener('click', () => {
+    Audio.init();
+    startLevel(level + 1);
+  });
+
+  // ========== MAIN LOOP ==========
+  function gameLoop(timestamp) {
+    if (currentPuzzle) {
+      drawFrame(currentPuzzle, timestamp);
+    }
+    updateSparks();
+    drawSparks();
+    animFrameId = requestAnimationFrame(gameLoop);
+  }
+
+  animFrameId = requestAnimationFrame(gameLoop);
+
+  // Handle resize
+  window.addEventListener('resize', () => {
+    if (currentPuzzle) {
+      resizeCanvas(currentPuzzle);
+      resizeSpark();
+    }
+  });
+
+})();
+</script>
+</body>
+</html>
