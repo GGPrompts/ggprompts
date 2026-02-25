@@ -505,6 +505,11 @@
             'rgba(184,149,74,0.6)', 'rgba(192,96,128,0.6)',
             'rgba(155,122,184,0.6)', 'rgba(204,204,204,0.6)'
         ];
+        // Full-opacity versions for video mode (no transparency so notes pop over any background)
+        var CHANNEL_COLORS_VID = ['#b8954a', '#c06080', '#9b7ab8', '#cccccc'];
+        var CHANNEL_COLORS_VID_AHEAD = ['#a6843f', '#ad5572', '#8b6da6', '#b8b8b8'];
+        var VIDEO_NOTE_R = 9;
+        var VIDEO_BAR_H = 8;
 
         var KEY_MAP = { 'arrowleft': 0, 'arrowdown': 1, 'arrowright': 2 };
         var KEY_NAMES = ['\u2190', '\u2193', '\u2192'];
@@ -1531,9 +1536,9 @@
                     ctx.fillStyle = CHANNEL_COLORS[ch];
                     if (isVideo) {
                         var gNoteW = note.duration * PIXELS_PER_ROW;
-                        ctx.fillRect(x + 7, y - 3, Math.max(1, gNoteW - 7), 6);
+                        ctx.fillRect(x + VIDEO_NOTE_R, y - VIDEO_BAR_H / 2, Math.max(1, gNoteW - VIDEO_NOTE_R), VIDEO_BAR_H);
                         ctx.beginPath();
-                        ctx.arc(x, y, 7, 0, Math.PI * 2);
+                        ctx.arc(x, y, VIDEO_NOTE_R, 0, Math.PI * 2);
                         ctx.fill();
                     } else {
                         ctx.beginPath();
@@ -1549,6 +1554,10 @@
                     noteColor = CHANNEL_COLORS_DIM[ch];
                 } else if (note.missed) {
                     noteColor = 'rgba(255,68,68,0.3)';
+                } else if (isVideo) {
+                    // Video mode: full-opacity colors so notes pop over any background
+                    var distToPlayhead = note.row - currentRowFrac;
+                    noteColor = distToPlayhead <= 0 ? CHANNEL_COLORS_VID[ch] : CHANNEL_COLORS_VID_AHEAD[ch];
                 } else {
                     var distToPlayhead = note.row - currentRowFrac;
                     if (distToPlayhead <= 0) {
@@ -1559,17 +1568,36 @@
                 }
 
                 if (isVideo) {
-                    // Video mode: simple circles + horizontal duration bars
+                    // Video mode: outlined circles + bars with dark backing for contrast
                     var noteW = note.duration * PIXELS_PER_ROW;
-                    var barH = 6;
-                    var barW = Math.max(1, noteW - 7);
-                    ctx.fillStyle = noteColor;
-                    ctx.fillRect(x + 7, y - barH / 2, barW, barH);
+                    var barW = Math.max(1, noteW - VIDEO_NOTE_R);
+                    var pad = 3;
 
-                    // Circle notehead
+                    // Dark pill backdrop behind the whole note for readability
+                    ctx.fillStyle = 'rgba(0,0,0,0.55)';
                     ctx.beginPath();
-                    ctx.arc(x, y, 7, 0, Math.PI * 2);
+                    ctx.arc(x, y, VIDEO_NOTE_R + pad, 0, Math.PI * 2);
                     ctx.fill();
+                    if (barW > 1) {
+                        ctx.fillRect(x + VIDEO_NOTE_R, y - VIDEO_BAR_H / 2 - pad, barW, VIDEO_BAR_H + pad * 2);
+                        // Rounded end cap on duration bar backdrop
+                        ctx.beginPath();
+                        ctx.arc(x + VIDEO_NOTE_R + barW, y, VIDEO_BAR_H / 2 + pad, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+
+                    // Duration bar
+                    ctx.fillStyle = noteColor;
+                    ctx.fillRect(x + VIDEO_NOTE_R, y - VIDEO_BAR_H / 2, barW, VIDEO_BAR_H);
+
+                    // Circle notehead with dark outline
+                    ctx.beginPath();
+                    ctx.arc(x, y, VIDEO_NOTE_R, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+                    ctx.lineWidth = 2.5;
+                    ctx.stroke();
+                    ctx.lineWidth = 1;
                 } else {
                     // Staff mode: ellipse noteheads with stems, ledger lines, accidentals
                     var noteW2 = note.duration * PIXELS_PER_ROW;
@@ -1609,7 +1637,7 @@
                     if (rowDist2 < approachRows) {
                         var glowIntensity = 1 - (rowDist2 / approachRows);
                         glowIntensity = glowIntensity * glowIntensity;
-                        var noteR = isVideo ? 7 : NOTE_HEAD_RX;
+                        var noteR = isVideo ? VIDEO_NOTE_R : NOTE_HEAD_RX;
                         ctx.save();
                         ctx.shadowColor = CHANNEL_COLORS[ch];
                         ctx.shadowBlur = 6 + 18 * glowIntensity;
@@ -2399,7 +2427,7 @@
                     // Draw video background
                     activeVideoRenderer.render(fd);
                     // Semi-transparent overlay to dim video for readability
-                    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+                    ctx.fillStyle = 'rgba(0,0,0,0.38)';
                     ctx.fillRect(0, 0, W, H);
                     // Draw lane guides
                     drawLaneGuides(ctx);
