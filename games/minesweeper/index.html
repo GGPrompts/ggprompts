@@ -278,6 +278,14 @@ body {
 .cell.mine-wrong {
   border: 1px solid var(--win-dark-gray);
   box-shadow: none;
+  position: relative;
+}
+.cell.mine-wrong::after {
+  content: '\2716';
+  position: absolute;
+  color: var(--win-red);
+  font-size: 1.3em;
+  line-height: 1;
 }
 
 /* Number colors (classic minesweeper) */
@@ -311,7 +319,7 @@ body {
 /* Responsive */
 @media (max-width: 768px) {
   body { padding: 8px; }
-  .window { max-width: 100vw; }
+  .window { max-width: 100vw; overflow-x: auto; }
   .cell { width: 20px; height: 20px; font-size: 0.9rem; }
   .lcd-counter { font-size: 1.5rem; min-width: 48px; }
   .smiley-btn { width: 30px; height: 30px; font-size: 18px; }
@@ -320,6 +328,7 @@ body {
 
 @media (max-width: 520px) {
   .cell { width: 16px; height: 16px; font-size: 0.75rem; }
+  .cell.mine-wrong::after { font-size: 1.1em; }
 }
 </style>
 </head>
@@ -398,7 +407,6 @@ body {
   let revealed = [];    // 2D boolean
   let flagged = [];     // 2D boolean
   let gameOver = false;
-  let gameWon = false;
   let firstClick = true;
   let timerInterval = null;
   let timerValue = 0;
@@ -420,7 +428,6 @@ body {
   // Cell content characters
   const FLAG_CHAR = '\u{1F6A9}';
   const MINE_CHAR = '\u{1F4A3}';
-  const WRONG_CHAR = '\u2716';
 
   // ===== INITIALIZATION =====
   function init() {
@@ -433,7 +440,6 @@ body {
     revealed = [];
     flagged = [];
     gameOver = false;
-    gameWon = false;
     firstClick = true;
     minesRemaining = totalMines;
 
@@ -513,6 +519,7 @@ body {
         // Touch support
         cell.addEventListener('touchstart', onTouchStart, { passive: false });
         cell.addEventListener('touchend', onTouchEnd, { passive: false });
+        cell.addEventListener('touchmove', onTouchMove, { passive: false });
 
         minefield.appendChild(cell);
       }
@@ -539,14 +546,6 @@ body {
     } else if (flagged[r][c]) {
       cell.classList.add('flagged');
       cell.textContent = FLAG_CHAR;
-    }
-  }
-
-  function updateAllCells() {
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        updateCell(r, c);
-      }
     }
   }
 
@@ -599,19 +598,23 @@ body {
   // ===== TOUCH HANDLING =====
   let touchTimer = null;
   let touchTarget = null;
+  let touchFlagged = false;
 
   function onTouchStart(e) {
     e.preventDefault();
     if (gameOver) return;
     const cell = e.currentTarget;
     touchTarget = cell;
+    touchFlagged = false;
     const r = parseInt(cell.dataset.row);
     const c = parseInt(cell.dataset.col);
 
     // Long press for flag
     touchTimer = setTimeout(function() {
       toggleFlag(r, c);
+      touchFlagged = true;
       touchTarget = null;
+      setSmiley(FACE_SMILE);
     }, 400);
 
     if (!revealed[r][c] && !flagged[r][c]) {
@@ -626,7 +629,12 @@ body {
       clearTimeout(touchTimer);
       touchTimer = null;
     }
-    if (!touchTarget || gameOver) return;
+    if (!touchTarget || gameOver) {
+      // If long-press flagged a cell, restore its visual
+      if (touchFlagged) { touchFlagged = false; return; }
+      touchTarget = null;
+      return;
+    }
     const r = parseInt(touchTarget.dataset.row);
     const c = parseInt(touchTarget.dataset.col);
 
@@ -634,6 +642,21 @@ body {
       revealCell(r, c);
     }
     if (!gameOver) setSmiley(FACE_SMILE);
+    touchTarget = null;
+  }
+
+  // Cancel long-press if finger moves
+  function onTouchMove(e) {
+    if (touchTimer) {
+      clearTimeout(touchTimer);
+      touchTimer = null;
+    }
+    if (touchTarget && !gameOver) {
+      const r = parseInt(touchTarget.dataset.row);
+      const c = parseInt(touchTarget.dataset.col);
+      if (!revealed[r][c]) updateCell(r, c);
+      setSmiley(FACE_SMILE);
+    }
     touchTarget = null;
   }
 
@@ -674,10 +697,6 @@ body {
   function toggleFlag(r, c) {
     if (revealed[r][c] || gameOver) return;
 
-    if (firstClick) {
-      // Allow flagging before first reveal but don't start timer
-    }
-
     flagged[r][c] = !flagged[r][c];
     minesRemaining += flagged[r][c] ? -1 : 1;
     updateMineCounter();
@@ -698,7 +717,6 @@ body {
 
   function gameWin() {
     gameOver = true;
-    gameWon = true;
     stopTimer();
     setSmiley(FACE_COOL);
     statusText.textContent = 'You win!';
@@ -729,6 +747,10 @@ body {
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
         if (board[r][c] === -1) {
+          if (flagged[r][c]) {
+            // Correctly flagged mine — keep showing flag
+            continue;
+          }
           revealed[r][c] = true;
           updateCell(r, c);
           if (r === hitR && c === hitC) {
@@ -736,13 +758,12 @@ body {
             minefield.children[idx].classList.add('mine-hit');
           }
         } else if (flagged[r][c]) {
-          // Wrong flag
+          // Wrong flag — show X over mine icon
           revealed[r][c] = true;
           const idx = r * cols + c;
           const cell = minefield.children[idx];
           cell.className = 'cell revealed mine-wrong';
-          cell.textContent = WRONG_CHAR;
-          cell.style.color = 'red';
+          cell.textContent = MINE_CHAR;
         }
       }
     }
@@ -819,6 +840,11 @@ body {
     document.querySelectorAll('.dropdown').forEach(function(d) { d.classList.remove('open'); });
   }
 
+  // Stop dropdown-item clicks from re-triggering parent menu toggle
+  document.querySelectorAll('.dropdown-item').forEach(function(item) {
+    item.addEventListener('click', function(e) { e.stopPropagation(); });
+  });
+
   document.addEventListener('click', function(e) {
     if (!e.target.closest('.menu-item')) closeMenus();
   });
@@ -861,8 +887,16 @@ body {
     }
   });
 
-  // Prevent context menu on the minefield
-  minefield.addEventListener('contextmenu', function(e) { e.preventDefault(); });
+  // Reset mouseDown state if released outside a cell
+  document.addEventListener('mouseup', function() {
+    if (mouseDownOnCell) {
+      mouseDownOnCell = false;
+      if (!gameOver) setSmiley(FACE_SMILE);
+    }
+  });
+
+  // Prevent context menu on the game area
+  document.getElementById('game-window').addEventListener('contextmenu', function(e) { e.preventDefault(); });
 
   // Start!
   init();
