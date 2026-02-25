@@ -322,6 +322,49 @@
   }
   .btn-random:hover { box-shadow: 0 4px 20px rgba(0, 191, 255, 0.5); }
 
+  .btn-loop {
+    background: rgba(57, 255, 20, 0.15);
+    color: var(--lime-green);
+    border: 1px solid rgba(57, 255, 20, 0.3);
+  }
+  .btn-loop:hover { background: rgba(57, 255, 20, 0.25); }
+  .btn-loop.active {
+    background: rgba(57, 255, 20, 0.3);
+    border-color: var(--lime-green);
+    box-shadow: 0 0 16px rgba(57, 255, 20, 0.4);
+  }
+
+  .btn-fullscreen {
+    background: rgba(155, 48, 255, 0.15);
+    color: var(--electric-purple);
+    border: 1px solid rgba(155, 48, 255, 0.3);
+  }
+  .btn-fullscreen:hover { background: rgba(155, 48, 255, 0.25); }
+
+  /* ---- Fullscreen mode ---- */
+  #app.fullscreen-mode #sidebar { display: none; }
+  #app.fullscreen-mode { grid-template-columns: 1fr; }
+  #app.fullscreen-mode #canvas-wrap { cursor: pointer; }
+
+  #fullscreen-hint {
+    display: none;
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100;
+    font-family: var(--font-heading);
+    font-size: 0.85rem;
+    color: rgba(255, 248, 220, 0.6);
+    background: rgba(26, 0, 51, 0.85);
+    padding: 8px 20px;
+    border-radius: 20px;
+    border: 1px solid rgba(155, 48, 255, 0.3);
+    pointer-events: none;
+    transition: opacity 0.5s;
+  }
+  #app.fullscreen-mode #fullscreen-hint { display: block; }
+
   /* ---- Canvas Area ---- */
   #canvas-wrap {
     position: relative;
@@ -475,6 +518,15 @@
       </div>
     </div>
 
+    <!-- Screensaver -->
+    <div class="ctrl-group">
+      <h3>Screensaver</h3>
+      <div class="action-row" style="margin-bottom: 8px;">
+        <button class="action-btn btn-loop" id="btn-loop" title="Loop random spirographs endlessly">&#8734; Loop</button>
+        <button class="action-btn btn-fullscreen" id="btn-fullscreen" title="Fullscreen mode">&#9974; Fullscreen</button>
+      </div>
+    </div>
+
     <!-- Actions -->
     <div class="ctrl-group">
       <h3>Actions</h3>
@@ -488,6 +540,7 @@
   <div id="canvas-wrap">
     <canvas id="canvas"></canvas>
   </div>
+  <div id="fullscreen-hint">Click or press Escape to exit fullscreen</div>
 </div>
 
 <script>
@@ -513,8 +566,12 @@
   const btnAnimate = document.getElementById('btn-animate');
   const btnInstant = document.getElementById('btn-instant');
   const btnRandom = document.getElementById('btn-random');
+  const btnLoop = document.getElementById('btn-loop');
+  const btnFullscreen = document.getElementById('btn-fullscreen');
   const btnClear = document.getElementById('btn-clear');
   const btnSave = document.getElementById('btn-save');
+  const fullscreenHint = document.getElementById('fullscreen-hint');
+  const app = document.getElementById('app');
 
   const pickColor = document.getElementById('pick-color');
   const pickGradStart = document.getElementById('pick-grad-start');
@@ -534,6 +591,9 @@
   let animRAF = null;
   let t = 0;
   let tMax = 0;
+  let loopMode = false;
+  let isFullscreen = false;
+  let onAnimationDone = null;
 
   // ---- Math helpers ----
   function gcd(a, b) {
@@ -589,7 +649,8 @@
   // ---- Canvas sizing ----
   function resizeCanvas() {
     const rect = wrap.getBoundingClientRect();
-    const size = Math.min(rect.width - 40, rect.height - 40, 800);
+    const maxDim = isFullscreen ? 2000 : 800;
+    const size = Math.min(rect.width - 40, rect.height - 40, maxDim);
     canvas.width = size;
     canvas.height = size;
     canvas.style.width = size + 'px';
@@ -662,6 +723,7 @@
         if (t >= tMax) {
           animating = false;
           btnAnimate.classList.remove('active');
+          if (onAnimationDone) onAnimationDone();
           return;
         }
 
@@ -742,26 +804,35 @@
 
   // ---- Action buttons ----
   btnAnimate.addEventListener('click', function() {
+    interruptLoop();
     syncSliders();
+    onAnimationDone = null;
     startAnimation();
   });
 
   btnInstant.addEventListener('click', function() {
+    interruptLoop();
     syncSliders();
     drawInstant();
   });
 
   btnRandom.addEventListener('click', function() {
-    // Pick random gear ratios that produce interesting patterns
-    var randR = 60 + Math.floor(Math.random() * 141);   // 60-200
-    var randRi = 5 + Math.floor(Math.random() * Math.min(randR - 1, 146)); // 5 to R-1 (max 150)
-    var randD = 1 + Math.floor(Math.random() * Math.min(randRi + 40, 150)); // 1 to r+40 (max 150)
+    interruptLoop();
+    applyRandomSettings();
+    onAnimationDone = null;
+    startAnimation();
+  });
+
+  // ---- Randomize helper (shared by Random btn and loop) ----
+  function applyRandomSettings() {
+    var randR = 60 + Math.floor(Math.random() * 141);
+    var randRi = 5 + Math.floor(Math.random() * Math.min(randR - 1, 146));
+    var randD = 1 + Math.floor(Math.random() * Math.min(randRi + 40, 150));
 
     slR.value = randR;
     slr.value = randRi;
     sld.value = randD;
 
-    // Randomize color mode
     var modes = ['rainbow', 'gradient', 'solid'];
     var mode = modes[Math.floor(Math.random() * modes.length)];
     document.querySelectorAll('.color-mode-btn').forEach(function(b) {
@@ -776,20 +847,123 @@
     } else if (mode === 'gradient') {
       var h1 = Math.floor(Math.random() * 360);
       var h2 = (h1 + 90 + Math.floor(Math.random() * 180)) % 360;
-      // Update pickers visually (approximate - pickers only accept hex)
       gradStart = hslToHex(h1, 90, 55);
       gradEnd = hslToHex(h2, 90, 55);
       pickGradStart.value = gradStart;
       pickGradEnd.value = gradEnd;
     }
 
-    // Randomize thickness slightly
     var randThick = (1 + Math.random() * 3).toFixed(1);
     slThick.value = randThick;
 
     syncSliders();
+  }
+
+  // ---- Loop (screensaver) mode ----
+  function fadeCanvasAndNext() {
+    // Fade out the current drawing over ~1.5s, then start a new one
+    var fadeAlpha = 0;
+    var fadeRAF = null;
+    function fadeStep() {
+      fadeAlpha += 0.02;
+      if (fadeAlpha >= 1) {
+        cancelAnimationFrame(fadeRAF);
+        if (loopMode) {
+          applyRandomSettings();
+          onAnimationDone = fadeCanvasAndNext;
+          startAnimation();
+        }
+        return;
+      }
+      ctx.fillStyle = 'rgba(26, 0, 51, ' + fadeAlpha * 0.08 + ')';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      fadeRAF = requestAnimationFrame(fadeStep);
+    }
+    // Brief pause to admire the pattern, then fade
+    setTimeout(function() {
+      if (!loopMode) return;
+      fadeRAF = requestAnimationFrame(fadeStep);
+    }, 1500);
+  }
+
+  function startLoop() {
+    loopMode = true;
+    btnLoop.classList.add('active');
+    applyRandomSettings();
+    onAnimationDone = fadeCanvasAndNext;
     startAnimation();
+  }
+
+  function stopLoop() {
+    loopMode = false;
+    btnLoop.classList.remove('active');
+    onAnimationDone = null;
+  }
+
+  btnLoop.addEventListener('click', function() {
+    if (loopMode) {
+      stopLoop();
+      stopAnimation();
+    } else {
+      startLoop();
+    }
   });
+
+  // ---- Fullscreen mode ----
+  function enterFullscreen() {
+    isFullscreen = true;
+    app.classList.add('fullscreen-mode');
+    // Request browser fullscreen
+    var el = document.documentElement;
+    if (el.requestFullscreen) el.requestFullscreen();
+    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+    // Resize canvas to fill the screen
+    setTimeout(function() {
+      resizeCanvas();
+      // If loop is running, let it continue; otherwise start loop
+      if (!loopMode) startLoop();
+    }, 100);
+    // Fade hint after 3 seconds
+    setTimeout(function() {
+      fullscreenHint.style.opacity = '0';
+    }, 3000);
+  }
+
+  function exitFullscreen() {
+    isFullscreen = false;
+    app.classList.remove('fullscreen-mode');
+    fullscreenHint.style.opacity = '';
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+      if (document.exitFullscreen) document.exitFullscreen();
+      else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+    }
+    setTimeout(function() {
+      resizeCanvas();
+      if (!loopMode) drawInstant();
+    }, 100);
+  }
+
+  btnFullscreen.addEventListener('click', function() {
+    if (isFullscreen) exitFullscreen();
+    else enterFullscreen();
+  });
+
+  // Click canvas area to exit fullscreen
+  wrap.addEventListener('click', function() {
+    if (isFullscreen) exitFullscreen();
+  });
+
+  // Escape also exits fullscreen (browser handles it, but also our UI state)
+  document.addEventListener('fullscreenchange', function() {
+    if (!document.fullscreenElement && !document.webkitFullscreenElement && isFullscreen) {
+      exitFullscreen();
+    }
+  });
+
+  // Any manual action stops loop mode
+  function interruptLoop() {
+    if (loopMode) stopLoop();
+  }
 
   // Helper to convert HSL to hex for color pickers
   function hslToHex(h, s, l) {
@@ -804,6 +978,7 @@
   }
 
   btnClear.addEventListener('click', function() {
+    interruptLoop();
     stopAnimation();
     clearCanvas();
   });
