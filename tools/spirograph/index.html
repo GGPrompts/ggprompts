@@ -647,14 +647,32 @@
   }
 
   // ---- Canvas sizing ----
-  function resizeCanvas() {
+  function resizeCanvas(preserveContent) {
     const rect = wrap.getBoundingClientRect();
     const maxDim = isFullscreen ? 2000 : 800;
     const size = Math.min(rect.width - 40, rect.height - 40, maxDim);
+
+    // Save current drawing before resizing (setting width/height clears canvas)
+    var savedImg = null;
+    var oldW = canvas.width, oldH = canvas.height;
+    if (preserveContent && oldW > 0 && oldH > 0) {
+      savedImg = ctx.getImageData(0, 0, oldW, oldH);
+    }
+
     canvas.width = size;
     canvas.height = size;
     canvas.style.width = size + 'px';
     canvas.style.height = size + 'px';
+
+    if (savedImg) {
+      // Redraw saved content scaled to new size via offscreen canvas
+      var tmp = document.createElement('canvas');
+      tmp.width = oldW; tmp.height = oldH;
+      tmp.getContext('2d').putImageData(savedImg, 0, 0);
+      ctx.fillStyle = '#1a0033';
+      ctx.fillRect(0, 0, size, size);
+      ctx.drawImage(tmp, 0, 0, size, size);
+    }
   }
 
   // ---- Drawing ----
@@ -917,11 +935,18 @@
     var el = document.documentElement;
     if (el.requestFullscreen) el.requestFullscreen();
     else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
-    // Resize canvas to fill the screen
+    // Resize canvas to fill the screen, preserving current drawing
     setTimeout(function() {
-      resizeCanvas();
+      resizeCanvas(true);
       // If loop is running, let it continue; otherwise start loop
-      if (!loopMode) startLoop();
+      // The current drawing stays visible — loop will fade from it
+      if (!loopMode) {
+        loopMode = true;
+        btnLoop.classList.add('active');
+        // Fade current pattern then start looping fresh
+        onAnimationDone = null;
+        fadeCanvasAndNext();
+      }
     }, 100);
     // Fade hint after 3 seconds
     setTimeout(function() {
@@ -938,7 +963,7 @@
       else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
     }
     setTimeout(function() {
-      resizeCanvas();
+      resizeCanvas(true);
       if (!loopMode) drawInstant();
     }, 100);
   }
