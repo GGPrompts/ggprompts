@@ -225,9 +225,28 @@ body {
   text-shadow: 0 0 8px rgba(255,215,0,0.6);
 }
 
+.hud-btn {
+  font-size: 1.2rem;
+  background: none;
+  border: 1px solid rgba(184,115,51,0.4);
+  color: var(--silkscreen-dim);
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: 4px;
+  transition: all 0.2s;
+  line-height: 1;
+}
+
+.hud-btn:hover {
+  border-color: var(--copper-light);
+  color: var(--copper-light);
+  background: rgba(184,115,51,0.1);
+}
+
 #game-canvas {
   z-index: 5;
-  cursor: pointer;
+  cursor: default;
+  touch-action: manipulation;
 }
 
 /* Win overlay */
@@ -283,8 +302,9 @@ body {
 }
 
 @media (max-width: 768px) {
-  .hud { gap: 16px; font-size: 0.75rem; padding: 8px 12px; }
-  .hud-value { font-size: 0.95rem; }
+  .hud { gap: 12px; font-size: 0.7rem; padding: 8px 10px; flex-wrap: wrap; justify-content: center; }
+  .hud-value { font-size: 0.9rem; }
+  .hud-btn { font-size: 1rem; padding: 3px 8px; }
   .logo-frame { padding: 20px 28px; }
   .game-title { letter-spacing: 0.05em; }
   .instructions { font-size: 0.75rem; padding: 12px 16px; }
@@ -330,6 +350,7 @@ body {
       <span class="hud-label">POWER</span>
       <span class="hud-value" id="hud-power">OFF</span>
     </div>
+    <button class="hud-btn" id="btn-restart" title="Restart level">&#x21bb;</button>
   </div>
   <canvas id="game-canvas"></canvas>
 </div>
@@ -348,7 +369,7 @@ body {
   'use strict';
 
   // ========== AUDIO ENGINE ==========
-  const Audio = (() => {
+  const SFX = (() => {
     let ctx = null;
     function init() {
       if (ctx) return;
@@ -638,6 +659,8 @@ body {
 
     let r = sr, c = sc;
     const branch = [[r, c]];
+    const visited = new Set();
+    visited.add(`${sr},${sc}`);
 
     for (let i = 0; i < branchLen; i++) {
       const dirs = [0, 1, 2, 3].sort(() => Math.random() - 0.5);
@@ -645,10 +668,11 @@ body {
       for (const d of dirs) {
         const nr = r + DIR_OFFSETS[d][0];
         const nc = c + DIR_OFFSETS[d][1];
-        if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
-          // Don't overwrite existing path tiles (except start)
+        if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && !visited.has(`${nr},${nc}`)) {
+          // Don't walk onto main path tiles (except the starting point, handled above)
           const isOnPath = mainPath.some(([pr, pc]) => pr === nr && pc === nc);
-          if (!isOnPath || (nr === sr && nc === sc)) {
+          if (!isOnPath) {
+            visited.add(`${nr},${nc}`);
             branch.push([nr, nc]);
             r = nr;
             c = nc;
@@ -745,6 +769,7 @@ body {
   let poweredTiles = null;
   let prevPoweredCount = 0;
   let glowPhase = 0;
+  let hoverRow = -1, hoverCol = -1;
 
   function resizeCanvas(puzzle) {
     const dpr = window.devicePixelRatio || 1;
@@ -803,18 +828,24 @@ body {
         const x = GRID_OFFSET_X + c * TILE_SIZE;
         const y = GRID_OFFSET_Y + r * TILE_SIZE;
         const isPowered = poweredTiles && poweredTiles[r][c];
+        const isHover = r === hoverRow && c === hoverCol && !gameWon;
+        const isCross = grid[r][c].type === 'cross';
 
         // Tile background
         ctx2d.fillStyle = isPowered
           ? `rgba(40, 70, 30, ${0.7 + 0.1 * Math.sin(glowPhase * 3)})`
-          : 'rgba(26, 71, 42, 0.6)';
+          : isHover && !isCross
+            ? 'rgba(35, 85, 50, 0.75)'
+            : 'rgba(26, 71, 42, 0.6)';
         ctx2d.fillRect(x + 1, y + 1, TILE_SIZE - 2, TILE_SIZE - 2);
 
         // Tile border
         ctx2d.strokeStyle = isPowered
           ? `rgba(255, 215, 0, ${0.3 + 0.1 * Math.sin(glowPhase * 3)})`
-          : 'rgba(184, 115, 51, 0.25)';
-        ctx2d.lineWidth = 1;
+          : isHover && !isCross
+            ? 'rgba(184, 115, 51, 0.5)'
+            : 'rgba(184, 115, 51, 0.25)';
+        ctx2d.lineWidth = isHover && !isCross ? 1.5 : 1;
         ctx2d.strokeRect(x + 0.5, y + 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
       }
     }
@@ -948,6 +979,25 @@ body {
         ctx2d.shadowBlur = 10;
         ctx2d.stroke();
         ctx2d.shadowBlur = 0;
+      }
+    }
+
+    // Draw rivets on cross tiles to indicate they're fixed
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (grid[r][c].type === 'cross') {
+          const x = GRID_OFFSET_X + c * TILE_SIZE;
+          const y = GRID_OFFSET_Y + r * TILE_SIZE;
+          const off = TILE_SIZE * 0.15;
+          ctx2d.fillStyle = 'rgba(192, 192, 192, 0.25)';
+          const corners = [[x + off, y + off], [x + TILE_SIZE - off, y + off],
+                           [x + off, y + TILE_SIZE - off], [x + TILE_SIZE - off, y + TILE_SIZE - off]];
+          for (const [cx2, cy2] of corners) {
+            ctx2d.beginPath();
+            ctx2d.arc(cx2, cy2, 2, 0, Math.PI * 2);
+            ctx2d.fill();
+          }
+        }
       }
     }
 
@@ -1092,15 +1142,23 @@ body {
   }
 
   function emitWinSparks() {
-    const w = window.innerWidth;
-    const h = window.innerHeight;
-    for (let i = 0; i < 80; i++) {
-      emitSparks(
-        Math.random() * w,
-        Math.random() * h * 0.5,
-        3
-      );
+    if (!currentPuzzle) return;
+    const rect = canvas.getBoundingClientRect();
+    const { rows, cols } = currentPuzzle;
+    // Emit sparks from each powered tile
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (poweredTiles && poweredTiles[r][c]) {
+          const x = rect.left + GRID_OFFSET_X + c * TILE_SIZE + TILE_SIZE / 2;
+          const y = rect.top + GRID_OFFSET_Y + r * TILE_SIZE + TILE_SIZE / 2;
+          emitSparks(x, y, 4);
+        }
+      }
     }
+    // Extra burst from the destination
+    const dx = rect.left + GRID_OFFSET_X + cols * TILE_SIZE + TILE_SIZE / 2;
+    const dy = rect.top + GRID_OFFSET_Y + currentPuzzle.destRow * TILE_SIZE + TILE_SIZE / 2;
+    emitSparks(dx, dy, 20);
   }
 
   function updateSparks() {
@@ -1158,6 +1216,9 @@ body {
     level = lvl;
     moves = 0;
     gameWon = false;
+    // Clear any in-progress animations
+    for (const key in rotationAnims) delete rotationAnims[key];
+    sparks.length = 0;
     const config = getLevelConfig(lvl);
 
     currentPuzzle = generatePuzzle(config.rows, config.cols, lvl);
@@ -1189,9 +1250,32 @@ body {
   }
 
   // ========== INPUT ==========
+  canvas.addEventListener('mousemove', (e) => {
+    if (!currentPuzzle || gameWon) return;
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left - GRID_OFFSET_X;
+    const my = e.clientY - rect.top - GRID_OFFSET_Y;
+    const c = Math.floor(mx / TILE_SIZE);
+    const r = Math.floor(my / TILE_SIZE);
+    if (r >= 0 && r < currentPuzzle.rows && c >= 0 && c < currentPuzzle.cols) {
+      hoverRow = r;
+      hoverCol = c;
+      canvas.style.cursor = currentPuzzle.grid[r][c].type === 'cross' ? 'default' : 'pointer';
+    } else {
+      hoverRow = -1;
+      hoverCol = -1;
+      canvas.style.cursor = 'default';
+    }
+  });
+
+  canvas.addEventListener('mouseleave', () => {
+    hoverRow = -1;
+    hoverCol = -1;
+  });
+
   canvas.addEventListener('click', (e) => {
     if (!currentPuzzle || gameWon) return;
-    Audio.init();
+    SFX.init();
 
     const rect = canvas.getBoundingClientRect();
     const mx = e.clientX - rect.left - GRID_OFFSET_X;
@@ -1207,9 +1291,15 @@ body {
     // Skip cross tiles (rotation doesn't change them)
     if (tile.type === 'cross') return;
 
-    // Start rotation animation
+    // Start rotation animation — handle clicks during existing animation
     const key = `${row},${col}`;
-    const fromAngle = tile.rotation * Math.PI / 2;
+    let fromAngle;
+    if (rotationAnims[key]) {
+      // Already animating: chain from current target angle
+      fromAngle = rotationAnims[key].to;
+    } else {
+      fromAngle = tile.rotation * Math.PI / 2;
+    }
     tile.rotation = (tile.rotation + 1) % 4;
     const toAngle = fromAngle + Math.PI / 2;
 
@@ -1217,35 +1307,33 @@ body {
       from: fromAngle,
       to: toAngle,
       startTime: performance.now(),
-      duration: 180,
+      duration: 150,
     };
 
     moves++;
     document.getElementById('hud-moves').textContent = moves;
-    Audio.play('rotate');
+    SFX.play('rotate');
 
     // Emit small spark at clicked tile
     const tileX = rect.left + GRID_OFFSET_X + col * TILE_SIZE + TILE_SIZE / 2;
     const tileY = rect.top + GRID_OFFSET_Y + row * TILE_SIZE + TILE_SIZE / 2;
     emitSparks(tileX, tileY, 5);
 
-    // Recompute power after a short delay (let animation start)
-    setTimeout(() => {
-      poweredTiles = computePowered(currentPuzzle);
-      const newCount = countPowered(poweredTiles);
-      if (newCount > prevPoweredCount) {
-        Audio.play('connect');
-      }
-      prevPoweredCount = newCount;
+    // Recompute power immediately — tile.rotation is already updated
+    poweredTiles = computePowered(currentPuzzle);
+    const newCount = countPowered(poweredTiles);
+    if (newCount > prevPoweredCount) {
+      SFX.play('connect');
+    }
+    prevPoweredCount = newCount;
 
-      updatePowerHud();
+    updatePowerHud();
 
-      if (checkWin(currentPuzzle, poweredTiles)) {
-        gameWon = true;
-        Audio.play('win');
-        setTimeout(() => showWin(), 600);
-      }
-    }, 100);
+    if (checkWin(currentPuzzle, poweredTiles)) {
+      gameWon = true;
+      SFX.play('win');
+      setTimeout(() => showWin(), 600);
+    }
   });
 
   function showWin() {
@@ -1261,15 +1349,20 @@ body {
   const gameScreen = document.getElementById('game-screen');
 
   document.getElementById('btn-start').addEventListener('click', () => {
-    Audio.init();
+    SFX.init();
     startScreen.classList.add('hidden');
     gameScreen.classList.remove('hidden');
     startLevel(1);
   });
 
   document.getElementById('btn-next').addEventListener('click', () => {
-    Audio.init();
+    SFX.init();
     startLevel(level + 1);
+  });
+
+  document.getElementById('btn-restart').addEventListener('click', () => {
+    SFX.init();
+    startLevel(level);
   });
 
   // ========== MAIN LOOP ==========
