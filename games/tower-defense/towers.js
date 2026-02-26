@@ -160,6 +160,7 @@
       }
       drawTierOrbs(ctx, x, y, size, tier, '#ff8844', time);
     },
+    ability: { name: 'Eruption', manaCost: 10, cooldown: 8, description: 'AoE burst dealing 3x damage in radius 2. Enemies hit get burn DoT.' },
     drawProjectile: function (ctx, x, y, angle, time) {
       ctx.save();
       ctx.translate(x, y);
@@ -198,6 +199,7 @@
     range: 3.5,
     projectileSpeed: 240,
     attackType: 'projectile',
+    ability: { name: 'Flash Freeze', manaCost: 12, cooldown: 10, description: 'All enemies in range instantly frozen for 2s.' },
     slowAmount: 0.4,
     slowDuration: 2.0,
     drawTower: function (ctx, x, y, size, tier, time) {
@@ -310,6 +312,7 @@
     range: 3,
     projectileSpeed: 0,
     attackType: 'chain',
+    ability: { name: 'Overload', manaCost: 15, cooldown: 12, description: 'Chain to ALL enemies in range for full damage.' },
     chainCount: 3,
     chainDamageFalloff: 0.7,
     drawTower: function (ctx, x, y, size, tier, time) {
@@ -414,6 +417,7 @@
     range: 2.5,
     projectileSpeed: 200,
     attackType: 'aoe',
+    ability: { name: 'Earthquake', manaCost: 12, cooldown: 10, description: 'Stun all enemies in radius 3 for 1.5s + 50% tower damage.' },
     splashRadius: 0.8,
     stunChance: 0.15,
     stunDuration: 0.8,
@@ -522,6 +526,7 @@
     range: 4,
     projectileSpeed: 0,
     attackType: 'beam',
+    ability: { name: 'Disintegrate', manaCost: 20, cooldown: 15, description: 'Single target beam dealing 5x damage, ignores armor.' },
     armorPierce: 0.3,
     drawTower: function (ctx, x, y, size, tier, time) {
       drawBase(ctx, x, y, size, '#bb44ff', tier);
@@ -634,6 +639,7 @@
     range: 2.5,
     projectileSpeed: 0,
     attackType: 'aura',
+    ability: { name: 'Entangle', manaCost: 10, cooldown: 8, description: 'Root all enemies in range for 2.5s, apply poison.' },
     auraDPS: 12,
     poisonDPS: 6,
     poisonDuration: 4,
@@ -746,6 +752,7 @@
     range: 3.5,
     projectileSpeed: 260,
     attackType: 'projectile',
+    ability: { name: 'Soul Drain', manaCost: 15, cooldown: 12, description: 'Damage all enemies in range for 2x damage, heal nexus 10% of damage dealt.' },
     maxHpBonusDamage: 0.02,
     drawTower: function (ctx, x, y, size, tier, time) {
       drawBase(ctx, x, y, size, '#6633aa', tier);
@@ -884,6 +891,7 @@
     range: 3.5,
     projectileSpeed: 300,
     attackType: 'projectile',
+    ability: { name: 'Divine Judgment', manaCost: 18, cooldown: 14, description: 'Smite target for 4x damage. If kill, refund 50% mana.' },
     revealInvisible: true,
     bossBonusDamage: 0.5,
     nearbyDamageBuff: 0.10,
@@ -1350,7 +1358,8 @@
       effectiveStats: {},
       totalInvested: type.cost,
       targetingMode: 'first',
-      lastAttackTime: -1
+      lastAttackTime: -1,
+      abilityCooldown: 0
     };
 
     tower.effectiveStats = getEffectiveStats(tower);
@@ -1548,6 +1557,9 @@
       var tower = towers[t];
       var stats = tower.effectiveStats;
 
+      // Skip disabled towers (Shadow Dragon breath)
+      if (tower._disabled) continue;
+
       // Aura towers tick continuously
       if (stats.attackType === 'aura') {
         if (callbacks.onAuraTick) {
@@ -1620,6 +1632,184 @@
   }
 
   // ---------------------------------------------------------------------------
+  // Ability System
+  // ---------------------------------------------------------------------------
+
+  /**
+   * activateAbility - execute a tower's activated ability
+   * @param {object} tower - tower instance (must be tier >= 2)
+   * @param {Array} enemies - all alive enemies
+   * @param {object} callbacks - { onDamage(tower, enemy, dmg), onStatus(enemy, status), onNexusHeal(amount), onKill(enemy), getMana(), setMana(v), getFX(), getMap() }
+   * @returns {object|null} - { success, manaSpent } or null if failed
+   */
+  function activateAbility(tower, enemies, callbacks) {
+    var ability = tower.type.ability;
+    if (!ability) return null;
+    if (tower.tier < 2) return null;
+    if (tower.abilityCooldown > 0) return null;
+
+    var currentMana = callbacks.getMana();
+    if (currentMana < ability.manaCost) return null;
+
+    var stats = tower.effectiveStats;
+    var rangePx = stats.range * 48;
+    var element = tower.type.element;
+    var FX = callbacks.getFX();
+    var totalDmg = 0;
+
+    // Find enemies in range
+    var inRange = [];
+    for (var i = 0; i < enemies.length; i++) {
+      if (enemies[i].hp <= 0 || enemies[i].dead) continue;
+      var dx = enemies[i].x - tower.x;
+      var dy = enemies[i].y - tower.y;
+      if (Math.sqrt(dx * dx + dy * dy) <= rangePx) {
+        inRange.push(enemies[i]);
+      }
+    }
+
+    switch (element) {
+      case 'fire': {
+        // Eruption: AoE burst dealing 3x damage in radius 2, apply burn
+        var eruptRadius = 2 * 48;
+        var eruptDmg = stats.damage * 3;
+        FX.spawnExplosion({ x: tower.x, y: tower.y, radius: eruptRadius, element: 'fire', duration: 0.8 });
+        FX.spawnParticles({ x: tower.x, y: tower.y, count: 32, color: '#ff4422', size: 4, speed: 150, lifetime: 1.0, gravity: -40, spread: Math.PI * 2 });
+        for (var i = 0; i < enemies.length; i++) {
+          var e = enemies[i];
+          if (e.hp <= 0 || e.dead) continue;
+          var dx = e.x - tower.x;
+          var dy = e.y - tower.y;
+          if (Math.sqrt(dx * dx + dy * dy) <= eruptRadius) {
+            var dmg = callbacks.onDamage(tower, e, eruptDmg, 0);
+            totalDmg += dmg;
+            callbacks.onStatus(e, { type: 'burn', intensity: stats.burnDPS || 5, duration: stats.burnDuration || 3 });
+            callbacks.onKill(e);
+          }
+        }
+        break;
+      }
+      case 'ice': {
+        // Flash Freeze: All enemies in range frozen for 2s
+        FX.spawnExplosion({ x: tower.x, y: tower.y, radius: rangePx, element: 'ice', duration: 0.6 });
+        FX.spawnParticles({ x: tower.x, y: tower.y, count: 24, color: '#44ccff', size: 3, speed: 120, lifetime: 0.8, gravity: -20, spread: Math.PI * 2 });
+        for (var i = 0; i < inRange.length; i++) {
+          callbacks.onStatus(inRange[i], { type: 'freeze', duration: 2.0, intensity: 1 });
+        }
+        break;
+      }
+      case 'lightning': {
+        // Overload: Chain to ALL enemies in range for full damage
+        var points = [{ x: tower.x, y: tower.y }];
+        for (var i = 0; i < inRange.length; i++) {
+          points.push({ x: inRange[i].x, y: inRange[i].y });
+          var dmg = callbacks.onDamage(tower, inRange[i], stats.damage, stats.armorPierce || 0);
+          totalDmg += dmg;
+          callbacks.onKill(inRange[i]);
+        }
+        if (points.length > 1) {
+          FX.spawnChain({ points: points, element: 'lightning', duration: 0.5 });
+        }
+        FX.spawnParticles({ x: tower.x, y: tower.y, count: 20, color: '#ffee44', size: 3, speed: 200, lifetime: 0.5, gravity: 0, spread: Math.PI * 2 });
+        break;
+      }
+      case 'earth': {
+        // Earthquake: Stun all enemies in radius 3 for 1.5s + 50% tower damage
+        var quakeRadius = 3 * 48;
+        var quakeDmg = stats.damage * 0.5;
+        FX.spawnExplosion({ x: tower.x, y: tower.y, radius: quakeRadius, element: 'earth', duration: 0.8 });
+        FX.spawnParticles({ x: tower.x, y: tower.y, count: 28, color: '#aa8844', size: 4, speed: 100, lifetime: 1.0, gravity: 60, spread: Math.PI * 2 });
+        for (var i = 0; i < enemies.length; i++) {
+          var e = enemies[i];
+          if (e.hp <= 0 || e.dead) continue;
+          var dx = e.x - tower.x;
+          var dy = e.y - tower.y;
+          if (Math.sqrt(dx * dx + dy * dy) <= quakeRadius) {
+            var dmg = callbacks.onDamage(tower, e, quakeDmg, 0);
+            totalDmg += dmg;
+            callbacks.onStatus(e, { type: 'stun', duration: 1.5, intensity: 1 });
+            callbacks.onKill(e);
+          }
+        }
+        break;
+      }
+      case 'arcane': {
+        // Disintegrate: Single target beam, 5x damage, ignores armor
+        var target = findTarget(tower, enemies, stats.range);
+        if (!target) return null; // No target, don't spend mana
+        var disDmg = stats.damage * 5;
+        FX.spawnBeam({ fromX: tower.x, fromY: tower.y, toX: target.x, toY: target.y, element: 'arcane', duration: 0.8, width: 6 });
+        FX.spawnParticles({ x: target.x, y: target.y, count: 16, color: '#bb44ff', size: 3, speed: 80, lifetime: 0.6, gravity: 0, spread: Math.PI * 2 });
+        var dmg = callbacks.onDamage(tower, target, disDmg, 1.0); // 1.0 = 100% armor pierce
+        totalDmg += dmg;
+        callbacks.onKill(target);
+        break;
+      }
+      case 'nature': {
+        // Entangle: Root all enemies in range for 2.5s, apply poison
+        FX.spawnAura({ x: tower.x, y: tower.y, radius: rangePx, element: 'nature', duration: 1.0, pulseSpeed: 4 });
+        FX.spawnParticles({ x: tower.x, y: tower.y, count: 24, color: '#33cc55', size: 3, speed: 80, lifetime: 1.0, gravity: -30, spread: Math.PI * 2 });
+        for (var i = 0; i < inRange.length; i++) {
+          callbacks.onStatus(inRange[i], { type: 'stun', duration: 2.5, intensity: 1 }); // Root = stun
+          callbacks.onStatus(inRange[i], { type: 'poison', intensity: stats.poisonDPS || 6, duration: stats.poisonDuration || 4 });
+        }
+        break;
+      }
+      case 'shadow': {
+        // Soul Drain: 2x damage to all in range, heal nexus 10% of damage dealt
+        FX.spawnExplosion({ x: tower.x, y: tower.y, radius: rangePx, element: 'shadow', duration: 0.6 });
+        FX.spawnParticles({ x: tower.x, y: tower.y, count: 20, color: '#6633aa', size: 3, speed: 100, lifetime: 0.8, gravity: -50, spread: Math.PI * 2 });
+        var drainDmg = stats.damage * 2;
+        for (var i = 0; i < inRange.length; i++) {
+          var dmg = callbacks.onDamage(tower, inRange[i], drainDmg, stats.armorPierce || 0);
+          totalDmg += dmg;
+          callbacks.onKill(inRange[i]);
+        }
+        // Heal nexus for 10% of total damage dealt
+        var healAmount = Math.floor(totalDmg * 0.1);
+        if (healAmount > 0) callbacks.onNexusHeal(healAmount);
+        break;
+      }
+      case 'light': {
+        // Divine Judgment: Smite target for 4x damage. Kill refunds 50% mana.
+        var target = findTarget(tower, enemies, stats.range);
+        if (!target) return null;
+        var smiteDmg = stats.damage * 4;
+        FX.spawnBeam({ fromX: tower.x, fromY: tower.y - 60, toX: target.x, toY: target.y, element: 'light', duration: 0.6, width: 5 });
+        FX.spawnExplosion({ x: target.x, y: target.y, radius: 40, element: 'light', duration: 0.4 });
+        FX.spawnParticles({ x: target.x, y: target.y, count: 20, color: '#ffdd88', size: 4, speed: 120, lifetime: 0.8, gravity: -60, spread: Math.PI * 2 });
+        var dmg = callbacks.onDamage(tower, target, smiteDmg, 0);
+        totalDmg += dmg;
+        var killed = target.hp <= 0;
+        callbacks.onKill(target);
+        // Refund 50% mana on kill
+        if (killed || target.dead) {
+          var refund = Math.floor(ability.manaCost * 0.5);
+          callbacks.setMana(callbacks.getMana() + refund);
+        }
+        break;
+      }
+    }
+
+    // Deduct mana and start cooldown
+    callbacks.setMana(callbacks.getMana() - ability.manaCost);
+    tower.abilityCooldown = ability.cooldown;
+
+    return { success: true, manaSpent: ability.manaCost, totalDamage: totalDmg };
+  }
+
+  /**
+   * updateAbilityCooldowns - tick down ability cooldowns for all towers
+   */
+  function updateAbilityCooldowns(towers, dt) {
+    for (var i = 0; i < towers.length; i++) {
+      if (towers[i].abilityCooldown > 0) {
+        towers[i].abilityCooldown = Math.max(0, towers[i].abilityCooldown - dt);
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Public API
   // ---------------------------------------------------------------------------
 
@@ -1640,7 +1830,9 @@
     refreshAllSynergies: refreshAllSynergies,
     findTarget: findTarget,
     findChainTargets: findChainTargets,
-    updateAll: updateAll
+    updateAll: updateAll,
+    activateAbility: activateAbility,
+    updateAbilityCooldowns: updateAbilityCooldowns
   };
 
   window.ArcaneTowers = ArcaneTowers;

@@ -932,18 +932,424 @@
     ctx.restore();
   }
 
+  // ─────────────────── Map 2: Serpent's Path (Easy) ────────────
+  //
+  // Single long winding S-curve from top-left to bottom-right.
+  // Lots of buildable space along curves.
+  // 2 spawn points: top-left, bottom-left. Nexus at bottom-right.
+
+  function buildSerpentsPath() {
+    grid = [];
+    spawnCells = [];
+
+    for (let r = 0; r < MAP_ROWS; r++) {
+      grid[r] = [];
+      for (let c = 0; c < MAP_COLS; c++) {
+        grid[r][c] = makeCell(TYPE_BUILD);
+      }
+    }
+
+    function set(r, c, type) {
+      if (r >= 0 && r < MAP_ROWS && c >= 0 && c < MAP_COLS) {
+        grid[r][c] = makeCell(type);
+      }
+    }
+    function hPath(row, c1, c2) {
+      const lo = Math.min(c1, c2), hi = Math.max(c1, c2);
+      for (let c = lo; c <= hi; c++) set(row, c, TYPE_PATH);
+    }
+    function vPath(col, r1, r2) {
+      const lo = Math.min(r1, r2), hi = Math.max(r1, r2);
+      for (let r = lo; r <= hi; r++) set(r, col, TYPE_PATH);
+    }
+
+    // Nexus at bottom-right area (col 22, row 13)
+    nexusCell = { col: 22, row: 13 };
+    set(12, 22, TYPE_NEXUS);
+    set(13, 22, TYPE_NEXUS);
+    set(13, 21, TYPE_NEXUS);
+    set(13, 23, TYPE_NEXUS);
+    nexus.col = 22; nexus.row = 13;
+    nexus.x = 22 * CELL_SIZE + CELL_SIZE / 2;
+    nexus.y = 13 * CELL_SIZE + CELL_SIZE / 2;
+
+    // Spawn 0: top-left (col 1, row 1)
+    set(1, 1, TYPE_SPAWN);
+    spawnCells.push({ col: 1, row: 1 });
+
+    // Spawn 1: bottom-left (col 1, row 14)
+    set(14, 1, TYPE_SPAWN);
+    spawnCells.push({ col: 1, row: 14 });
+
+    // ── Path from Spawn 0 (top-left): long S-curve ──
+    // Right along top
+    hPath(1, 2, 10);
+    // Down
+    vPath(10, 1, 5);
+    // Left (first curve)
+    hPath(5, 4, 10);
+    // Down
+    vPath(4, 5, 9);
+    // Right (second curve)
+    hPath(9, 4, 14);
+    // Down
+    vPath(14, 9, 13);
+    // Right toward nexus
+    hPath(13, 14, 21);
+
+    // ── Path from Spawn 1 (bottom-left): merges into main path ──
+    hPath(14, 2, 8);
+    vPath(8, 9, 14);
+    // Merges at (9, 8) into the main horizontal
+    hPath(9, 8, 14); // extends the existing path segment
+
+    // ── Blocked / decorative areas ──
+    // Top-right rocky area
+    const blocked = [
+      [0,0],[0,1],[0,2],[0,3],[0,4],[0,5],[0,6],[0,7],[0,8],[0,9],[0,10],[0,11],[0,12],[0,13],[0,14],[0,15],[0,16],[0,17],[0,18],[0,19],[0,20],[0,21],[0,22],[0,23],[0,24],
+      [15,0],[15,1],[15,2],[15,3],[15,4],[15,5],[15,6],[15,7],[15,8],[15,9],[15,10],[15,11],[15,12],[15,13],[15,14],[15,15],[15,16],[15,17],[15,18],[15,19],[15,20],[15,21],[15,22],[15,23],[15,24],
+      // Decorative rocks
+      [3,1],[3,2],[4,1],
+      [2,16],[2,17],[3,17],
+      [7,6],[7,7],
+      [11,10],[11,11],[12,11],
+      [6,20],[6,21],[7,21],
+      [11,18],[12,18],
+    ];
+
+    blocked.forEach(([r,c]) => {
+      if (grid[r] && grid[r][c] && grid[r][c].type === TYPE_BUILD) {
+        set(r, c, TYPE_BLOCKED);
+      }
+    });
+
+    // Left/right edge blocked
+    for (let r = 0; r < MAP_ROWS; r++) {
+      if (grid[r][0].type === TYPE_BUILD) set(r, 0, TYPE_BLOCKED);
+      if (grid[r][24].type === TYPE_BUILD) set(r, 24, TYPE_BLOCKED);
+    }
+
+    initSpawnParticles();
+  }
+
+  // ─────────────────── Map 3: The Crossroads (Hard) ──────────
+  //
+  // 4 short paths converging on center nexus from each edge.
+  // Very limited build space near nexus.
+  // 4 spawn points (all edges).
+
+  function buildCrossroads() {
+    grid = [];
+    spawnCells = [];
+
+    for (let r = 0; r < MAP_ROWS; r++) {
+      grid[r] = [];
+      for (let c = 0; c < MAP_COLS; c++) {
+        grid[r][c] = makeCell(TYPE_BUILD);
+      }
+    }
+
+    function set(r, c, type) {
+      if (r >= 0 && r < MAP_ROWS && c >= 0 && c < MAP_COLS) {
+        grid[r][c] = makeCell(type);
+      }
+    }
+    function hPath(row, c1, c2) {
+      const lo = Math.min(c1, c2), hi = Math.max(c1, c2);
+      for (let c = lo; c <= hi; c++) set(row, c, TYPE_PATH);
+    }
+    function vPath(col, r1, r2) {
+      const lo = Math.min(r1, r2), hi = Math.max(r1, r2);
+      for (let r = lo; r <= hi; r++) set(r, col, TYPE_PATH);
+    }
+
+    // Nexus at center (col 12, row 8)
+    nexusCell = { col: 12, row: 8 };
+    set(7, 12, TYPE_NEXUS);
+    set(8, 12, TYPE_NEXUS);
+    set(8, 11, TYPE_NEXUS);
+    set(8, 13, TYPE_NEXUS);
+    nexus.col = 12; nexus.row = 8;
+    nexus.x = 12 * CELL_SIZE + CELL_SIZE / 2;
+    nexus.y = 8 * CELL_SIZE + CELL_SIZE / 2;
+
+    // Spawn 0: TOP (col 12, row 0)
+    set(0, 12, TYPE_SPAWN);
+    spawnCells.push({ col: 12, row: 0 });
+    // Short direct path down — slight zigzag
+    vPath(12, 1, 3);
+    hPath(3, 12, 14);
+    vPath(14, 3, 5);
+    hPath(5, 11, 14);
+    vPath(11, 5, 7);
+    hPath(7, 11, 12); // reaches nexus
+
+    // Spawn 1: BOTTOM (col 12, row 15)
+    set(15, 12, TYPE_SPAWN);
+    spawnCells.push({ col: 12, row: 15 });
+    // Short direct path up — slight zigzag
+    vPath(12, 12, 14);
+    hPath(12, 10, 12);
+    vPath(10, 10, 12);
+    hPath(10, 10, 13);
+    vPath(13, 9, 10);
+    hPath(9, 12, 13); // reaches nexus
+
+    // Spawn 2: LEFT (col 0, row 8)
+    set(8, 0, TYPE_SPAWN);
+    spawnCells.push({ col: 0, row: 8 });
+    // Short path right — slight zigzag
+    hPath(8, 1, 4);
+    vPath(4, 6, 8);
+    hPath(6, 4, 7);
+    vPath(7, 6, 8);
+    hPath(8, 7, 11); // reaches nexus
+
+    // Spawn 3: RIGHT (col 24, row 8)
+    set(8, 24, TYPE_SPAWN);
+    spawnCells.push({ col: 24, row: 8 });
+    // Short path left — slight zigzag
+    hPath(8, 20, 23);
+    vPath(20, 8, 10);
+    hPath(10, 17, 20);
+    vPath(17, 8, 10);
+    hPath(8, 13, 17); // reaches nexus
+
+    // ── Heavy blocking around nexus — very tight build space ──
+    const blocked = [];
+
+    // Top and bottom edges
+    for (let c = 0; c < MAP_COLS; c++) {
+      if (c !== 12) { blocked.push([0, c]); blocked.push([15, c]); }
+    }
+    // Left/right edges
+    for (let r = 0; r < MAP_ROWS; r++) {
+      if (r !== 8) { blocked.push([r, 0]); blocked.push([r, 24]); }
+    }
+
+    // Dense blocked zones in the quadrants
+    // Top-left quadrant
+    const quadBlocked = [
+      [1,0],[1,1],[1,2],[1,3],[2,0],[2,1],[2,2],[3,0],[3,1],
+      [1,21],[1,22],[1,23],[1,24],[2,22],[2,23],[2,24],[3,23],[3,24],
+      [12,0],[12,1],[12,2],[13,0],[13,1],[13,2],[14,0],[14,1],
+      [12,22],[12,23],[12,24],[13,22],[13,23],[13,24],[14,23],[14,24],
+      // Inner blocked zones limiting build space near nexus
+      [5,9],[5,10],[6,8],[6,9],
+      [5,14],[5,15],[6,15],[6,16],
+      [10,8],[10,9],[11,9],[11,10],
+      [10,15],[10,16],[11,15],[11,16],
+      // Additional blocked to narrow approaches
+      [3,6],[3,7],[3,17],[3,18],
+      [4,4],[4,5],[4,19],[4,20],
+      [11,4],[11,5],[11,19],[11,20],
+      [12,6],[12,7],[12,17],[12,18],
+    ];
+
+    [...blocked, ...quadBlocked].forEach(([r,c]) => {
+      if (grid[r] && grid[r][c] && grid[r][c].type === TYPE_BUILD) {
+        set(r, c, TYPE_BLOCKED);
+      }
+    });
+
+    initSpawnParticles();
+  }
+
+  // ─────────────────── Map 4: Fortress Isle (Medium) ─────────
+  //
+  // Central island with nexus, connected by 2 bridge chokepoints.
+  // Water/void tiles surround the island (unbuildable, impassable).
+  // 2 spawn points on opposite shores.
+
+  function buildFortressIsle() {
+    grid = [];
+    spawnCells = [];
+
+    for (let r = 0; r < MAP_ROWS; r++) {
+      grid[r] = [];
+      for (let c = 0; c < MAP_COLS; c++) {
+        grid[r][c] = makeCell(TYPE_BUILD);
+      }
+    }
+
+    function set(r, c, type) {
+      if (r >= 0 && r < MAP_ROWS && c >= 0 && c < MAP_COLS) {
+        grid[r][c] = makeCell(type);
+      }
+    }
+    function hPath(row, c1, c2) {
+      const lo = Math.min(c1, c2), hi = Math.max(c1, c2);
+      for (let c = lo; c <= hi; c++) set(row, c, TYPE_PATH);
+    }
+    function vPath(col, r1, r2) {
+      const lo = Math.min(r1, r2), hi = Math.max(r1, r2);
+      for (let r = lo; r <= hi; r++) set(r, col, TYPE_PATH);
+    }
+
+    // Nexus at center of island (col 12, row 8)
+    nexusCell = { col: 12, row: 8 };
+    set(7, 12, TYPE_NEXUS);
+    set(8, 12, TYPE_NEXUS);
+    set(8, 11, TYPE_NEXUS);
+    set(8, 13, TYPE_NEXUS);
+    nexus.col = 12; nexus.row = 8;
+    nexus.x = 12 * CELL_SIZE + CELL_SIZE / 2;
+    nexus.y = 8 * CELL_SIZE + CELL_SIZE / 2;
+
+    // ── Water / void tiles ──
+    // Everything outside the island and shores is water (blocked)
+    // Island is roughly col 8-16, row 4-12
+    // Shores: col 0-6 (left) and col 18-24 (right)
+    // Bridges connect at row 8 (horizontal bridges)
+
+    // First: set the WATER zones (the moat/channel areas)
+    // Water fills col 6-8 and col 16-18 (except the bridge rows)
+    for (let r = 0; r < MAP_ROWS; r++) {
+      for (let c = 6; c <= 8; c++) {
+        set(r, c, TYPE_BLOCKED);
+      }
+      for (let c = 16; c <= 18; c++) {
+        set(r, c, TYPE_BLOCKED);
+      }
+    }
+    // Also water above and below the island
+    for (let c = 9; c <= 15; c++) {
+      for (let r = 0; r <= 3; r++) set(r, c, TYPE_BLOCKED);
+      for (let r = 13; r <= 15; r++) set(r, c, TYPE_BLOCKED);
+    }
+
+    // ── Spawn 0: LEFT shore (col 1, row 8) ──
+    set(8, 1, TYPE_SPAWN);
+    spawnCells.push({ col: 1, row: 8 });
+
+    // Path across left shore and bridge
+    hPath(8, 2, 5);    // across left shore
+    // Bridge: clear the water at row 7-9, col 6-8
+    hPath(7, 6, 8);
+    hPath(8, 6, 8);
+    hPath(9, 6, 8);
+    // Path on island toward nexus — winding
+    hPath(8, 9, 10);
+    vPath(10, 6, 8);
+    hPath(6, 10, 12);
+    vPath(12, 6, 7);   // up to nexus
+
+    // ── Spawn 1: RIGHT shore (col 23, row 8) ──
+    set(8, 23, TYPE_SPAWN);
+    spawnCells.push({ col: 23, row: 8 });
+
+    // Path across right shore and bridge
+    hPath(8, 19, 22);  // across right shore
+    // Bridge: clear the water at row 7-9, col 16-18
+    hPath(7, 16, 18);
+    hPath(8, 16, 18);
+    hPath(9, 16, 18);
+    // Path on island toward nexus — winding
+    hPath(8, 14, 15);
+    vPath(14, 8, 10);
+    hPath(10, 12, 14);
+    vPath(12, 9, 10);  // down to nexus (actually already nexus adj)
+    // Connect nexus: path at row 9, col 11-13
+    hPath(9, 11, 13);
+
+    // ── Shore buildable areas (cols 0-5 and 19-24) ──
+    // Keep these as build cells (already set as default)
+
+    // ── Island buildable interior ──
+    // Already build by default; the paths and nexus are set
+
+    // ── Edge blocking ──
+    for (let c = 0; c < MAP_COLS; c++) {
+      if (grid[0][c].type === TYPE_BUILD) set(0, c, TYPE_BLOCKED);
+      if (grid[15][c].type === TYPE_BUILD) set(15, c, TYPE_BLOCKED);
+    }
+    for (let r = 0; r < MAP_ROWS; r++) {
+      if (grid[r][0].type === TYPE_BUILD) set(r, 0, TYPE_BLOCKED);
+      if (grid[r][24].type === TYPE_BUILD) set(r, 24, TYPE_BLOCKED);
+    }
+
+    // ── Additional decorative blocked cells ──
+    const decor = [
+      // Shore rocks
+      [2,1],[2,2],[3,1],
+      [13,1],[13,2],[14,1],
+      [2,22],[2,23],[3,23],
+      [13,22],[13,23],[14,23],
+      // Island interior rocks
+      [5,11],[5,13],
+      [11,11],[11,13],
+    ];
+    decor.forEach(([r,c]) => {
+      if (grid[r] && grid[r][c] && grid[r][c].type === TYPE_BUILD) {
+        set(r, c, TYPE_BLOCKED);
+      }
+    });
+
+    initSpawnParticles();
+  }
+
+  // ─────────────────── Map Definitions ───────────────────────
+  const MAPS = {
+    arcaneBastion: {
+      id: 'arcaneBastion',
+      name: 'Arcane Bastion',
+      description: '4 winding paths converge on the central crystal. The classic.',
+      difficulty: 'Medium',
+      build: buildMap1
+    },
+    serpentsPath: {
+      id: 'serpentsPath',
+      name: "Serpent's Path",
+      description: 'A long S-curve with ample build space. Good for beginners.',
+      difficulty: 'Easy',
+      build: buildSerpentsPath
+    },
+    crossroads: {
+      id: 'crossroads',
+      name: 'The Crossroads',
+      description: '4 short paths from every edge. Relentless and claustrophobic.',
+      difficulty: 'Hard',
+      build: buildCrossroads
+    },
+    fortressIsle: {
+      id: 'fortressIsle',
+      name: 'Fortress Isle',
+      description: 'A central island with 2 bridge chokepoints over water.',
+      difficulty: 'Medium',
+      build: buildFortressIsle
+    }
+  };
+
+  const MAP_ORDER = ['arcaneBastion', 'serpentsPath', 'crossroads', 'fortressIsle'];
+  let currentMapId = 'arcaneBastion';
+
   // ──────────────────── Init & Public API ──────────────────────
 
-  function init() {
-    buildMap1();
+  function init(mapId) {
+    currentMapId = mapId || currentMapId || 'arcaneBastion';
+    const mapDef = MAPS[currentMapId];
+    if (!mapDef) {
+      currentMapId = 'arcaneBastion';
+      MAPS.arcaneBastion.build();
+    } else {
+      mapDef.build();
+    }
+    // Reset nexus HP
+    nexus.hp = nexus.maxHp;
+    // Reset patterns so they regenerate
+    stonePattern = null;
+    pathPattern = null;
     computeAllPaths();
+    // Update public API references (grid/spawnCells are reassigned in build fns)
+    API.grid = grid;
+    API.spawnCells = spawnCells;
   }
 
   // Auto-init when loaded
-  init();
+  init('arcaneBastion');
 
   // ── Expose Public API ──
-  window.ArcaneMap = {
+  const API = {
     // Constants
     CELL_SIZE:  CELL_SIZE,
     MAP_COLS:   MAP_COLS,
@@ -974,8 +1380,15 @@
     drawBuildHighlight: drawBuildHighlight,
     drawNexusHP:      drawNexusHP,
 
-    // Re-init (e.g. for level restart)
+    // Maps
+    MAPS:       MAPS,
+    MAP_ORDER:  MAP_ORDER,
+    currentMapId: function() { return currentMapId; },
+
+    // Re-init (e.g. for level restart or map change)
     init: init
   };
+
+  window.ArcaneMap = API;
 
 })();

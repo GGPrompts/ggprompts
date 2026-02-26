@@ -81,128 +81,6 @@
   var tipTimer       = 0;
   var tipText        = '';
 
-  // ─────────────────────────── Mana & Abilities ──────────────────────────
-  var manaMax        = 100;
-  var MANA_REGEN     = 1;        // per second during combat
-  var MANA_PER_KILL  = 2;
-  var MANA_PER_BOSS  = 15;
-
-  var ABILITIES = {
-    meteor: {
-      name: 'Meteor Strike', key: 'Q', icon: '\u2604\uFE0F',
-      cost: 30, cooldown: 15, targeting: 'ground', radius: 2.5,
-      desc: '200 AoE fire damage',
-      cast: function (wx, wy) {
-        var r = ABILITIES.meteor.radius * CELL;
-        FX.spawnExplosion({ x: wx, y: wy, radius: r, element: 'fire', duration: 0.6 });
-        addScreenShake(5);
-        // Burst of extra fire particles
-        FX.spawnParticles({
-          x: wx, y: wy, count: 30, color: '#ff8800',
-          size: 4, speed: 180, lifetime: 0.5, gravity: 80, spread: Math.PI * 2
-        });
-        for (var i = 0; i < enemies.length; i++) {
-          var e = enemies[i];
-          if (e.dead) continue;
-          var dist = Math.hypot(e.x - wx, e.y - wy);
-          if (dist <= r) {
-            var dmg = Enemies.applyDamage(e, 200, 0);
-            FX.spawnDamageNumber({ x: e.x, y: e.y - 20, amount: dmg, color: '#ff4422' });
-            Enemies.applyStatus(e, { type: 'burn', intensity: 10, duration: 3 });
-            checkEnemyDeath(e);
-          }
-        }
-        Audio.abilityCast();
-      }
-    },
-    blizzard: {
-      name: 'Blizzard', key: 'W', icon: '\u2744\uFE0F',
-      cost: 25, cooldown: 12, targeting: 'ground', radius: 3,
-      desc: '60% slow for 4s',
-      cast: function (wx, wy) {
-        var r = ABILITIES.blizzard.radius * CELL;
-        FX.spawnAura({ x: wx, y: wy, radius: r, element: 'ice', duration: 1.5, pulseSpeed: 4 });
-        FX.spawnParticles({
-          x: wx, y: wy, count: 40, color: '#aaeeff',
-          size: 3, speed: 100, lifetime: 0.8, gravity: -20, spread: Math.PI * 2
-        });
-        for (var i = 0; i < enemies.length; i++) {
-          var e = enemies[i];
-          if (e.dead) continue;
-          var dist = Math.hypot(e.x - wx, e.y - wy);
-          if (dist <= r) {
-            Enemies.applyStatus(e, { type: 'slow', intensity: 0.6, duration: 4 });
-            FX.spawnDamageNumber({ x: e.x, y: e.y - 20, amount: 'SLOW', color: '#44ccff' });
-          }
-        }
-        Audio.abilityCast();
-      }
-    },
-    heal: {
-      name: 'Nexus Heal', key: 'E', icon: '\u{1F49A}',
-      cost: 40, cooldown: 30, targeting: 'instant', radius: 0,
-      desc: 'Restore 15 nexus HP',
-      cast: function () {
-        var restored = Math.min(15, Map.nexus.maxHp - Map.nexus.hp);
-        Map.nexus.hp = Math.min(Map.nexus.hp + 15, Map.nexus.maxHp);
-        FX.spawnAura({ x: Map.nexus.x, y: Map.nexus.y, radius: 60, element: 'nature', duration: 1.5, pulseSpeed: 3 });
-        FX.spawnParticles({
-          x: Map.nexus.x, y: Map.nexus.y, count: 20, color: '#88ff99',
-          size: 3, speed: 60, lifetime: 0.7, gravity: -40, spread: Math.PI * 2
-        });
-        FX.spawnDamageNumber({ x: Map.nexus.x, y: Map.nexus.y - 30, amount: '+' + restored, color: '#44cc66' });
-        Audio.abilityCast();
-      }
-    },
-    lightning: {
-      name: 'Lightning Storm', key: 'R', icon: '\u26A1',
-      cost: 35, cooldown: 20, targeting: 'global', radius: 0,
-      desc: '5 bolts hit random enemies for 80 dmg',
-      cast: function () {
-        var alive = [];
-        for (var i = 0; i < enemies.length; i++) {
-          if (!enemies[i].dead) alive.push(enemies[i]);
-        }
-        if (alive.length === 0) return;
-        var bolts = Math.min(5, alive.length);
-        // Shuffle and pick targets
-        for (var b = 0; b < bolts; b++) {
-          var idx = Math.floor(Math.random() * alive.length);
-          var target = alive[idx];
-          // Chain lightning visual from sky to target
-          var skyX = target.x + (Math.random() - 0.5) * 60;
-          var skyY = target.y - 300 - Math.random() * 100;
-          FX.spawnChain({
-            points: [
-              { x: skyX, y: skyY },
-              { x: skyX + (Math.random() - 0.5) * 40, y: skyY + 100 },
-              { x: target.x + (Math.random() - 0.5) * 20, y: target.y - 50 },
-              { x: target.x, y: target.y }
-            ],
-            element: 'lightning',
-            duration: 0.4
-          });
-          var dmg = Enemies.applyDamage(target, 80, 0);
-          FX.spawnDamageNumber({ x: target.x, y: target.y - 20, amount: dmg, color: '#ffee44' });
-          FX.spawnExplosion({ x: target.x, y: target.y, radius: 20, element: 'lightning', duration: 0.3 });
-          checkEnemyDeath(target);
-          // Remove dead ones from pool so we don't re-target
-          if (target.dead || target.hp <= 0) {
-            alive.splice(idx, 1);
-            if (alive.length === 0) break;
-          }
-        }
-        addScreenShake(3);
-        Audio.abilityCast();
-      }
-    }
-  };
-
-  var ABILITY_ORDER = ['meteor', 'blizzard', 'heal', 'lightning'];
-  var abilityCooldowns = { meteor: 0, blizzard: 0, heal: 0, lightning: 0 };
-  var abilityTargeting  = null;   // null or ability id string
-  var abilityMouseX = 0, abilityMouseY = 0;
-
   // Wave banner animation
   var bannerTimer    = 0;
   var bannerDuration = 2.5;
@@ -380,15 +258,6 @@
         setTimeout(function () { osc('sawtooth', 200, 0.5, 0.08); }, 200);
         setTimeout(function () { osc('sawtooth', 120, 0.7, 0.06); }, 450);
       },
-      abilityCast: function () {
-        init();
-        // Ascending chord: C5, E5, G5, C6
-        osc('sine', 523, 0.15, 0.10);
-        setTimeout(function () { osc('sine', 659, 0.15, 0.09); }, 40);
-        setTimeout(function () { osc('sine', 784, 0.15, 0.08); }, 80);
-        setTimeout(function () { osc('sine', 1047, 0.2, 0.10); }, 120);
-        noise(0.08, 0.03);
-      },
       victory: function () {
         init();
         var notes = [523, 659, 784, 1047];
@@ -514,6 +383,14 @@
         init();
         osc('triangle', 120, 0.1, 0.10);
         noise(0.06, 0.06);
+      },
+      // 9. Ability cast — magical whoosh + rising chime
+      abilityCast: function () {
+        init();
+        filteredOsc('sawtooth', 300, 800, 0.3, 0.10, 'bandpass', 600, 2000);
+        osc('sine', 600, 0.15, 0.08);
+        osc('sine', 900, 0.12, 0.06);
+        noise(0.1, 0.04);
       }
     };
   })();
@@ -620,14 +497,121 @@
     };
   })();
 
-  // ─────────────────────────── Save / Load ─────────────────────────────
-  var SAVE_KEY = 'arcane-bastion-best';
+  // ─────────────────────────── BGM Manager ────────────────────────────
+  var BGM = (function () {
+    var enabled = true;
+    var volume = 0.3;
+    var initialized = false;
+    var currentTrack = null;
+    var songCache = {};
+    var SONG_BASE = '../../music/audio-tracker/songs/';
 
-  function loadBest() {
-    try { return parseInt(localStorage.getItem(SAVE_KEY)) || 0; } catch (e) { return 0; }
+    // Track assignments per game state
+    var TRACKS = {
+      build: 'arcane-bastion.json',
+      wave: 'arcane-bastion.json',
+      boss: 'boss-battle.json',
+      late: 'neon-velocity.json'
+    };
+
+    // Boss waves trigger boss track
+    var BOSS_WAVES = [5, 10, 15, 20];
+    // Late-game waves get the intense track
+    var LATE_WAVE_START = 14;
+
+    function initBGM() {
+      if (initialized || typeof ChipPlayer === 'undefined') return;
+      ChipPlayer.init();
+      ChipPlayer.setVolume(volume);
+      initialized = true;
+    }
+
+    function fetchSong(filename, cb) {
+      if (songCache[filename]) { cb(songCache[filename]); return; }
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', SONG_BASE + filename, true);
+      xhr.responseType = 'json';
+      xhr.onload = function () {
+        if (xhr.status === 200 && xhr.response) {
+          songCache[filename] = xhr.response;
+          cb(xhr.response);
+        }
+      };
+      xhr.onerror = function () { /* silent — no music is fine */ };
+      xhr.send();
+    }
+
+    function playTrack(filename) {
+      if (!enabled || !initialized) return;
+      if (currentTrack === filename && ChipPlayer.isPlaying() && !ChipPlayer.isPaused()) return;
+      ChipPlayer.stop();
+      fetchSong(filename, function (songData) {
+        if (!enabled) return;
+        ChipPlayer.load(songData);
+        ChipPlayer.setVolume(volume);
+        ChipPlayer.play();
+        currentTrack = filename;
+      });
+    }
+
+    function stopBGM() {
+      if (!initialized) return;
+      ChipPlayer.stop();
+      currentTrack = null;
+    }
+
+    function pauseBGM() {
+      if (!initialized || !ChipPlayer.isPlaying()) return;
+      ChipPlayer.pause();
+    }
+
+    function resumeBGM() {
+      if (!initialized || !ChipPlayer.isPaused()) return;
+      ChipPlayer.resume();
+    }
+
+    function setVolume(v) {
+      volume = v;
+      if (initialized) ChipPlayer.setVolume(v);
+    }
+
+    function getTrackForWave(waveNum) {
+      if (BOSS_WAVES.indexOf(waveNum) !== -1) return TRACKS.boss;
+      if (waveNum >= LATE_WAVE_START) return TRACKS.late;
+      return TRACKS.wave;
+    }
+
+    return {
+      init: initBGM,
+      play: playTrack,
+      stop: stopBGM,
+      pause: pauseBGM,
+      resume: resumeBGM,
+      setVolume: setVolume,
+      getTrackForWave: getTrackForWave,
+      TRACKS: TRACKS,
+      isEnabled: function () { return enabled; },
+      toggle: function () {
+        enabled = !enabled;
+        if (!enabled) { stopBGM(); }
+        return enabled;
+      }
+    };
+  })();
+
+  // ─────────────────────────── Map Selection ───────────────────────────
+  var selectedMapId = 'arcaneBastion';
+
+  // ─────────────────────────── Save / Load ─────────────────────────────
+  function saveKeyFor(mapId) {
+    return 'arcane-bastion-best-' + (mapId || selectedMapId);
+  }
+
+  function loadBest(mapId) {
+    try { return parseInt(localStorage.getItem(saveKeyFor(mapId))) || 0; } catch (e) { return 0; }
   }
   function saveBest(wave) {
-    try { var b = loadBest(); if (wave > b) localStorage.setItem(SAVE_KEY, wave); } catch (e) {}
+    try { var b = loadBest(); if (wave > b) localStorage.setItem(saveKeyFor(), wave); } catch (e) {}
   }
 
   // ─────────────────────────── DOM References ──────────────────────────
@@ -692,128 +676,6 @@
   }
   buildTowerPanel();
 
-  // ─────────────────────────── Ability Bar Build ─────────────────────────
-  var $abilityBar = document.getElementById('ability-bar');
-
-  function buildAbilityBar() {
-    if (!$abilityBar) return;
-    $abilityBar.innerHTML = '';
-    for (var i = 0; i < ABILITY_ORDER.length; i++) {
-      var aid = ABILITY_ORDER[i];
-      var A = ABILITIES[aid];
-      var btn = document.createElement('div');
-      btn.className = 'ability-card';
-      btn.dataset.abilityId = aid;
-      btn.innerHTML =
-        '<span class="ab-key">' + A.key + '</span>' +
-        '<div class="ab-icon">' + A.icon + '</div>' +
-        '<div class="ab-name">' + A.name + '</div>' +
-        '<div class="ab-cost">' + A.cost + ' mana</div>' +
-        '<div class="ab-cd-overlay"></div>' +
-        '<div class="ab-cd-text"></div>';
-      btn.addEventListener('click', (function (id) {
-        return function () { startAbility(id); };
-      })(aid));
-      $abilityBar.appendChild(btn);
-    }
-  }
-  buildAbilityBar();
-
-  function updateAbilityBar() {
-    if (!$abilityBar) return;
-    var cards = $abilityBar.querySelectorAll('.ability-card');
-    for (var i = 0; i < cards.length; i++) {
-      var aid = cards[i].dataset.abilityId;
-      var A = ABILITIES[aid];
-      var cd = abilityCooldowns[aid];
-      var canCast = mana >= A.cost && cd <= 0 && state === 'wave';
-      var cdOverlay = cards[i].querySelector('.ab-cd-overlay');
-      var cdText = cards[i].querySelector('.ab-cd-text');
-
-      if (cd > 0) {
-        cards[i].classList.add('on-cooldown');
-        cards[i].classList.remove('active');
-        var pct = cd / A.cooldown;
-        cdOverlay.style.height = (pct * 100) + '%';
-        cdText.textContent = Math.ceil(cd) + 's';
-      } else {
-        cards[i].classList.remove('on-cooldown');
-        cdOverlay.style.height = '0%';
-        cdText.textContent = '';
-      }
-
-      if (!canCast) {
-        cards[i].classList.add('disabled');
-      } else {
-        cards[i].classList.remove('disabled');
-      }
-
-      if (abilityTargeting === aid) {
-        cards[i].classList.add('active');
-      } else {
-        cards[i].classList.remove('active');
-      }
-    }
-  }
-
-  // ─────────────────────────── Ability Targeting ─────────────────────────
-  function startAbility(abilityId) {
-    var A = ABILITIES[abilityId];
-    if (!A) return;
-    if (state !== 'wave') return;
-    if (mana < A.cost) return;
-    if (abilityCooldowns[abilityId] > 0) return;
-
-    if (A.targeting === 'instant' || A.targeting === 'global') {
-      // Cast immediately
-      castAbility(abilityId);
-      return;
-    }
-
-    // Enter targeting mode
-    if (abilityTargeting === abilityId) {
-      cancelAbilityTargeting();
-      return;
-    }
-    abilityTargeting = abilityId;
-    cancelPlacement(); // exit tower placement mode
-    deselectTower();
-    updateAbilityBar();
-  }
-
-  function cancelAbilityTargeting() {
-    abilityTargeting = null;
-    updateAbilityBar();
-  }
-
-  function castAbility(abilityId, wx, wy) {
-    var A = ABILITIES[abilityId];
-    if (!A) return;
-    if (mana < A.cost) return;
-    if (abilityCooldowns[abilityId] > 0) return;
-
-    mana -= A.cost;
-    abilityCooldowns[abilityId] = A.cooldown;
-
-    if (A.targeting === 'ground') {
-      A.cast(wx, wy);
-    } else {
-      A.cast();
-    }
-
-    abilityTargeting = null;
-    updateManaDisplay();
-    updateAbilityBar();
-  }
-
-  function updateAbilityCooldowns(dt) {
-    for (var id in abilityCooldowns) {
-      if (abilityCooldowns[id] > 0) {
-        abilityCooldowns[id] = Math.max(0, abilityCooldowns[id] - dt);
-      }
-    }
-  }
-
   function updateTowerPanelAffordability() {
     var cards = $towerPanel.querySelectorAll('.tower-card');
     for (var i = 0; i < cards.length; i++) {
@@ -874,6 +736,20 @@
       html += '</div>';
     }
 
+    // Ability
+    if (tower.type.ability && tower.tier >= 2) {
+      var ab = tower.type.ability;
+      var canUse = mana >= ab.manaCost && tower.abilityCooldown <= 0;
+      var cdText = tower.abilityCooldown > 0 ? ' (' + Math.ceil(tower.abilityCooldown) + 's)' : '';
+      html += '<div class="ti-ability">';
+      html += '<button class="ability-btn' + (canUse ? '' : ' disabled') + '" id="btn-ability">';
+      html += '<span class="ab-name" style="color:' + T.color + '">[Space] ' + ab.name + '</span>';
+      html += '<span class="ab-desc">' + ab.description + '</span>';
+      html += '<span class="ab-cost">' + ab.manaCost + ' mana' + cdText + '</span>';
+      html += '</button>';
+      html += '</div>';
+    }
+
     // Upgrades
     if (tower.tier < 3) {
       html += '<div class="ti-upgrades">';
@@ -919,6 +795,10 @@
         return function () { doUpgrade(path); };
       })(upgBtns[u].dataset.path));
     }
+
+    // Bind ability
+    var abilityBtn = document.getElementById('btn-ability');
+    if (abilityBtn) abilityBtn.addEventListener('click', function () { doAbility(); });
 
     // Bind sell
     var sellBtn = document.getElementById('btn-sell');
@@ -1083,6 +963,46 @@
     updateTowerPanelAffordability();
   }
 
+  // ─────────────────────────── Tower Ability ──────────────────────────
+  function doAbility() {
+    if (!selectedTower) return;
+    if (selectedTower.tier < 2) return;
+    if (!selectedTower.type.ability) return;
+    if (state !== 'wave' && state !== 'build') return;
+
+    var abilityCallbacks = {
+      getMana: function () { return mana; },
+      setMana: function (v) { mana = Math.min(100, Math.max(0, v)); },
+      getFX: function () { return FX; },
+      getMap: function () { return Map; },
+      onDamage: function (tower, enemy, amount, armorPierce) {
+        var dmg = Enemies.applyDamage(enemy, amount, armorPierce || 0);
+        tower.totalDamage += dmg;
+        enemy._lastHitTowerId = tower.id;
+        FX.spawnDamageNumber({ x: enemy.x, y: enemy.y - 20, amount: dmg });
+        return dmg;
+      },
+      onStatus: function (enemy, status) {
+        if (!enemy.dead) Enemies.applyStatus(enemy, status);
+      },
+      onNexusHeal: function (amount) {
+        Map.nexus.hp = Math.min(Map.nexus.maxHp, Map.nexus.hp + amount);
+        FX.spawnDamageNumber({ x: Map.nexus.x, y: Map.nexus.y - 20, amount: '+' + amount, color: '#44ff66' });
+      },
+      onKill: function (enemy) {
+        checkEnemyDeath(enemy);
+      }
+    };
+
+    var result = Towers.activateAbility(selectedTower, enemies, abilityCallbacks);
+    if (result && result.success) {
+      Audio.abilityCast();
+      addScreenShake(3);
+      updateManaDisplay();
+      showTowerInfo(selectedTower); // Refresh panel to show cooldown
+    }
+  }
+
   // ─────────────────────────── Screen Shake ────────────────────────────
   function addScreenShake(amount, duration) {
     shakeMag = Math.min(shakeMag + amount, 15);
@@ -1219,7 +1139,7 @@
     $goldDisplay.textContent = gold;
   }
   function updateManaDisplay() {
-    $manaDisplay.textContent = Math.floor(mana) + '/' + manaMax;
+    $manaDisplay.textContent = Math.floor(mana);
   }
   function updateWaveDisplay() {
     $waveDisplay.textContent = 'Wave ' + currentWave + '/' + totalWaves;
@@ -1230,7 +1150,6 @@
     updateManaDisplay();
     updateWaveDisplay();
     updateTowerPanelAffordability();
-    updateAbilityBar();
 
     // Nexus HP display in wave sub
     var hp = Map.nexus.hp;
@@ -1253,8 +1172,19 @@
     BGM.stop();
     $hud.classList.add('hidden');
     showScreen('menu-screen');
-    $bestWave.textContent = 'Wave ' + loadBest();
+    updateMenuBestWave();
     $waveBanner.style.opacity = '0';
+  }
+
+  function updateMenuBestWave() {
+    $bestWave.textContent = 'Wave ' + loadBest();
+    // Also update map card best-wave badges
+    var cards = document.querySelectorAll('.map-card');
+    for (var i = 0; i < cards.length; i++) {
+      var mid = cards[i].dataset.mapId;
+      var badge = cards[i].querySelector('.map-best');
+      if (badge) badge.textContent = 'Best: Wave ' + loadBest(mid);
+    }
   }
 
   function startNewGame() {
@@ -1286,7 +1216,7 @@
     comboTimer = 0;
     flashAlpha = 0;
 
-    Map.init();
+    Map.init(selectedMapId);
     FX.clear();
     Weather.init();
     updateCamera();
@@ -1422,6 +1352,12 @@
     }
   }
 
+  /** Apply death aura debuff to tower damage */
+  function applyDeathAura(tower, damage) {
+    var mult = tower._deathAuraDebuff || 1.0;
+    return Math.round(damage * mult);
+  }
+
   // ─────────────────────────── Tower Callbacks ─────────────────────────
   var towerCallbacks = {
     onFire: function (tower, target, stats) {
@@ -1449,7 +1385,7 @@
           width: 3
         });
         // Beams deal damage immediately
-        var dmg = Enemies.applyDamage(target, stats.damage, stats.armorPierce || 0);
+        var dmg = Enemies.applyDamage(target, applyDeathAura(tower, stats.damage), stats.armorPierce || 0);
         tower.totalDamage += dmg;
         target._lastHitTowerId = tower.id;
         FX.spawnDamageNumber({ x: target.x, y: target.y - 20, amount: dmg });
@@ -1467,7 +1403,7 @@
           if (e.dead) continue;
           var dist = Math.hypot(e.x - target.x, e.y - target.y);
           if (dist <= sr) {
-            var dmg2 = Enemies.applyDamage(e, stats.damage, stats.armorPierce || 0);
+            var dmg2 = Enemies.applyDamage(e, applyDeathAura(tower, stats.damage), stats.armorPierce || 0);
             tower.totalDamage += dmg2;
             e._lastHitTowerId = tower.id;
             FX.spawnDamageNumber({ x: e.x, y: e.y - 20, amount: dmg2 });
@@ -1498,7 +1434,7 @@
       var dmgMult = 1.0;
       for (var i = 0; i < targets.length; i++) {
         points.push({ x: targets[i].x, y: targets[i].y });
-        var dmg = Enemies.applyDamage(targets[i], stats.damage * dmgMult, stats.armorPierce || 0);
+        var dmg = Enemies.applyDamage(targets[i], applyDeathAura(tower, stats.damage * dmgMult), stats.armorPierce || 0);
         tower.totalDamage += dmg;
         targets[i]._lastHitTowerId = tower.id;
         FX.spawnDamageNumber({ x: targets[i].x, y: targets[i].y - 20, amount: dmg });
@@ -1515,7 +1451,7 @@
         if (e.dead) continue;
         // Nature: poison + DPS aura
         if (tower.type.element === 'nature') {
-          var dmg = Enemies.applyDamage(e, (tower.type.auraDPS || 12) * dt, 0);
+          var dmg = Enemies.applyDamage(e, applyDeathAura(tower, (tower.type.auraDPS || 12) * dt), 0);
           tower.totalDamage += dmg;
           e._lastHitTowerId = tower.id;
           Enemies.applyStatus(e, {
@@ -1525,7 +1461,7 @@
           });
         } else {
           // Generic aura DPS
-          var dmg2 = Enemies.applyDamage(e, (stats.damage || 8) * dt, 0);
+          var dmg2 = Enemies.applyDamage(e, applyDeathAura(tower, (stats.damage || 8) * dt), 0);
           tower.totalDamage += dmg2;
         }
         checkEnemyDeath(e);
@@ -1597,7 +1533,13 @@
       if (enemy.dead) continue;
 
       var hadShield = enemy.shieldHp > 0;
-      var dmg = Enemies.applyDamage(enemy, proj.damage, proj.armorPierce || 0);
+      var projDmg = proj.damage;
+      // Apply death aura debuff from Lich King
+      if (proj.towerId) {
+        var dmgTower = findTowerById(proj.towerId);
+        if (dmgTower) projDmg = applyDeathAura(dmgTower, projDmg);
+      }
+      var dmg = Enemies.applyDamage(enemy, projDmg, proj.armorPierce || 0);
       FX.spawnDamageNumber({
         x: enemy.x,
         y: enemy.y - (enemy.type ? enemy.type.size : 8) - 5,
@@ -1644,6 +1586,46 @@
       } else if (ability === 'massHeal') {
         FX.spawnAura({ x: enemy.x, y: enemy.y, radius: 200, element: 'nature', duration: 1.5, pulseSpeed: 3 });
         FX.spawnDamageNumber({ x: enemy.x, y: enemy.y - 30, amount: Math.round((data.percent || 0.15) * 100) + '%', color: '#44ff66' });
+      } else if (ability === 'phaseTransition') {
+        // White flash + ring handled by enemies.js drawing; add particles + shake
+        FX.spawnExplosion({ x: data.x, y: data.y, radius: 80, element: 'light', duration: 0.5 });
+        FX.spawnParticles({ x: data.x, y: data.y, count: 30, color: '#ffffff', size: 4, speed: 150, lifetime: 0.6, spread: Math.PI * 2 });
+        addScreenShake(8);
+        FX.spawnDamageNumber({ x: data.x, y: data.y - 40, amount: 'Phase ' + data.phase, color: '#ffdd44' });
+      } else if (ability === 'fireTrail') {
+        // Infernal Lord Phase 2: drop fire zone on the ground
+        FX.spawnGroundEffect({ x: data.x, y: data.y, radius: data.radius || 25, element: 'fire', duration: data.duration || 3, dps: data.dps || 8, type: 'lava' });
+      } else if (ability === 'raiseDead') {
+        // Lich King Phase 2: raise skeleton visual
+        FX.spawnExplosion({ x: data.x, y: data.y, radius: 50, element: 'nature', duration: 0.4 });
+        FX.spawnParticles({ x: data.x, y: data.y, count: 15, color: '#44ff44', size: 3, speed: 80, lifetime: 0.5, gravity: -30, spread: Math.PI * 2 });
+      } else if (ability === 'shadowBreath') {
+        // Shadow Dragon Phase 2: disable towers in a line
+        // Visual: beam-like shadow effect
+        var bx = data.x + Math.cos(data.angle - Math.PI / 2) * data.range;
+        var by = data.y + Math.sin(data.angle - Math.PI / 2) * data.range;
+        FX.spawnBeam({ x1: data.x, y1: data.y, x2: bx, y2: by, element: 'shadow', duration: 0.6, width: 20 });
+        // Disable towers within the breath line
+        for (var t = 0; t < towers.length; t++) {
+          var tw = towers[t];
+          var twX = tw.col * Map.cellSize + Map.cellSize / 2;
+          var twY = tw.row * Map.cellSize + Map.cellSize / 2;
+          // check distance from line (simplified: circle check along line)
+          var dx = twX - data.x;
+          var dy = twY - data.y;
+          var dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist <= data.range + 30) {
+            // angle check: within 30 degrees of breath direction
+            var angleToTower = Math.atan2(dy, dx);
+            var breathDir = data.angle - Math.PI / 2;
+            var angleDiff = Math.abs(angleToTower - breathDir);
+            if (angleDiff > Math.PI) angleDiff = Math.PI * 2 - angleDiff;
+            if (angleDiff < 0.5) { // ~30 degrees
+              tw._disabledTimer = (tw._disabledTimer || 0) + (data.disableDuration || 2);
+            }
+          }
+        }
+        addScreenShake(4);
       }
     },
     onSummon: function (boss, summonType, count) {
@@ -1666,10 +1648,6 @@
     gold += goldReward;
     totalGoldEarned += goldReward;
     totalKills++;
-
-    // Mana on kill
-    var manaReward = (enemy.type.behavior === 'boss') ? MANA_PER_BOSS : MANA_PER_KILL;
-    mana = Math.min(manaMax, mana + manaReward);
 
     // Credit kill to the tower that last hit this enemy
     if (enemy._lastHitTowerId) {
@@ -1794,13 +1772,11 @@
     // Tip timer
     if (tipTimer > 0) tipTimer -= dt;
 
-    // Ability cooldowns tick in all active states
-    updateAbilityCooldowns(dt);
+    // Mana regen (cap at 100)
+    mana = Math.min(100, mana + 1 * dt);
 
-    // Mana regen (only during combat)
-    if (state === 'wave') {
-      mana = Math.min(manaMax, mana + MANA_REGEN * dt);
-    }
+    // Weather & environment effects update
+    Weather.update(dt);
 
     // Weather & environment effects update
     Weather.update(dt);
@@ -1854,9 +1830,43 @@
         }
       }
 
+      // 2a. Tick tower disable timers + Lich King death aura
+      var lichDeathAura = null;
+      for (var ei = 0; ei < enemies.length; ei++) {
+        if (!enemies[ei].dead && enemies[ei]._deathAuraActive) {
+          lichDeathAura = enemies[ei];
+          break;
+        }
+      }
+      for (var ti = 0; ti < towers.length; ti++) {
+        var tw = towers[ti];
+        // Tick disable timer (Shadow Dragon breath)
+        if (tw._disabledTimer > 0) {
+          tw._disabledTimer -= dt;
+          tw._disabled = true;
+        } else {
+          tw._disabled = false;
+        }
+        // Lich King death aura: towers within radius deal 20% less damage
+        if (lichDeathAura) {
+          var twX = tw.col * Map.cellSize + Map.cellSize / 2;
+          var twY = tw.row * Map.cellSize + Map.cellSize / 2;
+          var adx = twX - lichDeathAura.x;
+          var ady = twY - lichDeathAura.y;
+          if (adx * adx + ady * ady <= lichDeathAura._deathAuraRadius * lichDeathAura._deathAuraRadius) {
+            tw._deathAuraDebuff = 0.80; // 80% damage multiplier
+          } else {
+            tw._deathAuraDebuff = 1.0;
+          }
+        } else {
+          tw._deathAuraDebuff = 1.0;
+        }
+      }
+
       // 2. Update towers (targeting + firing)
       towerCallbacks.time = time;
       Towers.updateAll(towers, enemies, dt, towerCallbacks);
+      Towers.updateAbilityCooldowns(towers, dt);
 
       // 3. Update enemies (movement + behaviors)
       Enemies.updateAll(enemies, dt, Map.nexus, enemyCallbacks);
@@ -1983,11 +1993,6 @@
     // Placement ghost tower
     if (placementMode && mouseOnCanvas && mouseGridCol >= 0 && mouseGridRow >= 0) {
       drawPlacementGhost(ctx, time);
-    }
-
-    // Ability targeting circle
-    if (abilityTargeting && mouseOnCanvas) {
-      drawAbilityTargeting(ctx, time);
     }
 
     // Synergy lines
@@ -2174,43 +2179,6 @@
     ctx.restore();
   }
 
-  // ─────────────────────────── Ability Targeting Cursor ────────────────
-  function drawAbilityTargeting(ctx, time) {
-    if (!abilityTargeting) return;
-    var A = ABILITIES[abilityTargeting];
-    if (!A || A.targeting !== 'ground') return;
-
-    var worldX = mouseX + cam.x - shakeX;
-    var worldY = mouseY + cam.y - shakeY;
-    var radius = A.radius * CELL;
-    var pulse = 0.3 + 0.15 * Math.sin(time * 5);
-
-    ctx.save();
-    // Filled circle
-    ctx.beginPath();
-    ctx.arc(worldX, worldY, radius, 0, Math.PI * 2);
-    var element = abilityTargeting === 'meteor' ? 'fire' : 'ice';
-    var color = abilityTargeting === 'meteor' ? '255,68,34' : '68,204,255';
-    ctx.fillStyle = 'rgba(' + color + ',' + (pulse * 0.15) + ')';
-    ctx.fill();
-    // Border
-    ctx.strokeStyle = 'rgba(' + color + ',' + (pulse + 0.2) + ')';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([6, 4]);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    // Center crosshair
-    ctx.strokeStyle = 'rgba(' + color + ',' + (pulse + 0.3) + ')';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(worldX - 8, worldY);
-    ctx.lineTo(worldX + 8, worldY);
-    ctx.moveTo(worldX, worldY - 8);
-    ctx.lineTo(worldX, worldY + 8);
-    ctx.stroke();
-    ctx.restore();
-  }
-
   // ─────────────────────────── Synergy Lines ───────────────────────────
   function drawSynergyLines(ctx, time) {
     ctx.save();
@@ -2266,14 +2234,6 @@
 
     updateMouseGrid(e.clientX, e.clientY);
 
-    // Ability targeting takes priority
-    if (abilityTargeting) {
-      var worldX = e.clientX + cam.x - shakeX;
-      var worldY = e.clientY + cam.y - shakeY;
-      castAbility(abilityTargeting, worldX, worldY);
-      return;
-    }
-
     if (placementMode) {
       if (mouseGridCol >= 0 && mouseGridCol < Map.MAP_COLS &&
           mouseGridRow >= 0 && mouseGridRow < Map.MAP_ROWS) {
@@ -2293,9 +2253,7 @@
 
   canvas.addEventListener('contextmenu', function (e) {
     e.preventDefault();
-    if (abilityTargeting) {
-      cancelAbilityTargeting();
-    } else if (placementMode) {
+    if (placementMode) {
       cancelPlacement();
     } else {
       deselectTower();
@@ -2309,14 +2267,6 @@
     var t = e.touches[0];
     mouseOnCanvas = true;
     updateMouseGrid(t.clientX, t.clientY);
-
-    // Ability targeting
-    if (abilityTargeting) {
-      var worldX = t.clientX + cam.x - shakeX;
-      var worldY = t.clientY + cam.y - shakeY;
-      castAbility(abilityTargeting, worldX, worldY);
-      return;
-    }
 
     if (placementMode) {
       if (mouseGridCol >= 0 && mouseGridCol < Map.MAP_COLS &&
@@ -2368,19 +2318,6 @@
     }
 
     switch (key.toLowerCase()) {
-      case 'q':
-        if (state === 'wave') startAbility('meteor');
-        break;
-      case 'w':
-        if (state === 'wave') startAbility('blizzard');
-        break;
-      case 'e':
-        if (state === 'wave') startAbility('heal');
-        break;
-      case 'r':
-        if (state === 'wave') startAbility('lightning');
-        break;
-
       case 'u':
         // Upgrade path A
         if (selectedTower && selectedTower.tier < 3) {
@@ -2404,7 +2341,9 @@
 
       case ' ':
         e.preventDefault();
-        if (state === 'build') {
+        if (selectedTower && selectedTower.tier >= 2 && selectedTower.type.ability) {
+          doAbility();
+        } else if (state === 'build') {
           startWave();
         } else if (state === 'wave') {
           enterPause();
@@ -2417,9 +2356,7 @@
         break;
 
       case 'escape':
-        if (abilityTargeting) {
-          cancelAbilityTargeting();
-        } else if (placementMode) {
+        if (placementMode) {
           cancelPlacement();
         } else if (selectedTower) {
           deselectTower();
@@ -2491,6 +2428,42 @@
     update(dt);
     render(timestamp);
   }
+
+  // ─────────────────────────── Map Selection UI ───────────────────────
+  var $mapSelector = document.getElementById('map-selector');
+
+  function buildMapSelector() {
+    if (!$mapSelector) return;
+    $mapSelector.innerHTML = '';
+    var order = Map.MAP_ORDER;
+    var maps = Map.MAPS;
+    var diffColors = { Easy: '#44cc66', Medium: '#d4a017', Hard: '#ff4444' };
+
+    for (var i = 0; i < order.length; i++) {
+      var m = maps[order[i]];
+      var card = document.createElement('div');
+      card.className = 'map-card' + (order[i] === selectedMapId ? ' selected' : '');
+      card.dataset.mapId = m.id;
+      var dc = diffColors[m.difficulty] || '#a89880';
+      card.innerHTML =
+        '<div class="map-name">' + m.name + '</div>' +
+        '<div class="map-diff" style="color:' + dc + '">' + m.difficulty + '</div>' +
+        '<div class="map-desc">' + m.description + '</div>' +
+        '<div class="map-best">Best: Wave ' + loadBest(m.id) + '</div>';
+      card.addEventListener('click', (function (mid) {
+        return function () {
+          selectedMapId = mid;
+          var allCards = $mapSelector.querySelectorAll('.map-card');
+          for (var j = 0; j < allCards.length; j++) {
+            allCards[j].classList.toggle('selected', allCards[j].dataset.mapId === mid);
+          }
+          updateMenuBestWave();
+        };
+      })(m.id));
+      $mapSelector.appendChild(card);
+    }
+  }
+  buildMapSelector();
 
   // ─────────────────────────── Initialize ──────────────────────────────
   updateCamera();

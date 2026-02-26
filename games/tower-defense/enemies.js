@@ -1522,6 +1522,26 @@
       _immuneStatus: null,
       _giantGoldMult: 1,
       _prevPositions: [],  // for swift afterimages
+      // Boss phase system
+      phase: 1,
+      _phaseTransitionTimer: 0,  // invulnerability window during transition
+      _phaseFlash: 0,            // visual flash on transition
+      _phaseRingRadius: 0,       // expanding ring effect
+      _phaseRingActive: false,
+      // Lich King phase 2: skeleton raise
+      _raiseTimer: 0,
+      // Lich King phase 3: death aura
+      _deathAuraRadius: 120,
+      // Shadow Dragon phase 2: shadow breath
+      _breathTimer: 0,
+      // Shadow Dragon phase 3: evasion
+      _evasionChance: 0,
+      // Infernal Lord phase 2: fire trail
+      _fireTrailTimer: 0,
+      // Crystal Hydra phase 2: bonus armor applied flag
+      _hydraPhase2ArmorApplied: false,
+      // Crystal Hydra phase 3: regen
+      _hydraRegenRate: 0,
     };
     return enemy;
   }
@@ -1532,6 +1552,12 @@
 
   function applyDamage(enemy, rawDamage, armorPierce) {
     if (enemy.dead) return 0;
+    // Boss phase transition invulnerability
+    if (enemy._phaseTransitionTimer > 0) return 0;
+    // Shadow Dragon phase 3: evasion chance
+    if (enemy._evasionChance > 0 && Math.random() < enemy._evasionChance) {
+      return 0; // evaded
+    }
     armorPierce = armorPierce || 0;
     var effectiveArmor = Math.max(0, enemy.armor * (1 - armorPierce));
     var shatterStatus = getStatus(enemy, STATUS.shatter);
@@ -1774,15 +1800,114 @@
       }
 
       case 'boss': {
+        // --- Phase transition check ---
+        var hpPct = enemy.hp / enemy.maxHp;
+        var newPhase = enemy.phase;
+        if (hpPct <= 0.25 && enemy.phase < 3) {
+          newPhase = 3;
+        } else if (hpPct <= 0.60 && enemy.phase < 2) {
+          newPhase = 2;
+        }
+        if (newPhase !== enemy.phase) {
+          triggerPhaseTransition(enemy, newPhase, callbacks);
+        }
+
+        // Tick phase transition invulnerability
+        if (enemy._phaseTransitionTimer > 0) {
+          enemy._phaseTransitionTimer -= dt;
+          // restore speed after transition
+          if (enemy._phaseTransitionTimer <= 0) {
+            enemy._phaseTransitionTimer = 0;
+          }
+        }
+
+        // Tick phase visual effects
+        if (enemy._phaseFlash > 0) {
+          enemy._phaseFlash = Math.max(0, enemy._phaseFlash - dt * 3);
+        }
+        if (enemy._phaseRingActive) {
+          enemy._phaseRingRadius += dt * 200;
+          if (enemy._phaseRingRadius > 150) {
+            enemy._phaseRingActive = false;
+            enemy._phaseRingRadius = 0;
+          }
+        }
+
+        // --- Phase-specific passive behaviors ---
+        updateBossPhasePassives(enemy, dt, enemies, callbacks);
+
+        // --- Boss ability timer ---
         var aInterval = type.abilityInterval || 10;
+        // Infernal Lord phase 3: enrage reduces ability cooldown
+        if (type.bossAbility === 'fireNova' && enemy.phase === 3) {
+          aInterval = aInterval * 0.6; // faster nova
+        }
         if (enemy.abilityTimer >= aInterval) {
           enemy.abilityTimer = 0;
           executeBossAbility(enemy, enemies, callbacks);
         }
-        // Shadow Dragon phase
+        // Shadow Dragon phase ability
         if (type.bossAbility === 'phase') {
           var pDur = type.phaseDuration || 2;
-          enemy.abilityActive = enemy.abilityTimer < pDur;
+          // Phase 3: permanent rapid shifting — 50% of time phased
+          if (enemy.phase === 3) {
+            var rapidCycle = enemy.abilityTimer % 2.0;
+            enemy.abilityActive = rapidCycle < 1.0;
+          } else {
+            enemy.abilityActive = enemy.abilityTimer < pDur;
+          }
+        }
+        break;
+      }
+
+      case 'burrow': {
+        var bInterval = type.burrowInterval || 4;
+        var bDur = type.burrowDuration || 2;
+        var bCycle = enemy.abilityTimer % (bInterval + bDur);
+        var wasBurrowed = enemy.abilityActive;
+        enemy.abilityActive = bCycle >= bInterval;
+        // set invisible so towers can't target while burrowed
+        enemy.invisible = enemy.abilityActive;
+        // track emerge animation
+        if (wasBurrowed && !enemy.abilityActive) {
+          enemy._justEmerged = 1.0;
+        }
+        if (enemy._justEmerged > 0) {
+          enemy._justEmerged = Math.max(0, enemy._justEmerged - dt * 3);
+        }
+        break;
+      }
+
+      case 'enrage': {
+        // speed scales from 1x at full HP to 2x at 10% HP
+        // multiply current speed (which already has slows applied) by rage factor
+        var hpFrac = enemy.hp / enemy.maxHp;
+        var rageFactor = Math.min(1, Math.max(0, 1 - (hpFrac - 0.1) / 0.9));
+        enemy.speed *= (1 + rageFactor);
+        break;
+      }
+
+      case 'reflect': {
+        // reflect is passive — handled in applyDamage wrapper
+        // visual: abilityActive pulses when recently hit
+        if (enemy.hitFlash > 0) {
+          enemy.abilityActive = true;
+        } else {
+          enemy.abilityActive = false;
+        }
+        break;
+      }
+
+      case 'carrier': {
+        // assign passengers on first tick if not yet assigned
+        if (!enemy._passengers) {
+          enemy._passengers = [];
+          var pTypes = type.passengerTypes || ['imp'];
+          var pCount = type.passengerCount || 3;
+          for (var p = 0; p < pCount; p++) {
+            var pType = pTypes[Math.floor(seededRandom(enemy.id * 31 + p * 13) * pTypes.length)];
+            enemy._passengers.push(pType);
+          }
         }
         break;
       }
@@ -1843,21 +1968,142 @@
     }
   }
 
+  /* ------------------------------------------------------------------ */
+  /*  Boss phase transition                                              */
+  /* ------------------------------------------------------------------ */
+
+  function triggerPhaseTransition(enemy, newPhase, callbacks) {
+    enemy.phase = newPhase;
+    enemy._phaseTransitionTimer = 0.5; // 0.5s invulnerability
+    enemy._phaseFlash = 1.0;           // white flash
+    enemy._phaseRingActive = true;     // expanding ring
+    enemy._phaseRingRadius = 0;
+
+    // Phase-specific one-time setup
+    var type = enemy.type;
+    if (type.id === 'infernalLord' && newPhase === 3) {
+      // Enrage: 50% faster
+      enemy.baseSpeed = Math.round(enemy.baseSpeed * 1.5);
+      enemy.speed = enemy.baseSpeed;
+    }
+    if (type.id === 'crystalHydra' && newPhase === 2 && !enemy._hydraPhase2ArmorApplied) {
+      enemy.armor += 2;
+      enemy._hydraPhase2ArmorApplied = true;
+    }
+    if (type.id === 'crystalHydra' && newPhase === 3) {
+      enemy._hydraRegenRate = 15; // 15 HP/s
+    }
+    if (type.id === 'shadowDragon' && newPhase === 3) {
+      enemy._evasionChance = 0.50; // 50% evasion
+      enemy.baseSpeed = Math.round(enemy.baseSpeed * 1.5);
+      enemy.speed = enemy.baseSpeed;
+    }
+
+    // Notify engine for visual/audio effects
+    if (callbacks && callbacks.onBossAbility) {
+      callbacks.onBossAbility(enemy, 'phaseTransition', {
+        x: enemy.x, y: enemy.y, phase: newPhase
+      });
+    }
+  }
+
+  /* ------------------------------------------------------------------ */
+  /*  Boss phase-specific passive behaviors                              */
+  /* ------------------------------------------------------------------ */
+
+  function updateBossPhasePassives(enemy, dt, enemies, callbacks) {
+    var type = enemy.type;
+
+    // --- Infernal Lord Phase 2: fire trail ---
+    if (type.id === 'infernalLord' && enemy.phase >= 2) {
+      enemy._fireTrailTimer += dt;
+      if (enemy._fireTrailTimer >= 0.5) { // drop a fire zone every 0.5s
+        enemy._fireTrailTimer = 0;
+        if (callbacks && callbacks.onBossAbility) {
+          callbacks.onBossAbility(enemy, 'fireTrail', {
+            x: enemy.x, y: enemy.y, radius: 25, dps: 8, duration: 3
+          });
+        }
+      }
+    }
+
+    // --- Crystal Hydra Phase 3: regeneration ---
+    if (type.id === 'crystalHydra' && enemy._hydraRegenRate > 0) {
+      if (enemy.hp < enemy.maxHp) {
+        enemy.hp = Math.min(enemy.maxHp, enemy.hp + enemy._hydraRegenRate * dt);
+      }
+    }
+
+    // --- Lich King Phase 2: raise skeletons from killed enemies ---
+    if (type.id === 'lichKing' && enemy.phase >= 2) {
+      enemy._raiseTimer += dt;
+      if (enemy._raiseTimer >= 10) {
+        enemy._raiseTimer = 0;
+        if (callbacks && callbacks.onSummon) {
+          callbacks.onSummon(enemy, 'skeleton', 2);
+        }
+        if (callbacks && callbacks.onBossAbility) {
+          callbacks.onBossAbility(enemy, 'raiseDead', {
+            x: enemy.x, y: enemy.y
+          });
+        }
+      }
+    }
+
+    // --- Lich King Phase 3: death aura (towers deal 20% less damage) ---
+    // Stored as flag for engine to check via enemy._deathAuraActive
+    if (type.id === 'lichKing' && enemy.phase >= 3) {
+      enemy._deathAuraActive = true;
+    }
+
+    // --- Shadow Dragon Phase 2: shadow breath (disable towers in a line) ---
+    if (type.id === 'shadowDragon' && enemy.phase >= 2) {
+      enemy._breathTimer += dt;
+      if (enemy._breathTimer >= 6) {
+        enemy._breathTimer = 0;
+        if (callbacks && callbacks.onBossAbility) {
+          callbacks.onBossAbility(enemy, 'shadowBreath', {
+            x: enemy.x, y: enemy.y,
+            angle: enemy.angle,
+            range: 150,
+            disableDuration: 2
+          });
+        }
+      }
+    }
+
+    // --- Infernal Lord Phase 3: doubled nova radius handled in executeBossAbility ---
+  }
+
   function executeBossAbility(enemy, enemies, callbacks) {
     var type = enemy.type;
     switch (type.bossAbility) {
-      case 'fireNova':
-        // visual callback; no direct tower damage (flavor)
+      case 'fireNova': {
+        // Phase 3: doubled radius
+        var novaRadius = type.abilityRadius || 100;
+        if (enemy.phase >= 3) novaRadius *= 2;
         if (callbacks && callbacks.onBossAbility) {
-          callbacks.onBossAbility(enemy, 'fireNova', { x: enemy.x, y: enemy.y, radius: type.abilityRadius });
+          callbacks.onBossAbility(enemy, 'fireNova', { x: enemy.x, y: enemy.y, radius: novaRadius });
         }
         break;
-      case 'summon':
+      }
+      case 'summon': {
+        // Phase 2: 5 wisps instead of 3
+        var summonCount = type.summonCount || 3;
+        var summonType = type.summonType || 'wisp';
+        if (enemy.phase >= 2) summonCount = 5;
         if (callbacks && callbacks.onSummon) {
-          callbacks.onSummon(enemy, type.summonType, type.summonCount || 3);
+          callbacks.onSummon(enemy, summonType, summonCount);
+        }
+        // Phase 3: also summon 1 gargoyle
+        if (enemy.phase >= 3) {
+          if (callbacks && callbacks.onSummon) {
+            callbacks.onSummon(enemy, 'gargoyle', 1);
+          }
         }
         break;
-      case 'massHeal':
+      }
+      case 'massHeal': {
         var pct = type.healPercent || 0.15;
         for (var i = 0; i < enemies.length; i++) {
           var e = enemies[i];
@@ -1869,6 +2115,7 @@
           callbacks.onBossAbility(enemy, 'massHeal', { percent: pct });
         }
         break;
+      }
       case 'phase':
         // handled in updateBehavior
         break;
@@ -2163,6 +2410,19 @@
     var col = frac > 0.6 ? '#4c4' : frac > 0.3 ? '#cc4' : '#c44';
     ctx.fillStyle = col;
     ctx.fillRect(x, y, barW * frac, barH);
+
+    // Boss phase indicator (I, II, III) below health bar
+    if (enemy.type.behavior === 'boss' && enemy.phase >= 1) {
+      var phaseLabels = ['', 'I', 'II', 'III'];
+      var phaseColors = ['', '#ffdd44', '#ff8844', '#ff4444'];
+      var label = phaseLabels[enemy.phase] || 'I';
+      ctx.save();
+      ctx.font = 'bold 8px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = phaseColors[enemy.phase] || '#ffdd44';
+      ctx.fillText(label, enemy.x, y + barH + 9);
+      ctx.restore();
+    }
   }
 
   function drawStatusIndicators(ctx, enemy, time) {
@@ -2353,6 +2613,57 @@
       circle(ctx, enemy.x, enemy.y, s * 1.1);
       ctx.fill();
       ctx.globalAlpha = 1;
+    }
+
+    // --- Boss phase transition flash ---
+    if (enemy._phaseFlash > 0) {
+      ctx.globalAlpha = enemy._phaseFlash * 0.8;
+      ctx.fillStyle = '#fff';
+      circle(ctx, enemy.x, enemy.y, s * 2.0);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    // --- Boss phase transition expanding ring ---
+    if (enemy._phaseRingActive && enemy._phaseRingRadius > 0) {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, 1 - enemy._phaseRingRadius / 150) * 0.6;
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 3;
+      circle(ctx, enemy.x, enemy.y, enemy._phaseRingRadius);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // --- Boss phase glow overlay ---
+    if (enemy.type.behavior === 'boss' && enemy.phase >= 2) {
+      ctx.save();
+      var phaseGlowColors = {
+        infernalLord: enemy.phase === 3 ? '#ff2200' : '#ff6600',
+        crystalHydra: enemy.phase === 3 ? '#00ffaa' : '#88ffff',
+        lichKing: enemy.phase === 3 ? '#44ff00' : '#88ff88',
+        shadowDragon: enemy.phase === 3 ? '#cc00ff' : '#8844cc',
+      };
+      var bossGlow = phaseGlowColors[enemy.type.id] || '#fff';
+      ctx.globalAlpha = 0.15 + 0.1 * Math.sin(time * 5);
+      glow(ctx, bossGlow, 20 + enemy.phase * 5);
+      ctx.fillStyle = bossGlow;
+      circle(ctx, enemy.x, enemy.y, s * 1.5);
+      ctx.fill();
+      noGlow(ctx);
+      ctx.restore();
+    }
+
+    // --- Lich King Phase 3: death aura visual ---
+    if (enemy.type.id === 'lichKing' && enemy._deathAuraActive) {
+      ctx.save();
+      ctx.globalAlpha = 0.08 + 0.04 * Math.sin(time * 2);
+      ctx.fillStyle = '#00ff00';
+      glow(ctx, '#00ff00', 15);
+      circle(ctx, enemy.x, enemy.y, enemy._deathAuraRadius);
+      ctx.fill();
+      noGlow(ctx);
+      ctx.restore();
     }
 
     ctx.restore();
