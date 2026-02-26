@@ -125,7 +125,7 @@
 
     function resetPositions() {
         pacman.col = 14;
-        pacman.row = 23;
+        pacman.row = 21;
         pacman.dir = 'left';
         pacman.nextDir = 'left';
         pacman.mouthAngle = 0;
