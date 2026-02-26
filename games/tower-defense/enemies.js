@@ -871,21 +871,21 @@
     imp: {
       id: 'imp', name: 'Imp',
       color: '#cc3333', accentColor: '#991111',
-      size: 7, speed: 80, hp: 30, armor: 0, gold: 5,
+      size: 7, speed: 80, hp: 25, armor: 0, gold: 8,
       behavior: 'walk', flying: false,
       drawEnemy: drawImp,
     },
     goblin: {
       id: 'goblin', name: 'Goblin',
       color: '#44aa44', accentColor: '#2a7a2a',
-      size: 9, speed: 60, hp: 45, armor: 0, gold: 7,
+      size: 9, speed: 60, hp: 35, armor: 0, gold: 10,
       behavior: 'walk', flying: false,
       drawEnemy: drawGoblin,
     },
     skeleton: {
       id: 'skeleton', name: 'Skeleton',
       color: '#d4cbb0', accentColor: '#8a8060',
-      size: 10, speed: 45, hp: 70, armor: 1, gold: 10,
+      size: 10, speed: 45, hp: 50, armor: 1, gold: 12,
       behavior: 'walk', flying: false,
       drawEnemy: drawSkeleton,
     },
@@ -1429,11 +1429,11 @@
   }
 
   function getWave(waveNum) {
-    var hpMult = 1.0 + (waveNum - 1) * 0.15 + Math.pow(waveNum / 10, 1.8) * 0.5;
+    var hpMult = 1.0 + (waveNum - 1) * 0.08 + Math.pow(waveNum / 12, 1.6) * 0.4;
     var speedMult = 1.0 + waveNum * 0.015;
     var armorBonus = Math.floor(waveNum / 5);
-    var goldBonus = Math.floor(waveNum * 1.5);
-    var totalCount = Math.min(50, 8 + Math.floor(waveNum * 2.2));
+    var goldBonus = 20 + Math.floor(waveNum * 5);
+    var totalCount = Math.min(50, 5 + Math.floor(waveNum * 2.5));
 
     var bossId = bossWaves[waveNum] || null;
     // For boss waves beyond 20, cycle through bosses with scaling

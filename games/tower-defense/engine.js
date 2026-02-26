@@ -34,7 +34,7 @@
   var prevState     = 'menu'; // For resuming from pause
 
   // ─────────────────────────── Game State ──────────────────────────────
-  var gold           = 200;
+  var gold           = 400;
   var mana           = 0;
   var currentWave    = 0;
   var totalWaves     = 20;
@@ -625,7 +625,7 @@
   function startNewGame() {
     Audio.init();
     state = 'build';
-    gold = 200;
+    gold = 400;
     mana = 0;
     currentWave = 0;
     towers = [];
