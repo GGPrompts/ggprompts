@@ -11,8 +11,8 @@ const Physics = (() => {
     const FRICTION = 0.4;
     const SLEEP_THRESHOLD = 2;
     const SLEEP_FRAMES = 30;
-    const DAMPING = 0.998;
-    const ANGULAR_DAMPING = 0.995;
+    const DAMPING = 0.9995;        // per-substep; effective ~0.998/frame
+    const ANGULAR_DAMPING = 0.99875; // per-substep; effective ~0.995/frame
 
     class Body {
         constructor(x, y, w, h, opts = {}) {
