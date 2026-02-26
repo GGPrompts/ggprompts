@@ -20,8 +20,8 @@ window.DungeonGen = (function () {
         [TILE.STAIRS_UP]: '#0ff'
     };
 
-    const WIDTH = 80;
-    const HEIGHT = 40;
+    const WIDTH = 120;
+    const HEIGHT = 45;
 
     function create(level) {
         const map = [];
@@ -33,8 +33,8 @@ window.DungeonGen = (function () {
         }
 
         const rooms = [];
-        const minRooms = 6 + Math.floor(level * 0.5);
-        const maxRooms = 10 + Math.floor(level * 0.8);
+        const minRooms = 8 + Math.floor(level * 0.6);
+        const maxRooms = 14 + Math.floor(level * 1.0);
         const targetRooms = minRooms + Math.floor(Math.random() * (maxRooms - minRooms + 1));
         const attempts = targetRooms * 20;
 

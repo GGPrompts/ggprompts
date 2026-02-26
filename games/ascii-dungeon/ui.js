@@ -11,8 +11,8 @@ window.UI = (function () {
     let minimapVisible = false;
 
     // Viewport: how many tiles we show
-    const VP_W = 80;
-    const VP_H = 30;
+    const VP_W = 120;
+    const VP_H = 45;
 
     function init() {
         mapEl = document.getElementById('map');
