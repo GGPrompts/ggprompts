@@ -9,7 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         /* ================================================================
-           ISOMETRIC SCENE BUILDER — Clean pixel-art diorama editor
+           ISOMETRIC SCENE BUILDER — Minecraft-inspired diorama editor
            Nunito (UI), JetBrains Mono (status/coords)
         ================================================================ */
         :root {
@@ -26,6 +26,7 @@
             --border-light: #e0e0e0;
             --danger: #d94a4a;
             --danger-hover: #c83a3a;
+            --success: #4a9a4a;
             --shadow: rgba(0,0,0,0.08);
             --shadow-md: rgba(0,0,0,0.12);
             --radius: 8px;
@@ -114,6 +115,8 @@
             white-space: nowrap;
         }
         .btn:hover { background: #f5f5f5; border-color: #bbb; }
+        .btn:disabled { opacity: 0.4; cursor: default; }
+        .btn:disabled:hover { background: var(--bg-panel); border-color: var(--border); }
 
         .btn-primary {
             background: var(--accent);
@@ -144,7 +147,7 @@
             padding: 12px;
             display: flex;
             flex-direction: column;
-            gap: 16px;
+            gap: 14px;
         }
 
         .panel-heading {
@@ -154,6 +157,32 @@
             letter-spacing: 0.08em;
             color: var(--text-muted);
             margin-bottom: 6px;
+        }
+
+        /* Category tabs */
+        .cat-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-bottom: 6px;
+        }
+        .cat-tab {
+            font-family: var(--font-ui);
+            font-size: 10px;
+            font-weight: 700;
+            padding: 3px 8px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: var(--bg-panel);
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .cat-tab:hover { border-color: var(--accent); color: var(--accent); }
+        .cat-tab.active {
+            background: var(--accent);
+            color: #fff;
+            border-color: var(--accent);
         }
 
         /* Block palette */
@@ -187,7 +216,7 @@
             left: 0;
             right: 0;
             text-align: center;
-            font-size: 9px;
+            font-size: 8px;
             font-weight: 700;
             color: #fff;
             background: rgba(0,0,0,0.5);
@@ -253,6 +282,20 @@
             text-align: center;
         }
 
+        /* Rotation indicator */
+        .rotation-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+        }
+        .rotation-display {
+            font-family: var(--font-mono);
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--accent);
+        }
+
         /* ── Canvas Area ────────────────────────────────────────── */
         .canvas-wrap {
             position: relative;
@@ -282,6 +325,43 @@
         }
 
         .statusbar span { white-space: nowrap; }
+
+        /* Toast notification */
+        .toast {
+            position: fixed;
+            bottom: 48px;
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            padding: 10px 20px;
+            background: #333;
+            color: #fff;
+            border-radius: var(--radius);
+            font-size: 13px;
+            font-weight: 600;
+            z-index: 200;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            opacity: 0;
+            transition: all 0.3s;
+            pointer-events: none;
+        }
+        .toast.visible {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+            pointer-events: auto;
+        }
+        .toast .toast-btn {
+            font-family: var(--font-ui);
+            font-size: 12px;
+            font-weight: 700;
+            padding: 4px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .toast .toast-yes { background: var(--accent); color: #fff; }
+        .toast .toast-no { background: #555; color: #ccc; }
 
         /* Tooltip */
         .tooltip {
@@ -333,6 +413,13 @@
             <div class="sep"></div>
             <h1>Isometric Scene Builder</h1>
             <div class="topbar-actions">
+                <button class="btn btn-sm" id="btnUndo" disabled title="Undo (Ctrl+Z)">Undo</button>
+                <button class="btn btn-sm" id="btnRedo" disabled title="Redo (Ctrl+Shift+Z)">Redo</button>
+                <div class="sep"></div>
+                <button class="btn" id="btnSave" title="Save scene">Save</button>
+                <button class="btn" id="btnLoad" title="Load scene">Load</button>
+                <input type="file" id="fileLoad" accept=".json,.iso.json" style="display:none">
+                <div class="sep"></div>
                 <button class="btn btn-danger" id="btnClear">Clear</button>
                 <button class="btn btn-primary" id="btnExport">Export PNG</button>
             </div>
@@ -342,6 +429,7 @@
         <div class="sidebar">
             <div>
                 <div class="panel-heading">Blocks</div>
+                <div class="cat-tabs" id="catTabs"></div>
                 <div class="block-grid" id="blockGrid"></div>
             </div>
 
@@ -370,6 +458,16 @@
                 <div class="tool-row">
                     <button class="btn tool-btn active" id="btnToolPlace" data-tool="place">Place</button>
                     <button class="btn tool-btn" id="btnToolErase" data-tool="erase">Erase</button>
+                    <button class="btn tool-btn" id="btnToolFill" data-tool="fill">Fill</button>
+                </div>
+            </div>
+
+            <div>
+                <div class="panel-heading">Rotation</div>
+                <div class="rotation-row">
+                    <button class="btn btn-sm" id="btnRotate" title="Rotate (R)">R</button>
+                    <span class="rotation-display" id="rotDisplay">0°</span>
+                    <span style="font-size:11px; color:var(--text-muted)">Press R</span>
                 </div>
             </div>
 
@@ -382,18 +480,25 @@
                     <label style="font-size:12px; display:flex; align-items:center; gap:6px; cursor:pointer;">
                         <input type="checkbox" id="chkShadow" checked> Shadows
                     </label>
+                    <label style="font-size:12px; display:flex; align-items:center; gap:6px; cursor:pointer;">
+                        <input type="checkbox" id="chkHideLayers"> Hide layers above
+                    </label>
                 </div>
             </div>
 
             <div>
                 <div class="panel-heading">Shortcuts</div>
                 <div style="font-size:11px; color:var(--text-muted); line-height:1.6;">
-                    <b>Click</b> Place / Erase<br>
+                    <b>Click</b> Place / Erase / Fill<br>
                     <b>Right-click</b> Erase<br>
                     <b>Scroll</b> Zoom<br>
                     <b>Middle-drag</b> Pan<br>
                     <b>+/-</b> Layer up/down<br>
-                    <b>1-9</b> Select block
+                    <b>1-9</b> Select block<br>
+                    <b>R</b> Rotate block<br>
+                    <b>Ctrl+Z</b> Undo<br>
+                    <b>Ctrl+Shift+Z</b> Redo<br>
+                    <b>Ctrl+S</b> Save scene
                 </div>
             </div>
         </div>
@@ -412,10 +517,11 @@
     </div>
 
     <div class="tooltip" id="tooltip"></div>
+    <div class="toast" id="toast"></div>
 
     <script>
     /* ================================================================
-       ISOMETRIC SCENE BUILDER ENGINE
+       ISOMETRIC SCENE BUILDER ENGINE — Minecraft-style Creative Mode
     ================================================================ */
     (function() {
         'use strict';
@@ -427,31 +533,81 @@
         const TILE_W = 32;
         const TILE_H = 16;
         const BLOCK_H = 12;
+        const MAX_HISTORY = 200;
+        const AUTOSAVE_KEY = 'iso-scene-autosave';
+        const AUTOSAVE_DELAY = 1500;
 
         // ── Block Types ────────────────────────────────────────
+        // Original 12 blocks keep indices 0-11 for backward compat
         const BLOCK_TYPES = [
-            { id: 'grass',   name: 'Grass',   top: '#5ea832', left: '#6b4930', right: '#573b24', topTex: 'grass' },
-            { id: 'dirt',    name: 'Dirt',     top: '#8b6f47', left: '#6b4930', right: '#573b24' },
-            { id: 'stone',   name: 'Stone',    top: '#9a9a9a', left: '#787878', right: '#636363' },
-            { id: 'wood',    name: 'Wood',     top: '#c49a6c', left: '#a07844', right: '#8a6438', topTex: 'wood' },
-            { id: 'water',   name: 'Water',    top: '#4a9ad9', left: '#3a7ab8', right: '#2a6a9e', topTex: 'water', alpha: 0.8 },
-            { id: 'sand',    name: 'Sand',     top: '#e8d68c', left: '#d4bf6e', right: '#c0a85a' },
-            { id: 'snow',    name: 'Snow',     top: '#eef4f8', left: '#d0dce4', right: '#b8c8d4' },
-            { id: 'brick',   name: 'Brick',    top: '#b85c3a', left: '#983c2a', right: '#7e2c1a', topTex: 'brick' },
-            { id: 'leaf',    name: 'Leaves',   top: '#3ca828', left: '#2c8a1a', right: '#1e7210', topTex: 'leaf' },
-            { id: 'lava',    name: 'Lava',     top: '#ff6a1a', left: '#d44a0a', right: '#b03a00', topTex: 'lava' },
-            { id: 'ice',     name: 'Ice',      top: '#c8e8f8', left: '#a8d0ec', right: '#90bce0', alpha: 0.85 },
-            { id: 'gold',    name: 'Gold',     top: '#ffd700', left: '#d4a800', right: '#b08e00' },
+            // -- Natural (0-8) --
+            { id: 'grass',       name: 'Grass',       cat: 'natural', shape: 'cube', top: '#5ea832', left: '#6b4930', right: '#573b24', topTex: 'grass' },
+            { id: 'dirt',        name: 'Dirt',         cat: 'natural', shape: 'cube', top: '#8b6f47', left: '#6b4930', right: '#573b24' },
+            { id: 'sand',        name: 'Sand',         cat: 'natural', shape: 'cube', top: '#e8d68c', left: '#d4bf6e', right: '#c0a85a' },
+            { id: 'snow',        name: 'Snow',         cat: 'natural', shape: 'cube', top: '#eef4f8', left: '#d0dce4', right: '#b8c8d4' },
+            { id: 'water',       name: 'Water',        cat: 'natural', shape: 'cube', top: '#4a9ad9', left: '#3a7ab8', right: '#2a6a9e', topTex: 'water', alpha: 0.8 },
+            { id: 'lava',        name: 'Lava',         cat: 'natural', shape: 'cube', top: '#ff6a1a', left: '#d44a0a', right: '#b03a00', topTex: 'lava' },
+            { id: 'ice',         name: 'Ice',          cat: 'natural', shape: 'cube', top: '#c8e8f8', left: '#a8d0ec', right: '#90bce0', alpha: 0.85 },
+            { id: 'gravel',      name: 'Gravel',       cat: 'natural', shape: 'cube', top: '#8a8480', left: '#706c68', right: '#5e5a56', topTex: 'gravel' },
+            { id: 'clay',        name: 'Clay',         cat: 'natural', shape: 'cube', top: '#9fa4ac', left: '#858a92', right: '#6e737a' },
+
+            // -- Stone & Ore (9-15) --
+            { id: 'stone',       name: 'Stone',        cat: 'stone', shape: 'cube', top: '#9a9a9a', left: '#787878', right: '#636363' },
+            { id: 'brick',       name: 'Brick',        cat: 'stone', shape: 'cube', top: '#b85c3a', left: '#983c2a', right: '#7e2c1a', topTex: 'brick' },
+            { id: 'gold',        name: 'Gold',         cat: 'stone', shape: 'cube', top: '#ffd700', left: '#d4a800', right: '#b08e00' },
+            { id: 'cobblestone', name: 'Cobble',       cat: 'stone', shape: 'cube', top: '#7a7a7a', left: '#606060', right: '#4e4e4e', topTex: 'cobble' },
+            { id: 'iron',        name: 'Iron',         cat: 'stone', shape: 'cube', top: '#d8ccc0', left: '#b8a898', right: '#9a8a7a', topTex: 'ore' },
+            { id: 'diamond',     name: 'Diamond',      cat: 'stone', shape: 'cube', top: '#62d8d8', left: '#48b4b4', right: '#389898', topTex: 'ore' },
+            { id: 'obsidian',    name: 'Obsidian',     cat: 'stone', shape: 'cube', top: '#1a0a2e', left: '#140824', right: '#0e061a' },
+
+            // -- Wood & Plants (16-22) --
+            { id: 'wood',        name: 'Wood',         cat: 'wood', shape: 'cube', top: '#c49a6c', left: '#a07844', right: '#8a6438', topTex: 'wood' },
+            { id: 'leaf',        name: 'Leaves',       cat: 'wood', shape: 'cube', top: '#3ca828', left: '#2c8a1a', right: '#1e7210', topTex: 'leaf' },
+            { id: 'log',         name: 'Log',          cat: 'wood', shape: 'cube', top: '#a07844', left: '#6b4930', right: '#573b24', topTex: 'log' },
+            { id: 'plank',       name: 'Plank',        cat: 'wood', shape: 'cube', top: '#c4a060', left: '#a88448', right: '#8e6c38', topTex: 'plank' },
+            { id: 'fence',       name: 'Fence',        cat: 'wood', shape: 'fence', top: '#c49a6c', left: '#a07844', right: '#8a6438' },
+            { id: 'flower',      name: 'Flower',       cat: 'wood', shape: 'cross', top: '#e84040', left: '#38a828', right: '#2c8a1a' },
+            { id: 'tallgrass',   name: 'Tall Grass',   cat: 'wood', shape: 'cross', top: '#5ea832', left: '#4a8a28', right: '#3c7220' },
+
+            // -- Structural (23-29) --
+            { id: 'glass',       name: 'Glass',        cat: 'build', shape: 'cube', top: '#d4ecf8', left: '#b8daf0', right: '#a0cce8', alpha: 0.4, topTex: 'glass' },
+            { id: 'glasspane',   name: 'Glass Pane',   cat: 'build', shape: 'pane', top: '#d4ecf8', left: '#b8daf0', right: '#a0cce8', alpha: 0.5 },
+            { id: 'stoneslab',   name: 'Stone Slab',   cat: 'build', shape: 'slab', top: '#9a9a9a', left: '#787878', right: '#636363' },
+            { id: 'woodslab',    name: 'Wood Slab',    cat: 'build', shape: 'slab', top: '#c49a6c', left: '#a07844', right: '#8a6438' },
+            { id: 'stonestair',  name: 'Stone Stair',  cat: 'build', shape: 'stair', top: '#9a9a9a', left: '#787878', right: '#636363' },
+            { id: 'woodstair',   name: 'Wood Stair',   cat: 'build', shape: 'stair', top: '#c49a6c', left: '#a07844', right: '#8a6438' },
+            { id: 'door',        name: 'Door',         cat: 'build', shape: 'door', top: '#a07844', left: '#8a6438', right: '#6b4930' },
+
+            // -- Decorative (30-35) --
+            { id: 'bookshelf',   name: 'Bookshelf',    cat: 'decor', shape: 'cube', top: '#c49a6c', left: '#a07844', right: '#8a6438', topTex: 'bookshelf' },
+            { id: 'crafting',    name: 'Craft Table',  cat: 'decor', shape: 'cube', top: '#c49a6c', left: '#a07844', right: '#8a6438', topTex: 'crafting' },
+            { id: 'tnt',         name: 'TNT',          cat: 'decor', shape: 'cube', top: '#d44a0a', left: '#cc3333', right: '#aa2222', topTex: 'tnt' },
+            { id: 'torch',       name: 'Torch',        cat: 'decor', shape: 'cross', top: '#ffd700', left: '#8a6438', right: '#6b4930' },
+            { id: 'lantern',     name: 'Lantern',      cat: 'decor', shape: 'cross', top: '#ffaa30', left: '#444444', right: '#333333' },
+            { id: 'wool',        name: 'Wool',         cat: 'decor', shape: 'cube', top: '#e8e0d8', left: '#d0c8c0', right: '#b8b0a8' },
+            { id: 'coal',        name: 'Coal',         cat: 'stone', shape: 'cube', top: '#3a3a3a', left: '#2a2a2a', right: '#1e1e1e', topTex: 'ore' },
+        ];
+
+        const CATEGORIES = [
+            { id: 'all',     name: 'All' },
+            { id: 'natural', name: 'Natural' },
+            { id: 'stone',   name: 'Stone' },
+            { id: 'wood',    name: 'Wood' },
+            { id: 'build',   name: 'Build' },
+            { id: 'decor',   name: 'Decor' },
         ];
 
         // ── State ──────────────────────────────────────────────
-        let blocks = {};          // key: "x,y,z" → blockTypeIndex or { custom: color }
+        let blocks = {};          // key: "x,y,z" → blockTypeIndex or { custom: color } or { idx, rot }
         let currentBlock = 0;     // index into BLOCK_TYPES, or -1 for custom
         let customColor = '#6b8cff';
         let currentLayer = 0;
         let currentTool = 'place';
+        let currentRotation = 0;  // 0-3 (0°, 90°, 180°, 270°)
         let showGrid = true;
         let showShadow = true;
+        let hideLayers = false;
+        let activeCategory = 'all';
 
         // Camera
         let camX = 0, camY = 0, zoom = 1;
@@ -459,6 +615,13 @@
 
         // Hover
         let hoverCell = null; // {gx, gy}
+
+        // Undo/Redo
+        let history = [];
+        let historyIdx = -1;
+
+        // Autosave
+        let autosaveTimer = null;
 
         // DOM
         const canvas = document.getElementById('mainCanvas');
@@ -484,8 +647,8 @@
 
         function countBlocks() { return Object.keys(blocks).length; }
 
-        // ── Block Drawing ──────────────────────────────────────
-        function getBlockColors(blockData) {
+        // ── Block Data Helpers ─────────────────────────────────
+        function getBlockInfo(blockData) {
             if (typeof blockData === 'object' && blockData.custom) {
                 const c = blockData.custom;
                 return {
@@ -493,17 +656,33 @@
                     left: darkenColor(c, 0.75),
                     right: darkenColor(c, 0.55),
                     topTex: null,
-                    alpha: 1
+                    alpha: 1,
+                    shape: 'cube',
+                    rot: 0
                 };
             }
-            const bt = BLOCK_TYPES[blockData];
+            let idx, rot = 0;
+            if (typeof blockData === 'object' && blockData.idx !== undefined) {
+                idx = blockData.idx;
+                rot = blockData.rot || 0;
+            } else {
+                idx = blockData;
+            }
+            const bt = BLOCK_TYPES[idx];
             return {
                 top: bt.top,
                 left: bt.left,
                 right: bt.right,
                 topTex: bt.topTex || null,
-                alpha: bt.alpha || 1
+                alpha: bt.alpha || 1,
+                shape: bt.shape || 'cube',
+                rot: rot
             };
+        }
+
+        // Backward compat wrapper
+        function getBlockColors(blockData) {
+            return getBlockInfo(blockData);
         }
 
         function darkenColor(hex, factor) {
@@ -515,6 +694,45 @@
                 return Math.max(0, Math.min(255, v)).toString(16).padStart(2, '0');
             }).join('');
         }
+
+        function lightenColor(hex, factor) {
+            const r = parseInt(hex.slice(1,3), 16);
+            const g = parseInt(hex.slice(3,5), 16);
+            const b = parseInt(hex.slice(5,7), 16);
+            return '#' + [r,g,b].map(c => {
+                const v = Math.round(c + (255 - c) * factor);
+                return Math.max(0, Math.min(255, v)).toString(16).padStart(2, '0');
+            }).join('');
+        }
+
+        function needsRotation(shape) {
+            return shape === 'stair' || shape === 'door' || shape === 'pane';
+        }
+
+        function makeBlockData(blockIdx, rotation) {
+            if (blockIdx === -1) return { custom: customColor };
+            const bt = BLOCK_TYPES[blockIdx];
+            if (needsRotation(bt.shape) && rotation > 0) {
+                return { idx: blockIdx, rot: rotation };
+            }
+            return blockIdx;
+        }
+
+        // ── Shape Renderers ────────────────────────────────────
+        function drawBlockShape(ctx, sx, sy, info, z) {
+            const renderer = SHAPE_RENDERERS[info.shape] || SHAPE_RENDERERS.cube;
+            renderer(ctx, sx, sy, info, z);
+        }
+
+        const SHAPE_RENDERERS = {
+            cube: drawIsoCube,
+            slab: drawIsoSlab,
+            stair: drawIsoStair,
+            fence: drawIsoFence,
+            pane: drawIsoPane,
+            cross: drawIsoCross,
+            door: drawIsoDoor
+        };
 
         function drawIsoCube(ctx, sx, sy, colors, z) {
             const tw = TILE_W * zoom;
@@ -549,6 +767,9 @@
             ctx.closePath();
             ctx.fill();
 
+            // Left face texture
+            if (colors.topTex) drawSideTexture(ctx, sx, sy, colors.topTex, 'left', htw, hth, bh);
+
             // Right face
             ctx.fillStyle = colors.right;
             ctx.beginPath();
@@ -559,11 +780,13 @@
             ctx.closePath();
             ctx.fill();
 
+            // Right face texture
+            if (colors.topTex) drawSideTexture(ctx, sx, sy, colors.topTex, 'right', htw, hth, bh);
+
             // Edge outlines
             ctx.strokeStyle = 'rgba(0,0,0,0.12)';
             ctx.lineWidth = Math.max(0.5, 0.5 * zoom);
 
-            // Top
             ctx.beginPath();
             ctx.moveTo(sx, sy - hth);
             ctx.lineTo(sx + htw, sy);
@@ -572,7 +795,6 @@
             ctx.closePath();
             ctx.stroke();
 
-            // Left
             ctx.beginPath();
             ctx.moveTo(sx - htw, sy);
             ctx.lineTo(sx - htw, sy + bh);
@@ -581,7 +803,6 @@
             ctx.closePath();
             ctx.stroke();
 
-            // Right
             ctx.beginPath();
             ctx.moveTo(sx + htw, sy);
             ctx.lineTo(sx + htw, sy + bh);
@@ -591,9 +812,479 @@
             if (alpha < 1) ctx.globalAlpha = 1;
         }
 
+        function drawIsoSlab(ctx, sx, sy, colors, z) {
+            const tw = TILE_W * zoom;
+            const th = TILE_H * zoom;
+            const bh = BLOCK_H * zoom * 0.5; // half height
+            const htw = tw / 2;
+            const hth = th / 2;
+            const topOff = BLOCK_H * zoom * 0.5; // offset down since slab is shorter
+
+            const alpha = colors.alpha || 1;
+            if (alpha < 1) ctx.globalAlpha = alpha;
+
+            const ty = sy + topOff; // move top face down
+
+            // Top face
+            ctx.fillStyle = colors.top;
+            ctx.beginPath();
+            ctx.moveTo(sx, ty - hth);
+            ctx.lineTo(sx + htw, ty);
+            ctx.lineTo(sx, ty + hth);
+            ctx.lineTo(sx - htw, ty);
+            ctx.closePath();
+            ctx.fill();
+
+            // Left face
+            ctx.fillStyle = colors.left;
+            ctx.beginPath();
+            ctx.moveTo(sx - htw, ty);
+            ctx.lineTo(sx, ty + hth);
+            ctx.lineTo(sx, ty + hth + bh);
+            ctx.lineTo(sx - htw, ty + bh);
+            ctx.closePath();
+            ctx.fill();
+
+            // Right face
+            ctx.fillStyle = colors.right;
+            ctx.beginPath();
+            ctx.moveTo(sx + htw, ty);
+            ctx.lineTo(sx, ty + hth);
+            ctx.lineTo(sx, ty + hth + bh);
+            ctx.lineTo(sx + htw, ty + bh);
+            ctx.closePath();
+            ctx.fill();
+
+            // Outlines
+            ctx.strokeStyle = 'rgba(0,0,0,0.12)';
+            ctx.lineWidth = Math.max(0.5, 0.5 * zoom);
+            ctx.beginPath();
+            ctx.moveTo(sx, ty - hth);
+            ctx.lineTo(sx + htw, ty);
+            ctx.lineTo(sx, ty + hth);
+            ctx.lineTo(sx - htw, ty);
+            ctx.closePath();
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(sx - htw, ty);
+            ctx.lineTo(sx - htw, ty + bh);
+            ctx.lineTo(sx, ty + hth + bh);
+            ctx.lineTo(sx + htw, ty + bh);
+            ctx.lineTo(sx + htw, ty);
+            ctx.stroke();
+
+            if (alpha < 1) ctx.globalAlpha = 1;
+        }
+
+        function drawIsoStair(ctx, sx, sy, colors, z) {
+            const tw = TILE_W * zoom;
+            const th = TILE_H * zoom;
+            const bh = BLOCK_H * zoom;
+            const htw = tw / 2;
+            const hth = th / 2;
+            const halfBh = bh * 0.5;
+            const rot = colors.rot || 0;
+
+            const alpha = colors.alpha || 1;
+            if (alpha < 1) ctx.globalAlpha = alpha;
+
+            ctx.strokeStyle = 'rgba(0,0,0,0.12)';
+            ctx.lineWidth = Math.max(0.5, 0.5 * zoom);
+
+            if (rot === 0 || rot === 2) {
+                // Stair going left-right: back half full, front half slab
+                const flip = rot === 2;
+
+                // Back step (full height) - top half of diamond
+                ctx.fillStyle = colors.top;
+                ctx.beginPath();
+                if (!flip) {
+                    ctx.moveTo(sx, sy - hth);
+                    ctx.lineTo(sx + htw, sy);
+                    ctx.lineTo(sx, sy);
+                    ctx.lineTo(sx - htw, sy - hth + hth/2);
+                } else {
+                    ctx.moveTo(sx, sy - hth);
+                    ctx.lineTo(sx - htw, sy);
+                    ctx.lineTo(sx, sy);
+                    ctx.lineTo(sx + htw, sy - hth + hth/2);
+                }
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // Front step (half height) - bottom half of diamond, lowered
+                ctx.fillStyle = colors.top;
+                ctx.beginPath();
+                if (!flip) {
+                    ctx.moveTo(sx - htw, sy - hth + hth/2);
+                    ctx.lineTo(sx, sy);
+                    ctx.lineTo(sx, sy + hth);
+                    ctx.lineTo(sx - htw, sy);
+                } else {
+                    ctx.moveTo(sx + htw, sy - hth + hth/2);
+                    ctx.lineTo(sx, sy);
+                    ctx.lineTo(sx, sy + hth);
+                    ctx.lineTo(sx + htw, sy);
+                }
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // Left side face
+                ctx.fillStyle = !flip ? colors.left : colors.right;
+                ctx.beginPath();
+                if (!flip) {
+                    ctx.moveTo(sx - htw, sy - hth + hth/2);
+                    ctx.lineTo(sx - htw, sy + bh);
+                    ctx.lineTo(sx, sy + hth + bh);
+                    ctx.lineTo(sx, sy + hth);
+                    ctx.lineTo(sx - htw, sy);
+                    ctx.lineTo(sx - htw, sy - hth + hth/2 + halfBh);
+                    ctx.lineTo(sx, sy + halfBh);
+                    ctx.lineTo(sx, sy);
+                } else {
+                    ctx.moveTo(sx - htw, sy);
+                    ctx.lineTo(sx - htw, sy + bh);
+                    ctx.lineTo(sx, sy + hth + bh);
+                    ctx.lineTo(sx, sy + hth);
+                }
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // Right side face
+                ctx.fillStyle = !flip ? colors.right : colors.left;
+                ctx.beginPath();
+                if (!flip) {
+                    ctx.moveTo(sx + htw, sy);
+                    ctx.lineTo(sx + htw, sy + bh);
+                    ctx.lineTo(sx, sy + hth + bh);
+                    ctx.lineTo(sx, sy + hth);
+                } else {
+                    ctx.moveTo(sx + htw, sy - hth + hth/2);
+                    ctx.lineTo(sx + htw, sy + bh);
+                    ctx.lineTo(sx, sy + hth + bh);
+                    ctx.lineTo(sx, sy + hth);
+                    ctx.lineTo(sx + htw, sy);
+                    ctx.lineTo(sx + htw, sy - hth + hth/2 + halfBh);
+                    ctx.lineTo(sx, sy + halfBh);
+                    ctx.lineTo(sx, sy);
+                }
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+            } else {
+                // rot 1 or 3: stair going front-back
+                const flip = rot === 3;
+
+                // Back step (full height)
+                ctx.fillStyle = colors.top;
+                ctx.beginPath();
+                if (!flip) {
+                    ctx.moveTo(sx, sy - hth);
+                    ctx.lineTo(sx + htw, sy - hth + hth/2);
+                    ctx.lineTo(sx, sy);
+                    ctx.lineTo(sx - htw, sy);
+                } else {
+                    ctx.moveTo(sx, sy - hth);
+                    ctx.lineTo(sx - htw, sy - hth + hth/2);
+                    ctx.lineTo(sx, sy);
+                    ctx.lineTo(sx + htw, sy);
+                }
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // Front step (half height)
+                ctx.fillStyle = colors.top;
+                ctx.beginPath();
+                if (!flip) {
+                    ctx.moveTo(sx + htw, sy - hth + hth/2);
+                    ctx.lineTo(sx + htw, sy);
+                    ctx.lineTo(sx, sy + hth);
+                    ctx.lineTo(sx, sy);
+                } else {
+                    ctx.moveTo(sx - htw, sy - hth + hth/2);
+                    ctx.lineTo(sx - htw, sy);
+                    ctx.lineTo(sx, sy + hth);
+                    ctx.lineTo(sx, sy);
+                }
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // Side faces
+                ctx.fillStyle = colors.left;
+                ctx.beginPath();
+                ctx.moveTo(sx - htw, sy);
+                ctx.lineTo(sx - htw, sy + bh);
+                ctx.lineTo(sx, sy + hth + bh);
+                ctx.lineTo(sx, sy + hth);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.fillStyle = colors.right;
+                ctx.beginPath();
+                ctx.moveTo(sx + htw, sy);
+                ctx.lineTo(sx + htw, sy + bh);
+                ctx.lineTo(sx, sy + hth + bh);
+                ctx.lineTo(sx, sy + hth);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+            }
+
+            if (alpha < 1) ctx.globalAlpha = 1;
+        }
+
+        function drawIsoFence(ctx, sx, sy, colors, z) {
+            const tw = TILE_W * zoom;
+            const th = TILE_H * zoom;
+            const bh = BLOCK_H * zoom;
+            const htw = tw / 2;
+            const hth = th / 2;
+            const pw = 3 * zoom; // post width
+            const rh = bh * 0.3; // rail height
+
+            // Two vertical posts
+            const postOff = htw * 0.35;
+
+            // Left post
+            ctx.fillStyle = colors.left;
+            ctx.fillRect(sx - postOff - pw/2, sy - bh * 0.2, pw, bh);
+            ctx.fillStyle = colors.top;
+            ctx.fillRect(sx - postOff - pw/2, sy - bh * 0.2, pw, pw * 0.5);
+
+            // Right post
+            ctx.fillStyle = colors.right;
+            ctx.fillRect(sx + postOff - pw/2, sy - bh * 0.2, pw, bh);
+            ctx.fillStyle = colors.top;
+            ctx.fillRect(sx + postOff - pw/2, sy - bh * 0.2, pw, pw * 0.5);
+
+            // Top rail
+            ctx.fillStyle = colors.top;
+            ctx.beginPath();
+            ctx.moveTo(sx - postOff, sy - bh * 0.1);
+            ctx.lineTo(sx + postOff, sy - bh * 0.1);
+            ctx.lineTo(sx + postOff, sy - bh * 0.1 + rh);
+            ctx.lineTo(sx - postOff, sy - bh * 0.1 + rh);
+            ctx.closePath();
+            ctx.fill();
+
+            // Bottom rail
+            ctx.fillStyle = darkenColor(colors.top, 0.85);
+            ctx.beginPath();
+            ctx.moveTo(sx - postOff, sy + bh * 0.3);
+            ctx.lineTo(sx + postOff, sy + bh * 0.3);
+            ctx.lineTo(sx + postOff, sy + bh * 0.3 + rh);
+            ctx.lineTo(sx - postOff, sy + bh * 0.3 + rh);
+            ctx.closePath();
+            ctx.fill();
+
+            // Outlines
+            ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+            ctx.lineWidth = Math.max(0.5, 0.5 * zoom);
+            ctx.strokeRect(sx - postOff - pw/2, sy - bh * 0.2, pw, bh);
+            ctx.strokeRect(sx + postOff - pw/2, sy - bh * 0.2, pw, bh);
+        }
+
+        function drawIsoPane(ctx, sx, sy, colors, z) {
+            const tw = TILE_W * zoom;
+            const th = TILE_H * zoom;
+            const bh = BLOCK_H * zoom;
+            const htw = tw / 2;
+            const hth = th / 2;
+            const rot = colors.rot || 0;
+            const thick = 2 * zoom;
+
+            const alpha = colors.alpha || 1;
+            if (alpha < 1) ctx.globalAlpha = alpha;
+
+            if (rot === 0 || rot === 2) {
+                // Pane along left-right axis
+                ctx.fillStyle = colors.left;
+                ctx.beginPath();
+                ctx.moveTo(sx - htw, sy);
+                ctx.lineTo(sx + htw, sy);
+                ctx.lineTo(sx + htw, sy + bh);
+                ctx.lineTo(sx - htw, sy + bh);
+                ctx.closePath();
+                ctx.fill();
+
+                // Frame lines
+                ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+                ctx.lineWidth = Math.max(0.5, 0.5 * zoom);
+                ctx.stroke();
+
+                // Cross frame
+                ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+                ctx.lineWidth = zoom;
+                ctx.beginPath();
+                ctx.moveTo(sx, sy);
+                ctx.lineTo(sx, sy + bh);
+                ctx.moveTo(sx - htw, sy + bh/2);
+                ctx.lineTo(sx + htw, sy + bh/2);
+                ctx.stroke();
+            } else {
+                // Pane along front-back axis
+                ctx.fillStyle = colors.right;
+                ctx.beginPath();
+                ctx.moveTo(sx, sy - hth);
+                ctx.lineTo(sx, sy + hth);
+                ctx.lineTo(sx, sy + hth + bh);
+                ctx.lineTo(sx, sy - hth + bh);
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+                ctx.lineWidth = Math.max(0.5, 0.5 * zoom);
+                ctx.stroke();
+
+                ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+                ctx.lineWidth = zoom;
+                ctx.beginPath();
+                ctx.moveTo(sx, sy);
+                ctx.lineTo(sx, sy + bh);
+                ctx.moveTo(sx, sy - hth + bh/2);
+                ctx.lineTo(sx, sy + hth + bh/2);
+                ctx.stroke();
+            }
+
+            if (alpha < 1) ctx.globalAlpha = 1;
+        }
+
+        function drawIsoCross(ctx, sx, sy, colors, z) {
+            const tw = TILE_W * zoom;
+            const th = TILE_H * zoom;
+            const bh = BLOCK_H * zoom;
+            const htw = tw / 2;
+            const hth = th / 2;
+
+            const alpha = colors.alpha || 1;
+            if (alpha < 1) ctx.globalAlpha = alpha;
+
+            // Two intersecting flat planes forming X
+            // Plane 1: diagonal from top-left to bottom-right
+            ctx.fillStyle = colors.left;
+            ctx.globalAlpha = (alpha < 1 ? alpha : 1) * 0.85;
+            ctx.beginPath();
+            ctx.moveTo(sx - htw * 0.6, sy - hth * 0.3);
+            ctx.lineTo(sx + htw * 0.6, sy + hth * 0.3);
+            ctx.lineTo(sx + htw * 0.6, sy + hth * 0.3 + bh);
+            ctx.lineTo(sx - htw * 0.6, sy - hth * 0.3 + bh);
+            ctx.closePath();
+            ctx.fill();
+
+            // Plane 2: diagonal from top-right to bottom-left
+            ctx.fillStyle = colors.right;
+            ctx.beginPath();
+            ctx.moveTo(sx + htw * 0.6, sy - hth * 0.3);
+            ctx.lineTo(sx - htw * 0.6, sy + hth * 0.3);
+            ctx.lineTo(sx - htw * 0.6, sy + hth * 0.3 + bh);
+            ctx.lineTo(sx + htw * 0.6, sy - hth * 0.3 + bh);
+            ctx.closePath();
+            ctx.fill();
+
+            // Detail: colored tip for flowers/torch
+            ctx.globalAlpha = alpha < 1 ? alpha : 1;
+            ctx.fillStyle = colors.top;
+            ctx.beginPath();
+            ctx.arc(sx, sy - hth * 0.1, 2.5 * zoom, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.globalAlpha = 1;
+        }
+
+        function drawIsoDoor(ctx, sx, sy, colors, z) {
+            const tw = TILE_W * zoom;
+            const th = TILE_H * zoom;
+            const bh = BLOCK_H * zoom * 1.5; // taller than a block
+            const htw = tw / 2;
+            const hth = th / 2;
+            const rot = colors.rot || 0;
+
+            const alpha = colors.alpha || 1;
+            if (alpha < 1) ctx.globalAlpha = alpha;
+
+            const thick = 3 * zoom;
+
+            if (rot === 0 || rot === 2) {
+                // Door along left-right axis
+                const doorY = sy - bh + BLOCK_H * zoom;
+
+                ctx.fillStyle = colors.left;
+                ctx.beginPath();
+                ctx.moveTo(sx - htw * 0.8, doorY);
+                ctx.lineTo(sx + htw * 0.8, doorY);
+                ctx.lineTo(sx + htw * 0.8, doorY + bh);
+                ctx.lineTo(sx - htw * 0.8, doorY + bh);
+                ctx.closePath();
+                ctx.fill();
+
+                // Door frame
+                ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+                ctx.lineWidth = Math.max(1, zoom);
+                ctx.stroke();
+
+                // Panel detail
+                ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+                ctx.lineWidth = Math.max(0.5, 0.5 * zoom);
+                const panelW = htw * 0.5;
+                const panelH = bh * 0.35;
+                // Top panel
+                ctx.strokeRect(sx - panelW, doorY + bh * 0.08, panelW * 2, panelH);
+                // Bottom panel
+                ctx.strokeRect(sx - panelW, doorY + bh * 0.52, panelW * 2, panelH);
+
+                // Handle
+                ctx.fillStyle = darkenColor(colors.top, 0.6);
+                const handleX = rot === 0 ? sx + htw * 0.5 : sx - htw * 0.5;
+                ctx.beginPath();
+                ctx.arc(handleX, doorY + bh * 0.5, 1.5 * zoom, 0, Math.PI * 2);
+                ctx.fill();
+            } else {
+                // Door along front-back axis
+                const doorY = sy - bh + BLOCK_H * zoom;
+
+                ctx.fillStyle = colors.right;
+                ctx.beginPath();
+                ctx.moveTo(sx, doorY - hth * 0.6);
+                ctx.lineTo(sx, doorY + hth * 0.6);
+                ctx.lineTo(sx, doorY + hth * 0.6 + bh);
+                ctx.lineTo(sx, doorY - hth * 0.6 + bh);
+                ctx.closePath();
+
+                // Widen it a bit so it's visible
+                ctx.save();
+                ctx.lineWidth = thick;
+                ctx.strokeStyle = colors.right;
+                ctx.stroke();
+                ctx.restore();
+
+                ctx.fillStyle = colors.left;
+                const x1 = sx - thick/2, x2 = sx + thick/2;
+                ctx.fillRect(x1, doorY - hth * 0.4, thick, bh * 0.95);
+
+                // Frame
+                ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+                ctx.lineWidth = Math.max(0.5, 0.5 * zoom);
+                ctx.strokeRect(x1, doorY - hth * 0.4, thick, bh * 0.95);
+
+                // Handle
+                ctx.fillStyle = darkenColor(colors.top, 0.6);
+                ctx.beginPath();
+                ctx.arc(sx, doorY - hth * 0.4 + bh * 0.5, 1.5 * zoom, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            if (alpha < 1) ctx.globalAlpha = 1;
+        }
+
+        // ── Top Face Textures ──────────────────────────────────
         function drawTopTexture(ctx, sx, sy, type, htw, hth) {
             ctx.save();
-            // Clip to top face
             ctx.beginPath();
             ctx.moveTo(sx, sy - hth);
             ctx.lineTo(sx + htw, sy);
@@ -605,14 +1296,13 @@
             const s = zoom;
 
             if (type === 'grass') {
-                // Small darker speckles
                 ctx.fillStyle = 'rgba(40,100,20,0.3)';
                 for (let i = 0; i < 6; i++) {
                     const ox = (hashN(sx + i * 7, sy + i * 13, 0) - 0.5) * htw * 1.2;
                     const oy = (hashN(sx + i * 11, sy + i * 3, 1) - 0.5) * hth * 1.2;
                     ctx.fillRect(sx + ox, sy + oy, 2 * s, 1 * s);
                 }
-            } else if (type === 'wood') {
+            } else if (type === 'wood' || type === 'plank') {
                 ctx.strokeStyle = 'rgba(100,60,20,0.25)';
                 ctx.lineWidth = 1 * s;
                 for (let i = -2; i <= 2; i++) {
@@ -667,14 +1357,380 @@
                     ctx.arc(sx + ox, sy + oy, (2 + Math.sin(t + i)) * s, 0, Math.PI * 2);
                     ctx.fill();
                 }
+            } else if (type === 'cobble') {
+                ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+                ctx.lineWidth = 0.5 * s;
+                for (let i = 0; i < 4; i++) {
+                    const ox = (hashN(sx + i * 19, sy + i * 31, 4) - 0.5) * htw * 0.8;
+                    const oy = (hashN(sx + i * 37, sy + i * 11, 5) - 0.5) * hth * 0.8;
+                    ctx.beginPath();
+                    ctx.arc(sx + ox, sy + oy, (2 + hashN(sx, sy, i)) * s, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+            } else if (type === 'ore') {
+                ctx.fillStyle = 'rgba(0,0,0,0.15)';
+                for (let i = 0; i < 3; i++) {
+                    const ox = (hashN(sx + i * 23, sy + i * 41, 6) - 0.5) * htw * 0.6;
+                    const oy = (hashN(sx + i * 43, sy + i * 17, 7) - 0.5) * hth * 0.6;
+                    ctx.fillRect(sx + ox - 1.5*s, sy + oy - 1.5*s, 3*s, 3*s);
+                }
+            } else if (type === 'log') {
+                // Ring pattern
+                ctx.strokeStyle = 'rgba(60,30,10,0.25)';
+                ctx.lineWidth = 0.5 * s;
+                for (let i = 1; i <= 3; i++) {
+                    ctx.beginPath();
+                    ctx.arc(sx, sy, i * 2.5 * s, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+            } else if (type === 'glass') {
+                ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+                ctx.lineWidth = 0.5 * s;
+                // Cross lines
+                ctx.beginPath();
+                ctx.moveTo(sx - htw * 0.5, sy);
+                ctx.lineTo(sx + htw * 0.5, sy);
+                ctx.moveTo(sx, sy - hth * 0.5);
+                ctx.lineTo(sx, sy + hth * 0.5);
+                ctx.stroke();
+            } else if (type === 'gravel') {
+                ctx.fillStyle = 'rgba(0,0,0,0.1)';
+                for (let i = 0; i < 8; i++) {
+                    const ox = (hashN(sx + i * 13, sy + i * 29, 8) - 0.5) * htw;
+                    const oy = (hashN(sx + i * 31, sy + i * 7, 9) - 0.5) * hth;
+                    ctx.fillRect(sx + ox, sy + oy, 1.5*s, 1.5*s);
+                }
+            } else if (type === 'bookshelf') {
+                // Book spines on top
+                ctx.fillStyle = 'rgba(139,69,19,0.3)';
+                for (let i = -3; i <= 3; i++) {
+                    ctx.fillRect(sx + i * 2.5 * s - 0.5*s, sy - hth*0.3, 1.5*s, hth*0.6);
+                }
+            } else if (type === 'crafting') {
+                // Grid lines
+                ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+                ctx.lineWidth = 0.5 * s;
+                for (let i = -1; i <= 1; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(sx - htw * 0.5, sy + i * 3 * s);
+                    ctx.lineTo(sx + htw * 0.5, sy + i * 3 * s);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(sx + i * 3 * s, sy - hth * 0.5);
+                    ctx.lineTo(sx + i * 3 * s, sy + hth * 0.5);
+                    ctx.stroke();
+                }
+            } else if (type === 'tnt') {
+                // "TNT" text approximation
+                ctx.fillStyle = 'rgba(255,255,255,0.4)';
+                ctx.font = `bold ${Math.max(6, 6*s)}px ${getComputedStyle(document.body).getPropertyValue('--font-mono')}`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('T', sx, sy);
             }
+
             ctx.restore();
+        }
+
+        function drawSideTexture(ctx, sx, sy, type, side, htw, hth, bh) {
+            if (type === 'bookshelf') {
+                ctx.save();
+                // Clip to side face
+                ctx.beginPath();
+                if (side === 'left') {
+                    ctx.moveTo(sx - htw, sy);
+                    ctx.lineTo(sx, sy + hth);
+                    ctx.lineTo(sx, sy + hth + bh);
+                    ctx.lineTo(sx - htw, sy + bh);
+                } else {
+                    ctx.moveTo(sx + htw, sy);
+                    ctx.lineTo(sx, sy + hth);
+                    ctx.lineTo(sx, sy + hth + bh);
+                    ctx.lineTo(sx + htw, sy + bh);
+                }
+                ctx.closePath();
+                ctx.clip();
+
+                const s = zoom;
+                const midX = side === 'left' ? sx - htw/2 : sx + htw/2;
+                const midY = sy + hth/2 + bh/2;
+
+                // Book spines
+                const bookColors = ['#8b2500','#2e5a1e','#1a3a6e','#6e1a3a','#4a3a1e'];
+                for (let i = -3; i <= 3; i++) {
+                    ctx.fillStyle = bookColors[((i+10) % bookColors.length)];
+                    ctx.globalAlpha = 0.35;
+                    ctx.fillRect(midX + i * 2 * s - 0.8*s, midY - bh*0.35, 1.8*s, bh*0.7);
+                }
+                ctx.globalAlpha = 1;
+                ctx.restore();
+            }
         }
 
         // Simple hash for deterministic pseudo-random per-tile variation
         function hashN(a, b, seed) {
             let h = (a * 2654435761 ^ b * 2246822519 ^ seed * 3266489917) >>> 0;
             return (h & 0xffff) / 0xffff;
+        }
+
+        // ── Mini Block Preview (palette swatches) ──────────────
+        function drawMiniBlock(ctx, sx, sy, bt) {
+            const shape = bt.shape || 'cube';
+            if (shape === 'cube') {
+                drawMiniCube(ctx, sx, sy, bt);
+            } else if (shape === 'slab') {
+                drawMiniSlab(ctx, sx, sy, bt);
+            } else if (shape === 'stair') {
+                drawMiniStair(ctx, sx, sy, bt);
+            } else if (shape === 'fence') {
+                drawMiniFence(ctx, sx, sy, bt);
+            } else if (shape === 'pane') {
+                drawMiniPane(ctx, sx, sy, bt);
+            } else if (shape === 'cross') {
+                drawMiniCross(ctx, sx, sy, bt);
+            } else if (shape === 'door') {
+                drawMiniDoor(ctx, sx, sy, bt);
+            }
+        }
+
+        function drawMiniCube(ctx, sx, sy, bt) {
+            const tw = 28, th = 14, bh = 10;
+            const htw = tw / 2, hth = th / 2;
+
+            if (bt.alpha && bt.alpha < 1) ctx.globalAlpha = bt.alpha;
+
+            ctx.fillStyle = bt.top;
+            ctx.beginPath();
+            ctx.moveTo(sx, sy - hth);
+            ctx.lineTo(sx + htw, sy);
+            ctx.lineTo(sx, sy + hth);
+            ctx.lineTo(sx - htw, sy);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.fillStyle = bt.left;
+            ctx.beginPath();
+            ctx.moveTo(sx - htw, sy);
+            ctx.lineTo(sx, sy + hth);
+            ctx.lineTo(sx, sy + hth + bh);
+            ctx.lineTo(sx - htw, sy + bh);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.fillStyle = bt.right;
+            ctx.beginPath();
+            ctx.moveTo(sx + htw, sy);
+            ctx.lineTo(sx, sy + hth);
+            ctx.lineTo(sx, sy + hth + bh);
+            ctx.lineTo(sx + htw, sy + bh);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+            ctx.lineWidth = 0.5;
+            ctx.beginPath();
+            ctx.moveTo(sx, sy - hth);
+            ctx.lineTo(sx + htw, sy);
+            ctx.lineTo(sx + htw, sy + bh);
+            ctx.lineTo(sx, sy + hth + bh);
+            ctx.lineTo(sx - htw, sy + bh);
+            ctx.lineTo(sx - htw, sy);
+            ctx.closePath();
+            ctx.stroke();
+
+            if (bt.alpha && bt.alpha < 1) ctx.globalAlpha = 1;
+        }
+
+        function drawMiniSlab(ctx, sx, sy, bt) {
+            const tw = 28, th = 14, bh = 5;
+            const htw = tw / 2, hth = th / 2;
+            const ty = sy + 5;
+
+            ctx.fillStyle = bt.top;
+            ctx.beginPath();
+            ctx.moveTo(sx, ty - hth);
+            ctx.lineTo(sx + htw, ty);
+            ctx.lineTo(sx, ty + hth);
+            ctx.lineTo(sx - htw, ty);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.fillStyle = bt.left;
+            ctx.beginPath();
+            ctx.moveTo(sx - htw, ty);
+            ctx.lineTo(sx, ty + hth);
+            ctx.lineTo(sx, ty + hth + bh);
+            ctx.lineTo(sx - htw, ty + bh);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.fillStyle = bt.right;
+            ctx.beginPath();
+            ctx.moveTo(sx + htw, ty);
+            ctx.lineTo(sx, ty + hth);
+            ctx.lineTo(sx, ty + hth + bh);
+            ctx.lineTo(sx + htw, ty + bh);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+            ctx.lineWidth = 0.5;
+            ctx.beginPath();
+            ctx.moveTo(sx, ty - hth);
+            ctx.lineTo(sx + htw, ty);
+            ctx.lineTo(sx + htw, ty + bh);
+            ctx.lineTo(sx, ty + hth + bh);
+            ctx.lineTo(sx - htw, ty + bh);
+            ctx.lineTo(sx - htw, ty);
+            ctx.closePath();
+            ctx.stroke();
+        }
+
+        function drawMiniStair(ctx, sx, sy, bt) {
+            const tw = 28, th = 14, bh = 10;
+            const htw = tw / 2, hth = th / 2;
+
+            // Back step
+            ctx.fillStyle = bt.top;
+            ctx.beginPath();
+            ctx.moveTo(sx, sy - hth);
+            ctx.lineTo(sx + htw, sy);
+            ctx.lineTo(sx, sy);
+            ctx.lineTo(sx - htw, sy - hth/2);
+            ctx.closePath();
+            ctx.fill();
+
+            // Front step
+            ctx.fillStyle = bt.top;
+            ctx.beginPath();
+            ctx.moveTo(sx - htw, sy - hth/2);
+            ctx.lineTo(sx, sy);
+            ctx.lineTo(sx, sy + hth);
+            ctx.lineTo(sx - htw, sy);
+            ctx.closePath();
+            ctx.fill();
+
+            // Left face
+            ctx.fillStyle = bt.left;
+            ctx.beginPath();
+            ctx.moveTo(sx - htw, sy - hth/2);
+            ctx.lineTo(sx - htw, sy + bh);
+            ctx.lineTo(sx, sy + hth + bh);
+            ctx.lineTo(sx, sy + hth);
+            ctx.lineTo(sx - htw, sy);
+            ctx.lineTo(sx - htw, sy - hth/2 + bh/2);
+            ctx.lineTo(sx, sy + bh/2);
+            ctx.lineTo(sx, sy);
+            ctx.closePath();
+            ctx.fill();
+
+            // Right face
+            ctx.fillStyle = bt.right;
+            ctx.beginPath();
+            ctx.moveTo(sx + htw, sy);
+            ctx.lineTo(sx + htw, sy + bh);
+            ctx.lineTo(sx, sy + hth + bh);
+            ctx.lineTo(sx, sy + hth);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+            ctx.lineWidth = 0.5;
+            ctx.beginPath();
+            ctx.moveTo(sx, sy - hth);
+            ctx.lineTo(sx + htw, sy);
+            ctx.lineTo(sx + htw, sy + bh);
+            ctx.lineTo(sx, sy + hth + bh);
+            ctx.lineTo(sx - htw, sy + bh);
+            ctx.lineTo(sx - htw, sy - hth/2);
+            ctx.closePath();
+            ctx.stroke();
+        }
+
+        function drawMiniFence(ctx, sx, sy, bt) {
+            const pw = 2.5, bh = 12;
+            const off = 5;
+
+            ctx.fillStyle = bt.left;
+            ctx.fillRect(sx - off - pw/2, sy - 2, pw, bh);
+            ctx.fillRect(sx + off - pw/2, sy - 2, pw, bh);
+
+            ctx.fillStyle = bt.top;
+            ctx.fillRect(sx - off, sy, off * 2, 2);
+            ctx.fillRect(sx - off, sy + 5, off * 2, 2);
+
+            ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+            ctx.lineWidth = 0.5;
+            ctx.strokeRect(sx - off - pw/2, sy - 2, pw, bh);
+            ctx.strokeRect(sx + off - pw/2, sy - 2, pw, bh);
+        }
+
+        function drawMiniPane(ctx, sx, sy, bt) {
+            if (bt.alpha) ctx.globalAlpha = bt.alpha;
+            ctx.fillStyle = bt.left;
+            ctx.fillRect(sx - 12, sy - 2, 24, 14);
+            ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+            ctx.lineWidth = 0.5;
+            ctx.strokeRect(sx - 12, sy - 2, 24, 14);
+            // Cross
+            ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+            ctx.lineWidth = 0.5;
+            ctx.beginPath();
+            ctx.moveTo(sx, sy - 2);
+            ctx.lineTo(sx, sy + 12);
+            ctx.moveTo(sx - 12, sy + 5);
+            ctx.lineTo(sx + 12, sy + 5);
+            ctx.stroke();
+            if (bt.alpha) ctx.globalAlpha = 1;
+        }
+
+        function drawMiniCross(ctx, sx, sy, bt) {
+            ctx.globalAlpha = 0.8;
+
+            ctx.fillStyle = bt.left;
+            ctx.beginPath();
+            ctx.moveTo(sx - 8, sy - 4);
+            ctx.lineTo(sx + 8, sy + 4);
+            ctx.lineTo(sx + 8, sy + 14);
+            ctx.lineTo(sx - 8, sy + 6);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.fillStyle = bt.right;
+            ctx.beginPath();
+            ctx.moveTo(sx + 8, sy - 4);
+            ctx.lineTo(sx - 8, sy + 4);
+            ctx.lineTo(sx - 8, sy + 14);
+            ctx.lineTo(sx + 8, sy + 6);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.globalAlpha = 1;
+            ctx.fillStyle = bt.top;
+            ctx.beginPath();
+            ctx.arc(sx, sy, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawMiniDoor(ctx, sx, sy, bt) {
+            const dw = 14, dh = 20;
+            ctx.fillStyle = bt.left;
+            ctx.fillRect(sx - dw/2, sy - 4, dw, dh);
+
+            ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+            ctx.lineWidth = 0.5;
+            ctx.strokeRect(sx - dw/2, sy - 4, dw, dh);
+
+            // Panels
+            ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+            ctx.strokeRect(sx - dw/2 + 2, sy - 2, dw - 4, 7);
+            ctx.strokeRect(sx - dw/2 + 2, sy + 7, dw - 4, 7);
+
+            // Handle
+            ctx.fillStyle = darkenColor(bt.top, 0.6);
+            ctx.beginPath();
+            ctx.arc(sx + 3, sy + 6, 1.2, 0, Math.PI * 2);
+            ctx.fill();
         }
 
         // ── Grid Drawing ───────────────────────────────────────
@@ -714,10 +1770,8 @@
             const hth = (TILE_H * zoom) / 2;
 
             if (currentTool === 'erase') {
-                // Red highlight
                 ctx.fillStyle = 'rgba(220,50,50,0.25)';
             } else {
-                // Preview with transparency
                 ctx.fillStyle = 'rgba(74,144,217,0.2)';
             }
 
@@ -729,18 +1783,20 @@
             ctx.closePath();
             ctx.fill();
 
-            ctx.strokeStyle = currentTool === 'erase' ? 'rgba(220,50,50,0.6)' : 'rgba(74,144,217,0.6)';
+            ctx.strokeStyle = currentTool === 'erase' ? 'rgba(220,50,50,0.6)' :
+                             currentTool === 'fill' ? 'rgba(74,180,74,0.6)' :
+                             'rgba(74,144,217,0.6)';
             ctx.lineWidth = 1.5 * zoom;
             ctx.stroke();
 
             // Ghost block preview when placing
-            if (currentTool === 'place') {
+            if (currentTool === 'place' || currentTool === 'fill') {
                 const key = blockKey(gx, gy, currentLayer);
                 if (!blocks[key]) {
                     ctx.globalAlpha = 0.4;
-                    const blockData = currentBlock === -1 ? { custom: customColor } : currentBlock;
-                    const colors = getBlockColors(blockData);
-                    drawIsoCube(ctx, cx, cy, colors, currentLayer);
+                    const blockData = makeBlockData(currentBlock, currentRotation);
+                    const info = getBlockInfo(blockData);
+                    drawBlockShape(ctx, cx, cy, info, currentLayer);
                     ctx.globalAlpha = 1;
                 }
             }
@@ -749,7 +1805,6 @@
         // ── Shadow Drawing ─────────────────────────────────────
         function drawShadows() {
             if (!showShadow) return;
-            // Cast a simple shadow on layer 0 for blocks above
             const sorted = getSortedBlocks();
             ctx.fillStyle = 'rgba(0,0,0,0.08)';
             for (const { x, y, z } of sorted) {
@@ -770,12 +1825,13 @@
         // ── Sort Blocks (painter's algorithm) ──────────────────
         function getSortedBlocks() {
             const list = [];
+            const maxLayer = hideLayers ? currentLayer : MAX_LAYERS - 1;
             for (const key in blocks) {
                 const [x, y, z] = key.split(',').map(Number);
+                if (z > maxLayer) continue;
                 list.push({ x, y, z, data: blocks[key] });
             }
             list.sort((a, b) => {
-                // Sort by z first, then by (x+y) for depth, then by y
                 if (a.z !== b.z) return a.z - b.z;
                 const da = a.x + a.y, db = b.x + b.y;
                 if (da !== db) return da - db;
@@ -800,28 +1856,21 @@
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
             ctx.clearRect(0, 0, w, h);
 
-            // Background
             ctx.fillStyle = '#e8e8e8';
             ctx.fillRect(0, 0, w, h);
 
-            // Grid
             drawGrid();
-
-            // Shadows
             drawShadows();
 
-            // Blocks
             const sorted = getSortedBlocks();
             for (const block of sorted) {
                 const p = gridToScreen(block.x, block.y, block.z);
-                const colors = getBlockColors(block.data);
-                drawIsoCube(ctx, p.x, p.y, colors, block.z);
+                const info = getBlockInfo(block.data);
+                drawBlockShape(ctx, p.x, p.y, info, block.z);
             }
 
-            // Hover
             drawHover();
 
-            // Update status
             document.getElementById('statusBlocks').textContent = 'Blocks: ' + countBlocks();
             document.getElementById('statusZoom').textContent = 'Zoom: ' + Math.round(zoom * 100) + '%';
 
@@ -832,17 +1881,181 @@
         function centerCamera() {
             const w = wrap.clientWidth;
             const h = wrap.clientHeight;
-            // Center the grid in the viewport
-            const midP = gridToScreen(GRID_W / 2, GRID_H / 2, 0);
-            // We want midP to map to center of canvas, so adjust cam
             camX = w / 2;
             camY = h / 3;
         }
 
+        // ── Undo/Redo ──────────────────────────────────────────
+        function pushHistory(entries) {
+            // entries: [{ key, oldData, newData }, ...]
+            if (historyIdx < history.length - 1) {
+                history = history.slice(0, historyIdx + 1);
+            }
+            history.push(entries);
+            if (history.length > MAX_HISTORY) {
+                history.shift();
+            }
+            historyIdx = history.length - 1;
+            updateUndoRedoButtons();
+            scheduleAutosave();
+        }
+
+        function undo() {
+            if (historyIdx < 0) return;
+            const entries = history[historyIdx];
+            for (const e of entries) {
+                if (e.oldData === undefined) {
+                    delete blocks[e.key];
+                } else {
+                    blocks[e.key] = e.oldData;
+                }
+            }
+            historyIdx--;
+            updateUndoRedoButtons();
+            scheduleAutosave();
+        }
+
+        function redo() {
+            if (historyIdx >= history.length - 1) return;
+            historyIdx++;
+            const entries = history[historyIdx];
+            for (const e of entries) {
+                if (e.newData === undefined) {
+                    delete blocks[e.key];
+                } else {
+                    blocks[e.key] = e.newData;
+                }
+            }
+            updateUndoRedoButtons();
+            scheduleAutosave();
+        }
+
+        function updateUndoRedoButtons() {
+            document.getElementById('btnUndo').disabled = historyIdx < 0;
+            document.getElementById('btnRedo').disabled = historyIdx >= history.length - 1;
+        }
+
+        // ── Autosave ───────────────────────────────────────────
+        function scheduleAutosave() {
+            if (autosaveTimer) clearTimeout(autosaveTimer);
+            autosaveTimer = setTimeout(doAutosave, AUTOSAVE_DELAY);
+        }
+
+        function doAutosave() {
+            try {
+                const data = buildSaveData('Autosave');
+                localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(data));
+            } catch (e) { /* quota exceeded etc */ }
+        }
+
+        function checkAutosave() {
+            try {
+                const raw = localStorage.getItem(AUTOSAVE_KEY);
+                if (!raw) return;
+                const data = JSON.parse(raw);
+                if (!data.blocks || Object.keys(data.blocks).length === 0) return;
+                showToast('Restore previous session?', () => {
+                    loadSaveData(data);
+                }, () => {
+                    localStorage.removeItem(AUTOSAVE_KEY);
+                });
+            } catch (e) { /* ignore */ }
+        }
+
+        // ── Save/Load ──────────────────────────────────────────
+        function buildSaveData(name) {
+            return {
+                version: 1,
+                name: name || 'My Scene',
+                blocks: JSON.parse(JSON.stringify(blocks)),
+                camera: { x: camX, y: camY, zoom: zoom },
+                settings: { showGrid, showShadow, hideLayers }
+            };
+        }
+
+        function loadSaveData(data) {
+            if (!data || data.version !== 1) {
+                alert('Invalid save file');
+                return false;
+            }
+            blocks = data.blocks || {};
+            if (data.camera) {
+                camX = data.camera.x || 0;
+                camY = data.camera.y || 0;
+                zoom = data.camera.zoom || 1;
+            }
+            if (data.settings) {
+                showGrid = data.settings.showGrid !== false;
+                showShadow = data.settings.showShadow !== false;
+                hideLayers = data.settings.hideLayers || false;
+                document.getElementById('chkGrid').checked = showGrid;
+                document.getElementById('chkShadow').checked = showShadow;
+                document.getElementById('chkHideLayers').checked = hideLayers;
+            }
+            history = [];
+            historyIdx = -1;
+            updateUndoRedoButtons();
+            return true;
+        }
+
+        function saveScene() {
+            const data = buildSaveData('My Scene');
+            const json = JSON.stringify(data, null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'isometric-scene.iso.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function loadScene(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    if (loadSaveData(data)) {
+                        showToastMessage('Scene loaded!');
+                    }
+                } catch (err) {
+                    alert('Failed to parse save file: ' + err.message);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // ── Toast ──────────────────────────────────────────────
+        function showToast(msg, onYes, onNo) {
+            const toast = document.getElementById('toast');
+            toast.innerHTML = '<span>' + msg + '</span>' +
+                '<button class="toast-btn toast-yes">Yes</button>' +
+                '<button class="toast-btn toast-no">No</button>';
+            toast.classList.add('visible');
+            toast.querySelector('.toast-yes').onclick = () => {
+                toast.classList.remove('visible');
+                if (onYes) onYes();
+            };
+            toast.querySelector('.toast-no').onclick = () => {
+                toast.classList.remove('visible');
+                if (onNo) onNo();
+            };
+        }
+
+        function showToastMessage(msg) {
+            const toast = document.getElementById('toast');
+            toast.innerHTML = '<span>' + msg + '</span>';
+            toast.classList.add('visible');
+            setTimeout(() => toast.classList.remove('visible'), 2000);
+        }
+
         // ── Input Handling ─────────────────────────────────────
+        // Drag tracking for undo grouping
+        let isDragging = false;
+        let dragEntries = [];
+
         function onMouseDown(e) {
             if (e.button === 1 || (e.button === 0 && e.altKey)) {
-                // Middle click or alt+click to pan
                 isPanning = true;
                 panStartX = e.clientX;
                 panStartY = e.clientY;
@@ -853,12 +2066,20 @@
             }
 
             if (e.button === 2 || (e.button === 0 && currentTool === 'erase')) {
-                // Right click or erase tool
+                isDragging = true;
+                dragEntries = [];
                 eraseAt(e);
                 return;
             }
 
+            if (e.button === 0 && currentTool === 'fill') {
+                floodFill(e);
+                return;
+            }
+
             if (e.button === 0 && currentTool === 'place') {
+                isDragging = true;
+                dragEntries = [];
                 placeAt(e);
             }
         }
@@ -883,7 +2104,6 @@
                 document.getElementById('statusCoord').textContent = '--';
             }
 
-            // Continuous place/erase while dragging
             if (e.buttons & 1) {
                 if (currentTool === 'place') placeAt(e);
                 else if (currentTool === 'erase') eraseAt(e);
@@ -897,6 +2117,11 @@
             if (isPanning) {
                 isPanning = false;
             }
+            if (isDragging && dragEntries.length > 0) {
+                pushHistory(dragEntries);
+            }
+            isDragging = false;
+            dragEntries = [];
         }
 
         function onWheel(e) {
@@ -909,7 +2134,6 @@
             const delta = e.deltaY > 0 ? 0.9 : 1.1;
             zoom = Math.max(0.3, Math.min(4, zoom * delta));
 
-            // Zoom toward cursor
             camX = mx - (mx - camX) * (zoom / oldZoom);
             camY = my - (my - camY) * (zoom / oldZoom);
         }
@@ -923,8 +2147,20 @@
             if (grid.gx < 0 || grid.gx >= GRID_W || grid.gy < 0 || grid.gy >= GRID_H) return;
 
             const key = blockKey(grid.gx, grid.gy, currentLayer);
-            const blockData = currentBlock === -1 ? { custom: customColor } : currentBlock;
+            const blockData = makeBlockData(currentBlock, currentRotation);
+
+            // Skip if already same block
+            const old = blocks[key];
+            if (old !== undefined && JSON.stringify(old) === JSON.stringify(blockData)) return;
+
+            const entry = { key, oldData: old, newData: blockData };
             blocks[key] = blockData;
+
+            if (isDragging) {
+                dragEntries.push(entry);
+            } else {
+                pushHistory([entry]);
+            }
         }
 
         function eraseAt(e) {
@@ -936,24 +2172,91 @@
             if (grid.gx < 0 || grid.gx >= GRID_W || grid.gy < 0 || grid.gy >= GRID_H) return;
 
             const key = blockKey(grid.gx, grid.gy, currentLayer);
+            if (blocks[key] === undefined) return;
+
+            const entry = { key, oldData: blocks[key], newData: undefined };
             delete blocks[key];
+
+            if (isDragging) {
+                dragEntries.push(entry);
+            } else {
+                pushHistory([entry]);
+            }
+        }
+
+        // ── Flood Fill ─────────────────────────────────────────
+        function floodFill(e) {
+            const rect = canvas.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+            const grid = screenToGrid(mx, my);
+
+            if (grid.gx < 0 || grid.gx >= GRID_W || grid.gy < 0 || grid.gy >= GRID_H) return;
+
+            const startKey = blockKey(grid.gx, grid.gy, currentLayer);
+            const targetData = blocks[startKey]; // what we're replacing (may be undefined = air)
+            const newData = makeBlockData(currentBlock, currentRotation);
+
+            // Don't fill with the same block
+            if (JSON.stringify(targetData) === JSON.stringify(newData)) return;
+
+            const entries = [];
+            const visited = new Set();
+            const queue = [[grid.gx, grid.gy]];
+
+            while (queue.length > 0) {
+                const [cx, cy] = queue.shift();
+                const key = blockKey(cx, cy, currentLayer);
+
+                if (visited.has(key)) continue;
+                if (cx < 0 || cx >= GRID_W || cy < 0 || cy >= GRID_H) continue;
+
+                const existing = blocks[key];
+                if (JSON.stringify(existing) !== JSON.stringify(targetData)) continue;
+
+                visited.add(key);
+                entries.push({ key, oldData: existing, newData: JSON.parse(JSON.stringify(newData)) });
+                blocks[key] = JSON.parse(JSON.stringify(newData));
+
+                queue.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
+            }
+
+            if (entries.length > 0) {
+                pushHistory(entries);
+            }
         }
 
         // ── Block Palette ──────────────────────────────────────
+        function buildCategoryTabs() {
+            const container = document.getElementById('catTabs');
+            container.innerHTML = '';
+            CATEGORIES.forEach(cat => {
+                const tab = document.createElement('button');
+                tab.className = 'cat-tab' + (cat.id === activeCategory ? ' active' : '');
+                tab.textContent = cat.name;
+                tab.addEventListener('click', () => {
+                    activeCategory = cat.id;
+                    buildCategoryTabs();
+                    buildPalette();
+                });
+                container.appendChild(tab);
+            });
+        }
+
         function buildPalette() {
             const grid = document.getElementById('blockGrid');
             grid.innerHTML = '';
             BLOCK_TYPES.forEach((bt, i) => {
+                if (activeCategory !== 'all' && bt.cat !== activeCategory) return;
+
                 const swatch = document.createElement('div');
                 swatch.className = 'block-swatch' + (i === currentBlock ? ' active' : '');
                 swatch.title = bt.name;
 
-                // Mini canvas preview
                 const c = document.createElement('canvas');
                 c.width = 48; c.height = 48;
                 const cx = c.getContext('2d');
-                // Draw a mini iso cube
-                drawMiniCube(cx, 24, 18, bt);
+                drawMiniBlock(cx, 24, 18, bt);
                 swatch.appendChild(c);
 
                 const label = document.createElement('div');
@@ -972,58 +2275,15 @@
             });
         }
 
-        function drawMiniCube(ctx, sx, sy, bt) {
-            const tw = 28, th = 14, bh = 10;
-            const htw = tw / 2, hth = th / 2;
-
-            // Top
-            ctx.fillStyle = bt.top;
-            ctx.beginPath();
-            ctx.moveTo(sx, sy - hth);
-            ctx.lineTo(sx + htw, sy);
-            ctx.lineTo(sx, sy + hth);
-            ctx.lineTo(sx - htw, sy);
-            ctx.closePath();
-            ctx.fill();
-
-            // Left
-            ctx.fillStyle = bt.left;
-            ctx.beginPath();
-            ctx.moveTo(sx - htw, sy);
-            ctx.lineTo(sx, sy + hth);
-            ctx.lineTo(sx, sy + hth + bh);
-            ctx.lineTo(sx - htw, sy + bh);
-            ctx.closePath();
-            ctx.fill();
-
-            // Right
-            ctx.fillStyle = bt.right;
-            ctx.beginPath();
-            ctx.moveTo(sx + htw, sy);
-            ctx.lineTo(sx, sy + hth);
-            ctx.lineTo(sx, sy + hth + bh);
-            ctx.lineTo(sx + htw, sy + bh);
-            ctx.closePath();
-            ctx.fill();
-
-            // Outline
-            ctx.strokeStyle = 'rgba(0,0,0,0.2)';
-            ctx.lineWidth = 0.5;
-            ctx.beginPath();
-            ctx.moveTo(sx, sy - hth);
-            ctx.lineTo(sx + htw, sy);
-            ctx.lineTo(sx + htw, sy + bh);
-            ctx.lineTo(sx, sy + hth + bh);
-            ctx.lineTo(sx - htw, sy + bh);
-            ctx.lineTo(sx - htw, sy);
-            ctx.closePath();
-            ctx.stroke();
-        }
-
         function updatePaletteSelection() {
             const swatches = document.querySelectorAll('.block-swatch');
-            swatches.forEach((s, i) => {
-                s.classList.toggle('active', i === currentBlock);
+            let idx = 0;
+            BLOCK_TYPES.forEach((bt, i) => {
+                if (activeCategory !== 'all' && bt.cat !== activeCategory) return;
+                if (idx < swatches.length) {
+                    swatches[idx].classList.toggle('active', i === currentBlock);
+                }
+                idx++;
             });
         }
 
@@ -1037,11 +2297,11 @@
         function updateToolButtons() {
             document.getElementById('btnToolPlace').classList.toggle('active', currentTool === 'place');
             document.getElementById('btnToolErase').classList.toggle('active', currentTool === 'erase');
+            document.getElementById('btnToolFill').classList.toggle('active', currentTool === 'fill');
         }
 
         // ── Export PNG ─────────────────────────────────────────
         function exportPNG() {
-            // Find bounding box of all blocks
             const keys = Object.keys(blocks);
             if (keys.length === 0) { alert('Scene is empty!'); return; }
 
@@ -1055,8 +2315,8 @@
                 const sy = (x + y) * hth - z * bh;
                 minSX = Math.min(minSX, sx - htw);
                 maxSX = Math.max(maxSX, sx + htw);
-                minSY = Math.min(minSY, sy - hth);
-                maxSY = Math.max(maxSY, sy + hth + bh);
+                minSY = Math.min(minSY, sy - hth - bh); // extra room for tall shapes
+                maxSY = Math.max(maxSY, sy + hth + bh * 2);
             }
 
             const pad = 20;
@@ -1069,17 +2329,17 @@
             const ectx = expCanvas.getContext('2d');
             ectx.scale(2, 2);
 
-            // White background
             ectx.fillStyle = '#f5f5f5';
             ectx.fillRect(0, 0, w, h);
 
-            // Save current state and temporarily change cam/zoom for export
             const origCamX = camX, origCamY = camY, origZoom = zoom;
+            const origHide = hideLayers;
             camX = -minSX + pad;
             camY = -minSY + pad;
             zoom = 1;
+            hideLayers = false;
 
-            // Draw shadows
+            // Shadows
             if (showShadow) {
                 const sorted = getSortedBlocks();
                 ectx.fillStyle = 'rgba(0,0,0,0.08)';
@@ -1096,18 +2356,17 @@
                 }
             }
 
-            // Draw blocks
+            // Blocks
             const sorted = getSortedBlocks();
             for (const block of sorted) {
                 const p = gridToScreen(block.x, block.y, block.z);
-                const colors = getBlockColors(block.data);
-                drawIsoCube(ectx, p.x, p.y, colors, block.z);
+                const info = getBlockInfo(block.data);
+                drawBlockShape(ectx, p.x, p.y, info, block.z);
             }
 
-            // Restore
             camX = origCamX; camY = origCamY; zoom = origZoom;
+            hideLayers = origHide;
 
-            // Download
             expCanvas.toBlob(blob => {
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -1121,20 +2380,67 @@
         // ── Clear ──────────────────────────────────────────────
         function clearScene() {
             if (countBlocks() > 0 && !confirm('Clear all blocks?')) return;
+            const entries = [];
+            for (const key in blocks) {
+                entries.push({ key, oldData: blocks[key], newData: undefined });
+            }
             blocks = {};
+            if (entries.length > 0) pushHistory(entries);
+            localStorage.removeItem(AUTOSAVE_KEY);
         }
 
         // ── Keyboard ───────────────────────────────────────────
         function onKeyDown(e) {
+            // Don't handle if typing in an input
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+                e.preventDefault();
+                undo();
+                return;
+            }
+            if ((e.ctrlKey || e.metaKey) && (e.key === 'Z' || (e.key === 'z' && e.shiftKey))) {
+                e.preventDefault();
+                redo();
+                return;
+            }
+            if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+                e.preventDefault();
+                redo();
+                return;
+            }
+            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                e.preventDefault();
+                saveScene();
+                return;
+            }
+
             if (e.key === '+' || e.key === '=') { setLayer(currentLayer + 1); e.preventDefault(); }
             else if (e.key === '-' || e.key === '_') { setLayer(currentLayer - 1); e.preventDefault(); }
+            else if (e.key === 'r' || e.key === 'R') {
+                currentRotation = (currentRotation + 1) % 4;
+                document.getElementById('rotDisplay').textContent = (currentRotation * 90) + '°';
+                e.preventDefault();
+            }
+            else if (e.key === 'f' || e.key === 'F') {
+                currentTool = 'fill';
+                updateToolButtons();
+                e.preventDefault();
+            }
             else if (e.key >= '1' && e.key <= '9') {
                 const idx = parseInt(e.key) - 1;
-                if (idx < BLOCK_TYPES.length) {
-                    currentBlock = idx;
-                    currentTool = 'place';
-                    updateToolButtons();
-                    updatePaletteSelection();
+                // Map to visible palette items
+                let visIdx = 0;
+                for (let i = 0; i < BLOCK_TYPES.length; i++) {
+                    if (activeCategory !== 'all' && BLOCK_TYPES[i].cat !== activeCategory) continue;
+                    if (visIdx === idx) {
+                        currentBlock = i;
+                        currentTool = 'place';
+                        updateToolButtons();
+                        updatePaletteSelection();
+                        break;
+                    }
+                    visIdx++;
                 }
                 e.preventDefault();
             }
@@ -1146,6 +2452,7 @@
 
         // ── Init ───────────────────────────────────────────────
         function init() {
+            buildCategoryTabs();
             buildPalette();
             centerCamera();
 
@@ -1153,7 +2460,15 @@
             canvas.addEventListener('mousedown', onMouseDown);
             canvas.addEventListener('mousemove', onMouseMove);
             canvas.addEventListener('mouseup', onMouseUp);
-            canvas.addEventListener('mouseleave', () => { hoverCell = null; isPanning = false; });
+            canvas.addEventListener('mouseleave', () => {
+                hoverCell = null;
+                if (isPanning) isPanning = false;
+                if (isDragging && dragEntries.length > 0) {
+                    pushHistory(dragEntries);
+                }
+                isDragging = false;
+                dragEntries = [];
+            });
             canvas.addEventListener('wheel', onWheel, { passive: false });
             canvas.addEventListener('contextmenu', e => e.preventDefault());
             document.addEventListener('keydown', onKeyDown);
@@ -1171,6 +2486,16 @@
                 currentTool = 'erase';
                 updateToolButtons();
             });
+            document.getElementById('btnToolFill').addEventListener('click', () => {
+                currentTool = 'fill';
+                updateToolButtons();
+            });
+
+            // Rotation
+            document.getElementById('btnRotate').addEventListener('click', () => {
+                currentRotation = (currentRotation + 1) % 4;
+                document.getElementById('rotDisplay').textContent = (currentRotation * 90) + '°';
+            });
 
             // Custom color
             document.getElementById('customColor').addEventListener('input', e => {
@@ -1186,15 +2511,30 @@
             // View toggles
             document.getElementById('chkGrid').addEventListener('change', e => { showGrid = e.target.checked; });
             document.getElementById('chkShadow').addEventListener('change', e => { showShadow = e.target.checked; });
+            document.getElementById('chkHideLayers').addEventListener('change', e => { hideLayers = e.target.checked; });
+
+            // Undo/Redo buttons
+            document.getElementById('btnUndo').addEventListener('click', undo);
+            document.getElementById('btnRedo').addEventListener('click', redo);
+
+            // Save/Load
+            document.getElementById('btnSave').addEventListener('click', saveScene);
+            document.getElementById('btnLoad').addEventListener('click', () => {
+                document.getElementById('fileLoad').click();
+            });
+            document.getElementById('fileLoad').addEventListener('change', e => {
+                if (e.target.files.length > 0) {
+                    loadScene(e.target.files[0]);
+                    e.target.value = '';
+                }
+            });
 
             // Actions
             document.getElementById('btnClear').addEventListener('click', clearScene);
             document.getElementById('btnExport').addEventListener('click', exportPNG);
 
-            // Window resize
-            window.addEventListener('resize', () => {
-                // Handled in render loop via size check
-            });
+            // Check autosave
+            setTimeout(checkAutosave, 500);
 
             // Start render loop
             requestAnimationFrame(render);
