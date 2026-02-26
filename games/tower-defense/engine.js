@@ -39,6 +39,7 @@
   var mana           = 0;
   var currentWave    = 0;
   var totalWaves     = 20;
+  var endlessMode    = false;
   var towers         = [];     // Array of tower objects
   var enemies        = [];     // Array of live enemy objects
   var gameSpeed      = 1;
@@ -80,6 +81,128 @@
   var towerPlaceCount = 0;
   var tipTimer       = 0;
   var tipText        = '';
+
+  // ─────────────────────────── Mana & Abilities ──────────────────────────
+  var manaMax        = 100;
+  var MANA_REGEN     = 1;        // per second during combat
+  var MANA_PER_KILL  = 2;
+  var MANA_PER_BOSS  = 15;
+
+  var ABILITIES = {
+    meteor: {
+      name: 'Meteor Strike', key: 'Q', icon: '\u2604\uFE0F',
+      cost: 30, cooldown: 15, targeting: 'ground', radius: 2.5,
+      desc: '200 AoE fire damage',
+      cast: function (wx, wy) {
+        var r = ABILITIES.meteor.radius * CELL;
+        FX.spawnExplosion({ x: wx, y: wy, radius: r, element: 'fire', duration: 0.6 });
+        addScreenShake(5);
+        // Burst of extra fire particles
+        FX.spawnParticles({
+          x: wx, y: wy, count: 30, color: '#ff8800',
+          size: 4, speed: 180, lifetime: 0.5, gravity: 80, spread: Math.PI * 2
+        });
+        for (var i = 0; i < enemies.length; i++) {
+          var e = enemies[i];
+          if (e.dead) continue;
+          var dist = Math.hypot(e.x - wx, e.y - wy);
+          if (dist <= r) {
+            var dmg = Enemies.applyDamage(e, 200, 0);
+            FX.spawnDamageNumber({ x: e.x, y: e.y - 20, amount: dmg, color: '#ff4422' });
+            Enemies.applyStatus(e, { type: 'burn', intensity: 10, duration: 3 });
+            checkEnemyDeath(e);
+          }
+        }
+        Audio.abilityCast();
+      }
+    },
+    blizzard: {
+      name: 'Blizzard', key: 'W', icon: '\u2744\uFE0F',
+      cost: 25, cooldown: 12, targeting: 'ground', radius: 3,
+      desc: '60% slow for 4s',
+      cast: function (wx, wy) {
+        var r = ABILITIES.blizzard.radius * CELL;
+        FX.spawnAura({ x: wx, y: wy, radius: r, element: 'ice', duration: 1.5, pulseSpeed: 4 });
+        FX.spawnParticles({
+          x: wx, y: wy, count: 40, color: '#aaeeff',
+          size: 3, speed: 100, lifetime: 0.8, gravity: -20, spread: Math.PI * 2
+        });
+        for (var i = 0; i < enemies.length; i++) {
+          var e = enemies[i];
+          if (e.dead) continue;
+          var dist = Math.hypot(e.x - wx, e.y - wy);
+          if (dist <= r) {
+            Enemies.applyStatus(e, { type: 'slow', intensity: 0.6, duration: 4 });
+            FX.spawnDamageNumber({ x: e.x, y: e.y - 20, amount: 'SLOW', color: '#44ccff' });
+          }
+        }
+        Audio.abilityCast();
+      }
+    },
+    heal: {
+      name: 'Nexus Heal', key: 'E', icon: '\u{1F49A}',
+      cost: 40, cooldown: 30, targeting: 'instant', radius: 0,
+      desc: 'Restore 15 nexus HP',
+      cast: function () {
+        var restored = Math.min(15, Map.nexus.maxHp - Map.nexus.hp);
+        Map.nexus.hp = Math.min(Map.nexus.hp + 15, Map.nexus.maxHp);
+        FX.spawnAura({ x: Map.nexus.x, y: Map.nexus.y, radius: 60, element: 'nature', duration: 1.5, pulseSpeed: 3 });
+        FX.spawnParticles({
+          x: Map.nexus.x, y: Map.nexus.y, count: 20, color: '#88ff99',
+          size: 3, speed: 60, lifetime: 0.7, gravity: -40, spread: Math.PI * 2
+        });
+        FX.spawnDamageNumber({ x: Map.nexus.x, y: Map.nexus.y - 30, amount: '+' + restored, color: '#44cc66' });
+        Audio.abilityCast();
+      }
+    },
+    lightning: {
+      name: 'Lightning Storm', key: 'R', icon: '\u26A1',
+      cost: 35, cooldown: 20, targeting: 'global', radius: 0,
+      desc: '5 bolts hit random enemies for 80 dmg',
+      cast: function () {
+        var alive = [];
+        for (var i = 0; i < enemies.length; i++) {
+          if (!enemies[i].dead) alive.push(enemies[i]);
+        }
+        if (alive.length === 0) return;
+        var bolts = Math.min(5, alive.length);
+        // Shuffle and pick targets
+        for (var b = 0; b < bolts; b++) {
+          var idx = Math.floor(Math.random() * alive.length);
+          var target = alive[idx];
+          // Chain lightning visual from sky to target
+          var skyX = target.x + (Math.random() - 0.5) * 60;
+          var skyY = target.y - 300 - Math.random() * 100;
+          FX.spawnChain({
+            points: [
+              { x: skyX, y: skyY },
+              { x: skyX + (Math.random() - 0.5) * 40, y: skyY + 100 },
+              { x: target.x + (Math.random() - 0.5) * 20, y: target.y - 50 },
+              { x: target.x, y: target.y }
+            ],
+            element: 'lightning',
+            duration: 0.4
+          });
+          var dmg = Enemies.applyDamage(target, 80, 0);
+          FX.spawnDamageNumber({ x: target.x, y: target.y - 20, amount: dmg, color: '#ffee44' });
+          FX.spawnExplosion({ x: target.x, y: target.y, radius: 20, element: 'lightning', duration: 0.3 });
+          checkEnemyDeath(target);
+          // Remove dead ones from pool so we don't re-target
+          if (target.dead || target.hp <= 0) {
+            alive.splice(idx, 1);
+            if (alive.length === 0) break;
+          }
+        }
+        addScreenShake(3);
+        Audio.abilityCast();
+      }
+    }
+  };
+
+  var ABILITY_ORDER = ['meteor', 'blizzard', 'heal', 'lightning'];
+  var abilityCooldowns = { meteor: 0, blizzard: 0, heal: 0, lightning: 0 };
+  var abilityTargeting  = null;   // null or ability id string
+  var abilityMouseX = 0, abilityMouseY = 0;
 
   // Wave banner animation
   var bannerTimer    = 0;
@@ -257,6 +380,15 @@
         osc('sawtooth', 300, 0.4, 0.10);
         setTimeout(function () { osc('sawtooth', 200, 0.5, 0.08); }, 200);
         setTimeout(function () { osc('sawtooth', 120, 0.7, 0.06); }, 450);
+      },
+      abilityCast: function () {
+        init();
+        // Ascending chord: C5, E5, G5, C6
+        osc('sine', 523, 0.15, 0.10);
+        setTimeout(function () { osc('sine', 659, 0.15, 0.09); }, 40);
+        setTimeout(function () { osc('sine', 784, 0.15, 0.08); }, 80);
+        setTimeout(function () { osc('sine', 1047, 0.2, 0.10); }, 120);
+        noise(0.08, 0.03);
       },
       victory: function () {
         init();
@@ -599,19 +731,21 @@
     };
   })();
 
-  // ─────────────────────────── Map Selection ───────────────────────────
-  var selectedMapId = 'arcaneBastion';
-
   // ─────────────────────────── Save / Load ─────────────────────────────
-  function saveKeyFor(mapId) {
-    return 'arcane-bastion-best-' + (mapId || selectedMapId);
-  }
+  var SAVE_KEY = 'arcane-bastion-best';
+  var ENDLESS_SAVE_KEY = 'arcane-bastion-endless-best';
 
-  function loadBest(mapId) {
-    try { return parseInt(localStorage.getItem(saveKeyFor(mapId))) || 0; } catch (e) { return 0; }
+  function loadBest() {
+    try { return parseInt(localStorage.getItem(SAVE_KEY)) || 0; } catch (e) { return 0; }
   }
   function saveBest(wave) {
-    try { var b = loadBest(); if (wave > b) localStorage.setItem(saveKeyFor(), wave); } catch (e) {}
+    try { var b = loadBest(); if (wave > b) localStorage.setItem(SAVE_KEY, wave); } catch (e) {}
+  }
+  function loadEndlessBest() {
+    try { return parseInt(localStorage.getItem(ENDLESS_SAVE_KEY)) || 0; } catch (e) { return 0; }
+  }
+  function saveEndlessBest(wave) {
+    try { var b = loadEndlessBest(); if (wave > b) localStorage.setItem(ENDLESS_SAVE_KEY, wave); } catch (e) {}
   }
 
   // ─────────────────────────── DOM References ──────────────────────────
@@ -643,6 +777,8 @@
   var $victoryScreen  = document.getElementById('victory-screen');
   var $victoryStats   = document.getElementById('victory-stats');
   var $btnVictoryMenu = document.getElementById('btn-victory-menu');
+  var $btnEndless     = document.getElementById('btn-endless');
+  var $endlessBest    = document.getElementById('endless-best');
   var $btnPause       = document.getElementById('btn-pause');
   var $btnMusic       = document.getElementById('btn-music');
 
@@ -675,6 +811,128 @@
     }
   }
   buildTowerPanel();
+
+  // ─────────────────────────── Ability Bar Build ─────────────────────────
+  var $abilityBar = document.getElementById('ability-bar');
+
+  function buildAbilityBar() {
+    if (!$abilityBar) return;
+    $abilityBar.innerHTML = '';
+    for (var i = 0; i < ABILITY_ORDER.length; i++) {
+      var aid = ABILITY_ORDER[i];
+      var A = ABILITIES[aid];
+      var btn = document.createElement('div');
+      btn.className = 'ability-card';
+      btn.dataset.abilityId = aid;
+      btn.innerHTML =
+        '<span class="ab-key">' + A.key + '</span>' +
+        '<div class="ab-icon">' + A.icon + '</div>' +
+        '<div class="ab-name">' + A.name + '</div>' +
+        '<div class="ab-cost">' + A.cost + ' mana</div>' +
+        '<div class="ab-cd-overlay"></div>' +
+        '<div class="ab-cd-text"></div>';
+      btn.addEventListener('click', (function (id) {
+        return function () { startAbility(id); };
+      })(aid));
+      $abilityBar.appendChild(btn);
+    }
+  }
+  buildAbilityBar();
+
+  function updateAbilityBar() {
+    if (!$abilityBar) return;
+    var cards = $abilityBar.querySelectorAll('.ability-card');
+    for (var i = 0; i < cards.length; i++) {
+      var aid = cards[i].dataset.abilityId;
+      var A = ABILITIES[aid];
+      var cd = abilityCooldowns[aid];
+      var canCast = mana >= A.cost && cd <= 0 && state === 'wave';
+      var cdOverlay = cards[i].querySelector('.ab-cd-overlay');
+      var cdText = cards[i].querySelector('.ab-cd-text');
+
+      if (cd > 0) {
+        cards[i].classList.add('on-cooldown');
+        cards[i].classList.remove('active');
+        var pct = cd / A.cooldown;
+        cdOverlay.style.height = (pct * 100) + '%';
+        cdText.textContent = Math.ceil(cd) + 's';
+      } else {
+        cards[i].classList.remove('on-cooldown');
+        cdOverlay.style.height = '0%';
+        cdText.textContent = '';
+      }
+
+      if (!canCast) {
+        cards[i].classList.add('disabled');
+      } else {
+        cards[i].classList.remove('disabled');
+      }
+
+      if (abilityTargeting === aid) {
+        cards[i].classList.add('active');
+      } else {
+        cards[i].classList.remove('active');
+      }
+    }
+  }
+
+  // ─────────────────────────── Ability Targeting ─────────────────────────
+  function startAbility(abilityId) {
+    var A = ABILITIES[abilityId];
+    if (!A) return;
+    if (state !== 'wave') return;
+    if (mana < A.cost) return;
+    if (abilityCooldowns[abilityId] > 0) return;
+
+    if (A.targeting === 'instant' || A.targeting === 'global') {
+      // Cast immediately
+      castAbility(abilityId);
+      return;
+    }
+
+    // Enter targeting mode
+    if (abilityTargeting === abilityId) {
+      cancelAbilityTargeting();
+      return;
+    }
+    abilityTargeting = abilityId;
+    cancelPlacement(); // exit tower placement mode
+    deselectTower();
+    updateAbilityBar();
+  }
+
+  function cancelAbilityTargeting() {
+    abilityTargeting = null;
+    updateAbilityBar();
+  }
+
+  function castAbility(abilityId, wx, wy) {
+    var A = ABILITIES[abilityId];
+    if (!A) return;
+    if (mana < A.cost) return;
+    if (abilityCooldowns[abilityId] > 0) return;
+
+    mana -= A.cost;
+    abilityCooldowns[abilityId] = A.cooldown;
+
+    if (A.targeting === 'ground') {
+      A.cast(wx, wy);
+    } else {
+      A.cast();
+    }
+
+    abilityTargeting = null;
+    updateManaDisplay();
+    updateAbilityBar();
+  }
+
+  function updateAbilityCooldowns(dt) {
+    for (var id in abilityCooldowns) {
+      if (abilityCooldowns[id] > 0) {
+        abilityCooldowns[id] = Math.max(0, abilityCooldowns[id] - dt);
+      }
+    }
+  }
 
   function updateTowerPanelAffordability() {
     var cards = $towerPanel.querySelectorAll('.tower-card');
@@ -1139,10 +1397,14 @@
     $goldDisplay.textContent = gold;
   }
   function updateManaDisplay() {
-    $manaDisplay.textContent = Math.floor(mana);
+    $manaDisplay.textContent = Math.floor(mana) + '/' + manaMax;
   }
   function updateWaveDisplay() {
-    $waveDisplay.textContent = 'Wave ' + currentWave + '/' + totalWaves;
+    if (endlessMode) {
+      $waveDisplay.innerHTML = '<span style="color:#ff6644;font-size:0.7em;letter-spacing:0.1em">ENDLESS</span> Wave ' + currentWave;
+    } else {
+      $waveDisplay.textContent = 'Wave ' + currentWave + '/' + totalWaves;
+    }
   }
 
   function updateHUD() {
@@ -1150,6 +1412,7 @@
     updateManaDisplay();
     updateWaveDisplay();
     updateTowerPanelAffordability();
+    updateAbilityBar();
 
     // Nexus HP display in wave sub
     var hp = Map.nexus.hp;
@@ -1169,22 +1432,17 @@
 
   function enterMenu() {
     state = 'menu';
+    endlessMode = false;
     BGM.stop();
     $hud.classList.add('hidden');
     showScreen('menu-screen');
-    updateMenuBestWave();
-    $waveBanner.style.opacity = '0';
-  }
-
-  function updateMenuBestWave() {
     $bestWave.textContent = 'Wave ' + loadBest();
-    // Also update map card best-wave badges
-    var cards = document.querySelectorAll('.map-card');
-    for (var i = 0; i < cards.length; i++) {
-      var mid = cards[i].dataset.mapId;
-      var badge = cards[i].querySelector('.map-best');
-      if (badge) badge.textContent = 'Best: Wave ' + loadBest(mid);
+    var eBest = loadEndlessBest();
+    if ($endlessBest) {
+      $endlessBest.style.display = eBest > 0 ? '' : 'none';
+      $endlessBest.innerHTML = 'Endless Best: <span>Wave ' + eBest + '</span>';
     }
+    $waveBanner.style.opacity = '0';
   }
 
   function startNewGame() {
@@ -1194,6 +1452,7 @@
     gold = 400;
     mana = 0;
     currentWave = 0;
+    endlessMode = false;
     towers = [];
     enemies = [];
     totalKills = 0;
@@ -1311,13 +1570,18 @@
   function triggerGameOver() {
     state = 'gameover';
     saveBest(currentWave - 1);
+    if (endlessMode) saveEndlessBest(currentWave - 1);
     Audio.portalHumStop();
     Audio.nexusAlarmStop();
     BGM.stop();
     Audio.gameOver();
 
+    var waveLabel = endlessMode
+      ? 'Endless Wave <span>' + currentWave + '</span>'
+      : 'Reached: <span>Wave ' + currentWave + '</span>';
+
     $gameoverStats.innerHTML =
-      'Reached: <span>Wave ' + currentWave + '</span><br>' +
+      waveLabel + '<br>' +
       'Enemies Slain: <span>' + totalKills + '</span><br>' +
       'Gold Earned: <span>' + totalGoldEarned + '</span><br>' +
       'Towers Built: <span>' + towers.length + '</span>';
@@ -1339,7 +1603,27 @@
       'Enemies Slain: <span>' + totalKills + '</span><br>' +
       'Gold Earned: <span>' + totalGoldEarned + '</span>';
 
+    // Show endless mode button on victory
+    if ($btnEndless) $btnEndless.style.display = '';
+
     showScreen('victory-screen');
+  }
+
+  function enterEndlessMode() {
+    endlessMode = true;
+    state = 'build';
+    if ($btnEndless) $btnEndless.style.display = 'none';
+    showScreen(null);
+    $hud.classList.remove('hidden');
+
+    // Resume BGM
+    BGM.setVolume(0.2);
+    BGM.play(BGM.TRACKS.build);
+
+    // Enter build phase for wave 21
+    enterBuildPhase();
+    updateHUD();
+    showBanner('ENDLESS MODE', 'How far can you go?');
   }
 
   // ─────────────────────────── Speed Controls ──────────────────────────
@@ -1649,6 +1933,10 @@
     totalGoldEarned += goldReward;
     totalKills++;
 
+    // Mana on kill
+    var manaReward = (enemy.type.behavior === 'boss') ? MANA_PER_BOSS : MANA_PER_KILL;
+    mana = Math.min(manaMax, mana + manaReward);
+
     // Credit kill to the tower that last hit this enemy
     if (enemy._lastHitTowerId) {
       var killer = findTowerById(enemy._lastHitTowerId);
@@ -1735,12 +2023,20 @@
     Audio.waveComplete();
     Audio.portalHumStop();
     Audio.nexusAlarmStop();
-    showBanner('Wave Complete', bonus > 0 ? '+' + bonus + ' gold bonus' : '');
+
+    var bonusText = bonus > 0 ? '+' + bonus + ' gold bonus' : '';
+    showBanner('Wave Complete', bonusText);
 
     saveBest(currentWave);
+    if (endlessMode) saveEndlessBest(currentWave);
 
-    // Victory check
-    if (currentWave >= totalWaves) {
+    // Endless milestone fanfare at waves 30, 40, 50, 60...
+    if (endlessMode && currentWave >= 30 && currentWave % 10 === 0) {
+      Audio.victory();
+    }
+
+    // Victory check — only for normal mode (not endless)
+    if (!endlessMode && currentWave >= totalWaves) {
       setTimeout(function () { triggerVictory(); }, 1500);
       return;
     }
@@ -1772,11 +2068,13 @@
     // Tip timer
     if (tipTimer > 0) tipTimer -= dt;
 
-    // Mana regen (cap at 100)
-    mana = Math.min(100, mana + 1 * dt);
+    // Ability cooldowns tick in all active states
+    updateAbilityCooldowns(dt);
 
-    // Weather & environment effects update
-    Weather.update(dt);
+    // Mana regen (only during combat)
+    if (state === 'wave') {
+      mana = Math.min(manaMax, mana + MANA_REGEN * dt);
+    }
 
     // Weather & environment effects update
     Weather.update(dt);
@@ -1995,6 +2293,11 @@
       drawPlacementGhost(ctx, time);
     }
 
+    // Ability targeting circle
+    if (abilityTargeting && mouseOnCanvas) {
+      drawAbilityTargeting(ctx, time);
+    }
+
     // Synergy lines
     drawSynergyLines(ctx, time);
 
@@ -2179,6 +2482,43 @@
     ctx.restore();
   }
 
+  // ─────────────────────────── Ability Targeting Cursor ────────────────
+  function drawAbilityTargeting(ctx, time) {
+    if (!abilityTargeting) return;
+    var A = ABILITIES[abilityTargeting];
+    if (!A || A.targeting !== 'ground') return;
+
+    var worldX = mouseX + cam.x - shakeX;
+    var worldY = mouseY + cam.y - shakeY;
+    var radius = A.radius * CELL;
+    var pulse = 0.3 + 0.15 * Math.sin(time * 5);
+
+    ctx.save();
+    // Filled circle
+    ctx.beginPath();
+    ctx.arc(worldX, worldY, radius, 0, Math.PI * 2);
+    var element = abilityTargeting === 'meteor' ? 'fire' : 'ice';
+    var color = abilityTargeting === 'meteor' ? '255,68,34' : '68,204,255';
+    ctx.fillStyle = 'rgba(' + color + ',' + (pulse * 0.15) + ')';
+    ctx.fill();
+    // Border
+    ctx.strokeStyle = 'rgba(' + color + ',' + (pulse + 0.2) + ')';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // Center crosshair
+    ctx.strokeStyle = 'rgba(' + color + ',' + (pulse + 0.3) + ')';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(worldX - 8, worldY);
+    ctx.lineTo(worldX + 8, worldY);
+    ctx.moveTo(worldX, worldY - 8);
+    ctx.lineTo(worldX, worldY + 8);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   // ─────────────────────────── Synergy Lines ───────────────────────────
   function drawSynergyLines(ctx, time) {
     ctx.save();
@@ -2234,6 +2574,14 @@
 
     updateMouseGrid(e.clientX, e.clientY);
 
+    // Ability targeting takes priority
+    if (abilityTargeting) {
+      var worldX = e.clientX + cam.x - shakeX;
+      var worldY = e.clientY + cam.y - shakeY;
+      castAbility(abilityTargeting, worldX, worldY);
+      return;
+    }
+
     if (placementMode) {
       if (mouseGridCol >= 0 && mouseGridCol < Map.MAP_COLS &&
           mouseGridRow >= 0 && mouseGridRow < Map.MAP_ROWS) {
@@ -2253,7 +2601,9 @@
 
   canvas.addEventListener('contextmenu', function (e) {
     e.preventDefault();
-    if (placementMode) {
+    if (abilityTargeting) {
+      cancelAbilityTargeting();
+    } else if (placementMode) {
       cancelPlacement();
     } else {
       deselectTower();
@@ -2267,6 +2617,14 @@
     var t = e.touches[0];
     mouseOnCanvas = true;
     updateMouseGrid(t.clientX, t.clientY);
+
+    // Ability targeting
+    if (abilityTargeting) {
+      var worldX = t.clientX + cam.x - shakeX;
+      var worldY = t.clientY + cam.y - shakeY;
+      castAbility(abilityTargeting, worldX, worldY);
+      return;
+    }
 
     if (placementMode) {
       if (mouseGridCol >= 0 && mouseGridCol < Map.MAP_COLS &&
@@ -2318,6 +2676,19 @@
     }
 
     switch (key.toLowerCase()) {
+      case 'q':
+        if (state === 'wave') startAbility('meteor');
+        break;
+      case 'w':
+        if (state === 'wave') startAbility('blizzard');
+        break;
+      case 'e':
+        if (state === 'wave') startAbility('heal');
+        break;
+      case 'r':
+        if (state === 'wave') startAbility('lightning');
+        break;
+
       case 'u':
         // Upgrade path A
         if (selectedTower && selectedTower.tier < 3) {
@@ -2356,7 +2727,9 @@
         break;
 
       case 'escape':
-        if (placementMode) {
+        if (abilityTargeting) {
+          cancelAbilityTargeting();
+        } else if (placementMode) {
           cancelPlacement();
         } else if (selectedTower) {
           deselectTower();
@@ -2373,6 +2746,7 @@
   $btnNewGame.addEventListener('click', startNewGame);
   $btnRetry.addEventListener('click', startNewGame);
   $btnVictoryMenu.addEventListener('click', enterMenu);
+  if ($btnEndless) $btnEndless.addEventListener('click', enterEndlessMode);
   $btnResume.addEventListener('click', resumeGame);
   $btnQuit.addEventListener('click', enterMenu);
   $btnSendWave.addEventListener('click', function () {
@@ -2429,46 +2803,15 @@
     render(timestamp);
   }
 
-  // ─────────────────────────── Map Selection UI ───────────────────────
-  var $mapSelector = document.getElementById('map-selector');
-
-  function buildMapSelector() {
-    if (!$mapSelector) return;
-    $mapSelector.innerHTML = '';
-    var order = Map.MAP_ORDER;
-    var maps = Map.MAPS;
-    var diffColors = { Easy: '#44cc66', Medium: '#d4a017', Hard: '#ff4444' };
-
-    for (var i = 0; i < order.length; i++) {
-      var m = maps[order[i]];
-      var card = document.createElement('div');
-      card.className = 'map-card' + (order[i] === selectedMapId ? ' selected' : '');
-      card.dataset.mapId = m.id;
-      var dc = diffColors[m.difficulty] || '#a89880';
-      card.innerHTML =
-        '<div class="map-name">' + m.name + '</div>' +
-        '<div class="map-diff" style="color:' + dc + '">' + m.difficulty + '</div>' +
-        '<div class="map-desc">' + m.description + '</div>' +
-        '<div class="map-best">Best: Wave ' + loadBest(m.id) + '</div>';
-      card.addEventListener('click', (function (mid) {
-        return function () {
-          selectedMapId = mid;
-          var allCards = $mapSelector.querySelectorAll('.map-card');
-          for (var j = 0; j < allCards.length; j++) {
-            allCards[j].classList.toggle('selected', allCards[j].dataset.mapId === mid);
-          }
-          updateMenuBestWave();
-        };
-      })(m.id));
-      $mapSelector.appendChild(card);
-    }
-  }
-  buildMapSelector();
-
   // ─────────────────────────── Initialize ──────────────────────────────
   updateCamera();
   window.addEventListener('resize', updateCamera);
   $bestWave.textContent = 'Wave ' + loadBest();
+  var initEndlessBest = loadEndlessBest();
+  if ($endlessBest) {
+    $endlessBest.style.display = initEndlessBest > 0 ? '' : 'none';
+    $endlessBest.innerHTML = 'Endless Best: <span>Wave ' + initEndlessBest + '</span>';
+  }
   if (BGM.isEnabled()) $btnMusic.classList.add('active');
 
   // Start game loop
