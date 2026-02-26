@@ -2309,9 +2309,14 @@
   var activeSpawners = [];
   var currentWaveData = null;
 
-  function startWave(waveNum, paths) {
+  function startWave(waveNum, paths, difficulty) {
     currentWaveData = getWave(waveNum);
     activeSpawners = [];
+
+    // Apply difficulty multipliers on top of wave scaling
+    var diffHpMult    = (difficulty && difficulty.hpMult)    || 1.0;
+    var diffSpeedMult = (difficulty && difficulty.speedMult) || 1.0;
+    var diffArmorMult = (difficulty && difficulty.armorMult) || 1.0;
 
     for (var i = 0; i < currentWaveData.groups.length; i++) {
       var g = currentWaveData.groups[i];
@@ -2326,9 +2331,9 @@
         started:    false,
         path:       paths[pathIndex],
         spawnIndex: g.spawnIndex,
-        hpMult:     currentWaveData.hpMult,
-        speedMult:  currentWaveData.speedMult,
-        armorBonus: currentWaveData.armorBonus,
+        hpMult:     currentWaveData.hpMult * diffHpMult,
+        speedMult:  currentWaveData.speedMult * diffSpeedMult,
+        armorBonus: Math.round(currentWaveData.armorBonus * diffArmorMult),
       });
     }
 

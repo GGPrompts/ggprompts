@@ -731,15 +731,33 @@
     };
   })();
 
+  // ─────────────────────────── Map Selection ───────────────────────────
+  var selectedMapId = 'arcaneBastion';
+
+  // ─────────────────────────── Difficulty ─────────────────────────────
+  var DIFFICULTY_SETTINGS = {
+    easy:   { label: 'Easy',   startGold: 600, nexusHP: 150, hpMult: 0.75, speedMult: 0.85, goldMult: 1.3, armorMult: 0.8 },
+    normal: { label: 'Normal', startGold: 400, nexusHP: 100, hpMult: 1.0,  speedMult: 1.0,  goldMult: 1.0, armorMult: 1.0 },
+    hard:   { label: 'Hard',   startGold: 300, nexusHP: 75,  hpMult: 1.35, speedMult: 1.15, goldMult: 0.8, armorMult: 1.3 },
+  };
+  var selectedDifficulty = 'normal';
+
+  function getDifficulty() {
+    return DIFFICULTY_SETTINGS[selectedDifficulty] || DIFFICULTY_SETTINGS.normal;
+  }
+
   // ─────────────────────────── Save / Load ─────────────────────────────
-  var SAVE_KEY = 'arcane-bastion-best';
   var ENDLESS_SAVE_KEY = 'arcane-bastion-endless-best';
 
-  function loadBest() {
-    try { return parseInt(localStorage.getItem(SAVE_KEY)) || 0; } catch (e) { return 0; }
+  function saveKeyFor(mapId, diff) {
+    return 'arcane-bastion-best-' + (mapId || selectedMapId) + '-' + (diff || selectedDifficulty);
+  }
+
+  function loadBest(mapId, diff) {
+    try { return parseInt(localStorage.getItem(saveKeyFor(mapId, diff))) || 0; } catch (e) { return 0; }
   }
   function saveBest(wave) {
-    try { var b = loadBest(); if (wave > b) localStorage.setItem(SAVE_KEY, wave); } catch (e) {}
+    try { var b = loadBest(); if (wave > b) localStorage.setItem(saveKeyFor(), wave); } catch (e) {}
   }
   function loadEndlessBest() {
     try { return parseInt(localStorage.getItem(ENDLESS_SAVE_KEY)) || 0; } catch (e) { return 0; }
@@ -1414,10 +1432,11 @@
     updateTowerPanelAffordability();
     updateAbilityBar();
 
-    // Nexus HP display in wave sub
+    // Nexus HP display in wave sub + difficulty indicator
     var hp = Map.nexus.hp;
     var mhp = Map.nexus.maxHp;
-    $waveSub.textContent = 'Nexus: ' + hp + '/' + mhp;
+    var diffLabel = getDifficulty().label;
+    $waveSub.textContent = diffLabel + ' \u00B7 Nexus: ' + hp + '/' + mhp;
   }
 
   // ─────────────────────────── State Transitions ───────────────────────
@@ -1436,20 +1455,50 @@
     BGM.stop();
     $hud.classList.add('hidden');
     showScreen('menu-screen');
-    $bestWave.textContent = 'Wave ' + loadBest();
+    updateMenuBestWave();
+    $waveBanner.style.opacity = '0';
+  }
+
+  function updateMenuBestWave() {
+    // Show all three difficulty bests
+    var parts = [];
+    var diffs = ['easy', 'normal', 'hard'];
+    var diffLabels = { easy: 'E', normal: 'N', hard: 'H' };
+    for (var d = 0; d < diffs.length; d++) {
+      var best = loadBest(selectedMapId, diffs[d]);
+      if (best > 0) parts.push(diffLabels[diffs[d]] + ':W' + best);
+    }
+    $bestWave.textContent = parts.length > 0 ? parts.join('  ') : 'No record';
+    // Endless best
     var eBest = loadEndlessBest();
     if ($endlessBest) {
       $endlessBest.style.display = eBest > 0 ? '' : 'none';
       $endlessBest.innerHTML = 'Endless Best: <span>Wave ' + eBest + '</span>';
     }
-    $waveBanner.style.opacity = '0';
+    // Also update map card best-wave badges
+    var cards = document.querySelectorAll('.map-card');
+    for (var i = 0; i < cards.length; i++) {
+      var mid = cards[i].dataset.mapId;
+      var badge = cards[i].querySelector('.map-best');
+      if (badge) {
+        var mapParts = [];
+        for (var dd = 0; dd < diffs.length; dd++) {
+          var b = loadBest(mid, diffs[dd]);
+          if (b > 0) mapParts.push(diffLabels[diffs[dd]] + ':W' + b);
+        }
+        badge.textContent = mapParts.length > 0 ? mapParts.join('  ') : 'No record';
+      }
+    }
+    // Update difficulty selector highlights
+    updateDifficultySelector();
   }
 
   function startNewGame() {
     Audio.init();
     BGM.init();
     state = 'build';
-    gold = 400;
+    var diff = getDifficulty();
+    gold = diff.startGold;
     mana = 0;
     currentWave = 0;
     endlessMode = false;
@@ -1476,6 +1525,9 @@
     flashAlpha = 0;
 
     Map.init(selectedMapId);
+    // Apply difficulty nexus HP
+    Map.nexus.maxHp = diff.nexusHP;
+    Map.nexus.hp = diff.nexusHP;
     FX.clear();
     Weather.init();
     updateCamera();
@@ -1535,7 +1587,7 @@
       paths.push(Map.getPath(s));
     }
 
-    currentWaveData = Enemies.startWave(currentWave, paths);
+    currentWaveData = Enemies.startWave(currentWave, paths, getDifficulty());
 
     Weather.setWave(currentWave, true);
 
@@ -1928,7 +1980,7 @@
 
   function handleEnemyDeath(enemy) {
     if (!enemy.type) return;
-    var goldReward = Math.round((enemy.type.gold || 5) * (currentWaveData ? 1 : 1));
+    var goldReward = Math.round((enemy.type.gold || 5) * getDifficulty().goldMult);
     gold += goldReward;
     totalGoldEarned += goldReward;
     totalKills++;
@@ -2016,7 +2068,7 @@
     if (alive > 0) return;
 
     // Wave complete!
-    var bonus = currentWaveData ? currentWaveData.goldBonus || 0 : 0;
+    var bonus = Math.round((currentWaveData ? currentWaveData.goldBonus || 0 : 0) * getDifficulty().goldMult);
     gold += bonus;
     totalGoldEarned += bonus;
 
@@ -2803,15 +2855,91 @@
     render(timestamp);
   }
 
+=======
+  // ─────────────────────────── Map Selection UI ───────────────────────
+  var $mapSelector = document.getElementById('map-selector');
+
+  function buildMapSelector() {
+    if (!$mapSelector) return;
+    $mapSelector.innerHTML = '';
+    var order = Map.MAP_ORDER;
+    var maps = Map.MAPS;
+    var diffColors = { Easy: '#44cc66', Medium: '#d4a017', Hard: '#ff4444' };
+
+    for (var i = 0; i < order.length; i++) {
+      var m = maps[order[i]];
+      var card = document.createElement('div');
+      card.className = 'map-card' + (order[i] === selectedMapId ? ' selected' : '');
+      card.dataset.mapId = m.id;
+      var dc = diffColors[m.difficulty] || '#a89880';
+      card.innerHTML =
+        '<div class="map-name">' + m.name + '</div>' +
+        '<div class="map-diff" style="color:' + dc + '">' + m.difficulty + '</div>' +
+        '<div class="map-desc">' + m.description + '</div>' +
+        '<div class="map-best"></div>';
+      card.addEventListener('click', (function (mid) {
+        return function () {
+          selectedMapId = mid;
+          var allCards = $mapSelector.querySelectorAll('.map-card');
+          for (var j = 0; j < allCards.length; j++) {
+            allCards[j].classList.toggle('selected', allCards[j].dataset.mapId === mid);
+          }
+          updateMenuBestWave();
+        };
+      })(m.id));
+      $mapSelector.appendChild(card);
+    }
+  }
+  buildMapSelector();
+
+  // ─────────────────────────── Difficulty Selector UI ────────────────
+  function buildDifficultySelector() {
+    var container = document.getElementById('difficulty-selector');
+    if (!container) return;
+    container.innerHTML = '';
+    var diffs = ['easy', 'normal', 'hard'];
+    var descriptions = {
+      easy:   'More gold, slower enemies, forgiving',
+      normal: 'The intended experience',
+      hard:   'Ruthless scaling, scarce resources',
+    };
+    var colors = { easy: '#44cc66', normal: '#d4a017', hard: '#ff4444' };
+
+    for (var i = 0; i < diffs.length; i++) {
+      var d = diffs[i];
+      var card = document.createElement('div');
+      card.className = 'diff-card' + (d === selectedDifficulty ? ' selected' : '');
+      card.dataset.diff = d;
+      card.innerHTML =
+        '<div class="diff-name" style="color:' + colors[d] + '">' + DIFFICULTY_SETTINGS[d].label + '</div>' +
+        '<div class="diff-desc">' + descriptions[d] + '</div>';
+      card.addEventListener('click', (function (did) {
+        return function () {
+          selectedDifficulty = did;
+          var allCards = container.querySelectorAll('.diff-card');
+          for (var j = 0; j < allCards.length; j++) {
+            allCards[j].classList.toggle('selected', allCards[j].dataset.diff === did);
+          }
+          updateMenuBestWave();
+        };
+      })(d));
+      container.appendChild(card);
+    }
+  }
+
+  function updateDifficultySelector() {
+    var cards = document.querySelectorAll('.diff-card');
+    for (var i = 0; i < cards.length; i++) {
+      cards[i].classList.toggle('selected', cards[i].dataset.diff === selectedDifficulty);
+    }
+  }
+
+  buildDifficultySelector();
+
   // ─────────────────────────── Initialize ──────────────────────────────
   updateCamera();
   window.addEventListener('resize', updateCamera);
-  $bestWave.textContent = 'Wave ' + loadBest();
-  var initEndlessBest = loadEndlessBest();
-  if ($endlessBest) {
-    $endlessBest.style.display = initEndlessBest > 0 ? '' : 'none';
-    $endlessBest.innerHTML = 'Endless Best: <span>Wave ' + initEndlessBest + '</span>';
-  }
+  updateMenuBestWave();
   if (BGM.isEnabled()) $btnMusic.classList.add('active');
 
   // Start game loop
