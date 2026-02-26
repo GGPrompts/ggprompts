@@ -82,6 +82,11 @@
     var masterGain = null;
     var initialized = false;
 
+    // Looping sound node references
+    var portalHumNodes = null;
+    var nexusAlarmInterval = null;
+    var nexusAlarmActive = false;
+
     function init() {
       if (initialized) return;
       try {
@@ -125,6 +130,52 @@
       g.connect(masterGain);
       src.start(now());
       src.stop(now() + dur + 0.02);
+    }
+
+    // Filtered noise helper — noise through a filter with frequency sweep
+    function filteredNoise(dur, vol, filterType, freqStart, freqEnd) {
+      if (!actx) return;
+      var len = Math.floor(actx.sampleRate * dur);
+      var buf = actx.createBuffer(1, len, actx.sampleRate);
+      var data = buf.getChannelData(0);
+      for (var i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1);
+      var src = actx.createBufferSource();
+      src.buffer = buf;
+      var filt = actx.createBiquadFilter();
+      filt.type = filterType;
+      filt.frequency.setValueAtTime(freqStart, now());
+      filt.frequency.exponentialRampToValueAtTime(freqEnd, now() + dur);
+      filt.Q.value = 2;
+      var g = actx.createGain();
+      g.gain.setValueAtTime(vol || 0.05, now());
+      g.gain.exponentialRampToValueAtTime(0.001, now() + dur);
+      src.connect(filt);
+      filt.connect(g);
+      g.connect(masterGain);
+      src.start(now());
+      src.stop(now() + dur + 0.02);
+    }
+
+    // Filtered oscillator helper — osc through a filter with frequency sweep
+    function filteredOsc(oscType, oscFreqStart, oscFreqEnd, dur, vol, filterType, filtFreqStart, filtFreqEnd) {
+      if (!actx) return;
+      var o = actx.createOscillator();
+      o.type = oscType;
+      o.frequency.setValueAtTime(oscFreqStart, now());
+      o.frequency.exponentialRampToValueAtTime(oscFreqEnd, now() + dur);
+      var filt = actx.createBiquadFilter();
+      filt.type = filterType;
+      filt.frequency.setValueAtTime(filtFreqStart, now());
+      filt.frequency.exponentialRampToValueAtTime(filtFreqEnd, now() + dur);
+      filt.Q.value = 3;
+      var g = actx.createGain();
+      g.gain.setValueAtTime(vol || 0.08, now());
+      g.gain.exponentialRampToValueAtTime(0.001, now() + dur);
+      o.connect(filt);
+      filt.connect(g);
+      g.connect(masterGain);
+      o.start(now());
+      o.stop(now() + dur + 0.05);
     }
 
     return {
@@ -204,6 +255,120 @@
           osc('sine', 784, 0.6, 0.07);
           osc('sine', 523, 0.6, 0.05);
         }, 500);
+      },
+      // ── New SFX ──────────────────────────────────────────────────────
+      // 1. Portal hum — looping ambient drone for spawn portals
+      portalHumStart: function () {
+        init();
+        if (!actx || portalHumNodes) return;
+        // Low sine drone ~80Hz with slow LFO amplitude modulation
+        var drone = actx.createOscillator();
+        drone.type = 'sine';
+        drone.frequency.value = 80;
+        var lfo = actx.createOscillator();
+        lfo.type = 'sine';
+        lfo.frequency.value = 1.5; // slow pulse
+        var lfoGain = actx.createGain();
+        lfoGain.gain.value = 0.015; // modulation depth
+        var droneGain = actx.createGain();
+        droneGain.gain.value = 0.03; // very quiet
+        lfo.connect(lfoGain);
+        lfoGain.connect(droneGain.gain); // modulate volume
+        drone.connect(droneGain);
+        droneGain.connect(masterGain);
+        drone.start(now());
+        lfo.start(now());
+        portalHumNodes = { drone: drone, lfo: lfo, gain: droneGain };
+      },
+      portalHumStop: function () {
+        if (!portalHumNodes) return;
+        try {
+          portalHumNodes.gain.gain.setValueAtTime(portalHumNodes.gain.gain.value, now());
+          portalHumNodes.gain.gain.exponentialRampToValueAtTime(0.001, now() + 0.5);
+          var nodes = portalHumNodes;
+          setTimeout(function () {
+            try { nodes.drone.stop(); } catch (e) {}
+            try { nodes.lfo.stop(); } catch (e) {}
+          }, 600);
+        } catch (e) {}
+        portalHumNodes = null;
+      },
+      // 2. Synergy activate — sparkly ascending chime
+      synergyActivate: function () {
+        init();
+        osc('sine', 800, 0.12, 0.08);
+        setTimeout(function () { osc('sine', 1200, 0.10, 0.07); }, 50);
+        setTimeout(function () { osc('sine', 1600, 0.15, 0.06); }, 100);
+      },
+      // 3. Critical hit — punchy impact
+      criticalHit: function () {
+        init();
+        noise(0.06, 0.10);
+        osc('square', 150, 0.08, 0.12);
+      },
+      // 4. Shield break — glass shatter (noise with highpass sweep)
+      shieldBreak: function () {
+        init();
+        filteredNoise(0.2, 0.10, 'highpass', 2000, 8000);
+        osc('sine', 3000, 0.05, 0.06);
+      },
+      // 5. Boss ability — ominous whoosh (filtered sawtooth sweep + noise)
+      bossAbility: function () {
+        init();
+        filteredOsc('sawtooth', 200, 100, 0.4, 0.08, 'lowpass', 800, 200);
+        noise(0.3, 0.04);
+      },
+      // 6. Nexus alarm — pulsing warning loop (alternating square tones)
+      nexusAlarmStart: function () {
+        init();
+        if (nexusAlarmActive) return;
+        nexusAlarmActive = true;
+        var toggle = false;
+        function tick() {
+          if (!nexusAlarmActive) return;
+          osc('square', toggle ? 400 : 600, 0.12, 0.06);
+          toggle = !toggle;
+          nexusAlarmInterval = setTimeout(tick, 150);
+        }
+        tick();
+      },
+      nexusAlarmStop: function () {
+        nexusAlarmActive = false;
+        if (nexusAlarmInterval) {
+          clearTimeout(nexusAlarmInterval);
+          nexusAlarmInterval = null;
+        }
+      },
+      // 7. Freeze hit — crystalline freeze (high sine with fast vibrato)
+      freezeHit: function () {
+        init();
+        if (!actx) return;
+        var o = actx.createOscillator();
+        o.type = 'sine';
+        o.frequency.value = 2000;
+        // Fast vibrato via LFO on frequency
+        var vib = actx.createOscillator();
+        vib.type = 'sine';
+        vib.frequency.value = 30; // fast vibrato
+        var vibGain = actx.createGain();
+        vibGain.gain.value = 150; // vibrato depth in Hz
+        vib.connect(vibGain);
+        vibGain.connect(o.frequency);
+        var g = actx.createGain();
+        g.gain.setValueAtTime(0.08, now());
+        g.gain.exponentialRampToValueAtTime(0.001, now() + 0.15);
+        o.connect(g);
+        g.connect(masterGain);
+        o.start(now());
+        vib.start(now());
+        o.stop(now() + 0.2);
+        vib.stop(now() + 0.2);
+      },
+      // 8. Root hit — earthy thud (triangle + noise, short)
+      rootHit: function () {
+        init();
+        osc('triangle', 120, 0.1, 0.10);
+        noise(0.06, 0.06);
       }
     };
   })();
@@ -477,10 +642,13 @@
 
     var tower = Towers.createTower(placementType, col, row, tx, ty);
     towers.push(tower);
+    var prevSynCount = towers.reduce(function (n, t) { return n + (t.synergies ? t.synergies.length : 0); }, 0);
     Towers.refreshAllSynergies(towers);
+    var newSynCount = towers.reduce(function (n, t) { return n + (t.synergies ? t.synergies.length : 0); }, 0);
 
     FX.spawnPlaceEffect({ x: tx, y: ty, element: placementType });
     Audio.towerPlace();
+    if (newSynCount > prevSynCount) Audio.synergyActivate();
 
     // Show upgrade tip after first tower placed
     towerPlaceCount++;
@@ -505,9 +673,18 @@
     gold -= info.cost;
     var ok = Towers.upgradeTower(selectedTower, path);
     if (ok) {
+      var prevSynCount2 = towers.reduce(function (n, t) { return n + (t.synergies ? t.synergies.length : 0); }, 0);
       Towers.refreshAllSynergies(towers);
+      var newSynCount2 = towers.reduce(function (n, t) { return n + (t.synergies ? t.synergies.length : 0); }, 0);
       Audio.upgrade();
+      if (newSynCount2 > prevSynCount2) Audio.synergyActivate();
       FX.spawnPlaceEffect({ x: selectedTower.x, y: selectedTower.y, element: selectedTower.type.element });
+      // Extra upgrade particle burst — rising sparkles in element color
+      FX.spawnParticles({
+        x: selectedTower.x, y: selectedTower.y, count: 24,
+        color: selectedTower.type.color, size: 3, speed: 100,
+        lifetime: 0.8, gravity: -60, spread: Math.PI * 2
+      });
       showTowerInfo(selectedTower); // refresh panel
       updateGoldDisplay();
       updateTowerPanelAffordability();
@@ -716,6 +893,7 @@
     var isBoss = currentWaveData.boss;
     showBanner('Wave ' + currentWave, isBoss ? 'BOSS INCOMING' : '');
     Audio.waveStart();
+    Audio.portalHumStart();
     if (isBoss) {
       setTimeout(function () { Audio.bossSpawn(); }, 300);
     }
@@ -737,6 +915,8 @@
   function triggerGameOver() {
     state = 'gameover';
     saveBest(currentWave - 1);
+    Audio.portalHumStop();
+    Audio.nexusAlarmStop();
     Audio.gameOver();
 
     $gameoverStats.innerHTML =
@@ -751,6 +931,8 @@
   function triggerVictory() {
     state = 'victory';
     saveBest(currentWave);
+    Audio.portalHumStop();
+    Audio.nexusAlarmStop();
     Audio.victory();
 
     $victoryStats.innerHTML =
@@ -827,6 +1009,7 @@
         }
         // Stun chance for earth
         if (tower.type.stunChance && Math.random() < tower.type.stunChance) {
+          Audio.rootHit();
           for (var j = 0; j < enemies.length; j++) {
             var e2 = enemies[j];
             if (e2.dead) continue;
@@ -899,11 +1082,17 @@
           intensity: stats.slowAmount || 0.4,
           duration: stats.slowDuration || 2
         });
+        // Freeze chance from upgrades
+        if (stats.freezeChance && Math.random() < stats.freezeChance) {
+          Enemies.applyStatus(enemy, { type: 'freeze', duration: 1.2, intensity: 1 });
+          Audio.freezeHit();
+        }
         break;
       case 'lightning':
         // Occasional stun on crit
         if (Math.random() < 0.1) {
           Enemies.applyStatus(enemy, { type: 'stun', duration: 0.5, intensity: 1 });
+          Audio.rootHit();
         }
         break;
       case 'nature':
@@ -939,12 +1128,18 @@
       var enemy = hits[i].enemy;
       if (enemy.dead) continue;
 
+      var hadShield = enemy.shieldHp > 0;
       var dmg = Enemies.applyDamage(enemy, proj.damage, proj.armorPierce || 0);
       FX.spawnDamageNumber({
         x: enemy.x,
         y: enemy.y - (enemy.type ? enemy.type.size : 8) - 5,
         amount: dmg
       });
+
+      // Critical hit SFX when damage exceeds 30% of enemy max HP
+      if (dmg > enemy.maxHp * 0.3) Audio.criticalHit();
+      // Shield break SFX when shield just depleted
+      if (hadShield && enemy.shieldHp <= 0) Audio.shieldBreak();
 
       // Credit damage and potential kill to the tower that fired
       if (proj.towerId) {
@@ -974,10 +1169,10 @@
       FX.spawnDamageNumber({ x: target.x, y: target.y - 20, amount: Math.round(amount), color: '#44ff66' });
     },
     onBossAbility: function (enemy, ability, data) {
+      Audio.bossAbility();
       if (ability === 'fireNova') {
         FX.spawnExplosion({ x: data.x, y: data.y, radius: data.radius || 100, element: 'fire', duration: 0.6 });
         addScreenShake(6);
-        Audio.play('bossSpawn');
       } else if (ability === 'massHeal') {
         FX.spawnAura({ x: enemy.x, y: enemy.y, radius: 200, element: 'nature', duration: 1.5, pulseSpeed: 3 });
         FX.spawnDamageNumber({ x: enemy.x, y: enemy.y - 30, amount: Math.round((data.percent || 0.15) * 100) + '%', color: '#44ff66' });
@@ -1077,6 +1272,8 @@
     totalGoldEarned += bonus;
 
     Audio.waveComplete();
+    Audio.portalHumStop();
+    Audio.nexusAlarmStop();
     showBanner('Wave Complete', bonus > 0 ? '+' + bonus + ' gold bonus' : '');
 
     saveBest(currentWave);
@@ -1163,6 +1360,7 @@
       }
 
       // 2. Update towers (targeting + firing)
+      towerCallbacks.time = time;
       Towers.updateAll(towers, enemies, dt, towerCallbacks);
 
       // 3. Update enemies (movement + behaviors)
@@ -1191,6 +1389,13 @@
         if (!enemies[i].dead && !enemies[i].reachedNexus) aliveCount++;
       }
       $enemiesRemain.textContent = 'Enemies: ' + aliveCount + (Enemies.isSpawningDone() ? '' : '+');
+
+      // 10. Nexus alarm — pulse warning when HP < 25%
+      if (Map.nexus.hp > 0 && Map.nexus.hp < Map.nexus.maxHp * 0.25) {
+        Audio.nexusAlarmStart();
+      } else {
+        Audio.nexusAlarmStop();
+      }
     }
 
     updateShake(dt);
@@ -1255,7 +1460,22 @@
           ctx.restore();
         }
       }
-      tw.type.drawTower(ctx, tw.x, tw.y, CELL, tw.tier, time);
+      // Attack flash — brief glow + scale pulse for 150ms after firing
+      var atkElapsed = time - tw.lastAttackTime;
+      if (tw.lastAttackTime >= 0 && atkElapsed < 0.15) {
+        var atkT = 1 - atkElapsed / 0.15; // 1 -> 0 fade
+        var sc = 1 + atkT * 0.08;
+        ctx.save();
+        ctx.translate(tw.x, tw.y);
+        ctx.scale(sc, sc);
+        ctx.translate(-tw.x, -tw.y);
+        ctx.shadowBlur = 20 * atkT;
+        ctx.shadowColor = tw.type.glowColor || tw.type.color;
+        tw.type.drawTower(ctx, tw.x, tw.y, CELL, tw.tier, time);
+        ctx.restore();
+      } else {
+        tw.type.drawTower(ctx, tw.x, tw.y, CELL, tw.tier, time);
+      }
     }
 
     // Range indicator for selected tower

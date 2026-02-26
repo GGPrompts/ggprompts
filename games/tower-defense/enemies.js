@@ -863,6 +863,324 @@
     ctx.restore();
   }
 
+  /* ---- New enemy draw functions ---- */
+
+  function drawBurrower(ctx, e, t) {
+    var s = e.type.size;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    ctx.rotate(e.angle);
+    if (e.abilityActive) {
+      // burrowed — dirt mound with particles
+      ctx.globalAlpha = 0.5;
+      ctx.fillStyle = '#6a4a2a';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, s * 0.8, s * 0.4, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // dirt particles rising
+      for (var i = 0; i < 4; i++) {
+        var px = Math.sin(t * 5 + i * 1.7) * s * 0.6;
+        var py = -Math.abs(Math.sin(t * 3 + i * 2.1)) * s * 0.8;
+        ctx.globalAlpha = 0.3 + 0.2 * Math.sin(t * 4 + i);
+        ctx.fillStyle = '#8a6a3a';
+        circle(ctx, px, py, s * 0.15);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    } else {
+      // surfaced — armored worm body
+      ctx.fillStyle = e.type.color;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, s * 0.6, s * 1.0, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // segmented plates
+      ctx.strokeStyle = e.type.accentColor;
+      ctx.lineWidth = 1.5;
+      for (var j = -2; j <= 2; j++) {
+        ctx.beginPath();
+        ctx.moveTo(-s * 0.5, j * s * 0.3);
+        ctx.lineTo(s * 0.5, j * s * 0.3);
+        ctx.stroke();
+      }
+      // mandibles
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.3, -s * 0.9);
+      ctx.lineTo(-s * 0.5, -s * 1.3);
+      ctx.moveTo(s * 0.3, -s * 0.9);
+      ctx.lineTo(s * 0.5, -s * 1.3);
+      ctx.stroke();
+      // eyes
+      ctx.fillStyle = '#ff4';
+      circle(ctx, -s * 0.15, -s * 0.7, 2); ctx.fill();
+      circle(ctx, s * 0.15, -s * 0.7, 2); ctx.fill();
+      // emerging dirt burst
+      if (e._justEmerged > 0) {
+        ctx.globalAlpha = e._justEmerged;
+        for (var k = 0; k < 6; k++) {
+          var angle = (k / 6) * Math.PI * 2;
+          var dist = s * 1.2 * (1 - e._justEmerged);
+          ctx.fillStyle = '#8a6a3a';
+          circle(ctx, Math.cos(angle) * dist, Math.sin(angle) * dist, s * 0.2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+      }
+    }
+    ctx.restore();
+  }
+
+  function drawSwarmling(ctx, e, t) {
+    var s = e.type.size;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    ctx.rotate(e.angle);
+    // tiny buzzing body
+    var buzz = Math.sin(t * 25 + e.id * 3) * s * 0.2;
+    ctx.fillStyle = e.type.color;
+    circle(ctx, buzz, 0, s);
+    ctx.fill();
+    // wings
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = e.type.accentColor;
+    var wingPhase = Math.sin(t * 30 + e.id) * 0.3;
+    ctx.beginPath();
+    ctx.ellipse(-s * 0.6, -s * 0.3 + wingPhase * s, s * 0.5, s * 0.3, -0.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(s * 0.6, -s * 0.3 - wingPhase * s, s * 0.5, s * 0.3, 0.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    // dot eyes
+    ctx.fillStyle = '#f00';
+    circle(ctx, -s * 0.2 + buzz, -s * 0.3, 1); ctx.fill();
+    circle(ctx, s * 0.2 + buzz, -s * 0.3, 1); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawBerserker(ctx, e, t) {
+    var s = e.type.size;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    ctx.rotate(e.angle);
+    // rage factor: 0 at full HP, 1 at 10% HP
+    var rage = Math.min(1, Math.max(0, 1 - (e.hp / e.maxHp - 0.1) / 0.9));
+    // red rage aura — intensifies as HP drops
+    if (rage > 0.1) {
+      ctx.globalAlpha = rage * 0.35;
+      glow(ctx, '#f00', 8 + rage * 12);
+      ctx.fillStyle = '#f00';
+      circle(ctx, 0, 0, s * (1.3 + rage * 0.5));
+      ctx.fill();
+      noGlow(ctx);
+      ctx.globalAlpha = 1;
+    }
+    // muscular body
+    ctx.fillStyle = e.type.color;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, s * 0.8, s * 1.0, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // head
+    circle(ctx, 0, -s * 0.9, s * 0.4);
+    ctx.fill();
+    // war paint (intensifies with rage)
+    ctx.strokeStyle = 'rgba(255,' + Math.floor(50 * (1 - rage)) + ',0,' + (0.5 + rage * 0.5) + ')';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-s * 0.3, -s * 1.0);
+    ctx.lineTo(-s * 0.1, -s * 0.7);
+    ctx.moveTo(s * 0.3, -s * 1.0);
+    ctx.lineTo(s * 0.1, -s * 0.7);
+    ctx.stroke();
+    // eyes — glow red with rage
+    var eyeColor = 'rgb(' + (180 + Math.floor(75 * rage)) + ',' + Math.floor(80 * (1 - rage)) + ',0)';
+    glow(ctx, eyeColor, 3 + rage * 6);
+    ctx.fillStyle = eyeColor;
+    circle(ctx, -s * 0.15, -s * 0.95, 2); ctx.fill();
+    circle(ctx, s * 0.15, -s * 0.95, 2); ctx.fill();
+    noGlow(ctx);
+    // axe (shakes with rage)
+    var shake = rage * Math.sin(t * 15) * s * 0.1;
+    ctx.strokeStyle = '#5a3a1a';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(s * 0.7 + shake, -s * 0.2);
+    ctx.lineTo(s * 1.3 + shake, -s * 1.3);
+    ctx.stroke();
+    ctx.fillStyle = '#888';
+    ctx.beginPath();
+    ctx.moveTo(s * 1.1 + shake, -s * 1.5);
+    ctx.lineTo(s * 1.5 + shake, -s * 1.2);
+    ctx.lineTo(s * 1.2 + shake, -s * 1.0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawMirrorKnight(ctx, e, t) {
+    var s = e.type.size;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    ctx.rotate(e.angle);
+    // reflective aura shimmer
+    ctx.globalAlpha = 0.15 + 0.08 * Math.sin(t * 5);
+    glow(ctx, '#cceeff', 10);
+    ctx.fillStyle = '#cceeff';
+    circle(ctx, 0, 0, s * 1.4);
+    ctx.fill();
+    noGlow(ctx);
+    ctx.globalAlpha = 1;
+    // armored body — metallic
+    var metalGrad = ctx.createLinearGradient(-s, -s, s, s);
+    metalGrad.addColorStop(0, e.type.color);
+    metalGrad.addColorStop(0.5, '#dde8f0');
+    metalGrad.addColorStop(1, e.type.accentColor);
+    ctx.fillStyle = metalGrad;
+    ctx.beginPath();
+    ctx.moveTo(0, -s * 1.1);
+    ctx.lineTo(-s * 0.8, -s * 0.2);
+    ctx.lineTo(-s * 0.7, s * 0.9);
+    ctx.lineTo(s * 0.7, s * 0.9);
+    ctx.lineTo(s * 0.8, -s * 0.2);
+    ctx.closePath();
+    ctx.fill();
+    // helmet
+    ctx.fillStyle = '#c0c8d0';
+    circle(ctx, 0, -s * 0.85, s * 0.45);
+    ctx.fill();
+    // visor — reflective slit
+    ctx.strokeStyle = '#4af';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-s * 0.2, -s * 0.85);
+    ctx.lineTo(s * 0.2, -s * 0.85);
+    ctx.stroke();
+    // mirror shield — large, shiny
+    var shieldShine = pulse(t, 3, 0.4, 1.0);
+    var shieldGrad = ctx.createLinearGradient(-s * 1.4, -s * 0.5, -s * 0.6, s * 0.5);
+    shieldGrad.addColorStop(0, '#88bbee');
+    shieldGrad.addColorStop(0.3, '#ffffff');
+    shieldGrad.addColorStop(0.5, '#aaccee');
+    shieldGrad.addColorStop(1, '#6699bb');
+    ctx.fillStyle = shieldGrad;
+    ctx.beginPath();
+    ctx.moveTo(-s * 1.3, -s * 0.7);
+    ctx.lineTo(-s * 0.7, -s * 0.7);
+    ctx.lineTo(-s * 0.7, s * 0.3);
+    ctx.lineTo(-s * 1.0, s * 0.6);
+    ctx.lineTo(-s * 1.3, s * 0.3);
+    ctx.closePath();
+    ctx.fill();
+    // shield reflection flash
+    ctx.globalAlpha = shieldShine * 0.4;
+    ctx.fillStyle = '#fff';
+    circle(ctx, -s * 0.95, -s * 0.2, s * 0.15);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    // reflect sparkles when recently hit
+    if (e.hitFlash > 0) {
+      for (var i = 0; i < 3; i++) {
+        var angle = (t * 8 + i * 2.1) % (Math.PI * 2);
+        var rd = s * 1.5 + Math.sin(t * 10 + i) * s * 0.3;
+        ctx.fillStyle = '#fff';
+        ctx.globalAlpha = 0.6;
+        circle(ctx, Math.cos(angle) * rd, Math.sin(angle) * rd, 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+    ctx.restore();
+  }
+
+  function drawPhantomCarriage(ctx, e, t) {
+    var s = e.type.size;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    ctx.rotate(e.angle);
+    // ghostly aura
+    ctx.globalAlpha = 0.12 + 0.06 * Math.sin(t * 2);
+    glow(ctx, '#8844aa', 15);
+    ctx.fillStyle = '#8844aa';
+    circle(ctx, 0, 0, s * 1.6);
+    ctx.fill();
+    noGlow(ctx);
+    ctx.globalAlpha = 0.85;
+    // carriage body
+    ctx.fillStyle = e.type.color;
+    ctx.fillRect(-s * 0.8, -s * 0.6, s * 1.6, s * 1.2);
+    // roof
+    ctx.fillStyle = e.type.accentColor;
+    ctx.beginPath();
+    ctx.moveTo(-s * 0.9, -s * 0.6);
+    ctx.lineTo(-s * 0.6, -s * 1.1);
+    ctx.lineTo(s * 0.6, -s * 1.1);
+    ctx.lineTo(s * 0.9, -s * 0.6);
+    ctx.closePath();
+    ctx.fill();
+    // bars/windows
+    ctx.strokeStyle = '#aaa';
+    ctx.lineWidth = 1.5;
+    for (var i = 0; i < 3; i++) {
+      var bx = -s * 0.5 + i * s * 0.5;
+      ctx.strokeRect(bx - s * 0.12, -s * 0.4, s * 0.24, s * 0.5);
+    }
+    // ghostly faces peeking out (passengers)
+    var passengers = e._passengers || [];
+    for (var p = 0; p < Math.min(3, passengers.length); p++) {
+      var wx = -s * 0.5 + p * s * 0.5;
+      ctx.fillStyle = '#cc88ff';
+      ctx.globalAlpha = 0.4 + 0.2 * Math.sin(t * 3 + p);
+      circle(ctx, wx, -s * 0.15, s * 0.12);
+      ctx.fill();
+      // tiny eyes
+      ctx.fillStyle = '#ff0';
+      ctx.globalAlpha = 0.6;
+      circle(ctx, wx - s * 0.04, -s * 0.18, 1); ctx.fill();
+      circle(ctx, wx + s * 0.04, -s * 0.18, 1); ctx.fill();
+    }
+    ctx.globalAlpha = 0.85;
+    // wheels
+    ctx.strokeStyle = '#666';
+    ctx.lineWidth = 2;
+    circle(ctx, -s * 0.6, s * 0.7, s * 0.25);
+    ctx.stroke();
+    circle(ctx, s * 0.6, s * 0.7, s * 0.25);
+    ctx.stroke();
+    // wheel spokes
+    for (var w = 0; w < 2; w++) {
+      var wheelX = w === 0 ? -s * 0.6 : s * 0.6;
+      for (var sp = 0; sp < 4; sp++) {
+        var sa = t * 3 + sp * Math.PI / 2;
+        ctx.beginPath();
+        ctx.moveTo(wheelX, s * 0.7);
+        ctx.lineTo(wheelX + Math.cos(sa) * s * 0.2, s * 0.7 + Math.sin(sa) * s * 0.2);
+        ctx.stroke();
+      }
+    }
+    // spectral horse (simple)
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = '#9966cc';
+    ctx.beginPath();
+    ctx.ellipse(0, -s * 1.5, s * 0.35, s * 0.25, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // horse head
+    ctx.beginPath();
+    ctx.moveTo(s * 0.2, -s * 1.7);
+    ctx.quadraticCurveTo(s * 0.5, -s * 2.0, s * 0.3, -s * 2.2);
+    ctx.quadraticCurveTo(s * 0.1, -s * 2.0, s * 0.2, -s * 1.7);
+    ctx.fill();
+    // reins
+    ctx.strokeStyle = '#666';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, -s * 1.1);
+    ctx.quadraticCurveTo(s * 0.1, -s * 1.4, s * 0.25, -s * 1.8);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
   /* ------------------------------------------------------------------ */
   /*  Enemy type definitions                                             */
   /* ------------------------------------------------------------------ */
@@ -1020,6 +1338,45 @@
       bossAbility: 'phase', abilityInterval: 8, phaseDuration: 2,
       drawEnemy: drawShadowDragon,
     },
+    burrower: {
+      id: 'burrower', name: 'Burrower',
+      color: '#7a5a30', accentColor: '#5a3a18',
+      size: 10, speed: 55, hp: 100, armor: 2, gold: 20,
+      behavior: 'burrow', flying: false,
+      burrowInterval: 4, burrowDuration: 2,
+      drawEnemy: drawBurrower,
+    },
+    swarmling: {
+      id: 'swarmling', name: 'Swarmling',
+      color: '#aa4488', accentColor: '#cc88bb',
+      size: 4, speed: 130, hp: 10, armor: 0, gold: 2,
+      behavior: 'walk', flying: false,
+      drawEnemy: drawSwarmling,
+    },
+    berserker: {
+      id: 'berserker', name: 'Berserker',
+      color: '#993322', accentColor: '#661100',
+      size: 13, speed: 50, hp: 180, armor: 1, gold: 28,
+      behavior: 'enrage', flying: false,
+      drawEnemy: drawBerserker,
+    },
+    mirrorKnight: {
+      id: 'mirrorKnight', name: 'Mirror Knight',
+      color: '#8899aa', accentColor: '#667788',
+      size: 12, speed: 42, hp: 140, armor: 3, gold: 32,
+      behavior: 'reflect', flying: false,
+      reflectPercent: 0.15,
+      drawEnemy: drawMirrorKnight,
+    },
+    phantomCarriage: {
+      id: 'phantomCarriage', name: 'Phantom Carriage',
+      color: '#3a2050', accentColor: '#2a1040',
+      size: 16, speed: 30, hp: 250, armor: 1, gold: 15,
+      behavior: 'carrier', flying: false,
+      passengerCount: 3,
+      passengerTypes: ['imp', 'goblin', 'skeleton', 'scarab', 'wisp'],
+      drawEnemy: drawPhantomCarriage,
+    },
   };
 
   /* ------------------------------------------------------------------ */
@@ -1082,6 +1439,10 @@
     }
     enemy.hp -= damage;
     enemy.hitFlash = 0.1;
+    // Mirror Knight reflects a portion of damage taken
+    if (enemy.type.behavior === 'reflect') {
+      enemy._reflectedDamage = Math.round(damage * (enemy.type.reflectPercent || 0.15));
+    }
     if (enemy.hp <= 0) {
       enemy.hp = 0;
       enemy.dead = true;
@@ -1306,6 +1667,58 @@
         break;
       }
 
+      case 'burrow': {
+        var bInterval = type.burrowInterval || 4;
+        var bDur = type.burrowDuration || 2;
+        var bCycle = enemy.abilityTimer % (bInterval + bDur);
+        var wasBurrowed = enemy.abilityActive;
+        enemy.abilityActive = bCycle >= bInterval;
+        // set invisible so towers can't target while burrowed
+        enemy.invisible = enemy.abilityActive;
+        // track emerge animation
+        if (wasBurrowed && !enemy.abilityActive) {
+          enemy._justEmerged = 1.0;
+        }
+        if (enemy._justEmerged > 0) {
+          enemy._justEmerged = Math.max(0, enemy._justEmerged - dt * 3);
+        }
+        break;
+      }
+
+      case 'enrage': {
+        // speed scales from 1x at full HP to 2x at 10% HP
+        // multiply current speed (which already has slows applied) by rage factor
+        var hpFrac = enemy.hp / enemy.maxHp;
+        var rageFactor = Math.min(1, Math.max(0, 1 - (hpFrac - 0.1) / 0.9));
+        enemy.speed *= (1 + rageFactor);
+        break;
+      }
+
+      case 'reflect': {
+        // reflect is passive — handled in applyDamage wrapper
+        // visual: abilityActive pulses when recently hit
+        if (enemy.hitFlash > 0) {
+          enemy.abilityActive = true;
+        } else {
+          enemy.abilityActive = false;
+        }
+        break;
+      }
+
+      case 'carrier': {
+        // assign passengers on first tick if not yet assigned
+        if (!enemy._passengers) {
+          enemy._passengers = [];
+          var pTypes = type.passengerTypes || ['imp'];
+          var pCount = type.passengerCount || 3;
+          for (var p = 0; p < pCount; p++) {
+            var pType = pTypes[Math.floor(seededRandom(enemy.id * 31 + p * 13) * pTypes.length)];
+            enemy._passengers.push(pType);
+          }
+        }
+        break;
+      }
+
       // 'walk' — no special behavior
     }
   }
@@ -1393,6 +1806,16 @@
       }
       if (callbacks.onSplit) callbacks.onSplit(enemy, count);
     }
+    if (enemy.type.behavior === 'carrier' && enemy._passengers) {
+      for (var c = 0; c < enemy._passengers.length; c++) {
+        var passenger = createEnemy(enemy._passengers[c], enemy.path, enemy.spawnIndex);
+        passenger.pathIndex = enemy.pathIndex;
+        passenger.x = enemy.x + (Math.random() - 0.5) * 30;
+        passenger.y = enemy.y + (Math.random() - 0.5) * 30;
+        spawned.push(passenger);
+      }
+      if (callbacks.onSplit) callbacks.onSplit(enemy, enemy._passengers.length);
+    }
     if (callbacks.onDeath) callbacks.onDeath(enemy);
   }
 
@@ -1406,10 +1829,12 @@
     { wave: 2,  types: ['skeleton'] },
     { wave: 4,  types: ['wisp', 'shade', 'scarab'] },
     { wave: 6,  types: ['stoneGolem', 'troll'] },
-    { wave: 8,  types: ['gargoyle'] },
+    { wave: 8,  types: ['gargoyle', 'swarmling'] },
     { wave: 10, types: ['wyvern', 'darkPaladin', 'necromancer', 'slime'] },
-    { wave: 14, types: ['mimic'] },
-    { wave: 16, types: ['wraith'] },
+    { wave: 12, types: ['burrower'] },
+    { wave: 14, types: ['mimic', 'berserker'] },
+    { wave: 16, types: ['wraith', 'mirrorKnight'] },
+    { wave: 18, types: ['phantomCarriage'] },
   ];
 
   var bossWaves = {
@@ -1469,10 +1894,15 @@
       var count = g === numGroups - 1 ? remaining - perGroup * g : perGroup;
       if (count <= 0) continue;
       var typeId = available[Math.floor(seededRandom(waveNum * 100 + g * 7) * available.length)];
+      // swarmlings come in large groups with tight spacing
+      if (typeId === 'swarmling') {
+        count = 15 + Math.floor(seededRandom(waveNum * 100 + g * 13) * 6); // 15-20
+      }
+      var spawnDelay = typeId === 'swarmling' ? 0.15 : (0.5 + 0.3 / Math.max(1, waveNum * 0.1));
       groups.push({
         type: typeId,
         count: count,
-        delay: 0.5 + 0.3 / Math.max(1, waveNum * 0.1),
+        delay: spawnDelay,
         spawnIndex: g % 4,
         startDelay: delay,
       });
@@ -1654,7 +2084,7 @@
     ctx.save();
 
     // untargetable enemies are semi-transparent
-    if (enemy.abilityActive && (enemy.type.behavior === 'phase' || (enemy.type.behavior === 'boss' && enemy.type.bossAbility === 'phase'))) {
+    if (enemy.abilityActive && (enemy.type.behavior === 'phase' || enemy.type.behavior === 'burrow' || (enemy.type.behavior === 'boss' && enemy.type.bossAbility === 'phase'))) {
       ctx.globalAlpha = 0.3;
     }
 

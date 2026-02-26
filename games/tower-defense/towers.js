@@ -147,6 +147,17 @@
       ctx.closePath();
       ctx.fillStyle = 'rgba(255,255,200,0.7)';
       ctx.fill();
+      // Idle: rising ember particles
+      for (var em = 0; em < 4; em++) {
+        var et = (time * 1.5 + em * 0.7) % 1.0;
+        var epx = x + Math.sin(time * 3 + em * 2.3) * size * 0.12;
+        var epy = topY - et * size * 0.35;
+        var ea = 1 - et;
+        ctx.beginPath();
+        ctx.arc(epx, epy, 1.5 * ea + 0.5, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255,' + Math.floor(150 + 105 * ea) + ',0,' + (ea * 0.7) + ')';
+        ctx.fill();
+      }
       drawTierOrbs(ctx, x, y, size, tier, '#ff8844', time);
     },
     drawProjectile: function (ctx, x, y, angle, time) {
@@ -243,6 +254,25 @@
           ctx.fill();
         }
       }
+      // Idle: orbiting ice crystal shards (3 small diamonds)
+      for (var ic = 0; ic < 3; ic++) {
+        var ia = time * 1.2 + ic * (Math.PI * 2 / 3);
+        var ior = size * 0.3;
+        var icx = x + Math.cos(ia) * ior;
+        var icy = y - h * 0.2 + Math.sin(ia) * ior * 0.4;
+        ctx.save();
+        ctx.translate(icx, icy);
+        ctx.rotate(ia);
+        ctx.beginPath();
+        ctx.moveTo(0, -3);
+        ctx.lineTo(2, 0);
+        ctx.lineTo(0, 3);
+        ctx.lineTo(-2, 0);
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(180,230,255,0.6)';
+        ctx.fill();
+        ctx.restore();
+      }
       drawTierOrbs(ctx, x, y, size, tier, '#88eeff', time);
     },
     drawProjectile: function (ctx, x, y, angle, time) {
@@ -338,6 +368,24 @@
         ctx.stroke();
       }
       ctx.restore();
+      // Idle: intermittent sparks between coil and ground (~every 2s)
+      var sparkPhase = (time * 0.5) % 1.0;
+      if (sparkPhase < 0.15) {
+        var spAlpha = 1 - sparkPhase / 0.15;
+        ctx.save();
+        ctx.strokeStyle = 'rgba(255,255,100,' + (spAlpha * 0.8) + ')';
+        ctx.lineWidth = 1.5;
+        var sp1x = x + (Math.sin(time * 37) * 0.5) * size * 0.2;
+        var sp1y = y - h * 0.1;
+        var sp2x = x + (Math.cos(time * 23) * 0.5) * size * 0.25;
+        var sp2y = y + size * 0.05;
+        ctx.beginPath();
+        ctx.moveTo(sp1x, sp1y);
+        ctx.lineTo((sp1x + sp2x) / 2 + Math.sin(time * 50) * 4, (sp1y + sp2y) / 2);
+        ctx.lineTo(sp2x, sp2y);
+        ctx.stroke();
+        ctx.restore();
+      }
       drawTierOrbs(ctx, x, y, size, tier, '#ffff88', time);
     },
     drawProjectile: function (ctx, x, y, angle, time) {
@@ -371,6 +419,9 @@
     stunDuration: 0.8,
     drawTower: function (ctx, x, y, size, tier, time) {
       drawBase(ctx, x, y, size, '#aa8844', tier);
+      // Idle: subtle ground vibration
+      var quake = Math.sin(time * 7) * 0.6 + Math.sin(time * 13) * 0.3;
+      y += quake;
       var h = size * (0.52 + tier * 0.05);
       var topY = y - h * 0.4;
       // Stone monolith
@@ -422,6 +473,17 @@
           ctx.fillStyle = '#998866';
           ctx.fill();
         }
+      }
+      // Idle: dust motes at base
+      for (var dm = 0; dm < 3; dm++) {
+        var dt2 = (time * 0.8 + dm * 1.1) % 1.5;
+        var dma = Math.max(0, 1 - dt2 / 1.5);
+        var dmx = x + Math.sin(time * 2 + dm * 2.5) * size * 0.25;
+        var dmy = y + size * 0.1 - dt2 * size * 0.15;
+        ctx.beginPath();
+        ctx.arc(dmx, dmy, 1 + dma, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(170,136,68,' + (dma * 0.4) + ')';
+        ctx.fill();
       }
       drawTierOrbs(ctx, x, y, size, tier, '#ccaa66', time);
     },
@@ -519,6 +581,27 @@
         ctx.stroke();
         ctx.restore();
       }
+      // Idle: rotating rune circle at base
+      ctx.save();
+      var runeR = size * 0.32;
+      var runeAlpha = 0.2 + Math.sin(time * 2) * 0.1;
+      ctx.strokeStyle = 'rgba(187,68,255,' + runeAlpha + ')';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.ellipse(x, y + size * 0.12, runeR, runeR * 0.3, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      // Rune symbols (small marks around the circle)
+      var runeCount = 6;
+      for (var ri = 0; ri < runeCount; ri++) {
+        var ra = time * 0.8 + ri * (Math.PI * 2 / runeCount);
+        var rrx = x + Math.cos(ra) * runeR;
+        var rry = y + size * 0.12 + Math.sin(ra) * runeR * 0.3;
+        ctx.beginPath();
+        ctx.arc(rrx, rry, 1.5, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(221,136,255,' + (runeAlpha * 1.5) + ')';
+        ctx.fill();
+      }
+      ctx.restore();
       drawTierOrbs(ctx, x, y, size, tier, '#cc66ff', time);
     },
     drawProjectile: function (ctx, x, y, angle, time) {
@@ -618,6 +701,21 @@
       ctx.stroke();
       ctx.setLineDash([]);
       ctx.restore();
+      // Idle: gentle leaf particles drifting upward
+      for (var lf = 0; lf < 3; lf++) {
+        var lt = (time * 0.6 + lf * 1.1) % 2.0;
+        var la = Math.max(0, 1 - lt / 2.0);
+        var lfx = x + Math.sin(time * 1.5 + lf * 2.7) * size * 0.3;
+        var lfy = topY + canopyR * 0.3 - lt * size * 0.4;
+        ctx.save();
+        ctx.translate(lfx, lfy);
+        ctx.rotate(time * 2 + lf * 1.5);
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 2.5, 1, 0, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(102,238,136,' + (la * 0.6) + ')';
+        ctx.fill();
+        ctx.restore();
+      }
       drawTierOrbs(ctx, x, y, size, tier, '#55ee77', time);
     },
     drawProjectile: function (ctx, x, y, angle, time) {
@@ -723,6 +821,27 @@
         }
         ctx.restore();
       }
+      // Idle: dark wisps curling around tower
+      ctx.save();
+      for (var wi = 0; wi < 4; wi++) {
+        var wa = time * (0.8 + wi * 0.15) + wi * 1.57;
+        var wr = size * (0.18 + Math.sin(time + wi) * 0.05);
+        var wx1 = x + Math.cos(wa) * wr;
+        var wy1 = y - h * 0.3 + Math.sin(wa * 0.7) * size * 0.15;
+        var wx2 = x + Math.cos(wa + 1.2) * wr * 1.3;
+        var wy2 = wy1 + Math.sin(wa + 0.8) * size * 0.1;
+        ctx.beginPath();
+        ctx.moveTo(wx1, wy1);
+        ctx.quadraticCurveTo(
+          (wx1 + wx2) / 2 + Math.sin(time * 2 + wi) * 3,
+          (wy1 + wy2) / 2,
+          wx2, wy2
+        );
+        ctx.strokeStyle = 'rgba(80,30,140,' + (0.2 + Math.sin(time * 1.5 + wi) * 0.1) + ')';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+      ctx.restore();
       drawTierOrbs(ctx, x, y, size, tier, '#9955dd', time);
     },
     drawProjectile: function (ctx, x, y, angle, time) {
@@ -843,6 +962,16 @@
         ctx.setLineDash([]);
         ctx.restore();
       }
+      // Idle: soft pulsing golden aura
+      var auraR = size * (0.35 + Math.sin(time * 2.5) * 0.08);
+      var auraG = ctx.createRadialGradient(x, y - h * 0.15, 0, x, y - h * 0.15, auraR);
+      auraG.addColorStop(0, 'rgba(255,240,180,0.08)');
+      auraG.addColorStop(0.6, 'rgba(255,221,136,0.04)');
+      auraG.addColorStop(1, 'rgba(255,221,136,0)');
+      ctx.beginPath();
+      ctx.arc(x, y - h * 0.15, auraR, 0, Math.PI * 2);
+      ctx.fillStyle = auraG;
+      ctx.fill();
       drawTierOrbs(ctx, x, y, size, tier, '#ffeebb', time);
     },
     drawProjectile: function (ctx, x, y, angle, time) {
@@ -1220,7 +1349,8 @@
       synergies: [],
       effectiveStats: {},
       totalInvested: type.cost,
-      targetingMode: 'first'
+      targetingMode: 'first',
+      lastAttackTime: -1
     };
 
     tower.effectiveStats = getEffectiveStats(tower);
@@ -1454,6 +1584,7 @@
       tower.target = target;
 
       // Fire!
+      tower.lastAttackTime = callbacks.time || 0;
       if (stats.attackType === 'chain' && callbacks.onChainFire) {
         var chainTargets = [target];
         var additionalTargets = findChainTargets(
