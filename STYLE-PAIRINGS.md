@@ -1,8 +1,8 @@
 # Style Guide Pairings
 
-Master mapping of all 194 style guides and their usage across tech guides and stories.
+Master mapping of all 195 style guides and their usage across tech guides and stories.
 
-**Used:** 64 styles · **Available:** 130 styles
+**Used:** 64 styles · **Available:** 131 styles
 
 | Style | Tech Guide | Story |
 |-------|-----------|-------|
@@ -155,6 +155,7 @@ Master mapping of all 194 style guides and their usage across tech guides and st
 | pressed-flowers | | |
 | psychedelic | | The Summer of Love |
 | qr-code | | |
+| rainbow-road | | |
 | regencycore | | |
 | retro-futurism | Bash Scripting | |
 | retro-terminal | tmux | The Machine |
