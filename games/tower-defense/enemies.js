@@ -991,7 +991,7 @@
     infernalLord: {
       id: 'infernalLord', name: 'Infernal Lord',
       color: '#881111', accentColor: '#ff4400',
-      size: 28, speed: 22, hp: 2000, armor: 5, gold: 200,
+      size: 28, speed: 22, hp: 1200, armor: 3, gold: 200,
       behavior: 'boss', flying: false,
       bossAbility: 'fireNova', abilityInterval: 8, abilityRadius: 100, abilityDamage: 0,
       drawEnemy: drawInfernalLord,
@@ -999,7 +999,7 @@
     crystalHydra: {
       id: 'crystalHydra', name: 'Crystal Hydra',
       color: '#44dddd', accentColor: '#88ffff',
-      size: 30, speed: 20, hp: 3000, armor: 3, gold: 350,
+      size: 30, speed: 20, hp: 2000, armor: 3, gold: 350,
       behavior: 'boss', flying: false,
       bossAbility: 'summon', abilityInterval: 10, summonType: 'wisp', summonCount: 3,
       drawEnemy: drawCrystalHydra,
@@ -1007,7 +1007,7 @@
     lichKing: {
       id: 'lichKing', name: 'Lich King',
       color: '#22cc44', accentColor: '#88ff88',
-      size: 26, speed: 22, hp: 2500, armor: 4, gold: 400,
+      size: 26, speed: 22, hp: 1800, armor: 3, gold: 400,
       behavior: 'boss', flying: false,
       bossAbility: 'massHeal', abilityInterval: 12, healPercent: 0.15,
       drawEnemy: drawLichKing,
@@ -1015,7 +1015,7 @@
     shadowDragon: {
       id: 'shadowDragon', name: 'Shadow Dragon',
       color: '#3a1050', accentColor: '#2a0a3a',
-      size: 35, speed: 30, hp: 5000, armor: 8, gold: 600,
+      size: 35, speed: 30, hp: 3500, armor: 6, gold: 600,
       behavior: 'boss', flying: true,
       bossAbility: 'phase', abilityInterval: 8, phaseDuration: 2,
       drawEnemy: drawShadowDragon,
@@ -1368,7 +1368,8 @@
       moveEnemy(e, dt, nexus);
 
       if (e.reachedNexus) {
-        var drain = e.type.nexusDrain || 1;
+        // Bosses deal massive nexus damage, tanks deal moderate, basic deal 1
+        var drain = e.type.nexusDrain || (e.type.behavior === 'boss' ? 30 : (e.type.size >= 14 ? 3 : 1));
         if (callbacks.onReachNexus) callbacks.onReachNexus(e, drain);
       }
     }
