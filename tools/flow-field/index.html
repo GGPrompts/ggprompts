@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flow Field - Perlin Noise Particle Visualizer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;900&family=Exo+2:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --font-display: 'Orbitron', sans-serif;
+    --font-body: 'Exo 2', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+
+    --void: #05050f;
+    --deep-space: #0a0a1a;
+    --nebula: #12122e;
+    --panel-bg: rgba(10, 10, 30, 0.95);
+    --panel-border: rgba(100, 80, 255, 0.25);
+    --accent: #7c5cff;
+    --accent-glow: rgba(124, 92, 255, 0.4);
+    --cyan: #00e5ff;
+    --cyan-glow: rgba(0, 229, 255, 0.3);
+    --magenta: #ff40ff;
+    --magenta-glow: rgba(255, 64, 255, 0.3);
+    --text: #d0d0e8;
+    --text-dim: #8888aa;
+    --text-bright: #f0f0ff;
+    --success: #40ff90;
+    --warning: #ffaa30;
+
+    --sidebar-w: 280px;
+    --statusbar-h: 36px;
+  }
+
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    font-family: var(--font-body);
+    background: var(--void);
+    color: var(--text);
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse at 20% 30%, rgba(124, 92, 255, 0.08) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 70%, rgba(0, 229, 255, 0.05) 0%, transparent 50%),
+      radial-gradient(ellipse at 50% 90%, rgba(255, 64, 255, 0.04) 0%, transparent 40%);
+  }
+
+  /* Layout */
+  #app {
+    display: grid;
+    grid-template-columns: var(--sidebar-w) 1fr;
+    grid-template-rows: 1fr var(--statusbar-h);
+    height: 100vh;
+    width: 100vw;
+  }
+
+  /* Sidebar */
+  #sidebar {
+    grid-row: 1 / -1;
+    background: var(--panel-bg);
+    border-right: 1px solid var(--panel-border);
+    padding: 16px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  #sidebar::-webkit-scrollbar { width: 5px; }
+  #sidebar::-webkit-scrollbar-track { background: transparent; }
+  #sidebar::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 3px; }
+
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-body);
+    font-size: 13px;
+    color: var(--text-dim);
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+  .back-link:hover { color: var(--cyan); }
+  .back-link svg { width: 14px; height: 14px; fill: currentColor; }
+
+  .app-title {
+    font-family: var(--font-display);
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: var(--text-bright);
+    text-transform: uppercase;
+    text-shadow: 0 0 20px var(--accent-glow);
+    line-height: 1.2;
+  }
+  .app-subtitle {
+    font-size: 11px;
+    font-weight: 300;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+    margin-top: 2px;
+  }
+
+  /* Section headers */
+  .section-label {
+    font-family: var(--font-display);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--accent);
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--panel-border);
+  }
+
+  /* Controls */
+  .control-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .control-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .control-row label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-dim);
+    min-width: 70px;
+    flex-shrink: 0;
+  }
+
+  .btn {
+    font-family: var(--font-body);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 7px 14px;
+    border: 1px solid var(--panel-border);
+    border-radius: 4px;
+    background: rgba(124, 92, 255, 0.1);
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .btn:hover {
+    background: rgba(124, 92, 255, 0.25);
+    border-color: var(--accent);
+    color: var(--text-bright);
+    box-shadow: 0 0 12px var(--accent-glow);
+  }
+  .btn:active { transform: scale(0.97); }
+
+  .btn-primary {
+    background: rgba(124, 92, 255, 0.3);
+    border-color: var(--accent);
+    color: var(--text-bright);
+  }
+
+  .btn-group {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .btn-toggle {
+    flex: 1;
+    text-align: center;
+    min-width: 0;
+    padding: 6px 8px;
+    font-size: 11px;
+  }
+  .btn-toggle.active {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+    box-shadow: 0 0 14px var(--accent-glow);
+  }
+
+  select {
+    font-family: var(--font-body);
+    font-size: 12px;
+    padding: 6px 10px;
+    border: 1px solid var(--panel-border);
+    border-radius: 4px;
+    background: rgba(10, 10, 30, 0.8);
+    color: var(--text);
+    cursor: pointer;
+    flex: 1;
+    min-width: 0;
+  }
+  select:focus { outline: none; border-color: var(--accent); }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    flex: 1;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(124, 92, 255, 0.2);
+    outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    box-shadow: 0 0 8px var(--accent-glow);
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 0 8px var(--accent-glow);
+  }
+
+  input[type="color"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 32px;
+    height: 24px;
+    border: 1px solid var(--panel-border);
+    border-radius: 4px;
+    background: transparent;
+    cursor: pointer;
+    padding: 0;
+  }
+  input[type="color"]::-webkit-color-swatch-wrapper { padding: 2px; }
+  input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
+
+  .range-value {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--cyan);
+    min-width: 40px;
+    text-align: right;
+  }
+
+  /* Canvas area */
+  #canvas-wrap {
+    position: relative;
+    overflow: hidden;
+    background: #000;
+  }
+
+  #canvas-wrap canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Status bar */
+  #statusbar {
+    grid-column: 2;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    background: var(--panel-bg);
+    border-top: 1px solid var(--panel-border);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  .status-group {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .status-item { display: flex; align-items: center; gap: 4px; }
+  .status-label { color: var(--text-dim); }
+  .status-value { color: var(--cyan); }
+
+  /* Gradient preview */
+  .gradient-preview {
+    height: 16px;
+    border-radius: 3px;
+    border: 1px solid var(--panel-border);
+    margin-top: 4px;
+  }
+
+  /* Palette swatches */
+  .palette-swatches {
+    display: flex;
+    gap: 3px;
+    margin-top: 4px;
+    flex-wrap: wrap;
+  }
+  .palette-swatch {
+    width: 18px;
+    height: 18px;
+    border-radius: 3px;
+    border: 1px solid rgba(255,255,255,0.15);
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    :root { --sidebar-w: 240px; }
+    #app { grid-template-columns: var(--sidebar-w) 1fr; }
+  }
+
+  @media (max-width: 600px) {
+    #app {
+      grid-template-columns: 1fr;
+      grid-template-rows: auto 1fr var(--statusbar-h);
+    }
+    #sidebar {
+      grid-row: 1;
+      max-height: 40vh;
+      border-right: none;
+      border-bottom: 1px solid var(--panel-border);
+    }
+    #canvas-wrap { grid-row: 2; }
+    #statusbar { grid-column: 1; }
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div id="sidebar">
+    <a class="back-link" href="../index.html">
+      <svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+      Tools Hub
+    </a>
+
+    <div>
+      <div class="app-title">Flow Field</div>
+      <div class="app-subtitle">Perlin Noise Particle Visualizer</div>
+    </div>
+
+    <!-- Noise -->
+    <div class="section-label">Noise</div>
+    <div class="control-group">
+      <div class="control-row">
+        <label>Scale</label>
+        <input type="range" id="noiseScale" min="0.001" max="0.02" step="0.0005" value="0.005">
+        <span class="range-value" id="noiseScaleVal">0.005</span>
+      </div>
+      <div class="control-row">
+        <label>Z Speed</label>
+        <input type="range" id="noiseZ" min="0" max="0.01" step="0.0002" value="0.002">
+        <span class="range-value" id="noiseZVal">0.002</span>
+      </div>
+      <div class="control-row">
+        <label>Angle Mult</label>
+        <input type="range" id="angleMult" min="1" max="8" step="0.5" value="4">
+        <span class="range-value" id="angleMultVal">4</span>
+      </div>
+      <div class="control-row">
+        <label>Seed</label>
+        <span class="range-value" id="seedVal" style="flex:1; text-align:left;">0</span>
+        <button class="btn" id="btnRandomSeed">Randomize</button>
+      </div>
+    </div>
+
+    <!-- Particles -->
+    <div class="section-label">Particles</div>
+    <div class="control-group">
+      <div class="control-row">
+        <label>Count</label>
+        <input type="range" id="particleCount" min="200" max="8000" step="100" value="2500">
+        <span class="range-value" id="particleCountVal">2500</span>
+      </div>
+      <div class="control-row">
+        <label>Speed</label>
+        <input type="range" id="speed" min="0.2" max="6" step="0.1" value="2">
+        <span class="range-value" id="speedVal">2.0</span>
+      </div>
+      <div class="control-row">
+        <label>Lifetime</label>
+        <input type="range" id="lifetime" min="20" max="500" step="10" value="150">
+        <span class="range-value" id="lifetimeVal">150</span>
+      </div>
+      <div class="control-row">
+        <label>Width</label>
+        <input type="range" id="lineWidth" min="0.3" max="4" step="0.1" value="1">
+        <span class="range-value" id="lineWidthVal">1.0</span>
+      </div>
+    </div>
+
+    <!-- Trails -->
+    <div class="section-label">Trails</div>
+    <div class="control-group">
+      <div class="control-row">
+        <label>Fade</label>
+        <input type="range" id="trailFade" min="0" max="0.1" step="0.002" value="0.012">
+        <span class="range-value" id="trailFadeVal">0.012</span>
+      </div>
+    </div>
+
+    <!-- Color -->
+    <div class="section-label">Color</div>
+    <div class="control-group">
+      <div class="control-row">
+        <label>Mode</label>
+        <select id="colorMode">
+          <option value="rainbow">Rainbow (angle)</option>
+          <option value="monochrome">Monochrome</option>
+          <option value="gradient">Custom Gradient</option>
+          <option value="ocean">Ocean</option>
+          <option value="fire">Fire</option>
+          <option value="aurora">Aurora</option>
+          <option value="sunset">Sunset</option>
+          <option value="neon">Neon</option>
+        </select>
+      </div>
+      <div class="control-row" id="monoColorRow" style="display:none;">
+        <label>Color</label>
+        <input type="color" id="monoColor" value="#00e5ff">
+      </div>
+      <div class="control-row" id="gradColorRow" style="display:none;">
+        <label>Start</label>
+        <input type="color" id="gradStart" value="#7c5cff">
+        <label style="min-width:auto;">End</label>
+        <input type="color" id="gradEnd" value="#00e5ff">
+      </div>
+      <div class="control-row">
+        <label>Opacity</label>
+        <input type="range" id="opacity" min="0.05" max="1" step="0.05" value="0.6">
+        <span class="range-value" id="opacityVal">0.60</span>
+      </div>
+      <div id="palettePreview" class="palette-swatches"></div>
+    </div>
+
+    <!-- Actions -->
+    <div class="section-label">Actions</div>
+    <div class="btn-group">
+      <button class="btn btn-primary" id="btnPlayPause">Pause</button>
+      <button class="btn" id="btnClear">Clear</button>
+      <button class="btn" id="btnExport">Export PNG</button>
+    </div>
+  </div>
+
+  <div id="canvas-wrap">
+    <canvas id="canvas"></canvas>
+  </div>
+
+  <div id="statusbar">
+    <div class="status-group">
+      <div class="status-item">
+        <span class="status-label">Particles:</span>
+        <span class="status-value" id="statParticles">0</span>
+      </div>
+      <div class="status-item">
+        <span class="status-label">FPS:</span>
+        <span class="status-value" id="statFps">0</span>
+      </div>
+    </div>
+    <div class="status-group">
+      <div class="status-item">
+        <span class="status-label">Seed:</span>
+        <span class="status-value" id="statSeed">0</span>
+      </div>
+      <div class="status-item">
+        <span class="status-label">Frame:</span>
+        <span class="status-value" id="statFrame">0</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// Simplex Noise (2D + 3D) - based on Stefan Gustavson's implementation
+// Pure JS, no dependencies
+// ============================================================
+const SimplexNoise = (() => {
+  const F2 = 0.5 * (Math.sqrt(3) - 1);
+  const G2 = (3 - Math.sqrt(3)) / 6;
+  const F3 = 1 / 3;
+  const G3 = 1 / 6;
+
+  const grad3 = [
+    [1,1,0],[-1,1,0],[1,-1,0],[-1,-1,0],
+    [1,0,1],[-1,0,1],[1,0,-1],[-1,0,-1],
+    [0,1,1],[0,-1,1],[0,1,-1],[0,-1,-1]
+  ];
+
+  function buildPerm(seed) {
+    const p = new Uint8Array(256);
+    for (let i = 0; i < 256; i++) p[i] = i;
+    // Fisher-Yates shuffle with seed
+    let s = seed;
+    for (let i = 255; i > 0; i--) {
+      s = (s * 16807 + 0) % 2147483647;
+      const j = s % (i + 1);
+      const tmp = p[i]; p[i] = p[j]; p[j] = tmp;
+    }
+    const perm = new Uint8Array(512);
+    const permMod12 = new Uint8Array(512);
+    for (let i = 0; i < 512; i++) {
+      perm[i] = p[i & 255];
+      permMod12[i] = perm[i] % 12;
+    }
+    return { perm, permMod12 };
+  }
+
+  function create(seed) {
+    const { perm, permMod12 } = buildPerm(seed);
+
+    function noise2D(x, y) {
+      const s = (x + y) * F2;
+      const i = Math.floor(x + s);
+      const j = Math.floor(y + s);
+      const t = (i + j) * G2;
+      const X0 = i - t, Y0 = j - t;
+      const x0 = x - X0, y0 = y - Y0;
+      let i1, j1;
+      if (x0 > y0) { i1 = 1; j1 = 0; } else { i1 = 0; j1 = 1; }
+      const x1 = x0 - i1 + G2, y1 = y0 - j1 + G2;
+      const x2 = x0 - 1 + 2 * G2, y2 = y0 - 1 + 2 * G2;
+      const ii = i & 255, jj = j & 255;
+      let n0 = 0, n1 = 0, n2 = 0;
+      let t0 = 0.5 - x0*x0 - y0*y0;
+      if (t0 >= 0) { t0 *= t0; const g = grad3[permMod12[ii + perm[jj]]]; n0 = t0*t0*(g[0]*x0+g[1]*y0); }
+      let t1 = 0.5 - x1*x1 - y1*y1;
+      if (t1 >= 0) { t1 *= t1; const g = grad3[permMod12[ii+i1+perm[jj+j1]]]; n1 = t1*t1*(g[0]*x1+g[1]*y1); }
+      let t2 = 0.5 - x2*x2 - y2*y2;
+      if (t2 >= 0) { t2 *= t2; const g = grad3[permMod12[ii+1+perm[jj+1]]]; n2 = t2*t2*(g[0]*x2+g[1]*y2); }
+      return 70 * (n0 + n1 + n2);
+    }
+
+    function noise3D(x, y, z) {
+      const s = (x + y + z) * F3;
+      const i = Math.floor(x + s);
+      const j = Math.floor(y + s);
+      const k = Math.floor(z + s);
+      const t = (i + j + k) * G3;
+      const X0 = i - t, Y0 = j - t, Z0 = k - t;
+      const x0 = x - X0, y0 = y - Y0, z0 = z - Z0;
+      let i1, j1, k1, i2, j2, k2;
+      if (x0 >= y0) {
+        if (y0 >= z0) { i1=1;j1=0;k1=0;i2=1;j2=1;k2=0; }
+        else if (x0 >= z0) { i1=1;j1=0;k1=0;i2=1;j2=0;k2=1; }
+        else { i1=0;j1=0;k1=1;i2=1;j2=0;k2=1; }
+      } else {
+        if (y0 < z0) { i1=0;j1=0;k1=1;i2=0;j2=1;k2=1; }
+        else if (x0 < z0) { i1=0;j1=1;k1=0;i2=0;j2=1;k2=1; }
+        else { i1=0;j1=1;k1=0;i2=1;j2=1;k2=0; }
+      }
+      const x1=x0-i1+G3, y1=y0-j1+G3, z1=z0-k1+G3;
+      const x2=x0-i2+2*G3, y2=y0-j2+2*G3, z2=z0-k2+2*G3;
+      const x3=x0-1+3*G3, y3=y0-1+3*G3, z3=z0-1+3*G3;
+      const ii=i&255, jj=j&255, kk=k&255;
+      let n0=0, n1=0, n2=0, n3=0;
+      let t0=0.6-x0*x0-y0*y0-z0*z0;
+      if(t0>=0){t0*=t0;const g=grad3[permMod12[ii+perm[jj+perm[kk]]]];n0=t0*t0*(g[0]*x0+g[1]*y0+g[2]*z0);}
+      let t1=0.6-x1*x1-y1*y1-z1*z1;
+      if(t1>=0){t1*=t1;const g=grad3[permMod12[ii+i1+perm[jj+j1+perm[kk+k1]]]];n1=t1*t1*(g[0]*x1+g[1]*y1+g[2]*z1);}
+      let t2=0.6-x2*x2-y2*y2-z2*z2;
+      if(t2>=0){t2*=t2;const g=grad3[permMod12[ii+i2+perm[jj+j2+perm[kk+k2]]]];n2=t2*t2*(g[0]*x2+g[1]*y2+g[2]*z2);}
+      let t3=0.6-x3*x3-y3*y3-z3*z3;
+      if(t3>=0){t3*=t3;const g=grad3[permMod12[ii+1+perm[jj+1+perm[kk+1]]]];n3=t3*t3*(g[0]*x3+g[1]*y3+g[2]*z3);}
+      return 32 * (n0+n1+n2+n3);
+    }
+
+    return { noise2D, noise3D };
+  }
+
+  return { create };
+})();
+
+
+// ============================================================
+// Color Palettes
+// ============================================================
+const PALETTES = {
+  ocean:  ['#001f3f','#003366','#006994','#00a8cc','#00e5ff','#80f0ff'],
+  fire:   ['#1a0000','#660000','#cc3300','#ff6600','#ffaa00','#ffee00'],
+  aurora: ['#0a001a','#1a0066','#4400aa','#00cc88','#40ff90','#ccff66'],
+  sunset: ['#0d0033','#330066','#990066','#ff3366','#ff6633','#ffcc33'],
+  neon:   ['#0a0020','#7c5cff','#ff40ff','#00e5ff','#40ff90','#ffee00']
+};
+
+
+// ============================================================
+// Flow Field Engine
+// ============================================================
+(function() {
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  const wrap = document.getElementById('canvas-wrap');
+
+  // State
+  let W, H;
+  let noise;
+  let particles = [];
+  let running = true;
+  let frameCount = 0;
+  let zOff = 0;
+  let seed = Math.floor(Math.random() * 999999);
+  let lastTime = performance.now();
+  let fpsSmooth = 60;
+
+  // Params (from controls)
+  const P = {
+    noiseScale: 0.005,
+    noiseZ: 0.002,
+    angleMult: 4,
+    count: 2500,
+    speed: 2,
+    lifetime: 150,
+    lineWidth: 1,
+    trailFade: 0.012,
+    colorMode: 'rainbow',
+    monoColor: '#00e5ff',
+    gradStart: '#7c5cff',
+    gradEnd: '#00e5ff',
+    opacity: 0.6
+  };
+
+  // ---- Resize ----
+  function resize() {
+    const dpr = window.devicePixelRatio || 1;
+    const rect = wrap.getBoundingClientRect();
+    W = rect.width;
+    H = rect.height;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  // ---- Particle ----
+  function createParticle() {
+    return {
+      x: Math.random() * W,
+      y: Math.random() * H,
+      px: 0, py: 0,
+      age: Math.floor(Math.random() * P.lifetime),
+      maxAge: P.lifetime
+    };
+  }
+
+  function resetParticle(p) {
+    p.x = Math.random() * W;
+    p.y = Math.random() * H;
+    p.px = p.x;
+    p.py = p.y;
+    p.age = 0;
+    p.maxAge = P.lifetime;
+  }
+
+  function initParticles() {
+    particles = [];
+    for (let i = 0; i < P.count; i++) {
+      const p = createParticle();
+      p.px = p.x;
+      p.py = p.y;
+      particles.push(p);
+    }
+  }
+
+  function syncParticleCount() {
+    while (particles.length < P.count) {
+      const p = createParticle();
+      p.px = p.x;
+      p.py = p.y;
+      particles.push(p);
+    }
+    if (particles.length > P.count) {
+      particles.length = P.count;
+    }
+  }
+
+  // ---- Color helpers ----
+  function hslToRgb(h, s, l) {
+    s /= 100; l /= 100;
+    const a = s * Math.min(l, 1 - l);
+    const f = (n) => {
+      const k = (n + h / 30) % 12;
+      return l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+    };
+    return [Math.round(f(0)*255), Math.round(f(8)*255), Math.round(f(4)*255)];
+  }
+
+  function hexToRgb(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+
+  function lerpColor(c1, c2, t) {
+    return [
+      Math.round(c1[0] + (c2[0] - c1[0]) * t),
+      Math.round(c1[1] + (c2[1] - c1[1]) * t),
+      Math.round(c1[2] + (c2[2] - c1[2]) * t)
+    ];
+  }
+
+  function getParticleColor(p, angle) {
+    const mode = P.colorMode;
+    let r, g, b;
+
+    if (mode === 'rainbow') {
+      const hue = ((angle / Math.PI + 1) * 180) % 360;
+      [r, g, b] = hslToRgb(hue, 85, 55);
+    } else if (mode === 'monochrome') {
+      [r, g, b] = hexToRgb(P.monoColor);
+    } else if (mode === 'gradient') {
+      const t = (p.x / W + p.y / H) / 2;
+      [r, g, b] = lerpColor(hexToRgb(P.gradStart), hexToRgb(P.gradEnd), t);
+    } else {
+      // palette preset
+      const pal = PALETTES[mode];
+      if (pal) {
+        const t = ((angle / Math.PI + 1) / 2) * (pal.length - 1);
+        const idx = Math.floor(t);
+        const frac = t - idx;
+        const c1 = hexToRgb(pal[Math.min(idx, pal.length - 1)]);
+        const c2 = hexToRgb(pal[Math.min(idx + 1, pal.length - 1)]);
+        [r, g, b] = lerpColor(c1, c2, frac);
+      } else {
+        [r, g, b] = [255, 255, 255];
+      }
+    }
+
+    // Age-based fade
+    const ageFrac = p.age / p.maxAge;
+    const alphaFade = ageFrac < 0.1 ? ageFrac / 0.1 : ageFrac > 0.8 ? (1 - ageFrac) / 0.2 : 1;
+    const alpha = P.opacity * alphaFade;
+
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
+
+  // ---- Palette preview ----
+  function updatePalettePreview() {
+    const container = document.getElementById('palettePreview');
+    container.innerHTML = '';
+    const mode = P.colorMode;
+    let colors = [];
+
+    if (mode === 'rainbow') {
+      for (let i = 0; i < 8; i++) {
+        const [r,g,b] = hslToRgb(i * 45, 85, 55);
+        colors.push(`rgb(${r},${g},${b})`);
+      }
+    } else if (mode === 'monochrome') {
+      colors.push(P.monoColor);
+    } else if (mode === 'gradient') {
+      for (let i = 0; i < 6; i++) {
+        const t = i / 5;
+        const [r,g,b] = lerpColor(hexToRgb(P.gradStart), hexToRgb(P.gradEnd), t);
+        colors.push(`rgb(${r},${g},${b})`);
+      }
+    } else if (PALETTES[mode]) {
+      colors = PALETTES[mode];
+    }
+
+    colors.forEach(c => {
+      const el = document.createElement('div');
+      el.className = 'palette-swatch';
+      el.style.background = c;
+      container.appendChild(el);
+    });
+  }
+
+  // ---- Rendering ----
+  function clearCanvas() {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  function fadeCanvas() {
+    ctx.fillStyle = `rgba(0, 0, 0, ${P.trailFade})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  function update() {
+    const scale = P.noiseScale;
+    const aMult = P.angleMult;
+    const spd = P.speed;
+
+    for (let i = 0; i < particles.length; i++) {
+      const p = particles[i];
+      p.px = p.x;
+      p.py = p.y;
+
+      const n = noise.noise3D(p.x * scale, p.y * scale, zOff);
+      const angle = n * Math.PI * aMult;
+
+      p.x += Math.cos(angle) * spd;
+      p.y += Math.sin(angle) * spd;
+      p.age++;
+
+      if (p.age > p.maxAge || p.x < -10 || p.x > W + 10 || p.y < -10 || p.y > H + 10) {
+        resetParticle(p);
+      }
+    }
+
+    zOff += P.noiseZ;
+  }
+
+  function draw() {
+    fadeCanvas();
+    ctx.lineWidth = P.lineWidth;
+    ctx.lineCap = 'round';
+
+    const scale = P.noiseScale;
+    const aMult = P.angleMult;
+
+    for (let i = 0; i < particles.length; i++) {
+      const p = particles[i];
+      const dx = p.x - p.px;
+      const dy = p.y - p.py;
+      if (dx * dx + dy * dy > W * W * 0.25) continue; // skip teleported particles
+
+      const n = noise.noise3D(p.px * scale, p.py * scale, zOff);
+      const angle = n * Math.PI * aMult;
+
+      ctx.beginPath();
+      ctx.moveTo(p.px, p.py);
+      ctx.lineTo(p.x, p.y);
+      ctx.strokeStyle = getParticleColor(p, angle);
+      ctx.stroke();
+    }
+  }
+
+  // ---- Animation loop ----
+  function loop(now) {
+    if (!running) { requestAnimationFrame(loop); return; }
+
+    const dt = now - lastTime;
+    lastTime = now;
+    fpsSmooth += (1000 / Math.max(dt, 1) - fpsSmooth) * 0.1;
+
+    update();
+    draw();
+    frameCount++;
+
+    // Status
+    if (frameCount % 10 === 0) {
+      document.getElementById('statFps').textContent = Math.round(fpsSmooth);
+      document.getElementById('statParticles').textContent = particles.length;
+      document.getElementById('statFrame').textContent = frameCount;
+      document.getElementById('statSeed').textContent = seed;
+    }
+
+    requestAnimationFrame(loop);
+  }
+
+  // ---- Init noise with seed ----
+  function initNoise() {
+    noise = SimplexNoise.create(seed);
+    document.getElementById('seedVal').textContent = seed;
+    document.getElementById('statSeed').textContent = seed;
+  }
+
+  // ---- Controls binding ----
+  function bindSlider(id, prop, fmt) {
+    const el = document.getElementById(id);
+    const val = document.getElementById(id + 'Val');
+    el.addEventListener('input', () => {
+      P[prop] = parseFloat(el.value);
+      val.textContent = fmt ? fmt(P[prop]) : P[prop];
+      if (prop === 'count') syncParticleCount();
+    });
+  }
+
+  function init() {
+    resize();
+    initNoise();
+    initParticles();
+    clearCanvas();
+
+    // Bind sliders
+    bindSlider('noiseScale', 'noiseScale');
+    bindSlider('noiseZ', 'noiseZ');
+    bindSlider('angleMult', 'angleMult');
+    bindSlider('particleCount', 'count', v => v);
+    bindSlider('speed', 'speed', v => v.toFixed(1));
+    bindSlider('lifetime', 'lifetime', v => v);
+    bindSlider('lineWidth', 'lineWidth', v => v.toFixed(1));
+    bindSlider('trailFade', 'trailFade');
+    bindSlider('opacity', 'opacity', v => v.toFixed(2));
+
+    // Color mode
+    const colorSel = document.getElementById('colorMode');
+    const monoRow = document.getElementById('monoColorRow');
+    const gradRow = document.getElementById('gradColorRow');
+
+    colorSel.addEventListener('change', () => {
+      P.colorMode = colorSel.value;
+      monoRow.style.display = colorSel.value === 'monochrome' ? 'flex' : 'none';
+      gradRow.style.display = colorSel.value === 'gradient' ? 'flex' : 'none';
+      updatePalettePreview();
+    });
+
+    document.getElementById('monoColor').addEventListener('input', (e) => {
+      P.monoColor = e.target.value;
+      updatePalettePreview();
+    });
+    document.getElementById('gradStart').addEventListener('input', (e) => {
+      P.gradStart = e.target.value;
+      updatePalettePreview();
+    });
+    document.getElementById('gradEnd').addEventListener('input', (e) => {
+      P.gradEnd = e.target.value;
+      updatePalettePreview();
+    });
+
+    // Buttons
+    document.getElementById('btnPlayPause').addEventListener('click', () => {
+      running = !running;
+      document.getElementById('btnPlayPause').textContent = running ? 'Pause' : 'Play';
+      if (running) lastTime = performance.now();
+    });
+
+    document.getElementById('btnClear').addEventListener('click', () => {
+      clearCanvas();
+      frameCount = 0;
+    });
+
+    document.getElementById('btnRandomSeed').addEventListener('click', () => {
+      seed = Math.floor(Math.random() * 999999);
+      initNoise();
+      clearCanvas();
+      initParticles();
+      zOff = 0;
+      frameCount = 0;
+    });
+
+    document.getElementById('btnExport').addEventListener('click', () => {
+      const link = document.createElement('a');
+      link.download = `flow-field-${seed}-${frameCount}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    });
+
+    // Resize handler
+    window.addEventListener('resize', () => {
+      resize();
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+      if (e.code === 'Space') {
+        e.preventDefault();
+        document.getElementById('btnPlayPause').click();
+      }
+    });
+
+    updatePalettePreview();
+    requestAnimationFrame(loop);
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>

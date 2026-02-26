@@ -1,0 +1,1150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wireframe 3D Viewer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* ================================================================
+           WIREFRAME 3D VIEWER — Blueprint/dark theme
+           Inter (UI), JetBrains Mono (matrix display)
+        ================================================================ */
+        :root {
+            --bg: #0a0e1a;
+            --bg-panel: #0f1424;
+            --bg-panel-hover: #151b30;
+            --bg-canvas: #080c16;
+            --text: #c8d0e0;
+            --text-secondary: #7a8599;
+            --text-muted: #4a5568;
+            --accent: #2d7ff9;
+            --accent-hover: #4a94ff;
+            --accent-dim: #1a4fa0;
+            --accent-glow: rgba(45, 127, 249, 0.3);
+            --grid: #111830;
+            --grid-bright: #1a2240;
+            --wire: #00d4ff;
+            --wire-dim: #0088aa;
+            --border: #1a2040;
+            --border-bright: #253060;
+            --danger: #ff4060;
+            --success: #00e080;
+            --radius: 6px;
+            --font-ui: 'Inter', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: var(--font-ui);
+            font-size: 13px;
+            color: var(--text);
+            background: var(--bg);
+            height: 100vh;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        /* ── App Layout ─────────────────────────────────────────── */
+        .app {
+            display: grid;
+            grid-template-columns: 240px 1fr;
+            grid-template-rows: 44px 1fr;
+            height: 100vh;
+        }
+
+        /* ── Top Bar ────────────────────────────────────────────── */
+        .topbar {
+            grid-column: 1 / -1;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 0 16px;
+            background: var(--bg-panel);
+            border-bottom: 1px solid var(--border);
+            z-index: 10;
+        }
+
+        .topbar a.back {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 12px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 8px;
+            border-radius: var(--radius);
+            transition: background 0.15s, color 0.15s;
+        }
+        .topbar a.back:hover { background: var(--accent-dim); color: var(--accent); }
+
+        .topbar h1 {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text);
+            letter-spacing: -0.02em;
+        }
+        .topbar h1 span { color: var(--accent); }
+
+        .topbar .sep {
+            width: 1px;
+            height: 24px;
+            background: var(--border);
+        }
+
+        .topbar-info {
+            margin-left: auto;
+            font-family: var(--font-mono);
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        /* ── Side Panel ────────────────────────────────────────── */
+        .panel {
+            background: var(--bg-panel);
+            border-right: 1px solid var(--border);
+            overflow-y: auto;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .panel::-webkit-scrollbar { width: 4px; }
+        .panel::-webkit-scrollbar-track { background: transparent; }
+        .panel::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 2px; }
+
+        .section-title {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+            padding-bottom: 4px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .section { display: flex; flex-direction: column; gap: 6px; }
+
+        /* Mesh buttons */
+        .mesh-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4px;
+        }
+
+        .mesh-btn {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            font-family: var(--font-ui);
+            font-size: 11px;
+            font-weight: 500;
+            padding: 6px 4px;
+            border-radius: var(--radius);
+            cursor: pointer;
+            transition: all 0.15s;
+            text-align: center;
+        }
+        .mesh-btn:hover { background: var(--bg-panel-hover); color: var(--text); border-color: var(--border-bright); }
+        .mesh-btn.active { background: var(--accent-dim); color: var(--accent); border-color: var(--accent); }
+
+        /* Render mode */
+        .render-modes {
+            display: flex;
+            gap: 4px;
+        }
+        .render-modes .mesh-btn { flex: 1; }
+
+        /* Sliders */
+        .slider-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .slider-row label {
+            font-size: 11px;
+            color: var(--text-secondary);
+            min-width: 50px;
+            font-weight: 500;
+        }
+        .slider-row input[type="range"] { flex: 1; }
+        .slider-row .val {
+            font-family: var(--font-mono);
+            font-size: 10px;
+            color: var(--text-muted);
+            min-width: 32px;
+            text-align: right;
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            height: 4px;
+            background: var(--border);
+            border-radius: 2px;
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: var(--accent);
+            cursor: pointer;
+            border: 2px solid var(--bg-panel);
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: var(--accent);
+            cursor: pointer;
+            border: 2px solid var(--bg-panel);
+        }
+
+        /* Toggle */
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+        .toggle-row label {
+            font-size: 11px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+        .toggle {
+            width: 36px;
+            height: 20px;
+            background: var(--border);
+            border-radius: 10px;
+            cursor: pointer;
+            position: relative;
+            transition: background 0.2s;
+            border: none;
+        }
+        .toggle.on { background: var(--accent); }
+        .toggle::after {
+            content: '';
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: white;
+            transition: transform 0.2s;
+        }
+        .toggle.on::after { transform: translateX(16px); }
+
+        /* Color pickers */
+        .color-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .color-row label {
+            font-size: 11px;
+            color: var(--text-secondary);
+            font-weight: 500;
+            flex: 1;
+        }
+        .color-row input[type="color"] {
+            width: 28px;
+            height: 22px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: none;
+            cursor: pointer;
+            padding: 1px;
+        }
+
+        /* Matrix panel */
+        .matrix-panel {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 8px;
+            font-family: var(--font-mono);
+            font-size: 10px;
+            line-height: 1.6;
+            color: var(--wire-dim);
+            overflow: hidden;
+        }
+        .matrix-panel .mtx-title {
+            font-family: var(--font-ui);
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+        }
+        .matrix-panel .mtx-row {
+            display: flex;
+            gap: 4px;
+        }
+        .matrix-panel .mtx-cell {
+            flex: 1;
+            text-align: right;
+            color: var(--wire);
+        }
+
+        /* ── Canvas area ───────────────────────────────────────── */
+        .canvas-wrap {
+            position: relative;
+            background: var(--bg-canvas);
+            overflow: hidden;
+        }
+        .canvas-wrap canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .canvas-overlay {
+            position: absolute;
+            bottom: 12px;
+            right: 12px;
+            font-family: var(--font-mono);
+            font-size: 10px;
+            color: var(--text-muted);
+            background: rgba(10, 14, 26, 0.7);
+            padding: 4px 8px;
+            border-radius: 4px;
+            pointer-events: none;
+        }
+
+        /* ── Responsive ────────────────────────────────────────── */
+        @media (max-width: 768px) {
+            .app {
+                grid-template-columns: 1fr;
+                grid-template-rows: 44px 1fr auto;
+            }
+            .panel {
+                border-right: none;
+                border-top: 1px solid var(--border);
+                max-height: 260px;
+                order: 2;
+                flex-direction: row;
+                flex-wrap: wrap;
+                overflow-y: auto;
+                padding: 8px;
+                gap: 8px;
+            }
+            .panel .section {
+                min-width: 140px;
+                flex: 1;
+            }
+            .canvas-wrap { order: 1; }
+            .matrix-panel { display: none; }
+        }
+    </style>
+</head>
+<body>
+<div class="app">
+    <!-- Top Bar -->
+    <div class="topbar">
+        <a class="back" href="../index.html">&#8592; Tools</a>
+        <div class="sep"></div>
+        <h1><span>&#9653;</span> Wireframe 3D</h1>
+        <div class="topbar-info" id="fpsDisplay">-- fps</div>
+    </div>
+
+    <!-- Side Panel -->
+    <div class="panel">
+        <!-- Mesh Selection -->
+        <div class="section">
+            <div class="section-title">Mesh</div>
+            <div class="mesh-grid" id="meshGrid"></div>
+        </div>
+
+        <!-- Render Mode -->
+        <div class="section">
+            <div class="section-title">Render Mode</div>
+            <div class="render-modes" id="renderModes"></div>
+        </div>
+
+        <!-- FOV -->
+        <div class="section">
+            <div class="section-title">Perspective</div>
+            <div class="slider-row">
+                <label>FOV</label>
+                <input type="range" id="fovSlider" min="20" max="120" value="60">
+                <span class="val" id="fovVal">60</span>
+            </div>
+        </div>
+
+        <!-- Auto Rotate -->
+        <div class="section">
+            <div class="section-title">Animation</div>
+            <div class="toggle-row">
+                <label>Auto-rotate</label>
+                <button class="toggle on" id="autoRotateToggle"></button>
+            </div>
+            <div class="slider-row">
+                <label>Speed</label>
+                <input type="range" id="speedSlider" min="1" max="100" value="30">
+                <span class="val" id="speedVal">30</span>
+            </div>
+        </div>
+
+        <!-- Colors -->
+        <div class="section">
+            <div class="section-title">Colors</div>
+            <div class="color-row">
+                <label>Mesh</label>
+                <input type="color" id="meshColor" value="#00d4ff">
+            </div>
+            <div class="color-row">
+                <label>Background</label>
+                <input type="color" id="bgColor" value="#080c16">
+            </div>
+        </div>
+
+        <!-- Matrix toggle & display -->
+        <div class="section">
+            <div class="section-title">Education</div>
+            <div class="toggle-row">
+                <label>Rotation Matrix</label>
+                <button class="toggle on" id="matrixToggle"></button>
+            </div>
+            <div class="matrix-panel" id="matrixPanel">
+                <div class="mtx-title">4x4 Model-View Matrix</div>
+                <div id="matrixContent"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Canvas -->
+    <div class="canvas-wrap">
+        <canvas id="viewport"></canvas>
+        <div class="canvas-overlay" id="meshInfo">Cube -- verts / -- edges</div>
+    </div>
+</div>
+
+<script>
+/* ================================================================
+   WIREFRAME 3D VIEWER — Pure Canvas 2D, 4x4 matrix math
+   No WebGL. No libraries. Just math.
+================================================================ */
+(function() {
+    'use strict';
+
+    // ── Canvas Setup ─────────────────────────────────────────
+    const canvas = document.getElementById('viewport');
+    const ctx = canvas.getContext('2d');
+    let W = 0, H = 0;
+
+    function resize() {
+        const wrap = canvas.parentElement;
+        const dpr = window.devicePixelRatio || 1;
+        W = wrap.clientWidth;
+        H = wrap.clientHeight;
+        canvas.width = W * dpr;
+        canvas.height = H * dpr;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // ── 4x4 Matrix Math ──────────────────────────────────────
+    // Matrices stored as flat Float64Array[16], column-major
+    const Mat4 = {
+        create() {
+            return new Float64Array(16);
+        },
+        identity() {
+            const m = new Float64Array(16);
+            m[0] = m[5] = m[10] = m[15] = 1;
+            return m;
+        },
+        multiply(a, b) {
+            const out = new Float64Array(16);
+            for (let i = 0; i < 4; i++) {
+                for (let j = 0; j < 4; j++) {
+                    let sum = 0;
+                    for (let k = 0; k < 4; k++) {
+                        sum += a[i * 4 + k] * b[k * 4 + j];
+                    }
+                    out[i * 4 + j] = sum;
+                }
+            }
+            return out;
+        },
+        rotateX(angle) {
+            const m = Mat4.identity();
+            const c = Math.cos(angle), s = Math.sin(angle);
+            m[5] = c; m[6] = -s;
+            m[9] = s; m[10] = c;
+            return m;
+        },
+        rotateY(angle) {
+            const m = Mat4.identity();
+            const c = Math.cos(angle), s = Math.sin(angle);
+            m[0] = c; m[2] = s;
+            m[8] = -s; m[10] = c;
+            return m;
+        },
+        rotateZ(angle) {
+            const m = Mat4.identity();
+            const c = Math.cos(angle), s = Math.sin(angle);
+            m[0] = c; m[1] = -s;
+            m[4] = s; m[5] = c;
+            return m;
+        },
+        perspective(fovDeg, aspect, near, far) {
+            const m = new Float64Array(16);
+            const f = 1.0 / Math.tan((fovDeg * Math.PI / 180) / 2);
+            m[0] = f / aspect;
+            m[5] = f;
+            m[10] = (far + near) / (near - far);
+            m[11] = (2 * far * near) / (near - far);
+            m[14] = -1;
+            return m;
+        },
+        translate(x, y, z) {
+            const m = Mat4.identity();
+            m[3] = x; m[7] = y; m[11] = z;
+            return m;
+        },
+        transformVec4(m, v) {
+            return [
+                m[0]*v[0] + m[1]*v[1] + m[2]*v[2] + m[3]*v[3],
+                m[4]*v[0] + m[5]*v[1] + m[6]*v[2] + m[7]*v[3],
+                m[8]*v[0] + m[9]*v[1] + m[10]*v[2] + m[11]*v[3],
+                m[12]*v[0] + m[13]*v[1] + m[14]*v[2] + m[15]*v[3]
+            ];
+        },
+        // Extract upper-left 3x3 for display
+        getRotation3x3(m) {
+            return [
+                [m[0], m[1], m[2]],
+                [m[4], m[5], m[6]],
+                [m[8], m[9], m[10]]
+            ];
+        }
+    };
+
+    // ── Mesh Definitions ─────────────────────────────────────
+    function makeCube() {
+        const s = 0.5;
+        const verts = [
+            [-s,-s,-s],[s,-s,-s],[s,s,-s],[-s,s,-s],
+            [-s,-s,s],[s,-s,s],[s,s,s],[-s,s,s]
+        ];
+        const edges = [
+            [0,1],[1,2],[2,3],[3,0],
+            [4,5],[5,6],[6,7],[7,4],
+            [0,4],[1,5],[2,6],[3,7]
+        ];
+        const faces = [
+            [0,1,2,3],[4,5,6,7],[0,1,5,4],[2,3,7,6],[0,3,7,4],[1,2,6,5]
+        ];
+        return { verts, edges, faces, name: 'Cube' };
+    }
+
+    function makeTetrahedron() {
+        const a = 1 / Math.sqrt(3);
+        const verts = [
+            [a, a, a], [a, -a, -a], [-a, a, -a], [-a, -a, a]
+        ];
+        const edges = [[0,1],[0,2],[0,3],[1,2],[1,3],[2,3]];
+        const faces = [[0,1,2],[0,1,3],[0,2,3],[1,2,3]];
+        return { verts, edges, faces, name: 'Tetrahedron' };
+    }
+
+    function makeOctahedron() {
+        const verts = [
+            [1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]
+        ];
+        const edges = [
+            [0,2],[0,3],[0,4],[0,5],
+            [1,2],[1,3],[1,4],[1,5],
+            [2,4],[2,5],[3,4],[3,5]
+        ];
+        const faces = [
+            [0,2,4],[0,4,3],[0,3,5],[0,5,2],
+            [1,2,4],[1,4,3],[1,3,5],[1,5,2]
+        ];
+        return { verts, edges, faces, name: 'Octahedron' };
+    }
+
+    function makeIcosahedron() {
+        const t = (1 + Math.sqrt(5)) / 2;
+        const n = Math.sqrt(1 + t * t);
+        const a = 1 / n, b = t / n;
+        const verts = [
+            [-a,b,0],[a,b,0],[-a,-b,0],[a,-b,0],
+            [0,-a,b],[0,a,b],[0,-a,-b],[0,a,-b],
+            [b,0,-a],[b,0,a],[-b,0,-a],[-b,0,a]
+        ];
+        const faces = [
+            [0,11,5],[0,5,1],[0,1,7],[0,7,10],[0,10,11],
+            [1,5,9],[5,11,4],[11,10,2],[10,7,6],[7,1,8],
+            [3,9,4],[3,4,2],[3,2,6],[3,6,8],[3,8,9],
+            [4,9,5],[2,4,11],[6,2,10],[8,6,7],[9,8,1]
+        ];
+        const edgeSet = new Set();
+        const edges = [];
+        faces.forEach(f => {
+            for (let i = 0; i < f.length; i++) {
+                const a = f[i], b = f[(i+1) % f.length];
+                const key = Math.min(a,b) + ',' + Math.max(a,b);
+                if (!edgeSet.has(key)) { edgeSet.add(key); edges.push([Math.min(a,b), Math.max(a,b)]); }
+            }
+        });
+        return { verts, edges, faces, name: 'Icosahedron' };
+    }
+
+    function makeDodecahedron() {
+        const t = (1 + Math.sqrt(5)) / 2;
+        const r = 1 / t;
+        const n = Math.sqrt(3);
+        const verts = [
+            [1,1,1],[1,1,-1],[1,-1,1],[1,-1,-1],
+            [-1,1,1],[-1,1,-1],[-1,-1,1],[-1,-1,-1],
+            [0,r,t],[0,r,-t],[0,-r,t],[0,-r,-t],
+            [r,t,0],[r,-t,0],[-r,t,0],[-r,-t,0],
+            [t,0,r],[t,0,-r],[-t,0,r],[-t,0,-r]
+        ].map(v => [v[0]/n, v[1]/n, v[2]/n]);
+        const faces = [
+            [0,8,10,2,16],[0,16,17,1,12],[0,12,14,4,8],
+            [1,17,3,11,9],[1,9,5,14,12],[2,10,6,15,13],
+            [2,13,3,17,16],[3,13,15,7,11],[4,14,5,19,18],
+            [4,18,6,10,8],[5,9,11,7,19],[6,18,19,7,15]
+        ];
+        const edgeSet = new Set();
+        const edges = [];
+        faces.forEach(f => {
+            for (let i = 0; i < f.length; i++) {
+                const a = f[i], b = f[(i+1) % f.length];
+                const key = Math.min(a,b) + ',' + Math.max(a,b);
+                if (!edgeSet.has(key)) { edgeSet.add(key); edges.push([Math.min(a,b), Math.max(a,b)]); }
+            }
+        });
+        return { verts, edges, faces, name: 'Dodecahedron' };
+    }
+
+    function makeTorus(R, r, segs, rings) {
+        R = R || 0.5; r = r || 0.18;
+        segs = segs || 24; rings = rings || 16;
+        const verts = [], edges = [], faces = [];
+        for (let i = 0; i < segs; i++) {
+            const theta = (i / segs) * Math.PI * 2;
+            for (let j = 0; j < rings; j++) {
+                const phi = (j / rings) * Math.PI * 2;
+                const x = (R + r * Math.cos(phi)) * Math.cos(theta);
+                const y = (R + r * Math.cos(phi)) * Math.sin(theta);
+                const z = r * Math.sin(phi);
+                verts.push([x, y, z]);
+            }
+        }
+        for (let i = 0; i < segs; i++) {
+            const ni = (i + 1) % segs;
+            for (let j = 0; j < rings; j++) {
+                const nj = (j + 1) % rings;
+                const a = i * rings + j;
+                const b = ni * rings + j;
+                const c = ni * rings + nj;
+                const d = i * rings + nj;
+                edges.push([a, b]);
+                edges.push([a, d]);
+                faces.push([a, b, c, d]);
+            }
+        }
+        return { verts, edges, faces, name: 'Torus' };
+    }
+
+    function makeSphere(radius, slices, stacks) {
+        radius = radius || 0.6; slices = slices || 20; stacks = stacks || 14;
+        const verts = [], edges = [], faces = [];
+        // Top pole
+        verts.push([0, radius, 0]);
+        for (let i = 1; i < stacks; i++) {
+            const phi = (i / stacks) * Math.PI;
+            for (let j = 0; j < slices; j++) {
+                const theta = (j / slices) * Math.PI * 2;
+                verts.push([
+                    radius * Math.sin(phi) * Math.cos(theta),
+                    radius * Math.cos(phi),
+                    radius * Math.sin(phi) * Math.sin(theta)
+                ]);
+            }
+        }
+        // Bottom pole
+        verts.push([0, -radius, 0]);
+        const bottomIdx = verts.length - 1;
+        // Top cap faces
+        for (let j = 0; j < slices; j++) {
+            const a = 0, b = 1 + j, c = 1 + (j + 1) % slices;
+            edges.push([a, b]); edges.push([b, c]);
+            faces.push([a, b, c]);
+        }
+        // Middle bands
+        for (let i = 0; i < stacks - 2; i++) {
+            for (let j = 0; j < slices; j++) {
+                const a = 1 + i * slices + j;
+                const b = 1 + i * slices + (j + 1) % slices;
+                const c = 1 + (i + 1) * slices + (j + 1) % slices;
+                const d = 1 + (i + 1) * slices + j;
+                edges.push([a, b]); edges.push([a, d]);
+                faces.push([a, b, c, d]);
+            }
+        }
+        // Bottom cap faces
+        const lastRing = 1 + (stacks - 2) * slices;
+        for (let j = 0; j < slices; j++) {
+            const a = bottomIdx, b = lastRing + j, c = lastRing + (j + 1) % slices;
+            edges.push([a, b]); edges.push([b, c]);
+            faces.push([a, c, b]);
+        }
+        return { verts, edges, faces, name: 'Sphere' };
+    }
+
+    function makeCylinder(radius, height, segs) {
+        radius = radius || 0.4; height = height || 1.0; segs = segs || 20;
+        const verts = [], edges = [], faces = [];
+        const hy = height / 2;
+        // Top ring
+        for (let i = 0; i < segs; i++) {
+            const a = (i / segs) * Math.PI * 2;
+            verts.push([radius * Math.cos(a), hy, radius * Math.sin(a)]);
+        }
+        // Bottom ring
+        for (let i = 0; i < segs; i++) {
+            const a = (i / segs) * Math.PI * 2;
+            verts.push([radius * Math.cos(a), -hy, radius * Math.sin(a)]);
+        }
+        // Top/bottom center
+        const topC = verts.length; verts.push([0, hy, 0]);
+        const botC = verts.length; verts.push([0, -hy, 0]);
+        // Edges & faces
+        for (let i = 0; i < segs; i++) {
+            const ni = (i + 1) % segs;
+            // Top ring edge
+            edges.push([i, ni]);
+            // Bottom ring edge
+            edges.push([segs + i, segs + ni]);
+            // Vertical edge
+            edges.push([i, segs + i]);
+            // Side face
+            faces.push([i, ni, segs + ni, segs + i]);
+            // Top cap face
+            faces.push([topC, i, ni]);
+            // Bottom cap face
+            faces.push([botC, segs + ni, segs + i]);
+        }
+        return { verts, edges, faces, name: 'Cylinder' };
+    }
+
+    const MESHES = {
+        cube: makeCube,
+        tetrahedron: makeTetrahedron,
+        octahedron: makeOctahedron,
+        icosahedron: makeIcosahedron,
+        dodecahedron: makeDodecahedron,
+        torus: makeTorus,
+        sphere: makeSphere,
+        cylinder: makeCylinder
+    };
+
+    // ── State ────────────────────────────────────────────────
+    let currentMeshName = 'cube';
+    let mesh = makeCube();
+    let renderMode = 'wireframe'; // wireframe, vertices, solid
+    let fov = 60;
+    let autoRotate = true;
+    let rotSpeed = 30;
+    let meshColorHex = '#00d4ff';
+    let bgColorHex = '#080c16';
+    let showMatrix = true;
+
+    // Rotation state (quaternion-like via accumulated matrix)
+    let rotX = 0.4, rotY = 0.6;
+    let zoom = 3.0;
+
+    // Mouse interaction
+    let isDragging = false;
+    let lastMx = 0, lastMy = 0;
+
+    // FPS tracking
+    let frameCount = 0, fpsTime = 0, fps = 0;
+
+    // ── UI Setup ─────────────────────────────────────────────
+    const meshNames = ['cube','tetrahedron','octahedron','icosahedron','dodecahedron','torus','sphere','cylinder'];
+    const meshLabels = ['Cube','Tetra','Octa','Icosa','Dodeca','Torus','Sphere','Cylinder'];
+    const meshGrid = document.getElementById('meshGrid');
+    meshNames.forEach((name, i) => {
+        const btn = document.createElement('button');
+        btn.className = 'mesh-btn' + (name === currentMeshName ? ' active' : '');
+        btn.textContent = meshLabels[i];
+        btn.dataset.mesh = name;
+        btn.addEventListener('click', () => {
+            currentMeshName = name;
+            mesh = MESHES[name]();
+            meshGrid.querySelectorAll('.mesh-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            updateMeshInfo();
+        });
+        meshGrid.appendChild(btn);
+    });
+
+    const renderModeNames = ['wireframe', 'vertices', 'solid'];
+    const renderModeLabels = ['Wire', 'Verts', 'Solid'];
+    const renderModesEl = document.getElementById('renderModes');
+    renderModeNames.forEach((name, i) => {
+        const btn = document.createElement('button');
+        btn.className = 'mesh-btn' + (name === renderMode ? ' active' : '');
+        btn.textContent = renderModeLabels[i];
+        btn.addEventListener('click', () => {
+            renderMode = name;
+            renderModesEl.querySelectorAll('.mesh-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+        });
+        renderModesEl.appendChild(btn);
+    });
+
+    // Sliders
+    const fovSlider = document.getElementById('fovSlider');
+    const fovVal = document.getElementById('fovVal');
+    fovSlider.addEventListener('input', () => { fov = +fovSlider.value; fovVal.textContent = fov; });
+
+    const speedSlider = document.getElementById('speedSlider');
+    const speedVal = document.getElementById('speedVal');
+    speedSlider.addEventListener('input', () => { rotSpeed = +speedSlider.value; speedVal.textContent = rotSpeed; });
+
+    // Toggles
+    const autoRotateToggle = document.getElementById('autoRotateToggle');
+    autoRotateToggle.addEventListener('click', () => {
+        autoRotate = !autoRotate;
+        autoRotateToggle.classList.toggle('on', autoRotate);
+    });
+
+    const matrixToggle = document.getElementById('matrixToggle');
+    const matrixPanel = document.getElementById('matrixPanel');
+    matrixToggle.addEventListener('click', () => {
+        showMatrix = !showMatrix;
+        matrixToggle.classList.toggle('on', showMatrix);
+        matrixPanel.style.display = showMatrix ? 'block' : 'none';
+    });
+
+    // Colors
+    const meshColorInput = document.getElementById('meshColor');
+    meshColorInput.addEventListener('input', () => { meshColorHex = meshColorInput.value; });
+    const bgColorInput = document.getElementById('bgColor');
+    bgColorInput.addEventListener('input', () => { bgColorHex = bgColorInput.value; });
+
+    function updateMeshInfo() {
+        document.getElementById('meshInfo').textContent =
+            mesh.name + ' \u2014 ' + mesh.verts.length + ' verts / ' + mesh.edges.length + ' edges';
+    }
+    updateMeshInfo();
+
+    // ── Mouse / Touch Controls ───────────────────────────────
+    canvas.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        lastMx = e.clientX;
+        lastMy = e.clientY;
+    });
+    window.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        const dx = e.clientX - lastMx;
+        const dy = e.clientY - lastMy;
+        rotY += dx * 0.008;
+        rotX += dy * 0.008;
+        lastMx = e.clientX;
+        lastMy = e.clientY;
+    });
+    window.addEventListener('mouseup', () => { isDragging = false; });
+
+    canvas.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        zoom *= e.deltaY > 0 ? 1.08 : 0.92;
+        zoom = Math.max(1.2, Math.min(20, zoom));
+    }, { passive: false });
+
+    // Touch support
+    let lastTouchDist = 0;
+    canvas.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 1) {
+            isDragging = true;
+            lastMx = e.touches[0].clientX;
+            lastMy = e.touches[0].clientY;
+        } else if (e.touches.length === 2) {
+            const dx = e.touches[0].clientX - e.touches[1].clientX;
+            const dy = e.touches[0].clientY - e.touches[1].clientY;
+            lastTouchDist = Math.sqrt(dx*dx + dy*dy);
+        }
+        e.preventDefault();
+    }, { passive: false });
+    canvas.addEventListener('touchmove', (e) => {
+        if (e.touches.length === 1 && isDragging) {
+            const dx = e.touches[0].clientX - lastMx;
+            const dy = e.touches[0].clientY - lastMy;
+            rotY += dx * 0.008;
+            rotX += dy * 0.008;
+            lastMx = e.touches[0].clientX;
+            lastMy = e.touches[0].clientY;
+        } else if (e.touches.length === 2) {
+            const dx = e.touches[0].clientX - e.touches[1].clientX;
+            const dy = e.touches[0].clientY - e.touches[1].clientY;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            if (lastTouchDist > 0) {
+                zoom *= lastTouchDist / dist;
+                zoom = Math.max(1.2, Math.min(20, zoom));
+            }
+            lastTouchDist = dist;
+        }
+        e.preventDefault();
+    }, { passive: false });
+    canvas.addEventListener('touchend', () => { isDragging = false; lastTouchDist = 0; });
+
+    // ── Rendering Helpers ────────────────────────────────────
+    function hexToRgb(hex) {
+        const r = parseInt(hex.slice(1,3), 16);
+        const g = parseInt(hex.slice(3,5), 16);
+        const b = parseInt(hex.slice(5,7), 16);
+        return [r, g, b];
+    }
+
+    function drawGrid(mvp) {
+        ctx.strokeStyle = 'rgba(30, 50, 80, 0.3)';
+        ctx.lineWidth = 0.5;
+        const gridSize = 4;
+        const step = 0.5;
+        for (let i = -gridSize; i <= gridSize; i += step) {
+            // X-axis lines
+            const a1 = project([i, 0, -gridSize, 1], mvp);
+            const b1 = project([i, 0, gridSize, 1], mvp);
+            if (a1 && b1) {
+                ctx.beginPath(); ctx.moveTo(a1[0], a1[1]); ctx.lineTo(b1[0], b1[1]); ctx.stroke();
+            }
+            // Z-axis lines
+            const a2 = project([-gridSize, 0, i, 1], mvp);
+            const b2 = project([gridSize, 0, i, 1], mvp);
+            if (a2 && b2) {
+                ctx.beginPath(); ctx.moveTo(a2[0], a2[1]); ctx.lineTo(b2[0], b2[1]); ctx.stroke();
+            }
+        }
+    }
+
+    function project(v4, mvp) {
+        const p = Mat4.transformVec4(mvp, v4);
+        if (p[3] <= 0.001) return null; // behind camera
+        const x = (p[0] / p[3]) * 0.5 * W + W / 2;
+        const y = -(p[1] / p[3]) * 0.5 * H + H / 2;
+        return [x, y, p[2] / p[3]]; // x, y, depth
+    }
+
+    function faceNormal(v0, v1, v2) {
+        const ax = v1[0]-v0[0], ay = v1[1]-v0[1], az = v1[2]-v0[2];
+        const bx = v2[0]-v0[0], by = v2[1]-v0[1], bz = v2[2]-v0[2];
+        return [ay*bz - az*by, az*bx - ax*bz, ax*by - ay*bx];
+    }
+
+    function vecDot(a, b) { return a[0]*b[0] + a[1]*b[1] + a[2]*b[2]; }
+
+    // ── Matrix Display ───────────────────────────────────────
+    function updateMatrixDisplay(modelView) {
+        if (!showMatrix) return;
+        const el = document.getElementById('matrixContent');
+        let html = '';
+        for (let r = 0; r < 4; r++) {
+            html += '<div class="mtx-row">';
+            for (let c = 0; c < 4; c++) {
+                const val = modelView[r * 4 + c];
+                html += '<span class="mtx-cell">' + val.toFixed(3) + '</span>';
+            }
+            html += '</div>';
+        }
+        el.innerHTML = html;
+    }
+
+    // ── Main Render Loop ─────────────────────────────────────
+    let lastTime = 0;
+
+    function render(time) {
+        requestAnimationFrame(render);
+
+        const dt = (time - lastTime) / 1000;
+        lastTime = time;
+
+        // FPS
+        frameCount++;
+        if (time - fpsTime >= 1000) {
+            fps = frameCount;
+            frameCount = 0;
+            fpsTime = time;
+            document.getElementById('fpsDisplay').textContent = fps + ' fps';
+        }
+
+        // Auto rotate
+        if (autoRotate && !isDragging) {
+            const speed = rotSpeed * 0.0003;
+            rotY += speed;
+            rotX += speed * 0.3;
+        }
+
+        // Build model-view matrix
+        const model = Mat4.multiply(Mat4.rotateX(rotX), Mat4.rotateY(rotY));
+        const view = Mat4.translate(0, 0, -zoom);
+        const modelView = Mat4.multiply(view, model);
+        const aspect = W / H || 1;
+        const proj = Mat4.perspective(fov, aspect, 0.1, 100);
+        const mvp = Mat4.multiply(proj, modelView);
+
+        // Update matrix display (throttled)
+        if (frameCount % 6 === 0) updateMatrixDisplay(modelView);
+
+        // Clear
+        ctx.fillStyle = bgColorHex;
+        ctx.fillRect(0, 0, W, H);
+
+        // Grid
+        drawGrid(mvp);
+
+        // Transform all vertices
+        const transformed = mesh.verts.map(v => {
+            const tv = Mat4.transformVec4(modelView, [v[0], v[1], v[2], 1]);
+            return [tv[0], tv[1], tv[2]];
+        });
+        const projected = mesh.verts.map(v => project([v[0], v[1], v[2], 1], mvp));
+
+        const [mr, mg, mb] = hexToRgb(meshColorHex);
+
+        if (renderMode === 'solid') {
+            // Painter's algorithm with back-face culling
+            const facesWithDepth = [];
+            for (let i = 0; i < mesh.faces.length; i++) {
+                const f = mesh.faces[i];
+                const tv0 = transformed[f[0]];
+                const tv1 = transformed[f[1]];
+                const tv2 = transformed[f[2]];
+                const normal = faceNormal(tv0, tv1, tv2);
+                // Camera looks down -Z in view space, so view direction is [0,0,-1]
+                // Back-face cull: if normal.z < 0, face is pointing away
+                const centerZ = f.reduce((sum, idx) => sum + transformed[idx][2], 0) / f.length;
+                const viewDir = [0, 0, -1];
+                if (vecDot(normal, viewDir) >= 0) continue; // cull
+                // Average depth for sorting
+                const avgDepth = f.reduce((sum, idx) => sum + transformed[idx][2], 0) / f.length;
+                facesWithDepth.push({ face: f, depth: avgDepth, normal });
+            }
+            // Sort back to front
+            facesWithDepth.sort((a, b) => a.depth - b.depth);
+
+            facesWithDepth.forEach(({ face, normal }) => {
+                const pts = face.map(idx => projected[idx]).filter(Boolean);
+                if (pts.length < 3) return;
+
+                // Simple directional lighting
+                const nLen = Math.sqrt(normal[0]*normal[0] + normal[1]*normal[1] + normal[2]*normal[2]);
+                const nx = normal[0]/nLen, ny = normal[1]/nLen, nz = normal[2]/nLen;
+                const light = [0.3, 0.6, -0.7];
+                const lLen = Math.sqrt(light[0]*light[0] + light[1]*light[1] + light[2]*light[2]);
+                const lx = light[0]/lLen, ly = light[1]/lLen, lz = light[2]/lLen;
+                let brightness = Math.max(0, -(nx*lx + ny*ly + nz*lz));
+                brightness = 0.25 + brightness * 0.75;
+
+                const fr = Math.round(mr * brightness);
+                const fg = Math.round(mg * brightness);
+                const fb = Math.round(mb * brightness);
+
+                ctx.fillStyle = 'rgb(' + fr + ',' + fg + ',' + fb + ')';
+                ctx.strokeStyle = 'rgba(' + mr + ',' + mg + ',' + mb + ',0.4)';
+                ctx.lineWidth = 0.5;
+                ctx.beginPath();
+                ctx.moveTo(pts[0][0], pts[0][1]);
+                for (let k = 1; k < pts.length; k++) {
+                    ctx.lineTo(pts[k][0], pts[k][1]);
+                }
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+            });
+        }
+
+        if (renderMode === 'wireframe') {
+            ctx.strokeStyle = meshColorHex;
+            ctx.lineWidth = 1.2;
+            ctx.shadowColor = meshColorHex;
+            ctx.shadowBlur = 4;
+            mesh.edges.forEach(([a, b]) => {
+                const pa = projected[a], pb = projected[b];
+                if (!pa || !pb) return;
+                ctx.beginPath();
+                ctx.moveTo(pa[0], pa[1]);
+                ctx.lineTo(pb[0], pb[1]);
+                ctx.stroke();
+            });
+            ctx.shadowBlur = 0;
+        }
+
+        if (renderMode === 'vertices') {
+            ctx.shadowColor = meshColorHex;
+            ctx.shadowBlur = 8;
+            projected.forEach(p => {
+                if (!p) return;
+                // Size based on depth
+                const size = Math.max(1.5, 4 - p[2] * 1.5);
+                ctx.fillStyle = meshColorHex;
+                ctx.beginPath();
+                ctx.arc(p[0], p[1], size, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            ctx.shadowBlur = 0;
+            // Dim edges
+            ctx.strokeStyle = 'rgba(' + mr + ',' + mg + ',' + mb + ',0.15)';
+            ctx.lineWidth = 0.5;
+            mesh.edges.forEach(([a, b]) => {
+                const pa = projected[a], pb = projected[b];
+                if (!pa || !pb) return;
+                ctx.beginPath();
+                ctx.moveTo(pa[0], pa[1]);
+                ctx.lineTo(pb[0], pb[1]);
+                ctx.stroke();
+            });
+        }
+
+        // Axis indicator (bottom-left corner)
+        drawAxisIndicator(model);
+    }
+
+    function drawAxisIndicator(model) {
+        const cx = 50, cy = H - 50, len = 30;
+        const axes = [
+            { v: [1,0,0,0], color: '#ff4060', label: 'X' },
+            { v: [0,1,0,0], color: '#40ff60', label: 'Y' },
+            { v: [0,0,1,0], color: '#4060ff', label: 'Z' }
+        ];
+        axes.forEach(({ v, color, label }) => {
+            const t = Mat4.transformVec4(model, v);
+            const ex = cx + t[0] * len;
+            const ey = cy - t[1] * len;
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(ex, ey);
+            ctx.stroke();
+            ctx.fillStyle = color;
+            ctx.font = '10px ' + "'Inter', sans-serif";
+            ctx.fillText(label, ex + 4, ey + 4);
+        });
+    }
+
+    // ── Start ────────────────────────────────────────────────
+    requestAnimationFrame(render);
+
+})();
+</script>
+</body>
+</html>

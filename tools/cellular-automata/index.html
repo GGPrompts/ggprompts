@@ -1,0 +1,1513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cellular Automata Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --font-display: 'Space Grotesk', sans-serif;
+  --font-body: 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --bg-primary: #0a0c14;
+  --bg-secondary: #10131e;
+  --bg-panel: #161a28;
+  --bg-input: #1c2133;
+  --border: #262c42;
+  --border-focus: #5b6abf;
+
+  --text-primary: #dfe2ee;
+  --text-secondary: #8690ad;
+  --text-muted: #505872;
+
+  --accent: #6c7bf0;
+  --accent-glow: rgba(108, 123, 240, 0.3);
+  --success: #4ade80;
+  --warning: #fbbf24;
+  --danger: #f87171;
+
+  --cell-alive: #6c7bf0;
+  --cell-dying: #f87171;
+  --cell-grid: #181d2c;
+  --cell-bg: #0d1019;
+
+  --radius: 8px;
+  --radius-sm: 4px;
+}
+
+html, body {
+  height: 100%;
+  font-family: var(--font-body);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  overflow: hidden;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 20% 15%, rgba(108, 123, 240, 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 85%, rgba(74, 222, 128, 0.03) 0%, transparent 50%);
+}
+
+/* Layout */
+#app {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  grid-template-rows: auto 1fr;
+  height: 100vh;
+  width: 100vw;
+}
+
+/* Header */
+#header {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.back-link {
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 13px;
+  font-family: var(--font-mono);
+  transition: color 0.2s;
+}
+.back-link:hover { color: var(--accent); }
+
+.header-title {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.header-sep {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+}
+
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.btn:hover { border-color: var(--border-focus); background: var(--bg-panel); }
+.btn.active, .btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.btn.danger { border-color: var(--danger); color: var(--danger); }
+.btn.danger:hover { background: var(--danger); color: #fff; }
+.btn svg { width: 14px; height: 14px; }
+.btn-group { display: flex; gap: 1px; }
+.btn-group .btn { border-radius: 0; }
+.btn-group .btn:first-child { border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
+.btn-group .btn:last-child { border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
+.icon-btn {
+  width: 30px; height: 30px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.15s;
+  font-size: 15px;
+}
+.icon-btn:hover { border-color: var(--border-focus); }
+.icon-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* Sidebar */
+#sidebar {
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.panel-header {
+  padding: 8px 12px;
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.panel-header::after {
+  content: '\25B2';
+  font-size: 8px;
+  transition: transform 0.2s;
+}
+.panel.collapsed .panel-header::after { transform: rotate(180deg); }
+.panel.collapsed .panel-body { display: none; }
+
+.panel-body {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+label.field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+}
+
+select, input[type="number"] {
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  outline: none;
+}
+select:focus, input[type="number"]:focus { border-color: var(--border-focus); }
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  background: var(--bg-input);
+  border-radius: 2px;
+  outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+}
+input[type="range"]::-moz-range-thumb {
+  width: 14px; height: 14px;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+}
+
+.row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.row.wrap { flex-wrap: wrap; }
+
+.stat {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.stat b { color: var(--text-primary); font-weight: 600; }
+
+.preset-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+
+.preset-btn {
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: center;
+}
+.preset-btn:hover { border-color: var(--accent); color: var(--text-primary); }
+
+/* Canvas area */
+#canvas-wrap {
+  position: relative;
+  overflow: hidden;
+  background: var(--cell-bg);
+}
+
+#grid-canvas {
+  display: block;
+  position: absolute;
+  top: 0; left: 0;
+  image-rendering: pixelated;
+}
+
+#overlay-canvas {
+  display: block;
+  position: absolute;
+  top: 0; left: 0;
+  pointer-events: none;
+}
+
+/* Info bar */
+#info-bar {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  display: flex;
+  gap: 12px;
+  padding: 4px 10px;
+  background: rgba(10, 12, 20, 0.85);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+  backdrop-filter: blur(6px);
+  z-index: 5;
+}
+#info-bar b { color: var(--accent); }
+
+/* Population graph */
+#pop-graph {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 200px;
+  height: 80px;
+  background: rgba(10, 12, 20, 0.8);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  z-index: 5;
+  backdrop-filter: blur(6px);
+}
+
+/* Drawing tool indicator */
+#tool-indicator {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 3px 8px;
+  background: rgba(10, 12, 20, 0.85);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--accent);
+  z-index: 5;
+}
+
+/* 1D automata strip */
+#rule1d-strip {
+  position: absolute;
+  bottom: 40px;
+  left: 8px;
+  right: 8px;
+  display: none;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding: 4px 8px;
+  background: rgba(10, 12, 20, 0.85);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  z-index: 5;
+}
+
+/* Scrollbar */
+#sidebar::-webkit-scrollbar { width: 6px; }
+#sidebar::-webkit-scrollbar-track { background: transparent; }
+#sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* Responsive */
+@media (max-width: 768px) {
+  #app {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto 1fr;
+  }
+  #sidebar {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    max-height: 40vh;
+    overflow-y: auto;
+  }
+  #header { padding: 6px 10px; }
+  .header-title { font-size: 14px; }
+}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div id="header">
+    <a href="../index.html" class="back-link">&larr; Tools</a>
+    <div class="header-sep"></div>
+    <div class="header-title">Cellular Automata Lab</div>
+    <div class="header-controls">
+      <div class="btn-group" id="tool-buttons">
+        <button class="btn active" data-tool="brush" title="Brush (B)">&#9998; Brush</button>
+        <button class="btn" data-tool="line" title="Line (L)">&#9585; Line</button>
+        <button class="btn" data-tool="fill" title="Fill (F)">&#9638; Fill</button>
+        <button class="btn" data-tool="eraser" title="Eraser (E)">&#9003; Eraser</button>
+      </div>
+      <div class="header-sep"></div>
+      <button class="icon-btn" id="btn-step" title="Step (.)">&#9654;&#124;</button>
+      <button class="icon-btn" id="btn-play" title="Play/Pause (Space)">&#9654;</button>
+      <button class="icon-btn" id="btn-clear" title="Clear (C)">&#10060;</button>
+      <button class="icon-btn" id="btn-random" title="Randomize (R)">&#127922;</button>
+      <button class="icon-btn" id="btn-graph" title="Toggle graph (G)">&#128200;</button>
+    </div>
+  </div>
+
+  <div id="sidebar">
+    <!-- Ruleset -->
+    <div class="panel">
+      <div class="panel-header">Ruleset</div>
+      <div class="panel-body">
+        <label class="field">
+          Automaton
+          <select id="sel-ruleset">
+            <option value="life" selected>Game of Life</option>
+            <option value="briansbrain">Brian's Brain</option>
+            <option value="langton">Langton's Ant</option>
+            <option value="seeds">Seeds</option>
+            <option value="daynight">Day and Night</option>
+            <option value="rule110">Rule 110 (1D)</option>
+            <option value="highlife">HighLife</option>
+          </select>
+        </label>
+        <div class="stat" id="ruleset-desc">B3/S23 - Classic Conway</div>
+      </div>
+    </div>
+
+    <!-- Grid -->
+    <div class="panel">
+      <div class="panel-header">Grid</div>
+      <div class="panel-body">
+        <label class="field">
+          Size
+          <select id="sel-size">
+            <option value="50">50 x 50</option>
+            <option value="100" selected>100 x 100</option>
+            <option value="200">200 x 200</option>
+            <option value="300">300 x 300</option>
+            <option value="500">500 x 500</option>
+          </select>
+        </label>
+        <label class="field">
+          Edge Wrapping
+          <select id="sel-wrap">
+            <option value="wrap" selected>Toroidal (wrap)</option>
+            <option value="dead">Dead border</option>
+          </select>
+        </label>
+      </div>
+    </div>
+
+    <!-- Speed -->
+    <div class="panel">
+      <div class="panel-header">Speed</div>
+      <div class="panel-body">
+        <label class="field">
+          <span>Generations/sec: <b id="speed-val">15</b></span>
+          <input type="range" id="speed-slider" min="1" max="60" value="15">
+        </label>
+      </div>
+    </div>
+
+    <!-- Patterns -->
+    <div class="panel" id="patterns-panel">
+      <div class="panel-header">Patterns (GoL)</div>
+      <div class="panel-body">
+        <div class="stat">Click to stamp at cursor position</div>
+        <div class="preset-grid" id="preset-grid">
+          <button class="preset-btn" data-pat="glider">Glider</button>
+          <button class="preset-btn" data-pat="lwss">LWSS</button>
+          <button class="preset-btn" data-pat="blinker">Blinker</button>
+          <button class="preset-btn" data-pat="toad">Toad</button>
+          <button class="preset-btn" data-pat="pulsar">Pulsar</button>
+          <button class="preset-btn" data-pat="pentadecathlon">Pentadecathlon</button>
+          <button class="preset-btn" data-pat="gosper">Gosper Gun</button>
+          <button class="preset-btn" data-pat="rpentomino">R-pentomino</button>
+          <button class="preset-btn" data-pat="acorn">Acorn</button>
+          <button class="preset-btn" data-pat="diehard">Diehard</button>
+          <button class="preset-btn" data-pat="block">Block</button>
+          <button class="preset-btn" data-pat="beehive">Beehive</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="panel">
+      <div class="panel-header">Statistics</div>
+      <div class="panel-body">
+        <div class="stat">Generation: <b id="stat-gen">0</b></div>
+        <div class="stat">Population: <b id="stat-pop">0</b></div>
+        <div class="stat">Density: <b id="stat-density">0%</b></div>
+      </div>
+    </div>
+
+    <!-- Help -->
+    <div class="panel collapsed">
+      <div class="panel-header">Keyboard Shortcuts</div>
+      <div class="panel-body">
+        <div class="stat"><b>Space</b> Play / Pause</div>
+        <div class="stat"><b>.</b> Step once</div>
+        <div class="stat"><b>B</b> Brush tool</div>
+        <div class="stat"><b>L</b> Line tool</div>
+        <div class="stat"><b>F</b> Fill tool</div>
+        <div class="stat"><b>E</b> Eraser tool</div>
+        <div class="stat"><b>C</b> Clear grid</div>
+        <div class="stat"><b>R</b> Randomize</div>
+        <div class="stat"><b>G</b> Toggle graph</div>
+        <div class="stat"><b>Scroll</b> Zoom</div>
+        <div class="stat"><b>Middle/Right drag</b> Pan</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="canvas-wrap">
+    <canvas id="grid-canvas"></canvas>
+    <canvas id="overlay-canvas"></canvas>
+    <canvas id="pop-graph" width="200" height="80" style="display:none;"></canvas>
+    <div id="tool-indicator">Brush</div>
+    <div id="info-bar">
+      <span>Gen: <b id="ib-gen">0</b></span>
+      <span>Pop: <b id="ib-pop">0</b></span>
+      <span>Zoom: <b id="ib-zoom">100%</b></span>
+    </div>
+    <div id="rule1d-strip"></div>
+  </div>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+// ===================== STATE =====================
+const DEAD = 0, ALIVE = 1, DYING = 2, ANT = 3;
+let gridW = 100, gridH = 100;
+let grid, nextGrid;
+let generation = 0;
+let running = false;
+let speed = 15;
+let animId = null;
+let lastTick = 0;
+let ruleset = 'life';
+let wrapMode = 'wrap';
+let currentTool = 'brush';
+let stampPattern = null;
+let popHistory = [];
+const MAX_POP_HISTORY = 200;
+
+// Langton's ant state
+let antX, antY, antDir; // 0=up,1=right,2=down,3=left
+
+// Rule 110 state
+let rule1dRow = 0;
+
+// Zoom/pan
+let camX = 0, camY = 0, camZoom = 1;
+let isPanning = false, panStartX, panStartY, panCamX, panCamY;
+
+// Drawing state
+let isDrawing = false;
+let lineStartX, lineStartY;
+
+// DOM refs
+const canvas = document.getElementById('grid-canvas');
+const ctx = canvas.getContext('2d');
+const overlay = document.getElementById('overlay-canvas');
+const octx = overlay.getContext('2d');
+const graphCanvas = document.getElementById('pop-graph');
+const gctx = graphCanvas.getContext('2d');
+const canvasWrap = document.getElementById('canvas-wrap');
+
+// Ruleset colors
+const RULESET_COLORS = {
+  life:        { alive: '#6c7bf0', dying: null,      bg: '#0d1019', grid: '#181d2c' },
+  briansbrain: { alive: '#4ade80', dying: '#f87171', bg: '#0d1019', grid: '#181d2c' },
+  langton:     { alive: '#fbbf24', dying: null,      bg: '#0d1019', grid: '#181d2c', ant: '#f87171' },
+  seeds:       { alive: '#a78bfa', dying: null,      bg: '#0d1019', grid: '#181d2c' },
+  daynight:    { alive: '#38bdf8', dying: null,      bg: '#0d1019', grid: '#181d2c' },
+  rule110:     { alive: '#fb923c', dying: null,      bg: '#0d1019', grid: '#181d2c' },
+  highlife:    { alive: '#f472b6', dying: null,      bg: '#0d1019', grid: '#181d2c' },
+};
+
+const RULESET_DESC = {
+  life:        'B3/S23 - Classic Conway',
+  briansbrain: '3-state: alive, dying, dead',
+  langton:     'Turmite on a 2-color grid',
+  seeds:       'B2/S (explosive growth)',
+  daynight:    'B3678/S34678 (symmetric)',
+  rule110:     '1D elementary CA - Turing complete',
+  highlife:    'B36/S23 - Replicators!',
+};
+
+// ===================== PATTERNS =====================
+const PATTERNS = {
+  glider: [[0,1,0],[0,0,1],[1,1,1]],
+  lwss: [[0,1,0,0,1],[1,0,0,0,0],[1,0,0,0,1],[1,1,1,1,0]],
+  blinker: [[1,1,1]],
+  toad: [[0,1,1,1],[1,1,1,0]],
+  pulsar: (function() {
+    const p = Array.from({length:13}, () => Array(13).fill(0));
+    const rows = [
+      [0, [2,3,4,8,9,10]],
+      [2, [0,5,7,12]],
+      [3, [0,5,7,12]],
+      [4, [0,5,7,12]],
+      [5, [2,3,4,8,9,10]],
+      [7, [2,3,4,8,9,10]],
+      [8, [0,5,7,12]],
+      [9, [0,5,7,12]],
+      [10,[0,5,7,12]],
+      [12,[2,3,4,8,9,10]],
+    ];
+    rows.forEach(([r,cs]) => cs.forEach(c => p[r][c] = 1));
+    return p;
+  })(),
+  pentadecathlon: (function() {
+    const p = Array.from({length:3}, () => Array(10).fill(1));
+    p[1][2] = 0; p[1][7] = 0;
+    // Standard pentadecathlon is vertical, let's use the row form
+    return [[1,1,1,1,1,1,1,1,1,1],[1,0,1,1,1,1,1,1,0,1],[1,1,1,1,1,1,1,1,1,1]];
+  })(),
+  gosper: (function() {
+    const g = Array.from({length:9}, () => Array(36).fill(0));
+    const cells = [
+      [0,24],[1,22],[1,24],[2,12],[2,13],[2,20],[2,21],[2,34],[2,35],
+      [3,11],[3,15],[3,20],[3,21],[3,34],[3,35],[4,0],[4,1],[4,10],
+      [4,16],[4,20],[4,21],[5,0],[5,1],[5,10],[5,14],[5,16],[5,17],
+      [5,22],[5,24],[6,10],[6,16],[6,24],[7,11],[7,15],[8,12],[8,13]
+    ];
+    cells.forEach(([r,c]) => { if (r < 9 && c < 36) g[r][c] = 1; });
+    return g;
+  })(),
+  rpentomino: [[0,1,1],[1,1,0],[0,1,0]],
+  acorn: [[0,1,0,0,0,0,0],[0,0,0,1,0,0,0],[1,1,0,0,1,1,1]],
+  diehard: [[0,0,0,0,0,0,1,0],[1,1,0,0,0,0,0,0],[0,1,0,0,0,1,1,1]],
+  block: [[1,1],[1,1]],
+  beehive: [[0,1,1,0],[1,0,0,1],[0,1,1,0]],
+};
+
+// ===================== GRID OPS =====================
+function createGrid(w, h) {
+  return new Uint8Array(w * h);
+}
+
+function idx(x, y) {
+  return y * gridW + x;
+}
+
+function getCell(g, x, y) {
+  if (wrapMode === 'wrap') {
+    x = ((x % gridW) + gridW) % gridW;
+    y = ((y % gridH) + gridH) % gridH;
+    return g[idx(x, y)];
+  }
+  if (x < 0 || x >= gridW || y < 0 || y >= gridH) return DEAD;
+  return g[idx(x, y)];
+}
+
+function setCell(g, x, y, val) {
+  if (x >= 0 && x < gridW && y >= 0 && y < gridH) {
+    g[idx(x, y)] = val;
+  }
+}
+
+function clearGrid() {
+  grid = createGrid(gridW, gridH);
+  nextGrid = createGrid(gridW, gridH);
+  generation = 0;
+  popHistory = [];
+  if (ruleset === 'langton') {
+    antX = Math.floor(gridW / 2);
+    antY = Math.floor(gridH / 2);
+    antDir = 0;
+  }
+  if (ruleset === 'rule110') {
+    rule1dRow = 0;
+  }
+  updateStats();
+  render();
+}
+
+function randomize(density) {
+  density = density || 0.25;
+  clearGrid();
+  if (ruleset === 'rule110') {
+    // For 1D, just randomize the first row
+    for (let x = 0; x < gridW; x++) {
+      if (Math.random() < density) setCell(grid, x, 0, ALIVE);
+    }
+    rule1dRow = 0;
+  } else {
+    for (let i = 0; i < gridW * gridH; i++) {
+      grid[i] = Math.random() < density ? ALIVE : DEAD;
+    }
+  }
+  updateStats();
+  render();
+}
+
+function stampPatternAt(patName, cx, cy) {
+  const pat = PATTERNS[patName];
+  if (!pat) return;
+  const ph = pat.length, pw = pat[0].length;
+  const ox = cx - Math.floor(pw / 2);
+  const oy = cy - Math.floor(ph / 2);
+  for (let r = 0; r < ph; r++) {
+    for (let c = 0; c < pw; c++) {
+      if (pat[r][c]) {
+        const gx = ox + c, gy = oy + r;
+        if (gx >= 0 && gx < gridW && gy >= 0 && gy < gridH) {
+          setCell(grid, gx, gy, ALIVE);
+        }
+      }
+    }
+  }
+  updateStats();
+  render();
+}
+
+// ===================== RULESETS =====================
+function countNeighbors(g, x, y) {
+  let count = 0;
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      if (dx === 0 && dy === 0) continue;
+      if (getCell(g, x + dx, y + dy) === ALIVE) count++;
+    }
+  }
+  return count;
+}
+
+function stepLife() {
+  for (let y = 0; y < gridH; y++) {
+    for (let x = 0; x < gridW; x++) {
+      const n = countNeighbors(grid, x, y);
+      const alive = grid[idx(x, y)] === ALIVE;
+      nextGrid[idx(x, y)] = (alive ? (n === 2 || n === 3) : (n === 3)) ? ALIVE : DEAD;
+    }
+  }
+  [grid, nextGrid] = [nextGrid, grid];
+}
+
+function stepHighLife() {
+  // B36/S23
+  for (let y = 0; y < gridH; y++) {
+    for (let x = 0; x < gridW; x++) {
+      const n = countNeighbors(grid, x, y);
+      const alive = grid[idx(x, y)] === ALIVE;
+      nextGrid[idx(x, y)] = (alive ? (n === 2 || n === 3) : (n === 3 || n === 6)) ? ALIVE : DEAD;
+    }
+  }
+  [grid, nextGrid] = [nextGrid, grid];
+}
+
+function stepSeeds() {
+  // B2/S (no survival)
+  for (let y = 0; y < gridH; y++) {
+    for (let x = 0; x < gridW; x++) {
+      const n = countNeighbors(grid, x, y);
+      const alive = grid[idx(x, y)] === ALIVE;
+      nextGrid[idx(x, y)] = (!alive && n === 2) ? ALIVE : DEAD;
+    }
+  }
+  [grid, nextGrid] = [nextGrid, grid];
+}
+
+function stepDayNight() {
+  // B3678/S34678
+  for (let y = 0; y < gridH; y++) {
+    for (let x = 0; x < gridW; x++) {
+      const n = countNeighbors(grid, x, y);
+      const alive = grid[idx(x, y)] === ALIVE;
+      if (alive) {
+        nextGrid[idx(x, y)] = (n === 3 || n === 4 || n === 6 || n === 7 || n === 8) ? ALIVE : DEAD;
+      } else {
+        nextGrid[idx(x, y)] = (n === 3 || n === 6 || n === 7 || n === 8) ? ALIVE : DEAD;
+      }
+    }
+  }
+  [grid, nextGrid] = [nextGrid, grid];
+}
+
+function stepBriansBrain() {
+  for (let y = 0; y < gridH; y++) {
+    for (let x = 0; x < gridW; x++) {
+      const state = grid[idx(x, y)];
+      if (state === ALIVE) {
+        nextGrid[idx(x, y)] = DYING;
+      } else if (state === DYING) {
+        nextGrid[idx(x, y)] = DEAD;
+      } else {
+        // Count alive (not dying) neighbors
+        let n = 0;
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            if (dx === 0 && dy === 0) continue;
+            if (getCell(grid, x + dx, y + dy) === ALIVE) n++;
+          }
+        }
+        nextGrid[idx(x, y)] = (n === 2) ? ALIVE : DEAD;
+      }
+    }
+  }
+  [grid, nextGrid] = [nextGrid, grid];
+}
+
+function stepLangton() {
+  // Langton's Ant: single ant on black/white grid
+  const i = idx(antX, antY);
+  if (grid[i] === DEAD) {
+    // White cell: turn right, flip, move
+    antDir = (antDir + 1) % 4;
+    grid[i] = ALIVE;
+  } else {
+    // Black cell: turn left, flip, move
+    antDir = (antDir + 3) % 4;
+    grid[i] = DEAD;
+  }
+  // Move forward
+  const dx = [0, 1, 0, -1];
+  const dy = [-1, 0, 1, 0];
+  antX += dx[antDir];
+  antY += dy[antDir];
+  if (wrapMode === 'wrap') {
+    antX = ((antX % gridW) + gridW) % gridW;
+    antY = ((antY % gridH) + gridH) % gridH;
+  } else {
+    antX = Math.max(0, Math.min(gridW - 1, antX));
+    antY = Math.max(0, Math.min(gridH - 1, antY));
+  }
+}
+
+function stepRule110() {
+  if (rule1dRow >= gridH - 1) return; // Grid full
+  const y = rule1dRow;
+  const ny = y + 1;
+  for (let x = 0; x < gridW; x++) {
+    const l = getCell(grid, x - 1, y) === ALIVE ? 1 : 0;
+    const c = getCell(grid, x, y) === ALIVE ? 1 : 0;
+    const r = getCell(grid, x + 1, y) === ALIVE ? 1 : 0;
+    const pattern = (l << 2) | (c << 1) | r;
+    // Rule 110 = 01101110 in binary
+    const rule = 110;
+    setCell(grid, x, ny, ((rule >> pattern) & 1) ? ALIVE : DEAD);
+  }
+  rule1dRow = ny;
+}
+
+function step() {
+  switch (ruleset) {
+    case 'life': stepLife(); break;
+    case 'highlife': stepHighLife(); break;
+    case 'seeds': stepSeeds(); break;
+    case 'daynight': stepDayNight(); break;
+    case 'briansbrain': stepBriansBrain(); break;
+    case 'langton': stepLangton(); break;
+    case 'rule110': stepRule110(); break;
+  }
+  generation++;
+  updateStats();
+  render();
+}
+
+// ===================== RENDERING =====================
+function resizeCanvas() {
+  const rect = canvasWrap.getBoundingClientRect();
+  canvas.width = rect.width;
+  canvas.height = rect.height;
+  overlay.width = rect.width;
+  overlay.height = rect.height;
+  // Center grid initially
+  const cellSize = Math.min(rect.width / gridW, rect.height / gridH);
+  if (generation === 0 && camZoom === 1) {
+    camZoom = cellSize;
+    camX = (rect.width - gridW * camZoom) / 2;
+    camY = (rect.height - gridH * camZoom) / 2;
+  }
+  render();
+}
+
+function render() {
+  const w = canvas.width, h = canvas.height;
+  const colors = RULESET_COLORS[ruleset];
+
+  ctx.fillStyle = colors.bg;
+  ctx.fillRect(0, 0, w, h);
+
+  const cellSize = camZoom;
+  const startCol = Math.max(0, Math.floor(-camX / cellSize));
+  const startRow = Math.max(0, Math.floor(-camY / cellSize));
+  const endCol = Math.min(gridW, Math.ceil((w - camX) / cellSize));
+  const endRow = Math.min(gridH, Math.ceil((h - camY) / cellSize));
+
+  // Draw grid lines if zoomed in enough
+  if (cellSize >= 4) {
+    ctx.strokeStyle = colors.grid;
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    for (let x = startCol; x <= endCol; x++) {
+      const px = Math.floor(camX + x * cellSize) + 0.5;
+      ctx.moveTo(px, Math.floor(camY + startRow * cellSize));
+      ctx.lineTo(px, Math.floor(camY + endRow * cellSize));
+    }
+    for (let y = startRow; y <= endRow; y++) {
+      const py = Math.floor(camY + y * cellSize) + 0.5;
+      ctx.moveTo(Math.floor(camX + startCol * cellSize), py);
+      ctx.lineTo(Math.floor(camX + endCol * cellSize), py);
+    }
+    ctx.stroke();
+  }
+
+  // Draw cells
+  // Batch by color for performance
+  if (cellSize >= 2) {
+    // Individual cell rendering
+    ctx.fillStyle = colors.alive;
+    for (let y = startRow; y < endRow; y++) {
+      for (let x = startCol; x < endCol; x++) {
+        const cell = grid[idx(x, y)];
+        if (cell === ALIVE) {
+          ctx.fillRect(
+            Math.floor(camX + x * cellSize) + (cellSize >= 4 ? 0.5 : 0),
+            Math.floor(camY + y * cellSize) + (cellSize >= 4 ? 0.5 : 0),
+            Math.ceil(cellSize) - (cellSize >= 4 ? 1 : 0),
+            Math.ceil(cellSize) - (cellSize >= 4 ? 1 : 0)
+          );
+        }
+      }
+    }
+    if (colors.dying) {
+      ctx.fillStyle = colors.dying;
+      for (let y = startRow; y < endRow; y++) {
+        for (let x = startCol; x < endCol; x++) {
+          if (grid[idx(x, y)] === DYING) {
+            ctx.fillRect(
+              Math.floor(camX + x * cellSize) + (cellSize >= 4 ? 0.5 : 0),
+              Math.floor(camY + y * cellSize) + (cellSize >= 4 ? 0.5 : 0),
+              Math.ceil(cellSize) - (cellSize >= 4 ? 1 : 0),
+              Math.ceil(cellSize) - (cellSize >= 4 ? 1 : 0)
+            );
+          }
+        }
+      }
+    }
+  } else {
+    // Pixel-level rendering via ImageData for large grids
+    const imgData = ctx.getImageData(0, 0, w, h);
+    const data = imgData.data;
+    const ac = hexToRGB(colors.alive);
+    const dc = colors.dying ? hexToRGB(colors.dying) : null;
+    for (let y = startRow; y < endRow; y++) {
+      for (let x = startCol; x < endCol; x++) {
+        const cell = grid[idx(x, y)];
+        if (cell === DEAD) continue;
+        const px = Math.floor(camX + x * cellSize);
+        const py = Math.floor(camY + y * cellSize);
+        if (px < 0 || px >= w || py < 0 || py >= h) continue;
+        const pi = (py * w + px) * 4;
+        const c = (cell === DYING && dc) ? dc : ac;
+        data[pi] = c.r; data[pi+1] = c.g; data[pi+2] = c.b; data[pi+3] = 255;
+      }
+    }
+    ctx.putImageData(imgData, 0, 0);
+  }
+
+  // Draw ant
+  if (ruleset === 'langton' && colors.ant) {
+    const ax = Math.floor(camX + antX * cellSize);
+    const ay = Math.floor(camY + antY * cellSize);
+    const as = Math.max(cellSize, 3);
+    ctx.fillStyle = colors.ant;
+    ctx.fillRect(ax, ay, as, as);
+  }
+
+  // Draw grid border
+  ctx.strokeStyle = 'rgba(108, 123, 240, 0.3)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(
+    Math.floor(camX), Math.floor(camY),
+    Math.ceil(gridW * cellSize), Math.ceil(gridH * cellSize)
+  );
+}
+
+function hexToRGB(hex) {
+  const v = parseInt(hex.slice(1), 16);
+  return { r: (v >> 16) & 255, g: (v >> 8) & 255, b: v & 255 };
+}
+
+function renderOverlay() {
+  octx.clearRect(0, 0, overlay.width, overlay.height);
+  // If line tool and drawing, show preview
+  if (currentTool === 'line' && isDrawing && lineStartX !== undefined) {
+    octx.strokeStyle = 'rgba(108, 123, 240, 0.5)';
+    octx.lineWidth = 2;
+    octx.setLineDash([4, 4]);
+    octx.beginPath();
+    octx.moveTo(
+      camX + (lineStartX + 0.5) * camZoom,
+      camY + (lineStartY + 0.5) * camZoom
+    );
+    const pos = screenToGrid(lastMouseX, lastMouseY);
+    if (pos) {
+      octx.lineTo(
+        camX + (pos.x + 0.5) * camZoom,
+        camY + (pos.y + 0.5) * camZoom
+      );
+    }
+    octx.stroke();
+    octx.setLineDash([]);
+  }
+
+  // Stamp pattern preview
+  if (stampPattern && lastMouseX !== undefined) {
+    const pat = PATTERNS[stampPattern];
+    if (pat) {
+      const pos = screenToGrid(lastMouseX, lastMouseY);
+      if (pos) {
+        const ph = pat.length, pw = pat[0].length;
+        const ox = pos.x - Math.floor(pw / 2);
+        const oy = pos.y - Math.floor(ph / 2);
+        octx.fillStyle = 'rgba(108, 123, 240, 0.35)';
+        for (let r = 0; r < ph; r++) {
+          for (let c = 0; c < pw; c++) {
+            if (pat[r][c]) {
+              octx.fillRect(
+                Math.floor(camX + (ox + c) * camZoom),
+                Math.floor(camY + (oy + r) * camZoom),
+                Math.ceil(camZoom),
+                Math.ceil(camZoom)
+              );
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+function renderGraph() {
+  if (graphCanvas.style.display === 'none') return;
+  const w = graphCanvas.width, h = graphCanvas.height;
+  gctx.fillStyle = 'rgba(10, 12, 20, 0.8)';
+  gctx.fillRect(0, 0, w, h);
+
+  if (popHistory.length < 2) return;
+
+  const maxPop = Math.max(...popHistory, 1);
+  gctx.strokeStyle = RULESET_COLORS[ruleset].alive;
+  gctx.lineWidth = 1.5;
+  gctx.beginPath();
+  for (let i = 0; i < popHistory.length; i++) {
+    const x = (i / (MAX_POP_HISTORY - 1)) * w;
+    const y = h - (popHistory[i] / maxPop) * (h - 4) - 2;
+    if (i === 0) gctx.moveTo(x, y);
+    else gctx.lineTo(x, y);
+  }
+  gctx.stroke();
+
+  // Label
+  gctx.fillStyle = 'rgba(134, 144, 173, 0.7)';
+  gctx.font = '9px "JetBrains Mono"';
+  gctx.fillText('Pop: ' + popHistory[popHistory.length - 1], 4, 12);
+  gctx.fillText('Max: ' + maxPop, 4, 24);
+}
+
+// ===================== STATS =====================
+function countPopulation() {
+  let pop = 0;
+  for (let i = 0; i < grid.length; i++) {
+    if (grid[i] === ALIVE) pop++;
+  }
+  return pop;
+}
+
+function updateStats() {
+  const pop = countPopulation();
+  const density = ((pop / (gridW * gridH)) * 100).toFixed(1);
+  document.getElementById('stat-gen').textContent = generation;
+  document.getElementById('stat-pop').textContent = pop;
+  document.getElementById('stat-density').textContent = density + '%';
+  document.getElementById('ib-gen').textContent = generation;
+  document.getElementById('ib-pop').textContent = pop;
+
+  popHistory.push(pop);
+  if (popHistory.length > MAX_POP_HISTORY) popHistory.shift();
+  renderGraph();
+}
+
+// ===================== ZOOM / PAN =====================
+function screenToGrid(sx, sy) {
+  const gx = Math.floor((sx - camX) / camZoom);
+  const gy = Math.floor((sy - camY) / camZoom);
+  if (gx < 0 || gx >= gridW || gy < 0 || gy >= gridH) return null;
+  return { x: gx, y: gy };
+}
+
+canvasWrap.addEventListener('wheel', function(e) {
+  e.preventDefault();
+  const rect = canvasWrap.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+
+  const oldZoom = camZoom;
+  const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+  camZoom = Math.max(0.5, Math.min(80, camZoom * factor));
+
+  // Zoom toward mouse
+  camX = mx - (mx - camX) * (camZoom / oldZoom);
+  camY = my - (my - camY) * (camZoom / oldZoom);
+
+  document.getElementById('ib-zoom').textContent = Math.round(camZoom * 100 / Math.min(canvas.width / gridW, canvas.height / gridH)) + '%';
+  render();
+  renderOverlay();
+}, { passive: false });
+
+// ===================== DRAWING =====================
+let lastMouseX = 0, lastMouseY = 0;
+
+function getMousePos(e) {
+  const rect = canvasWrap.getBoundingClientRect();
+  return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+}
+
+function drawCellAt(sx, sy, value) {
+  const pos = screenToGrid(sx, sy);
+  if (!pos) return;
+  setCell(grid, pos.x, pos.y, value);
+  updateStats();
+  render();
+}
+
+function drawLine(x0, y0, x1, y1, value) {
+  // Bresenham
+  const dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
+  const sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+  let err = dx - dy;
+  while (true) {
+    setCell(grid, x0, y0, value);
+    if (x0 === x1 && y0 === y1) break;
+    const e2 = 2 * err;
+    if (e2 > -dy) { err -= dy; x0 += sx; }
+    if (e2 < dx) { err += dx; y0 += sy; }
+  }
+  updateStats();
+  render();
+}
+
+function floodFill(startX, startY, value) {
+  const target = grid[idx(startX, startY)];
+  if (target === value) return;
+  const stack = [[startX, startY]];
+  const visited = new Set();
+  let count = 0;
+  while (stack.length > 0 && count < gridW * gridH) {
+    const [x, y] = stack.pop();
+    const key = x + ',' + y;
+    if (visited.has(key)) continue;
+    if (x < 0 || x >= gridW || y < 0 || y >= gridH) continue;
+    if (grid[idx(x, y)] !== target) continue;
+    visited.add(key);
+    setCell(grid, x, y, value);
+    count++;
+    stack.push([x-1, y], [x+1, y], [x, y-1], [x, y+1]);
+  }
+  updateStats();
+  render();
+}
+
+canvasWrap.addEventListener('mousedown', function(e) {
+  const pos = getMousePos(e);
+  lastMouseX = pos.x;
+  lastMouseY = pos.y;
+
+  // Right or middle click = pan
+  if (e.button === 1 || e.button === 2) {
+    isPanning = true;
+    panStartX = e.clientX;
+    panStartY = e.clientY;
+    panCamX = camX;
+    panCamY = camY;
+    e.preventDefault();
+    return;
+  }
+
+  if (e.button !== 0) return;
+
+  // Stamp pattern
+  if (stampPattern) {
+    const gpos = screenToGrid(pos.x, pos.y);
+    if (gpos) stampPatternAt(stampPattern, gpos.x, gpos.y);
+    return;
+  }
+
+  isDrawing = true;
+  const gpos = screenToGrid(pos.x, pos.y);
+
+  if (currentTool === 'brush') {
+    drawCellAt(pos.x, pos.y, ALIVE);
+  } else if (currentTool === 'eraser') {
+    drawCellAt(pos.x, pos.y, DEAD);
+  } else if (currentTool === 'line') {
+    if (gpos) {
+      lineStartX = gpos.x;
+      lineStartY = gpos.y;
+    }
+  } else if (currentTool === 'fill') {
+    if (gpos) floodFill(gpos.x, gpos.y, ALIVE);
+    isDrawing = false;
+  }
+});
+
+canvasWrap.addEventListener('mousemove', function(e) {
+  const pos = getMousePos(e);
+  lastMouseX = pos.x;
+  lastMouseY = pos.y;
+
+  if (isPanning) {
+    camX = panCamX + (e.clientX - panStartX);
+    camY = panCamY + (e.clientY - panStartY);
+    render();
+    return;
+  }
+
+  if (isDrawing) {
+    if (currentTool === 'brush') {
+      drawCellAt(pos.x, pos.y, ALIVE);
+    } else if (currentTool === 'eraser') {
+      drawCellAt(pos.x, pos.y, DEAD);
+    } else if (currentTool === 'line') {
+      renderOverlay();
+    }
+  }
+
+  if (stampPattern) renderOverlay();
+});
+
+canvasWrap.addEventListener('mouseup', function(e) {
+  if (isPanning) {
+    isPanning = false;
+    return;
+  }
+
+  if (isDrawing && currentTool === 'line') {
+    const gpos = screenToGrid(lastMouseX, lastMouseY);
+    if (gpos && lineStartX !== undefined) {
+      drawLine(lineStartX, lineStartY, gpos.x, gpos.y, ALIVE);
+    }
+    octx.clearRect(0, 0, overlay.width, overlay.height);
+  }
+  isDrawing = false;
+});
+
+canvasWrap.addEventListener('mouseleave', function() {
+  isPanning = false;
+  isDrawing = false;
+});
+
+canvasWrap.addEventListener('contextmenu', function(e) { e.preventDefault(); });
+
+// Touch support
+let touchId = null;
+canvasWrap.addEventListener('touchstart', function(e) {
+  if (e.touches.length === 1) {
+    const t = e.touches[0];
+    touchId = t.identifier;
+    const rect = canvasWrap.getBoundingClientRect();
+    const pos = { x: t.clientX - rect.left, y: t.clientY - rect.top };
+    lastMouseX = pos.x;
+    lastMouseY = pos.y;
+
+    if (stampPattern) {
+      const gpos = screenToGrid(pos.x, pos.y);
+      if (gpos) stampPatternAt(stampPattern, gpos.x, gpos.y);
+      e.preventDefault();
+      return;
+    }
+
+    isDrawing = true;
+    if (currentTool === 'brush') drawCellAt(pos.x, pos.y, ALIVE);
+    else if (currentTool === 'eraser') drawCellAt(pos.x, pos.y, DEAD);
+    else if (currentTool === 'fill') {
+      const gpos = screenToGrid(pos.x, pos.y);
+      if (gpos) floodFill(gpos.x, gpos.y, ALIVE);
+      isDrawing = false;
+    }
+    e.preventDefault();
+  } else if (e.touches.length === 2) {
+    // Two finger pan
+    isPanning = true;
+    panStartX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+    panStartY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+    panCamX = camX;
+    panCamY = camY;
+    isDrawing = false;
+    e.preventDefault();
+  }
+}, { passive: false });
+
+canvasWrap.addEventListener('touchmove', function(e) {
+  if (isPanning && e.touches.length === 2) {
+    const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+    const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+    camX = panCamX + (cx - panStartX);
+    camY = panCamY + (cy - panStartY);
+    render();
+    e.preventDefault();
+    return;
+  }
+
+  if (isDrawing && e.touches.length === 1) {
+    const t = e.touches[0];
+    const rect = canvasWrap.getBoundingClientRect();
+    const pos = { x: t.clientX - rect.left, y: t.clientY - rect.top };
+    lastMouseX = pos.x;
+    lastMouseY = pos.y;
+    if (currentTool === 'brush') drawCellAt(pos.x, pos.y, ALIVE);
+    else if (currentTool === 'eraser') drawCellAt(pos.x, pos.y, DEAD);
+    e.preventDefault();
+  }
+}, { passive: false });
+
+canvasWrap.addEventListener('touchend', function(e) {
+  isPanning = false;
+  isDrawing = false;
+});
+
+// ===================== SIMULATION LOOP =====================
+function tick(ts) {
+  if (!running) return;
+  const interval = 1000 / speed;
+  if (ts - lastTick >= interval) {
+    step();
+    lastTick = ts;
+  }
+  animId = requestAnimationFrame(tick);
+}
+
+function play() {
+  if (running) return;
+  running = true;
+  document.getElementById('btn-play').innerHTML = '&#9646;&#9646;';
+  lastTick = performance.now();
+  animId = requestAnimationFrame(tick);
+}
+
+function pause() {
+  running = false;
+  document.getElementById('btn-play').innerHTML = '&#9654;';
+  if (animId) cancelAnimationFrame(animId);
+}
+
+function togglePlay() {
+  if (running) pause(); else play();
+}
+
+// ===================== UI BINDINGS =====================
+// Tool buttons
+document.getElementById('tool-buttons').addEventListener('click', function(e) {
+  const btn = e.target.closest('.btn');
+  if (!btn) return;
+  selectTool(btn.dataset.tool);
+});
+
+function selectTool(tool) {
+  currentTool = tool;
+  stampPattern = null;
+  document.querySelectorAll('#tool-buttons .btn').forEach(b => b.classList.remove('active'));
+  document.querySelector(`#tool-buttons [data-tool="${tool}"]`).classList.add('active');
+  document.getElementById('tool-indicator').textContent =
+    tool.charAt(0).toUpperCase() + tool.slice(1);
+}
+
+// Preset patterns
+document.getElementById('preset-grid').addEventListener('click', function(e) {
+  const btn = e.target.closest('.preset-btn');
+  if (!btn) return;
+  // Toggle stamp mode
+  const pat = btn.dataset.pat;
+  if (stampPattern === pat) {
+    stampPattern = null;
+    btn.style.borderColor = '';
+    document.getElementById('tool-indicator').textContent =
+      currentTool.charAt(0).toUpperCase() + currentTool.slice(1);
+  } else {
+    stampPattern = pat;
+    document.querySelectorAll('.preset-btn').forEach(b => b.style.borderColor = '');
+    btn.style.borderColor = 'var(--accent)';
+    document.getElementById('tool-indicator').textContent = 'Stamp: ' + pat;
+  }
+});
+
+// Panel collapse
+document.querySelectorAll('.panel-header').forEach(h => {
+  h.addEventListener('click', function() {
+    this.closest('.panel').classList.toggle('collapsed');
+  });
+});
+
+// Ruleset change
+document.getElementById('sel-ruleset').addEventListener('change', function() {
+  ruleset = this.value;
+  document.getElementById('ruleset-desc').textContent = RULESET_DESC[ruleset];
+
+  // Show/hide patterns panel (only for GoL/HighLife)
+  const patPanel = document.getElementById('patterns-panel');
+  patPanel.style.display = (ruleset === 'life' || ruleset === 'highlife') ? '' : 'none';
+
+  // Show/hide 1D strip
+  document.getElementById('rule1d-strip').style.display = (ruleset === 'rule110') ? 'block' : 'none';
+
+  stampPattern = null;
+  clearGrid();
+});
+
+// Grid size change
+document.getElementById('sel-size').addEventListener('change', function() {
+  const size = parseInt(this.value);
+  gridW = size;
+  gridH = size;
+  camZoom = 1; // Reset zoom to trigger auto-fit
+  generation = 0;
+  clearGrid();
+  resizeCanvas();
+});
+
+// Wrap mode
+document.getElementById('sel-wrap').addEventListener('change', function() {
+  wrapMode = this.value;
+});
+
+// Speed slider
+document.getElementById('speed-slider').addEventListener('input', function() {
+  speed = parseInt(this.value);
+  document.getElementById('speed-val').textContent = speed;
+});
+
+// Header buttons
+document.getElementById('btn-play').addEventListener('click', togglePlay);
+document.getElementById('btn-step').addEventListener('click', function() {
+  if (running) pause();
+  step();
+});
+document.getElementById('btn-clear').addEventListener('click', clearGrid);
+document.getElementById('btn-random').addEventListener('click', function() { randomize(); });
+document.getElementById('btn-graph').addEventListener('click', function() {
+  const g = graphCanvas;
+  g.style.display = g.style.display === 'none' ? 'block' : 'none';
+  renderGraph();
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  switch (e.key.toLowerCase()) {
+    case ' ':
+      e.preventDefault();
+      togglePlay();
+      break;
+    case '.':
+      if (running) pause();
+      step();
+      break;
+    case 'b': selectTool('brush'); break;
+    case 'l': selectTool('line'); break;
+    case 'f': selectTool('fill'); break;
+    case 'e': selectTool('eraser'); break;
+    case 'c':
+      if (!e.ctrlKey && !e.metaKey) clearGrid();
+      break;
+    case 'r':
+      if (!e.ctrlKey && !e.metaKey) randomize();
+      break;
+    case 'g':
+      document.getElementById('btn-graph').click();
+      break;
+  }
+});
+
+// ===================== INIT =====================
+function init() {
+  grid = createGrid(gridW, gridH);
+  nextGrid = createGrid(gridW, gridH);
+  antX = Math.floor(gridW / 2);
+  antY = Math.floor(gridH / 2);
+  antDir = 0;
+
+  resizeCanvas();
+  updateStats();
+
+  window.addEventListener('resize', resizeCanvas);
+
+  // Hide patterns for non-GoL
+  document.getElementById('patterns-panel').style.display =
+    (ruleset === 'life' || ruleset === 'highlife') ? '' : 'none';
+}
+
+init();
+
+})();
+</script>
+</body>
+</html>

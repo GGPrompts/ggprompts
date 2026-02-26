@@ -1,0 +1,1278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Voronoi Diagram Editor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --font-display: 'Space Grotesk', sans-serif;
+    --font-body: 'Inter', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+
+    --bg-primary: #ffffff;
+    --bg-secondary: #f5f5f7;
+    --bg-panel: #eeeef0;
+    --bg-input: #ffffff;
+    --border: #d4d4d8;
+    --border-focus: #6366f1;
+
+    --text-primary: #18181b;
+    --text-secondary: #71717a;
+    --text-muted: #a1a1aa;
+
+    --accent: #6366f1;
+    --accent-hover: #4f46e5;
+    --accent-glow: rgba(99, 102, 241, 0.15);
+    --accent-soft: rgba(99, 102, 241, 0.08);
+    --success: #22c55e;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+
+    --radius: 8px;
+    --radius-sm: 4px;
+    --sidebar-w: 280px;
+  }
+
+  [data-theme="dark"] {
+    --bg-primary: #0f0f13;
+    --bg-secondary: #18181f;
+    --bg-panel: #1e1e28;
+    --bg-input: #252530;
+    --border: #2e2e3a;
+    --border-focus: #818cf8;
+
+    --text-primary: #e4e4e7;
+    --text-secondary: #8b8b9e;
+    --text-muted: #52525b;
+
+    --accent: #818cf8;
+    --accent-hover: #6366f1;
+    --accent-glow: rgba(129, 140, 248, 0.2);
+    --accent-soft: rgba(129, 140, 248, 0.08);
+  }
+
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    font-family: var(--font-body);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  #app {
+    display: grid;
+    grid-template-columns: var(--sidebar-w) 1fr;
+    grid-template-rows: 1fr;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  /* Sidebar */
+  #sidebar {
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--border);
+    padding: 16px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  #sidebar::-webkit-scrollbar { width: 5px; }
+  #sidebar::-webkit-scrollbar-track { background: transparent; }
+  #sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: color 0.2s;
+    margin-bottom: 4px;
+  }
+  .back-link:hover { color: var(--accent); }
+
+  .app-title {
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    margin-bottom: 2px;
+  }
+  .app-subtitle {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+  }
+
+  .panel {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px;
+  }
+
+  .panel-title {
+    font-family: var(--font-display);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-secondary);
+    margin-bottom: 10px;
+  }
+
+  .control-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .control-row:last-child { margin-bottom: 0; }
+
+  .control-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+
+  .control-value {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-muted);
+    min-width: 28px;
+    text-align: right;
+  }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border);
+    outline: none;
+    flex: 1;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: 2px solid var(--bg-primary);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: 2px solid var(--bg-primary);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  }
+
+  select, input[type="number"] {
+    font-family: var(--font-body);
+    font-size: 12px;
+    padding: 5px 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-input);
+    color: var(--text-primary);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  select:focus, input[type="number"]:focus {
+    border-color: var(--border-focus);
+  }
+
+  input[type="color"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 2px;
+    cursor: pointer;
+    background: var(--bg-input);
+  }
+  input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+  input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
+
+  .btn {
+    font-family: var(--font-body);
+    font-size: 12px;
+    font-weight: 500;
+    padding: 7px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-input);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+  .btn-primary:hover {
+    background: var(--accent-hover);
+    border-color: var(--accent-hover);
+    color: #fff;
+  }
+
+  .btn-sm {
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+
+  .btn-row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .btn-full {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .toggle-row:last-child { margin-bottom: 0; }
+
+  .toggle {
+    position: relative;
+    width: 36px;
+    height: 20px;
+    background: var(--border);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.2s;
+    flex-shrink: 0;
+  }
+  .toggle.active {
+    background: var(--accent);
+  }
+  .toggle::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform 0.2s;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+  }
+  .toggle.active::after {
+    transform: translateX(16px);
+  }
+
+  .point-count {
+    font-family: var(--font-mono);
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--accent);
+    text-align: center;
+    margin: 4px 0;
+  }
+
+  .color-swatches {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+  }
+  .color-swatch {
+    width: 20px;
+    height: 20px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: transform 0.15s;
+  }
+  .color-swatch:hover { transform: scale(1.2); }
+  .color-swatch.selected {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  /* Canvas area */
+  #canvas-wrap {
+    position: relative;
+    overflow: hidden;
+    background: var(--bg-primary);
+  }
+
+  #voronoiCanvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: crosshair;
+  }
+
+  #info-overlay {
+    position: absolute;
+    bottom: 12px;
+    left: 12px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-muted);
+    pointer-events: none;
+  }
+
+  /* Mobile sidebar toggle */
+  #sidebar-toggle {
+    display: none;
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    z-index: 100;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+
+  @media (max-width: 768px) {
+    #app {
+      grid-template-columns: 1fr;
+    }
+    #sidebar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: 280px;
+      z-index: 90;
+      transform: translateX(-100%);
+      transition: transform 0.3s ease;
+      box-shadow: 4px 0 20px rgba(0,0,0,0.15);
+    }
+    #sidebar.open {
+      transform: translateX(0);
+    }
+    #sidebar-toggle {
+      display: flex;
+    }
+    #sidebar-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 80;
+      background: rgba(0,0,0,0.3);
+    }
+    #sidebar-overlay.show { display: block; }
+  }
+</style>
+</head>
+<body>
+  <button id="sidebar-toggle">&#9776;</button>
+  <div id="sidebar-overlay"></div>
+  <div id="app">
+    <div id="sidebar">
+      <a href="../index.html" class="back-link">&larr; Tools</a>
+      <div class="app-title">Voronoi Editor</div>
+      <div class="app-subtitle">Click to place points. Drag to move.</div>
+
+      <!-- Points -->
+      <div class="panel">
+        <div class="panel-title">Points</div>
+        <div class="point-count" id="pointCountDisplay">0</div>
+        <div class="btn-row" style="margin-top:8px">
+          <button class="btn btn-sm" id="btnRandom">Randomize</button>
+          <button class="btn btn-sm" id="btnClear">Clear All</button>
+        </div>
+        <div class="control-row" style="margin-top:10px">
+          <span class="control-label">Random count</span>
+          <input type="range" id="randomCount" min="3" max="200" value="30" style="flex:1;margin:0 6px">
+          <span class="control-value" id="randomCountVal">30</span>
+        </div>
+      </div>
+
+      <!-- Display -->
+      <div class="panel">
+        <div class="panel-title">Display</div>
+        <div class="toggle-row">
+          <span class="control-label">Show seed points</span>
+          <div class="toggle active" id="toggleSeeds"></div>
+        </div>
+        <div class="toggle-row">
+          <span class="control-label">Delaunay overlay</span>
+          <div class="toggle" id="toggleDelaunay"></div>
+        </div>
+        <div class="toggle-row">
+          <span class="control-label">Show borders</span>
+          <div class="toggle active" id="toggleBorders"></div>
+        </div>
+        <div class="control-row" style="margin-top:4px">
+          <span class="control-label">Border width</span>
+          <input type="range" id="borderWidth" min="0" max="6" value="1" step="0.5" style="flex:1;margin:0 6px">
+          <span class="control-value" id="borderWidthVal">1</span>
+        </div>
+      </div>
+
+      <!-- Color -->
+      <div class="panel">
+        <div class="panel-title">Color Mode</div>
+        <select id="colorMode" style="width:100%;margin-bottom:8px">
+          <option value="random">Random Palette</option>
+          <option value="gradient">Distance Gradient</option>
+          <option value="custom">Custom Per-Region</option>
+        </select>
+        <div id="paletteSection">
+          <div class="control-label" style="margin-bottom:6px">Palette</div>
+          <select id="paletteSelect" style="width:100%">
+            <option value="vivid">Vivid</option>
+            <option value="pastel">Pastel</option>
+            <option value="earth">Earth Tones</option>
+            <option value="ocean">Ocean</option>
+            <option value="sunset">Sunset</option>
+            <option value="neon">Neon</option>
+            <option value="mono">Monochrome</option>
+          </select>
+        </div>
+        <div id="gradientSection" style="display:none">
+          <div class="control-row">
+            <span class="control-label">Start</span>
+            <input type="color" id="gradStart" value="#6366f1">
+          </div>
+          <div class="control-row">
+            <span class="control-label">End</span>
+            <input type="color" id="gradEnd" value="#f43f5e">
+          </div>
+        </div>
+        <div id="customSection" style="display:none">
+          <div class="control-label" style="margin-bottom:6px">Click a region to change its color</div>
+          <input type="color" id="customColor" value="#6366f1">
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="panel">
+        <div class="panel-title">Actions</div>
+        <button class="btn btn-primary btn-full" id="btnExport">Export PNG</button>
+        <div style="height:6px"></div>
+        <div class="toggle-row">
+          <span class="control-label">Dark mode</span>
+          <div class="toggle" id="toggleTheme"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="canvas-wrap">
+      <canvas id="voronoiCanvas"></canvas>
+      <div id="info-overlay"></div>
+    </div>
+  </div>
+
+<script>
+(function() {
+  'use strict';
+
+  // --- State ---
+  const state = {
+    points: [],         // {x, y, color, customColor}
+    showSeeds: true,
+    showDelaunay: false,
+    showBorders: true,
+    borderWidth: 1,
+    colorMode: 'random', // random | gradient | custom
+    palette: 'vivid',
+    gradStart: '#6366f1',
+    gradEnd: '#f43f5e',
+    darkMode: false,
+    dragging: null,      // index of point being dragged
+    dragOffset: {x:0, y:0},
+    selectedRegion: -1,
+  };
+
+  // --- Palettes ---
+  const palettes = {
+    vivid: ['#ef4444','#f97316','#eab308','#22c55e','#06b6d4','#3b82f6','#8b5cf6','#ec4899','#14b8a6','#f43f5e','#a855f7','#0ea5e9'],
+    pastel: ['#fda4af','#fdba74','#fde68a','#86efac','#67e8f9','#93c5fd','#c4b5fd','#f9a8d4','#99f6e4','#fca5a5','#d8b4fe','#a5f3fc'],
+    earth: ['#92400e','#a16207','#65a30d','#0d9488','#1e40af','#6d28d9','#b45309','#78716c','#4d7c0f','#0f766e','#7c3aed','#9a3412'],
+    ocean: ['#0c4a6e','#155e75','#164e63','#065f46','#1e3a5f','#1e40af','#0e7490','#0891b2','#06b6d4','#0284c7','#0369a1','#075985'],
+    sunset: ['#dc2626','#ea580c','#d97706','#ca8a04','#f59e0b','#ef4444','#e11d48','#f97316','#fb923c','#fbbf24','#c2410c','#b91c1c'],
+    neon: ['#ff0080','#ff00ff','#8b00ff','#0040ff','#00ffff','#00ff40','#80ff00','#ffff00','#ff8000','#ff0040','#bf00ff','#00ff80'],
+    mono: ['#18181b','#27272a','#3f3f46','#52525b','#71717a','#a1a1aa','#d4d4d8','#e4e4e7','#f4f4f5','#6b7280','#9ca3af','#4b5563'],
+  };
+
+  // --- DOM refs ---
+  const canvas = document.getElementById('voronoiCanvas');
+  const ctx = canvas.getContext('2d');
+  const wrap = document.getElementById('canvas-wrap');
+  const infoEl = document.getElementById('info-overlay');
+  const sidebar = document.getElementById('sidebar');
+  const sidebarToggle = document.getElementById('sidebar-toggle');
+  const sidebarOverlay = document.getElementById('sidebar-overlay');
+
+  // --- Canvas sizing ---
+  let W, H, dpr;
+
+  function resize() {
+    dpr = window.devicePixelRatio || 1;
+    const rect = wrap.getBoundingClientRect();
+    W = rect.width;
+    H = rect.height;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    render();
+  }
+
+  window.addEventListener('resize', resize);
+
+  // --- Sidebar mobile ---
+  sidebarToggle.addEventListener('click', function() {
+    sidebar.classList.toggle('open');
+    sidebarOverlay.classList.toggle('show');
+  });
+  sidebarOverlay.addEventListener('click', function() {
+    sidebar.classList.remove('open');
+    sidebarOverlay.classList.remove('show');
+  });
+
+  // --- Color helpers ---
+  function hexToRgb(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+
+  function rgbToHex(r, g, b) {
+    return '#' + ((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1);
+  }
+
+  function lerpColor(hex1, hex2, t) {
+    const a = hexToRgb(hex1), b = hexToRgb(hex2);
+    return rgbToHex(
+      Math.round(a[0] + (b[0] - a[0]) * t),
+      Math.round(a[1] + (b[1] - a[1]) * t),
+      Math.round(a[2] + (b[2] - a[2]) * t)
+    );
+  }
+
+  function assignColors() {
+    const pal = palettes[state.palette] || palettes.vivid;
+    state.points.forEach(function(p, i) {
+      if (state.colorMode === 'random') {
+        p.color = pal[i % pal.length];
+      } else if (state.colorMode === 'gradient') {
+        const t = state.points.length > 1 ? i / (state.points.length - 1) : 0;
+        p.color = lerpColor(state.gradStart, state.gradEnd, t);
+      }
+      // custom mode: keep p.customColor
+    });
+  }
+
+  // --- Point management ---
+  function addPoint(x, y) {
+    const pal = palettes[state.palette] || palettes.vivid;
+    const idx = state.points.length;
+    const color = pal[idx % pal.length];
+    state.points.push({ x: x, y: y, color: color, customColor: color });
+    assignColors();
+    updatePointCount();
+    render();
+  }
+
+  function clearPoints() {
+    state.points = [];
+    state.selectedRegion = -1;
+    updatePointCount();
+    render();
+  }
+
+  function randomizePoints() {
+    const count = parseInt(document.getElementById('randomCount').value) || 30;
+    const margin = 20;
+    state.points = [];
+    for (let i = 0; i < count; i++) {
+      const pal = palettes[state.palette] || palettes.vivid;
+      state.points.push({
+        x: margin + Math.random() * (W - 2 * margin),
+        y: margin + Math.random() * (H - 2 * margin),
+        color: pal[i % pal.length],
+        customColor: pal[i % pal.length]
+      });
+    }
+    assignColors();
+    updatePointCount();
+    render();
+  }
+
+  function updatePointCount() {
+    document.getElementById('pointCountDisplay').textContent = state.points.length;
+  }
+
+  // --- Nearest point ---
+  function findNearest(x, y) {
+    let minD = Infinity, idx = -1;
+    for (let i = 0; i < state.points.length; i++) {
+      const dx = state.points[i].x - x;
+      const dy = state.points[i].y - y;
+      const d = dx * dx + dy * dy;
+      if (d < minD) { minD = d; idx = i; }
+    }
+    return { index: idx, distSq: minD };
+  }
+
+  // --- Delaunay triangulation (Bowyer-Watson) ---
+  function delaunayTriangulation(pts) {
+    if (pts.length < 3) return [];
+
+    // Super-triangle
+    const margin = 1000;
+    const st = [
+      { x: -margin, y: -margin },
+      { x: W + margin * 2, y: -margin },
+      { x: W / 2, y: H + margin * 2 }
+    ];
+    const allPts = st.concat(pts);
+    let triangles = [{ a: 0, b: 1, c: 2 }];
+
+    function circumcircle(tri) {
+      const p1 = allPts[tri.a], p2 = allPts[tri.b], p3 = allPts[tri.c];
+      const ax = p1.x, ay = p1.y;
+      const bx = p2.x, by = p2.y;
+      const cx = p3.x, cy = p3.y;
+      const d = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by));
+      if (Math.abs(d) < 1e-10) return { x: 0, y: 0, r: Infinity };
+      const ux = ((ax * ax + ay * ay) * (by - cy) + (bx * bx + by * by) * (cy - ay) + (cx * cx + cy * cy) * (ay - by)) / d;
+      const uy = ((ax * ax + ay * ay) * (cx - bx) + (bx * bx + by * by) * (ax - cx) + (cx * cx + cy * cy) * (bx - ax)) / d;
+      const dx = ax - ux, dy = ay - uy;
+      return { x: ux, y: uy, r: Math.sqrt(dx * dx + dy * dy) };
+    }
+
+    for (let i = 3; i < allPts.length; i++) {
+      const p = allPts[i];
+      const bad = [];
+      const edges = [];
+
+      for (let j = 0; j < triangles.length; j++) {
+        const cc = circumcircle(triangles[j]);
+        const dx = p.x - cc.x, dy = p.y - cc.y;
+        if (Math.sqrt(dx * dx + dy * dy) < cc.r) {
+          bad.push(j);
+        }
+      }
+
+      for (let j = 0; j < bad.length; j++) {
+        const t = triangles[bad[j]];
+        edges.push([t.a, t.b], [t.b, t.c], [t.c, t.a]);
+      }
+
+      // Remove bad triangles (reverse order)
+      for (let j = bad.length - 1; j >= 0; j--) {
+        triangles.splice(bad[j], 1);
+      }
+
+      // Find boundary edges (not shared)
+      const boundary = [];
+      for (let j = 0; j < edges.length; j++) {
+        let shared = false;
+        for (let k = 0; k < edges.length; k++) {
+          if (j === k) continue;
+          if ((edges[j][0] === edges[k][1] && edges[j][1] === edges[k][0])) {
+            shared = true;
+            break;
+          }
+        }
+        if (!shared) boundary.push(edges[j]);
+      }
+
+      for (let j = 0; j < boundary.length; j++) {
+        triangles.push({ a: boundary[j][0], b: boundary[j][1], c: i });
+      }
+    }
+
+    // Remove triangles referencing super-triangle vertices (indices 0,1,2)
+    const result = [];
+    for (let i = 0; i < triangles.length; i++) {
+      const t = triangles[i];
+      if (t.a >= 3 && t.b >= 3 && t.c >= 3) {
+        result.push({
+          a: t.a - 3,
+          b: t.b - 3,
+          c: t.c - 3
+        });
+      }
+    }
+    return result;
+  }
+
+  // --- Voronoi rendering (pixel-based for smaller counts, cell-based otherwise) ---
+  function render() {
+    if (!W || !H) return;
+
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = state.darkMode ? '#0f0f13' : '#ffffff';
+    ctx.fillRect(0, 0, W, H);
+
+    const pts = state.points;
+    if (pts.length === 0) {
+      ctx.fillStyle = state.darkMode ? '#3f3f46' : '#a1a1aa';
+      ctx.font = '14px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Click anywhere to place seed points', W / 2, H / 2);
+      infoEl.textContent = '';
+      return;
+    }
+
+    // Decide rendering method: pixel-based for < 500 points on reasonable canvas, otherwise cell-based
+    const pixelCount = W * H;
+    const usePixelMethod = pts.length <= 100 && pixelCount <= 2000000;
+
+    if (usePixelMethod) {
+      renderPixelBased(pts);
+    } else {
+      renderCellBased(pts);
+    }
+
+    // Borders
+    if (state.showBorders && state.borderWidth > 0 && pts.length >= 2) {
+      drawVoronoiBorders(pts);
+    }
+
+    // Delaunay overlay
+    if (state.showDelaunay && pts.length >= 3) {
+      drawDelaunay(pts);
+    }
+
+    // Seed points
+    if (state.showSeeds) {
+      drawSeeds(pts);
+    }
+
+    infoEl.textContent = pts.length + ' points | ' + Math.round(W) + ' x ' + Math.round(H);
+  }
+
+  function renderPixelBased(pts) {
+    const imgData = ctx.createImageData(Math.ceil(W), Math.ceil(H));
+    const data = imgData.data;
+    const w = imgData.width;
+    const colors = pts.map(function(p) {
+      const c = (state.colorMode === 'custom') ? p.customColor : p.color;
+      return hexToRgb(c);
+    });
+
+    for (let y = 0; y < imgData.height; y++) {
+      for (let x = 0; x < w; x++) {
+        let minD = Infinity, nearest = 0;
+        for (let i = 0; i < pts.length; i++) {
+          const dx = x - pts[i].x;
+          const dy = y - pts[i].y;
+          const d = dx * dx + dy * dy;
+          if (d < minD) { minD = d; nearest = i; }
+        }
+        const idx = (y * w + x) * 4;
+        const c = colors[nearest];
+        data[idx] = c[0];
+        data[idx + 1] = c[1];
+        data[idx + 2] = c[2];
+        data[idx + 3] = 255;
+      }
+    }
+    ctx.putImageData(imgData, 0, 0);
+  }
+
+  function renderCellBased(pts) {
+    // For each point, flood fill its Voronoi region using polygon clipping
+    // We use the dual of Delaunay: compute Voronoi edges from Delaunay
+    // For simplicity and speed, use a scanline approach per region
+
+    // Actually, for large point counts, draw filled polygons from Voronoi cells
+    const cells = computeVoronoiCells(pts);
+
+    for (let i = 0; i < cells.length; i++) {
+      const cell = cells[i];
+      if (!cell || cell.length < 3) continue;
+      const p = pts[i];
+      const color = (state.colorMode === 'custom') ? p.customColor : p.color;
+      ctx.beginPath();
+      ctx.moveTo(cell[0].x, cell[0].y);
+      for (let j = 1; j < cell.length; j++) {
+        ctx.lineTo(cell[j].x, cell[j].y);
+      }
+      ctx.closePath();
+      ctx.fillStyle = color;
+      ctx.fill();
+    }
+  }
+
+  function computeVoronoiCells(pts) {
+    // Build Voronoi cells from Delaunay triangulation circumcenters
+    if (pts.length < 2) return pts.map(function() { return null; });
+
+    if (pts.length === 2) {
+      // Two points: bisect
+      return computeTwoPointCells(pts);
+    }
+
+    const tris = delaunayTriangulation(pts);
+    if (tris.length === 0) return pts.map(function() { return null; });
+
+    // Compute circumcenters
+    const circumcenters = tris.map(function(t) {
+      const p1 = pts[t.a], p2 = pts[t.b], p3 = pts[t.c];
+      const ax = p1.x, ay = p1.y;
+      const bx = p2.x, by = p2.y;
+      const cx = p3.x, cy = p3.y;
+      const d = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by));
+      if (Math.abs(d) < 1e-10) return { x: (ax + bx + cx) / 3, y: (ay + by + cy) / 3 };
+      const ux = ((ax * ax + ay * ay) * (by - cy) + (bx * bx + by * by) * (cy - ay) + (cx * cx + cy * cy) * (ay - by)) / d;
+      const uy = ((ax * ax + ay * ay) * (cx - bx) + (bx * bx + by * by) * (ax - cx) + (cx * cx + cy * cy) * (bx - ax)) / d;
+      return { x: ux, y: uy };
+    });
+
+    // For each point, find incident triangles and order their circumcenters
+    const cells = [];
+    for (let i = 0; i < pts.length; i++) {
+      const incident = [];
+      for (let j = 0; j < tris.length; j++) {
+        if (tris[j].a === i || tris[j].b === i || tris[j].c === i) {
+          incident.push(j);
+        }
+      }
+
+      if (incident.length < 2) {
+        cells.push(null);
+        continue;
+      }
+
+      // Order circumcenters by angle from point
+      const px = pts[i].x, py = pts[i].y;
+      incident.sort(function(a, b) {
+        const ca = circumcenters[a], cb = circumcenters[b];
+        return Math.atan2(ca.y - py, ca.x - px) - Math.atan2(cb.y - py, cb.x - px);
+      });
+
+      const cell = incident.map(function(j) { return circumcenters[j]; });
+
+      // Clip to canvas bounds
+      const clipped = clipPolygon(cell, 0, 0, W, H);
+      cells.push(clipped);
+    }
+
+    return cells;
+  }
+
+  function computeTwoPointCells(pts) {
+    // Split canvas by perpendicular bisector
+    const mx = (pts[0].x + pts[1].x) / 2;
+    const my = (pts[0].y + pts[1].y) / 2;
+    const dx = pts[1].x - pts[0].x;
+    const dy = pts[1].y - pts[0].y;
+    // perpendicular direction
+    const nx = -dy, ny = dx;
+
+    // Find intersections with canvas boundary
+    // Line: P = (mx, my) + t * (nx, ny)
+    const corners = [
+      { x: 0, y: 0 }, { x: W, y: 0 },
+      { x: W, y: H }, { x: 0, y: H }
+    ];
+
+    function side(p) {
+      return (p.x - mx) * dx + (p.y - my) * dy;
+    }
+
+    const cell0 = corners.filter(function(c) { return side(c) <= 0; });
+    const cell1 = corners.filter(function(c) { return side(c) >= 0; });
+
+    // Add intersection points with edges
+    const edges = [[0,1],[1,2],[2,3],[3,0]];
+    edges.forEach(function(e) {
+      const a = corners[e[0]], b = corners[e[1]];
+      const sa = side(a), sb = side(b);
+      if (sa * sb < 0) {
+        const t = sa / (sa - sb);
+        const ix = a.x + t * (b.x - a.x);
+        const iy = a.y + t * (b.y - a.y);
+        cell0.push({ x: ix, y: iy });
+        cell1.push({ x: ix, y: iy });
+      }
+    });
+
+    function sortByAngle(cell, cx, cy) {
+      cell.sort(function(a, b) {
+        return Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx);
+      });
+      return cell;
+    }
+
+    const c0 = sortByAngle(cell0, pts[0].x, pts[0].y);
+    const c1 = sortByAngle(cell1, pts[1].x, pts[1].y);
+
+    return [c0, c1];
+  }
+
+  function clipPolygon(poly, minX, minY, maxX, maxY) {
+    if (!poly || poly.length < 3) return poly;
+    let output = poly.slice();
+
+    const edges = [
+      function(p) { return p.x >= minX; },  // left
+      function(p) { return p.x <= maxX; },  // right
+      function(p) { return p.y >= minY; },  // top
+      function(p) { return p.y <= maxY; },  // bottom
+    ];
+    const intersectors = [
+      function(a, b) { var t = (minX - a.x) / (b.x - a.x); return { x: minX, y: a.y + t * (b.y - a.y) }; },
+      function(a, b) { var t = (maxX - a.x) / (b.x - a.x); return { x: maxX, y: a.y + t * (b.y - a.y) }; },
+      function(a, b) { var t = (minY - a.y) / (b.y - a.y); return { x: a.x + t * (b.x - a.x), y: minY }; },
+      function(a, b) { var t = (maxY - a.y) / (b.y - a.y); return { x: a.x + t * (b.x - a.x), y: maxY }; },
+    ];
+
+    for (let e = 0; e < 4; e++) {
+      if (output.length === 0) return output;
+      const input = output;
+      output = [];
+      const inside = edges[e];
+      const intersect = intersectors[e];
+
+      for (let i = 0; i < input.length; i++) {
+        const curr = input[i];
+        const prev = input[(i + input.length - 1) % input.length];
+
+        if (inside(curr)) {
+          if (!inside(prev)) output.push(intersect(prev, curr));
+          output.push(curr);
+        } else if (inside(prev)) {
+          output.push(intersect(prev, curr));
+        }
+      }
+    }
+    return output;
+  }
+
+  function drawVoronoiBorders(pts) {
+    if (pts.length < 2) return;
+
+    ctx.strokeStyle = state.darkMode ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.15)';
+    ctx.lineWidth = state.borderWidth;
+
+    if (pts.length === 2) {
+      const mx = (pts[0].x + pts[1].x) / 2;
+      const my = (pts[0].y + pts[1].y) / 2;
+      const dx = pts[1].y - pts[0].y;
+      const dy = -(pts[1].x - pts[0].x);
+      const len = Math.sqrt(dx * dx + dy * dy);
+      if (len < 0.001) return;
+      const nx = dx / len * Math.max(W, H);
+      const ny = dy / len * Math.max(W, H);
+      ctx.beginPath();
+      ctx.moveTo(mx - nx, my - ny);
+      ctx.lineTo(mx + nx, my + ny);
+      ctx.stroke();
+      return;
+    }
+
+    const tris = delaunayTriangulation(pts);
+    if (tris.length === 0) return;
+
+    // Circumcenters
+    const cc = tris.map(function(t) {
+      const p1 = pts[t.a], p2 = pts[t.b], p3 = pts[t.c];
+      const d = 2 * (p1.x * (p2.y - p3.y) + p2.x * (p3.y - p1.y) + p3.x * (p1.y - p2.y));
+      if (Math.abs(d) < 1e-10) return { x: (p1.x + p2.x + p3.x) / 3, y: (p1.y + p2.y + p3.y) / 3 };
+      const ux = ((p1.x*p1.x+p1.y*p1.y)*(p2.y-p3.y)+(p2.x*p2.x+p2.y*p2.y)*(p3.y-p1.y)+(p3.x*p3.x+p3.y*p3.y)*(p1.y-p2.y))/d;
+      const uy = ((p1.x*p1.x+p1.y*p1.y)*(p3.x-p2.x)+(p2.x*p2.x+p2.y*p2.y)*(p1.x-p3.x)+(p3.x*p3.x+p3.y*p3.y)*(p2.x-p1.x))/d;
+      return { x: ux, y: uy };
+    });
+
+    // Build edge -> triangle adjacency
+    const edgeMap = {};
+    function edgeKey(a, b) { return Math.min(a, b) + '_' + Math.max(a, b); }
+
+    for (let i = 0; i < tris.length; i++) {
+      const t = tris[i];
+      const edges = [edgeKey(t.a, t.b), edgeKey(t.b, t.c), edgeKey(t.c, t.a)];
+      edges.forEach(function(ek) {
+        if (!edgeMap[ek]) edgeMap[ek] = [];
+        edgeMap[ek].push(i);
+      });
+    }
+
+    ctx.beginPath();
+    for (var ek in edgeMap) {
+      var adj = edgeMap[ek];
+      if (adj.length === 2) {
+        // Internal edge: draw line between circumcenters
+        ctx.moveTo(cc[adj[0]].x, cc[adj[0]].y);
+        ctx.lineTo(cc[adj[1]].x, cc[adj[1]].y);
+      } else if (adj.length === 1) {
+        // Boundary edge: extend from circumcenter outward
+        var ti = adj[0];
+        var parts = ek.split('_');
+        var ea = parseInt(parts[0]), eb = parseInt(parts[1]);
+        var mx = (pts[ea].x + pts[eb].x) / 2;
+        var my = (pts[ea].y + pts[eb].y) / 2;
+        var dx = cc[ti].x - mx;
+        var dy = cc[ti].y - my;
+        var len = Math.sqrt(dx * dx + dy * dy);
+        if (len > 0.001) {
+          var ext = Math.max(W, H) * 2;
+          ctx.moveTo(cc[ti].x, cc[ti].y);
+          ctx.lineTo(cc[ti].x + dx / len * ext, cc[ti].y + dy / len * ext);
+        }
+      }
+    }
+    ctx.stroke();
+  }
+
+  function drawDelaunay(pts) {
+    const tris = delaunayTriangulation(pts);
+    ctx.strokeStyle = state.darkMode ? 'rgba(129, 140, 248, 0.5)' : 'rgba(99, 102, 241, 0.4)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = 0; i < tris.length; i++) {
+      const t = tris[i];
+      ctx.moveTo(pts[t.a].x, pts[t.a].y);
+      ctx.lineTo(pts[t.b].x, pts[t.b].y);
+      ctx.lineTo(pts[t.c].x, pts[t.c].y);
+      ctx.closePath();
+    }
+    ctx.stroke();
+  }
+
+  function drawSeeds(pts) {
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i];
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+      ctx.fillStyle = state.darkMode ? '#ffffff' : '#18181b';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+      ctx.strokeStyle = state.darkMode ? '#0f0f13' : '#ffffff';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+  }
+
+  // --- Mouse / Touch interaction ---
+  function getPointerPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const touch = e.touches ? e.touches[0] : e;
+    return {
+      x: touch.clientX - rect.left,
+      y: touch.clientY - rect.top
+    };
+  }
+
+  function onPointerDown(e) {
+    e.preventDefault();
+    const pos = getPointerPos(e);
+
+    // Check if near an existing point
+    const hit = findNearest(pos.x, pos.y);
+    if (hit.index >= 0 && hit.distSq < 400) { // within 20px
+      state.dragging = hit.index;
+      state.dragOffset.x = state.points[hit.index].x - pos.x;
+      state.dragOffset.y = state.points[hit.index].y - pos.y;
+
+      if (state.colorMode === 'custom') {
+        state.selectedRegion = hit.index;
+      }
+      return;
+    }
+
+    // Custom mode: check region click
+    if (state.colorMode === 'custom' && state.points.length > 0) {
+      const nearest = findNearest(pos.x, pos.y);
+      if (nearest.index >= 0) {
+        state.selectedRegion = nearest.index;
+        render();
+      }
+    }
+
+    // Add new point
+    addPoint(pos.x, pos.y);
+  }
+
+  function onPointerMove(e) {
+    if (state.dragging === null) return;
+    e.preventDefault();
+    const pos = getPointerPos(e);
+    state.points[state.dragging].x = pos.x + state.dragOffset.x;
+    state.points[state.dragging].y = pos.y + state.dragOffset.y;
+    render();
+  }
+
+  function onPointerUp(e) {
+    state.dragging = null;
+  }
+
+  canvas.addEventListener('mousedown', onPointerDown);
+  canvas.addEventListener('mousemove', onPointerMove);
+  canvas.addEventListener('mouseup', onPointerUp);
+  canvas.addEventListener('mouseleave', onPointerUp);
+  canvas.addEventListener('touchstart', onPointerDown, { passive: false });
+  canvas.addEventListener('touchmove', onPointerMove, { passive: false });
+  canvas.addEventListener('touchend', onPointerUp);
+
+  // --- Control bindings ---
+  document.getElementById('btnRandom').addEventListener('click', randomizePoints);
+  document.getElementById('btnClear').addEventListener('click', clearPoints);
+
+  // Random count slider
+  var randomCountSlider = document.getElementById('randomCount');
+  randomCountSlider.addEventListener('input', function() {
+    document.getElementById('randomCountVal').textContent = this.value;
+  });
+
+  // Border width slider
+  var borderWidthSlider = document.getElementById('borderWidth');
+  borderWidthSlider.addEventListener('input', function() {
+    state.borderWidth = parseFloat(this.value);
+    document.getElementById('borderWidthVal').textContent = this.value;
+    render();
+  });
+
+  // Toggles
+  function bindToggle(id, key, onChange) {
+    var el = document.getElementById(id);
+    el.addEventListener('click', function() {
+      state[key] = !state[key];
+      el.classList.toggle('active', state[key]);
+      if (onChange) onChange();
+      render();
+    });
+  }
+
+  bindToggle('toggleSeeds', 'showSeeds');
+  bindToggle('toggleDelaunay', 'showDelaunay');
+  bindToggle('toggleBorders', 'showBorders');
+
+  // Theme toggle
+  document.getElementById('toggleTheme').addEventListener('click', function() {
+    state.darkMode = !state.darkMode;
+    this.classList.toggle('active', state.darkMode);
+    document.documentElement.setAttribute('data-theme', state.darkMode ? 'dark' : '');
+    render();
+  });
+
+  // Color mode
+  var colorModeSelect = document.getElementById('colorMode');
+  colorModeSelect.addEventListener('change', function() {
+    state.colorMode = this.value;
+    document.getElementById('paletteSection').style.display = this.value === 'random' ? '' : 'none';
+    document.getElementById('gradientSection').style.display = this.value === 'gradient' ? '' : 'none';
+    document.getElementById('customSection').style.display = this.value === 'custom' ? '' : 'none';
+    assignColors();
+    render();
+  });
+
+  // Palette select
+  document.getElementById('paletteSelect').addEventListener('change', function() {
+    state.palette = this.value;
+    assignColors();
+    render();
+  });
+
+  // Gradient colors
+  document.getElementById('gradStart').addEventListener('input', function() {
+    state.gradStart = this.value;
+    assignColors();
+    render();
+  });
+  document.getElementById('gradEnd').addEventListener('input', function() {
+    state.gradEnd = this.value;
+    assignColors();
+    render();
+  });
+
+  // Custom color for selected region
+  document.getElementById('customColor').addEventListener('input', function() {
+    if (state.selectedRegion >= 0 && state.selectedRegion < state.points.length) {
+      state.points[state.selectedRegion].customColor = this.value;
+      render();
+    }
+  });
+
+  // Export PNG
+  document.getElementById('btnExport').addEventListener('click', function() {
+    // Render at full resolution to offscreen canvas
+    var exportCanvas = document.createElement('canvas');
+    exportCanvas.width = W * dpr;
+    exportCanvas.height = H * dpr;
+    var ectx = exportCanvas.getContext('2d');
+    ectx.drawImage(canvas, 0, 0);
+
+    exportCanvas.toBlob(function(blob) {
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'voronoi-diagram.png';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 'image/png');
+  });
+
+  // Right-click to remove point
+  canvas.addEventListener('contextmenu', function(e) {
+    e.preventDefault();
+    var rect = canvas.getBoundingClientRect();
+    var x = e.clientX - rect.left;
+    var y = e.clientY - rect.top;
+    var hit = findNearest(x, y);
+    if (hit.index >= 0 && hit.distSq < 400) {
+      state.points.splice(hit.index, 1);
+      if (state.selectedRegion >= state.points.length) state.selectedRegion = -1;
+      assignColors();
+      updatePointCount();
+      render();
+    }
+  });
+
+  // --- Init ---
+  resize();
+  randomizePoints();
+
+})();
+</script>
+</body>
+</html>

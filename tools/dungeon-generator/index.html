@@ -1,0 +1,1500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dungeon Generator — Procedural Map Builder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Cinzel:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --font-display: 'Cinzel', serif;
+    --font-body: 'Inter', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+
+    --bg-primary: #0a0a0f;
+    --bg-secondary: #10101a;
+    --bg-panel: #141420;
+    --bg-input: #1a1a2e;
+    --border: #2a2a3e;
+    --border-focus: #7b4fbf;
+
+    --text-primary: #d8d4e0;
+    --text-secondary: #8a8498;
+    --text-muted: #5c5670;
+
+    --accent: #9b6dff;
+    --accent-glow: rgba(155, 109, 255, 0.25);
+    --accent-dim: rgba(155, 109, 255, 0.12);
+    --success: #4ade80;
+    --warning: #f0a030;
+    --danger: #e05050;
+    --gold: #c8a040;
+
+    --radius: 8px;
+    --radius-sm: 4px;
+  }
+
+  html, body {
+    height: 100%;
+    font-family: var(--font-body);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    overflow: hidden;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse at 20% 30%, rgba(155, 109, 255, 0.05) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 70%, rgba(200, 160, 64, 0.03) 0%, transparent 50%);
+  }
+
+  /* Layout */
+  #app {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    grid-template-rows: auto 1fr;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  /* Header */
+  #header {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 10px 20px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .back-link {
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 13px;
+    font-family: var(--font-mono);
+    transition: color 0.2s;
+  }
+  .back-link:hover { color: var(--accent); }
+
+  .header-title {
+    font-family: var(--font-display);
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--text-primary);
+  }
+
+  .header-badge {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 2px 8px;
+    background: var(--accent-glow);
+    color: var(--accent);
+    border-radius: 10px;
+    border: 1px solid rgba(155, 109, 255, 0.3);
+  }
+
+  .header-stats {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-secondary);
+    display: flex;
+    gap: 16px;
+  }
+  .header-stats span { color: var(--accent); }
+
+  /* Sidebar */
+  #sidebar {
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--border);
+    padding: 12px;
+    overflow-y: auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  #sidebar::-webkit-scrollbar { width: 5px; }
+  #sidebar::-webkit-scrollbar-track { background: transparent; }
+  #sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .panel {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: var(--bg-input);
+    border-bottom: 1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-secondary);
+    cursor: pointer;
+  }
+  .panel-header .toggle { font-size: 10px; color: var(--text-muted); }
+
+  .panel-body {
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .panel.collapsed .panel-body { display: none; }
+  .panel.collapsed .panel-header .toggle { transform: rotate(-90deg); }
+
+  /* Form Controls */
+  .control-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .control-row label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+
+  .control-row .value-badge {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--accent);
+    min-width: 28px;
+    text-align: right;
+  }
+
+  select, input[type="number"] {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    background: var(--bg-input);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 5px 8px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  select:focus, input[type="number"]:focus { border-color: var(--border-focus); }
+
+  select { cursor: pointer; width: 100%; }
+  input[type="number"] { width: 60px; text-align: center; }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+    flex: 1;
+    min-width: 0;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    background: var(--accent);
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 0 6px var(--accent-glow);
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    background: var(--accent);
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+  }
+
+  /* Buttons */
+  .btn {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 8px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-input);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .btn:hover { background: var(--border); }
+
+  .btn-primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .btn-primary:hover { background: #8a5eee; border-color: #8a5eee; }
+
+  .btn-success {
+    background: rgba(74, 222, 128, 0.15);
+    border-color: rgba(74, 222, 128, 0.3);
+    color: var(--success);
+  }
+  .btn-success:hover { background: rgba(74, 222, 128, 0.25); }
+
+  .btn-gold {
+    background: rgba(200, 160, 64, 0.15);
+    border-color: rgba(200, 160, 64, 0.3);
+    color: var(--gold);
+  }
+  .btn-gold:hover { background: rgba(200, 160, 64, 0.25); }
+
+  .btn-row {
+    display: flex;
+    gap: 6px;
+  }
+  .btn-row .btn { flex: 1; text-align: center; }
+
+  .btn-sm { padding: 5px 10px; font-size: 11px; }
+
+  /* Canvas Area */
+  #canvas-area {
+    position: relative;
+    background: var(--bg-primary);
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #dungeon-canvas {
+    image-rendering: pixelated;
+    cursor: grab;
+  }
+  #dungeon-canvas:active { cursor: grabbing; }
+
+  /* Mini-map */
+  #minimap {
+    position: absolute;
+    bottom: 12px;
+    right: 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-panel);
+    opacity: 0.85;
+    pointer-events: none;
+    image-rendering: pixelated;
+  }
+
+  /* Generation progress */
+  #step-overlay {
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 8px 16px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-secondary);
+    display: none;
+    gap: 12px;
+    align-items: center;
+    z-index: 10;
+  }
+  #step-overlay.active { display: flex; }
+  #step-overlay .step-label { color: var(--accent); }
+  #step-progress {
+    width: 120px;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  #step-progress-bar {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width 0.1s;
+    width: 0%;
+  }
+
+  /* Seed display */
+  #seed-display {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 4px 10px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-muted);
+    cursor: pointer;
+    z-index: 5;
+  }
+  #seed-display:hover { color: var(--accent); border-color: var(--accent); }
+
+  /* Zoom controls */
+  #zoom-controls {
+    position: absolute;
+    bottom: 12px;
+    left: 12px;
+    display: flex;
+    gap: 4px;
+    z-index: 5;
+  }
+  #zoom-controls .btn { width: 32px; height: 32px; padding: 0; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+
+  /* Responsive */
+  @media (max-width: 900px) {
+    #app {
+      grid-template-columns: 1fr;
+      grid-template-rows: auto auto 1fr;
+    }
+    #sidebar {
+      border-right: none;
+      border-bottom: 1px solid var(--border);
+      max-height: 40vh;
+      flex-direction: row;
+      flex-wrap: wrap;
+      padding: 8px;
+      gap: 8px;
+    }
+    .panel { flex: 1; min-width: 200px; }
+    #header { padding: 8px 12px; gap: 10px; }
+    .header-stats { display: none; }
+  }
+
+  @media (max-width: 600px) {
+    #sidebar { max-height: 50vh; }
+    .panel { min-width: 150px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div id="header">
+    <a href="../index.html" class="back-link">&larr; Tools</a>
+    <div class="header-title">Dungeon Generator</div>
+    <div class="header-badge">procedural</div>
+    <div class="header-stats">
+      <div>Rooms: <span id="stat-rooms">0</span></div>
+      <div>Tiles: <span id="stat-tiles">0</span></div>
+      <div>Seed: <span id="stat-seed">-</span></div>
+    </div>
+  </div>
+
+  <div id="sidebar">
+    <!-- Algorithm -->
+    <div class="panel">
+      <div class="panel-header" onclick="togglePanel(this)">
+        Algorithm <span class="toggle">&#9660;</span>
+      </div>
+      <div class="panel-body">
+        <select id="opt-algo">
+          <option value="bsp">BSP Tree</option>
+          <option value="rooms">Random Rooms + Corridors</option>
+          <option value="drunkard">Drunkard Walk (Cave)</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Map Size -->
+    <div class="panel">
+      <div class="panel-header" onclick="togglePanel(this)">
+        Map Size <span class="toggle">&#9660;</span>
+      </div>
+      <div class="panel-body">
+        <div class="control-row">
+          <label>Width</label>
+          <input type="range" id="opt-width" min="30" max="120" value="60">
+          <span class="value-badge" id="val-width">60</span>
+        </div>
+        <div class="control-row">
+          <label>Height</label>
+          <input type="range" id="opt-height" min="30" max="120" value="40">
+          <span class="value-badge" id="val-height">40</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Room Settings -->
+    <div class="panel" id="panel-rooms">
+      <div class="panel-header" onclick="togglePanel(this)">
+        Room Settings <span class="toggle">&#9660;</span>
+      </div>
+      <div class="panel-body">
+        <div class="control-row">
+          <label>Min Rooms</label>
+          <input type="range" id="opt-min-rooms" min="3" max="20" value="5">
+          <span class="value-badge" id="val-min-rooms">5</span>
+        </div>
+        <div class="control-row">
+          <label>Max Rooms</label>
+          <input type="range" id="opt-max-rooms" min="5" max="40" value="12">
+          <span class="value-badge" id="val-max-rooms">12</span>
+        </div>
+        <div class="control-row">
+          <label>Min Size</label>
+          <input type="range" id="opt-min-size" min="3" max="10" value="4">
+          <span class="value-badge" id="val-min-size">4</span>
+        </div>
+        <div class="control-row">
+          <label>Max Size</label>
+          <input type="range" id="opt-max-size" min="5" max="20" value="10">
+          <span class="value-badge" id="val-max-size">10</span>
+        </div>
+        <div class="control-row">
+          <label>Corridor Width</label>
+          <input type="range" id="opt-corridor" min="1" max="3" value="1">
+          <span class="value-badge" id="val-corridor">1</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Drunkard Settings -->
+    <div class="panel" id="panel-drunkard" style="display:none;">
+      <div class="panel-header" onclick="togglePanel(this)">
+        Cave Settings <span class="toggle">&#9660;</span>
+      </div>
+      <div class="panel-body">
+        <div class="control-row">
+          <label>Floor %</label>
+          <input type="range" id="opt-floor-pct" min="30" max="70" value="45">
+          <span class="value-badge" id="val-floor-pct">45</span>
+        </div>
+        <div class="control-row">
+          <label>Walkers</label>
+          <input type="range" id="opt-walkers" min="1" max="8" value="3">
+          <span class="value-badge" id="val-walkers">3</span>
+        </div>
+        <div class="control-row">
+          <label>Turn Chance</label>
+          <input type="range" id="opt-turn" min="10" max="80" value="40">
+          <span class="value-badge" id="val-turn">40%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Visual Theme -->
+    <div class="panel">
+      <div class="panel-header" onclick="togglePanel(this)">
+        Visual Theme <span class="toggle">&#9660;</span>
+      </div>
+      <div class="panel-body">
+        <select id="opt-theme">
+          <option value="dungeon">Classic Dungeon</option>
+          <option value="cave">Natural Cave</option>
+          <option value="scifi">Sci-Fi Station</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Generation -->
+    <div class="panel">
+      <div class="panel-header" onclick="togglePanel(this)">
+        Generation <span class="toggle">&#9660;</span>
+      </div>
+      <div class="panel-body">
+        <div class="control-row">
+          <label>Seed</label>
+          <input type="number" id="opt-seed" value="" placeholder="random" style="width:90px;">
+        </div>
+        <div class="control-row">
+          <label>Step Mode</label>
+          <label style="position:relative;width:36px;height:20px;flex-shrink:0;">
+            <input type="checkbox" id="opt-step" style="display:none;">
+            <span class="switch-track"></span>
+          </label>
+        </div>
+        <div class="control-row" id="speed-row">
+          <label>Speed</label>
+          <input type="range" id="opt-speed" min="1" max="50" value="20">
+          <span class="value-badge" id="val-speed">20</span>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="generate()">Generate</button>
+          <button class="btn btn-gold" onclick="randomSeed(); generate()">New Seed</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Export -->
+    <div class="panel">
+      <div class="panel-header" onclick="togglePanel(this)">
+        Export <span class="toggle">&#9660;</span>
+      </div>
+      <div class="panel-body">
+        <div class="btn-row">
+          <button class="btn btn-success" onclick="exportPNG()">PNG</button>
+          <button class="btn" onclick="exportJSON()">JSON</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="canvas-area">
+    <canvas id="dungeon-canvas"></canvas>
+    <canvas id="minimap" width="150" height="100"></canvas>
+    <div id="seed-display" onclick="copySeed()" title="Click to copy seed">Seed: -</div>
+    <div id="step-overlay">
+      <span class="step-label" id="step-label">Placing rooms...</span>
+      <div id="step-progress"><div id="step-progress-bar"></div></div>
+      <button class="btn btn-sm" onclick="cancelGeneration()">Cancel</button>
+    </div>
+    <div id="zoom-controls">
+      <button class="btn" onclick="zoomIn()">+</button>
+      <button class="btn" onclick="zoomOut()">&minus;</button>
+      <button class="btn btn-sm" onclick="zoomFit()">Fit</button>
+    </div>
+  </div>
+</div>
+
+<style>
+  .switch-track {
+    position: absolute;
+    inset: 0;
+    background: var(--border);
+    border-radius: 10px;
+    transition: background 0.2s;
+    cursor: pointer;
+  }
+  .switch-track::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    background: var(--text-secondary);
+    border-radius: 50%;
+    transition: all 0.2s;
+  }
+  input:checked + .switch-track {
+    background: var(--accent);
+  }
+  input:checked + .switch-track::after {
+    left: 18px;
+    background: #fff;
+  }
+</style>
+
+<script>
+(function() {
+  'use strict';
+
+  // ========== SEEDED RNG ==========
+  function mulberry32(a) {
+    return function() {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      let t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+
+  let rng = Math.random;
+  let currentSeed = 0;
+
+  function setSeed(seed) {
+    currentSeed = seed;
+    rng = mulberry32(seed);
+  }
+
+  function rndInt(min, max) {
+    return Math.floor(rng() * (max - min + 1)) + min;
+  }
+
+  function rndFloat(min, max) {
+    return rng() * (max - min) + min;
+  }
+
+  // ========== TILE TYPES ==========
+  const TILE = { VOID: 0, WALL: 1, FLOOR: 2, CORRIDOR: 3, DOOR: 4 };
+
+  // ========== THEMES ==========
+  const THEMES = {
+    dungeon: {
+      name: 'Classic Dungeon',
+      void:     '#08080c',
+      wall:     '#3a3548',
+      wallTop:  '#4a4460',
+      floor:    '#2a2432',
+      floorAlt: '#252030',
+      corridor: '#221e2a',
+      door:     '#8b6914',
+      doorFrame:'#5a4510',
+      accent:   '#9b6dff',
+      wallDetail: true,
+      floorPattern: 'stone',
+    },
+    cave: {
+      name: 'Natural Cave',
+      void:     '#06090a',
+      wall:     '#3a4838',
+      wallTop:  '#4a5a46',
+      floor:    '#1e2820',
+      floorAlt: '#1a2418',
+      corridor: '#1c261a',
+      door:     '#6a8a4a',
+      doorFrame:'#4a6030',
+      accent:   '#6dff9b',
+      wallDetail: true,
+      floorPattern: 'dirt',
+    },
+    scifi: {
+      name: 'Sci-Fi Station',
+      void:     '#020208',
+      wall:     '#2a3048',
+      wallTop:  '#3a4060',
+      floor:    '#14182a',
+      floorAlt: '#101424',
+      corridor: '#181c30',
+      door:     '#30a0d0',
+      doorFrame:'#1870a0',
+      accent:   '#30d0ff',
+      wallDetail: false,
+      floorPattern: 'grid',
+    },
+  };
+
+  // ========== STATE ==========
+  let map = [];
+  let mapW = 60, mapH = 40;
+  let rooms = [];
+  let doors = [];
+  let generationSteps = [];
+  let isGenerating = false;
+  let cancelGen = false;
+
+  // Canvas / zoom / pan
+  const canvas = document.getElementById('dungeon-canvas');
+  const ctx = canvas.getContext('2d');
+  const miniCanvas = document.getElementById('minimap');
+  const miniCtx = miniCanvas.getContext('2d');
+
+  let tileSize = 12;
+  let panX = 0, panY = 0;
+  let isPanning = false;
+  let panStart = { x: 0, y: 0 };
+
+  // ========== HELPERS ==========
+  function createMap(w, h) {
+    const m = [];
+    for (let y = 0; y < h; y++) {
+      m[y] = new Uint8Array(w);
+      for (let x = 0; x < w; x++) m[y][x] = TILE.WALL;
+    }
+    return m;
+  }
+
+  function inBounds(x, y) {
+    return x >= 0 && y >= 0 && x < mapW && y < mapH;
+  }
+
+  function carveRect(m, x1, y1, x2, y2, tile) {
+    for (let y = y1; y <= y2; y++)
+      for (let x = x1; x <= x2; x++)
+        if (inBounds(x, y)) m[y][x] = tile;
+  }
+
+  // ========== BSP TREE GENERATION ==========
+  function generateBSP(opts) {
+    const m = createMap(opts.w, opts.h);
+    const rms = [];
+    const drs = [];
+    const steps = [];
+
+    class BSPNode {
+      constructor(x, y, w, h) {
+        this.x = x; this.y = y; this.w = w; this.h = h;
+        this.left = null; this.right = null;
+        this.room = null;
+      }
+    }
+
+    function split(node, depth) {
+      if (depth <= 0) return;
+      const minSz = opts.minSize + 2;
+
+      let canH = node.w >= minSz * 2;
+      let canV = node.h >= minSz * 2;
+      if (!canH && !canV) return;
+
+      let horizontal;
+      if (!canH) horizontal = false;
+      else if (!canV) horizontal = true;
+      else horizontal = rng() < 0.5;
+
+      if (horizontal) {
+        const splitAt = rndInt(minSz, node.w - minSz);
+        node.left = new BSPNode(node.x, node.y, splitAt, node.h);
+        node.right = new BSPNode(node.x + splitAt, node.y, node.w - splitAt, node.h);
+      } else {
+        const splitAt = rndInt(minSz, node.h - minSz);
+        node.left = new BSPNode(node.x, node.y, node.w, splitAt);
+        node.right = new BSPNode(node.x, node.y + splitAt, node.w, node.h - splitAt);
+      }
+
+      split(node.left, depth - 1);
+      split(node.right, depth - 1);
+    }
+
+    function createRooms(node) {
+      if (node.left) {
+        createRooms(node.left);
+        createRooms(node.right);
+        return;
+      }
+      const padX = 1, padY = 1;
+      const rw = rndInt(opts.minSize, Math.min(opts.maxSize, node.w - padX * 2));
+      const rh = rndInt(opts.minSize, Math.min(opts.maxSize, node.h - padY * 2));
+      const rx = node.x + rndInt(padX, node.w - rw - padX);
+      const ry = node.y + rndInt(padY, node.h - rh - padY);
+
+      node.room = { x: rx, y: ry, w: rw, h: rh,
+                     cx: Math.floor(rx + rw / 2),
+                     cy: Math.floor(ry + rh / 2) };
+      rms.push(node.room);
+      carveRect(m, rx, ry, rx + rw - 1, ry + rh - 1, TILE.FLOOR);
+      steps.push({ label: 'Carving room ' + rms.length, snapshot: cloneMap(m) });
+    }
+
+    function getRoom(node) {
+      if (node.room) return node.room;
+      if (node.left) {
+        const lr = getRoom(node.left);
+        const rr = getRoom(node.right);
+        return lr || rr;
+      }
+      return null;
+    }
+
+    function connectRooms(node) {
+      if (!node.left) return;
+      connectRooms(node.left);
+      connectRooms(node.right);
+
+      const a = getRoom(node.left);
+      const b = getRoom(node.right);
+      if (a && b) {
+        carveCorridor(m, a.cx, a.cy, b.cx, b.cy, opts.corridorWidth, drs, rms);
+        steps.push({ label: 'Connecting rooms', snapshot: cloneMap(m) });
+      }
+    }
+
+    const maxDepth = Math.ceil(Math.log2(opts.maxRooms + 1)) + 1;
+    const root = new BSPNode(1, 1, opts.w - 2, opts.h - 2);
+    split(root, maxDepth);
+    createRooms(root);
+    connectRooms(root);
+
+    return { map: m, rooms: rms, doors: drs, steps };
+  }
+
+  // ========== RANDOM ROOMS + CORRIDORS ==========
+  function generateRandomRooms(opts) {
+    const m = createMap(opts.w, opts.h);
+    const rms = [];
+    const drs = [];
+    const steps = [];
+    const numRooms = rndInt(opts.minRooms, opts.maxRooms);
+    let attempts = 0;
+
+    while (rms.length < numRooms && attempts < numRooms * 50) {
+      attempts++;
+      const rw = rndInt(opts.minSize, opts.maxSize);
+      const rh = rndInt(opts.minSize, opts.maxSize);
+      const rx = rndInt(2, opts.w - rw - 2);
+      const ry = rndInt(2, opts.h - rh - 2);
+
+      let overlaps = false;
+      for (const r of rms) {
+        if (rx < r.x + r.w + 2 && rx + rw + 2 > r.x &&
+            ry < r.y + r.h + 2 && ry + rh + 2 > r.y) {
+          overlaps = true;
+          break;
+        }
+      }
+      if (overlaps) continue;
+
+      const room = { x: rx, y: ry, w: rw, h: rh,
+                      cx: Math.floor(rx + rw / 2),
+                      cy: Math.floor(ry + rh / 2) };
+      rms.push(room);
+      carveRect(m, rx, ry, rx + rw - 1, ry + rh - 1, TILE.FLOOR);
+      steps.push({ label: 'Placing room ' + rms.length, snapshot: cloneMap(m) });
+    }
+
+    // Connect rooms with MST-like approach
+    const connected = [0];
+    const remaining = [];
+    for (let i = 1; i < rms.length; i++) remaining.push(i);
+
+    while (remaining.length > 0) {
+      let bestDist = Infinity, bestC = -1, bestR = -1;
+      for (const ci of connected) {
+        for (const ri of remaining) {
+          const d = Math.abs(rms[ci].cx - rms[ri].cx) + Math.abs(rms[ci].cy - rms[ri].cy);
+          if (d < bestDist) { bestDist = d; bestC = ci; bestR = ri; }
+        }
+      }
+      if (bestR === -1) break;
+      remaining.splice(remaining.indexOf(bestR), 1);
+      connected.push(bestR);
+
+      carveCorridor(m, rms[bestC].cx, rms[bestC].cy, rms[bestR].cx, rms[bestR].cy, opts.corridorWidth, drs, rms);
+      steps.push({ label: 'Connecting rooms', snapshot: cloneMap(m) });
+    }
+
+    return { map: m, rooms: rms, doors: drs, steps };
+  }
+
+  // ========== DRUNKARD WALK ==========
+  function generateDrunkard(opts) {
+    const m = createMap(opts.w, opts.h);
+    const steps = [];
+    const totalFloor = Math.floor(opts.w * opts.h * (opts.floorPct / 100));
+    let floorCount = 0;
+    const dirs = [[0,-1],[0,1],[-1,0],[1,0]];
+    const walkers = [];
+
+    for (let i = 0; i < opts.numWalkers; i++) {
+      walkers.push({
+        x: rndInt(2, opts.w - 3),
+        y: rndInt(2, opts.h - 3),
+        dir: rndInt(0, 3)
+      });
+    }
+
+    let stepCount = 0;
+    while (floorCount < totalFloor) {
+      for (const w of walkers) {
+        if (rng() * 100 < opts.turnChance) {
+          w.dir = rndInt(0, 3);
+        }
+        const dx = dirs[w.dir][0];
+        const dy = dirs[w.dir][1];
+        const nx = w.x + dx;
+        const ny = w.y + dy;
+
+        if (nx >= 2 && nx < opts.w - 2 && ny >= 2 && ny < opts.h - 2) {
+          w.x = nx;
+          w.y = ny;
+          if (m[w.y][w.x] === TILE.WALL) {
+            m[w.y][w.x] = TILE.FLOOR;
+            floorCount++;
+          }
+        } else {
+          w.dir = rndInt(0, 3);
+        }
+      }
+      stepCount++;
+      if (stepCount % 20 === 0) {
+        steps.push({ label: 'Carving cave... ' + Math.floor(floorCount / totalFloor * 100) + '%', snapshot: cloneMap(m) });
+      }
+      if (stepCount > opts.w * opts.h * 10) break;
+    }
+
+    // Smooth edges with cellular automata
+    for (let pass = 0; pass < 2; pass++) {
+      const copy = cloneMap(m);
+      for (let y = 2; y < opts.h - 2; y++) {
+        for (let x = 2; x < opts.w - 2; x++) {
+          let walls = 0;
+          for (let dy = -1; dy <= 1; dy++)
+            for (let dx = -1; dx <= 1; dx++)
+              if (copy[y + dy][x + dx] === TILE.WALL) walls++;
+          if (walls >= 6) m[y][x] = TILE.WALL;
+          else if (walls <= 2) m[y][x] = TILE.FLOOR;
+        }
+      }
+      steps.push({ label: 'Smoothing pass ' + (pass + 1), snapshot: cloneMap(m) });
+    }
+
+    return { map: m, rooms: [], doors: [], steps };
+  }
+
+  // ========== SHARED: CORRIDOR CARVING ==========
+  function carveCorridor(m, x1, y1, x2, y2, width, drs, rms) {
+    const hw = Math.floor(width / 2);
+    let cx = x1, cy = y1;
+
+    // L-shaped corridor (randomly pick horizontal-first or vertical-first)
+    const hFirst = rng() < 0.5;
+
+    function carveLine(sx, sy, ex, ey) {
+      const dx = sx < ex ? 1 : sx > ex ? -1 : 0;
+      const dy = sy < ey ? 1 : sy > ey ? -1 : 0;
+      let px = sx, py = sy;
+      while (true) {
+        for (let off = -hw; off <= hw; off++) {
+          const tx = dx !== 0 ? px : px + off;
+          const ty = dy !== 0 ? py : py + off;
+          if (inBounds(tx, ty) && m[ty][tx] === TILE.WALL) {
+            m[ty][tx] = TILE.CORRIDOR;
+          }
+        }
+        if (px === ex && py === ey) break;
+        px += dx;
+        py += dy;
+      }
+    }
+
+    if (hFirst) {
+      carveLine(x1, y1, x2, y1);
+      carveLine(x2, y1, x2, y2);
+    } else {
+      carveLine(x1, y1, x1, y2);
+      carveLine(x1, y2, x2, y2);
+    }
+
+    // Place doors at room entrances
+    placeDoors(m, rms, drs);
+  }
+
+  function placeDoors(m, rms, drs) {
+    drs.length = 0;
+    for (const r of rms) {
+      // Check border tiles of each room
+      for (let x = r.x - 1; x <= r.x + r.w; x++) {
+        checkDoor(m, x, r.y - 1, drs);
+        checkDoor(m, x, r.y + r.h, drs);
+      }
+      for (let y = r.y; y < r.y + r.h; y++) {
+        checkDoor(m, r.x - 1, y, drs);
+        checkDoor(m, r.x + r.w, y, drs);
+      }
+    }
+  }
+
+  function checkDoor(m, x, y, drs) {
+    if (!inBounds(x, y)) return;
+    if (m[y][x] !== TILE.CORRIDOR) return;
+    // Check adjacency: must have floor on one side and corridor continuing
+    const hasFloorH = (inBounds(x-1,y) && m[y][x-1] === TILE.FLOOR) || (inBounds(x+1,y) && m[y][x+1] === TILE.FLOOR);
+    const hasFloorV = (inBounds(x,y-1) && m[y-1][x] === TILE.FLOOR) || (inBounds(x,y+1) && m[y+1][x] === TILE.FLOOR);
+    if (hasFloorH || hasFloorV) {
+      // Avoid duplicate
+      for (const d of drs) if (d.x === x && d.y === y) return;
+      drs.push({ x, y });
+      m[y][x] = TILE.DOOR;
+    }
+  }
+
+  function cloneMap(m) {
+    return m.map(row => new Uint8Array(row));
+  }
+
+  // ========== GENERATION ENTRY ==========
+  async function generate() {
+    if (isGenerating) return;
+    cancelGen = false;
+
+    const algo = document.getElementById('opt-algo').value;
+    const seedInput = document.getElementById('opt-seed').value;
+    const seed = seedInput ? parseInt(seedInput) : Math.floor(Math.random() * 999999);
+    document.getElementById('opt-seed').value = seed;
+    setSeed(seed);
+
+    mapW = parseInt(document.getElementById('opt-width').value);
+    mapH = parseInt(document.getElementById('opt-height').value);
+
+    const opts = {
+      w: mapW, h: mapH,
+      minRooms: parseInt(document.getElementById('opt-min-rooms').value),
+      maxRooms: parseInt(document.getElementById('opt-max-rooms').value),
+      minSize: parseInt(document.getElementById('opt-min-size').value),
+      maxSize: parseInt(document.getElementById('opt-max-size').value),
+      corridorWidth: parseInt(document.getElementById('opt-corridor').value),
+      floorPct: parseInt(document.getElementById('opt-floor-pct').value),
+      numWalkers: parseInt(document.getElementById('opt-walkers').value),
+      turnChance: parseInt(document.getElementById('opt-turn').value),
+    };
+
+    let result;
+    if (algo === 'bsp') result = generateBSP(opts);
+    else if (algo === 'rooms') result = generateRandomRooms(opts);
+    else result = generateDrunkard(opts);
+
+    map = result.map;
+    rooms = result.rooms;
+    doors = result.doors;
+    generationSteps = result.steps;
+
+    // Step-by-step mode
+    const stepMode = document.getElementById('opt-step').checked;
+    if (stepMode && generationSteps.length > 0) {
+      isGenerating = true;
+      document.getElementById('step-overlay').classList.add('active');
+      const speed = parseInt(document.getElementById('opt-speed').value);
+      const delay = Math.max(10, 510 - speed * 10);
+
+      for (let i = 0; i < generationSteps.length; i++) {
+        if (cancelGen) break;
+        const step = generationSteps[i];
+        document.getElementById('step-label').textContent = step.label;
+        document.getElementById('step-progress-bar').style.width = ((i + 1) / generationSteps.length * 100) + '%';
+        map = step.snapshot;
+        render();
+        await sleep(delay);
+      }
+
+      // Final map
+      map = result.map;
+      document.getElementById('step-overlay').classList.remove('active');
+      isGenerating = false;
+    }
+
+    updateStats(seed);
+    zoomFit();
+    render();
+  }
+
+  function cancelGeneration() {
+    cancelGen = true;
+  }
+
+  function sleep(ms) {
+    return new Promise(r => setTimeout(r, ms));
+  }
+
+  function randomSeed() {
+    document.getElementById('opt-seed').value = Math.floor(Math.random() * 999999);
+  }
+
+  // ========== RENDERING ==========
+  function getTheme() {
+    return THEMES[document.getElementById('opt-theme').value] || THEMES.dungeon;
+  }
+
+  function render() {
+    const theme = getTheme();
+    const cw = canvas.parentElement.clientWidth;
+    const ch = canvas.parentElement.clientHeight;
+    canvas.width = cw;
+    canvas.height = ch;
+
+    ctx.fillStyle = theme.void;
+    ctx.fillRect(0, 0, cw, ch);
+
+    ctx.save();
+    ctx.translate(panX + cw / 2, panY + ch / 2);
+    ctx.scale(tileSize / 12, tileSize / 12);
+    ctx.translate(-mapW * 12 / 2, -mapH * 12 / 2);
+
+    const ts = 12;
+
+    for (let y = 0; y < mapH; y++) {
+      for (let x = 0; x < mapW; x++) {
+        const tile = map[y] ? map[y][x] : TILE.WALL;
+        const px = x * ts;
+        const py = y * ts;
+
+        switch (tile) {
+          case TILE.WALL:
+            drawWall(ctx, px, py, ts, x, y, theme);
+            break;
+          case TILE.FLOOR:
+            drawFloor(ctx, px, py, ts, x, y, theme);
+            break;
+          case TILE.CORRIDOR:
+            drawCorridor(ctx, px, py, ts, x, y, theme);
+            break;
+          case TILE.DOOR:
+            drawDoor(ctx, px, py, ts, x, y, theme);
+            break;
+          default:
+            ctx.fillStyle = theme.void;
+            ctx.fillRect(px, py, ts, ts);
+        }
+      }
+    }
+
+    ctx.restore();
+    renderMinimap(theme);
+  }
+
+  function drawWall(ctx, px, py, ts, x, y, theme) {
+    // Check if exposed (adjacent to floor/corridor)
+    let exposed = false;
+    const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+    for (const [dx, dy] of dirs) {
+      const nx = x + dx, ny = y + dy;
+      if (inBounds(nx, ny) && map[ny][nx] !== TILE.WALL && map[ny][nx] !== TILE.VOID) {
+        exposed = true;
+        break;
+      }
+    }
+
+    if (!exposed) {
+      ctx.fillStyle = theme.void;
+      ctx.fillRect(px, py, ts, ts);
+      return;
+    }
+
+    // Wall with top highlight
+    ctx.fillStyle = theme.wall;
+    ctx.fillRect(px, py, ts, ts);
+
+    // Top face (3D effect)
+    const aboveExposed = inBounds(x, y - 1) && map[y - 1] && (map[y - 1][x] === TILE.FLOOR || map[y - 1][x] === TILE.CORRIDOR || map[y - 1][x] === TILE.DOOR);
+    if (!aboveExposed) {
+      ctx.fillStyle = theme.wallTop;
+      ctx.fillRect(px, py, ts, ts * 0.4);
+    }
+
+    // Detail lines
+    if (theme.wallDetail) {
+      ctx.fillStyle = 'rgba(0,0,0,0.15)';
+      if ((x + y) % 3 === 0) {
+        ctx.fillRect(px + 2, py + ts * 0.5, ts - 4, 1);
+      }
+      if ((x * 7 + y * 13) % 5 === 0) {
+        ctx.fillRect(px + ts * 0.5, py + 2, 1, ts - 4);
+      }
+    }
+
+    // Border
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(px, py + ts - 1, ts, 1);
+    ctx.fillRect(px + ts - 1, py, 1, ts);
+  }
+
+  function drawFloor(ctx, px, py, ts, x, y, theme) {
+    ctx.fillStyle = (x + y) % 2 === 0 ? theme.floor : theme.floorAlt;
+    ctx.fillRect(px, py, ts, ts);
+
+    if (theme.floorPattern === 'stone') {
+      // Subtle stone cracks
+      if ((x * 17 + y * 31) % 7 === 0) {
+        ctx.fillStyle = 'rgba(255,255,255,0.03)';
+        ctx.fillRect(px + 1, py + 1, ts - 2, ts - 2);
+      }
+      if ((x * 13 + y * 23) % 11 === 0) {
+        ctx.fillStyle = 'rgba(0,0,0,0.1)';
+        ctx.fillRect(px + 3, py + 5, 6, 1);
+      }
+    } else if (theme.floorPattern === 'dirt') {
+      if ((x * 7 + y * 19) % 5 === 0) {
+        ctx.fillStyle = 'rgba(100,80,40,0.08)';
+        ctx.beginPath();
+        ctx.arc(px + 6, py + 6, 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (theme.floorPattern === 'grid') {
+      ctx.strokeStyle = 'rgba(100,140,200,0.08)';
+      ctx.lineWidth = 0.5;
+      ctx.strokeRect(px + 0.5, py + 0.5, ts - 1, ts - 1);
+      if ((x + y) % 4 === 0) {
+        ctx.fillStyle = 'rgba(50,160,255,0.04)';
+        ctx.fillRect(px + 2, py + 2, ts - 4, ts - 4);
+      }
+    }
+  }
+
+  function drawCorridor(ctx, px, py, ts, x, y, theme) {
+    ctx.fillStyle = theme.corridor;
+    ctx.fillRect(px, py, ts, ts);
+
+    if (theme.floorPattern === 'grid') {
+      ctx.strokeStyle = 'rgba(100,140,200,0.06)';
+      ctx.lineWidth = 0.5;
+      ctx.strokeRect(px + 0.5, py + 0.5, ts - 1, ts - 1);
+    }
+  }
+
+  function drawDoor(ctx, px, py, ts, x, y, theme) {
+    ctx.fillStyle = theme.corridor;
+    ctx.fillRect(px, py, ts, ts);
+
+    // Door frame
+    ctx.fillStyle = theme.doorFrame;
+    ctx.fillRect(px, py, ts, 2);
+    ctx.fillRect(px, py + ts - 2, ts, 2);
+    ctx.fillRect(px, py, 2, ts);
+    ctx.fillRect(px + ts - 2, py, 2, ts);
+
+    // Door
+    ctx.fillStyle = theme.door;
+    ctx.fillRect(px + 3, py + 3, ts - 6, ts - 6);
+
+    // Knob
+    ctx.fillStyle = theme.accent;
+    ctx.beginPath();
+    ctx.arc(px + ts * 0.6, py + ts * 0.5, 1.2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function renderMinimap(theme) {
+    const scale = Math.min(150 / mapW, 100 / mapH);
+    const mw = Math.floor(mapW * scale);
+    const mh = Math.floor(mapH * scale);
+    miniCanvas.width = mw;
+    miniCanvas.height = mh;
+
+    miniCtx.fillStyle = theme.void;
+    miniCtx.fillRect(0, 0, mw, mh);
+
+    for (let y = 0; y < mapH; y++) {
+      for (let x = 0; x < mapW; x++) {
+        const tile = map[y] ? map[y][x] : TILE.WALL;
+        if (tile === TILE.FLOOR) miniCtx.fillStyle = theme.floor;
+        else if (tile === TILE.CORRIDOR) miniCtx.fillStyle = theme.corridor;
+        else if (tile === TILE.DOOR) miniCtx.fillStyle = theme.door;
+        else continue;
+        miniCtx.fillRect(Math.floor(x * scale), Math.floor(y * scale),
+                         Math.ceil(scale), Math.ceil(scale));
+      }
+    }
+
+    // Viewport rectangle
+    const cw = canvas.width;
+    const ch = canvas.height;
+    const viewScale = tileSize / 12;
+    const vx = (-panX - cw / 2 + mapW * 12 / 2 * viewScale) / viewScale / 12 * scale;
+    const vy = (-panY - ch / 2 + mapH * 12 / 2 * viewScale) / viewScale / 12 * scale;
+    const vw = cw / viewScale / 12 * scale;
+    const vh = ch / viewScale / 12 * scale;
+
+    miniCtx.strokeStyle = theme.accent;
+    miniCtx.lineWidth = 1;
+    miniCtx.strokeRect(vx, vy, vw, vh);
+  }
+
+  // ========== ZOOM & PAN ==========
+  function zoomFit() {
+    const cw = canvas.parentElement.clientWidth;
+    const ch = canvas.parentElement.clientHeight;
+    const scaleX = cw / (mapW * 12);
+    const scaleY = ch / (mapH * 12);
+    tileSize = Math.floor(Math.min(scaleX, scaleY) * 12 * 0.92);
+    tileSize = Math.max(4, Math.min(48, tileSize));
+    panX = 0;
+    panY = 0;
+  }
+
+  function zoomIn() {
+    tileSize = Math.min(48, tileSize + 2);
+    render();
+  }
+
+  function zoomOut() {
+    tileSize = Math.max(4, tileSize - 2);
+    render();
+  }
+
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    if (e.deltaY < 0) tileSize = Math.min(48, tileSize + 1);
+    else tileSize = Math.max(4, tileSize - 1);
+    render();
+  }, { passive: false });
+
+  canvas.addEventListener('mousedown', (e) => {
+    isPanning = true;
+    panStart.x = e.clientX - panX;
+    panStart.y = e.clientY - panY;
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!isPanning) return;
+    panX = e.clientX - panStart.x;
+    panY = e.clientY - panStart.y;
+    render();
+  });
+
+  window.addEventListener('mouseup', () => { isPanning = false; });
+
+  // Touch pan
+  canvas.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 1) {
+      isPanning = true;
+      panStart.x = e.touches[0].clientX - panX;
+      panStart.y = e.touches[0].clientY - panY;
+    }
+  }, { passive: true });
+
+  canvas.addEventListener('touchmove', (e) => {
+    if (isPanning && e.touches.length === 1) {
+      panX = e.touches[0].clientX - panStart.x;
+      panY = e.touches[0].clientY - panStart.y;
+      render();
+    }
+  }, { passive: true });
+
+  canvas.addEventListener('touchend', () => { isPanning = false; });
+
+  // ========== STATS ==========
+  function updateStats(seed) {
+    document.getElementById('stat-rooms').textContent = rooms.length || '-';
+    let floorCount = 0;
+    for (let y = 0; y < mapH; y++)
+      for (let x = 0; x < mapW; x++)
+        if (map[y][x] !== TILE.WALL && map[y][x] !== TILE.VOID) floorCount++;
+    document.getElementById('stat-tiles').textContent = floorCount;
+    document.getElementById('stat-seed').textContent = seed;
+    document.getElementById('seed-display').textContent = 'Seed: ' + seed;
+    currentSeed = seed;
+  }
+
+  function copySeed() {
+    navigator.clipboard.writeText(String(currentSeed)).catch(() => {});
+    const el = document.getElementById('seed-display');
+    el.textContent = 'Copied!';
+    setTimeout(() => { el.textContent = 'Seed: ' + currentSeed; }, 1000);
+  }
+
+  // ========== EXPORT ==========
+  function exportPNG() {
+    const theme = getTheme();
+    const ts = 12;
+    const offscreen = document.createElement('canvas');
+    offscreen.width = mapW * ts;
+    offscreen.height = mapH * ts;
+    const octx = offscreen.getContext('2d');
+
+    octx.fillStyle = theme.void;
+    octx.fillRect(0, 0, offscreen.width, offscreen.height);
+
+    for (let y = 0; y < mapH; y++) {
+      for (let x = 0; x < mapW; x++) {
+        const tile = map[y] ? map[y][x] : TILE.WALL;
+        const px = x * ts;
+        const py = y * ts;
+        switch (tile) {
+          case TILE.WALL: drawWall(octx, px, py, ts, x, y, theme); break;
+          case TILE.FLOOR: drawFloor(octx, px, py, ts, x, y, theme); break;
+          case TILE.CORRIDOR: drawCorridor(octx, px, py, ts, x, y, theme); break;
+          case TILE.DOOR: drawDoor(octx, px, py, ts, x, y, theme); break;
+          default:
+            octx.fillStyle = theme.void;
+            octx.fillRect(px, py, ts, ts);
+        }
+      }
+    }
+
+    offscreen.toBlob(blob => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'dungeon-' + currentSeed + '.png';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    });
+  }
+
+  function exportJSON() {
+    const tileNames = ['void', 'wall', 'floor', 'corridor', 'door'];
+    const data = {
+      seed: currentSeed,
+      width: mapW,
+      height: mapH,
+      algorithm: document.getElementById('opt-algo').value,
+      theme: document.getElementById('opt-theme').value,
+      rooms: rooms.map(r => ({ x: r.x, y: r.y, width: r.w, height: r.h })),
+      doors: doors.map(d => ({ x: d.x, y: d.y })),
+      tiles: []
+    };
+    for (let y = 0; y < mapH; y++) {
+      const row = [];
+      for (let x = 0; x < mapW; x++) {
+        row.push(map[y] ? map[y][x] : 0);
+      }
+      data.tiles.push(row);
+    }
+
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'dungeon-' + currentSeed + '.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  // ========== UI WIRING ==========
+  function togglePanel(header) {
+    header.parentElement.classList.toggle('collapsed');
+  }
+
+  // Range sliders -> value badges
+  document.querySelectorAll('input[type="range"]').forEach(input => {
+    const badge = document.getElementById('val-' + input.id.replace('opt-', ''));
+    if (!badge) return;
+    const update = () => {
+      let v = input.value;
+      if (input.id === 'opt-turn') v += '%';
+      badge.textContent = v;
+    };
+    input.addEventListener('input', update);
+    update();
+  });
+
+  // Algorithm toggle - show/hide relevant panels
+  document.getElementById('opt-algo').addEventListener('change', function() {
+    const isDrunkard = this.value === 'drunkard';
+    document.getElementById('panel-rooms').style.display = isDrunkard ? 'none' : '';
+    document.getElementById('panel-drunkard').style.display = isDrunkard ? '' : 'none';
+  });
+
+  // Resize handler
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => render(), 100);
+  });
+
+  // Keyboard shortcuts
+  window.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+    if (e.key === 'g' || e.key === 'G') { generate(); e.preventDefault(); }
+    if (e.key === 'n' || e.key === 'N') { randomSeed(); generate(); e.preventDefault(); }
+    if (e.key === 'f' || e.key === 'F') { zoomFit(); render(); e.preventDefault(); }
+    if (e.key === '=' || e.key === '+') { zoomIn(); e.preventDefault(); }
+    if (e.key === '-') { zoomOut(); e.preventDefault(); }
+  });
+
+  // Expose to onclick handlers
+  window.generate = generate;
+  window.randomSeed = randomSeed;
+  window.exportPNG = exportPNG;
+  window.exportJSON = exportJSON;
+  window.togglePanel = togglePanel;
+  window.copySeed = copySeed;
+  window.zoomIn = zoomIn;
+  window.zoomOut = zoomOut;
+  window.zoomFit = zoomFit;
+  window.cancelGeneration = cancelGeneration;
+
+  // Initial generation
+  generate();
+
+})();
+</script>
+</body>
+</html>
