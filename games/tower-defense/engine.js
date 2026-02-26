@@ -49,11 +49,24 @@
   var totalKills     = 0;
   var totalGoldEarned = 0;
 
+  // Kill streak / combo
+  var killStreak     = 0;
+  var lastKillTime   = 0;     // timestamp in seconds
+  var comboDisplay   = '';    // e.g. "5x COMBO!"
+  var comboTimer     = 0;     // fade-out countdown (1.5s)
+  var comboScale     = 1;     // font scale factor
+  var comboColor     = '#ffffff';
+
+  // Screen flash
+  var flashColor   = 'rgba(255,255,255,0)';
+  var flashAlpha   = 0;
+  var flashDecay   = 0;       // alpha units per second
+
   // Camera
   var cam = { x: 0, y: 0, w: 0, h: 0 };
 
   // Screen shake
-  var shakeX = 0, shakeY = 0, shakeMag = 0, shakeTimer = 0;
+  var shakeX = 0, shakeY = 0, shakeMag = 0, shakeTimer = 0, shakeDuration = 0.3;
 
   // Placement
   var placementMode  = false;
@@ -67,6 +80,128 @@
   var towerPlaceCount = 0;
   var tipTimer       = 0;
   var tipText        = '';
+
+  // ─────────────────────────── Mana & Abilities ──────────────────────────
+  var manaMax        = 100;
+  var MANA_REGEN     = 1;        // per second during combat
+  var MANA_PER_KILL  = 2;
+  var MANA_PER_BOSS  = 15;
+
+  var ABILITIES = {
+    meteor: {
+      name: 'Meteor Strike', key: 'Q', icon: '\u2604\uFE0F',
+      cost: 30, cooldown: 15, targeting: 'ground', radius: 2.5,
+      desc: '200 AoE fire damage',
+      cast: function (wx, wy) {
+        var r = ABILITIES.meteor.radius * CELL;
+        FX.spawnExplosion({ x: wx, y: wy, radius: r, element: 'fire', duration: 0.6 });
+        addScreenShake(5);
+        // Burst of extra fire particles
+        FX.spawnParticles({
+          x: wx, y: wy, count: 30, color: '#ff8800',
+          size: 4, speed: 180, lifetime: 0.5, gravity: 80, spread: Math.PI * 2
+        });
+        for (var i = 0; i < enemies.length; i++) {
+          var e = enemies[i];
+          if (e.dead) continue;
+          var dist = Math.hypot(e.x - wx, e.y - wy);
+          if (dist <= r) {
+            var dmg = Enemies.applyDamage(e, 200, 0);
+            FX.spawnDamageNumber({ x: e.x, y: e.y - 20, amount: dmg, color: '#ff4422' });
+            Enemies.applyStatus(e, { type: 'burn', intensity: 10, duration: 3 });
+            checkEnemyDeath(e);
+          }
+        }
+        Audio.abilityCast();
+      }
+    },
+    blizzard: {
+      name: 'Blizzard', key: 'W', icon: '\u2744\uFE0F',
+      cost: 25, cooldown: 12, targeting: 'ground', radius: 3,
+      desc: '60% slow for 4s',
+      cast: function (wx, wy) {
+        var r = ABILITIES.blizzard.radius * CELL;
+        FX.spawnAura({ x: wx, y: wy, radius: r, element: 'ice', duration: 1.5, pulseSpeed: 4 });
+        FX.spawnParticles({
+          x: wx, y: wy, count: 40, color: '#aaeeff',
+          size: 3, speed: 100, lifetime: 0.8, gravity: -20, spread: Math.PI * 2
+        });
+        for (var i = 0; i < enemies.length; i++) {
+          var e = enemies[i];
+          if (e.dead) continue;
+          var dist = Math.hypot(e.x - wx, e.y - wy);
+          if (dist <= r) {
+            Enemies.applyStatus(e, { type: 'slow', intensity: 0.6, duration: 4 });
+            FX.spawnDamageNumber({ x: e.x, y: e.y - 20, amount: 'SLOW', color: '#44ccff' });
+          }
+        }
+        Audio.abilityCast();
+      }
+    },
+    heal: {
+      name: 'Nexus Heal', key: 'E', icon: '\u{1F49A}',
+      cost: 40, cooldown: 30, targeting: 'instant', radius: 0,
+      desc: 'Restore 15 nexus HP',
+      cast: function () {
+        var restored = Math.min(15, Map.nexus.maxHp - Map.nexus.hp);
+        Map.nexus.hp = Math.min(Map.nexus.hp + 15, Map.nexus.maxHp);
+        FX.spawnAura({ x: Map.nexus.x, y: Map.nexus.y, radius: 60, element: 'nature', duration: 1.5, pulseSpeed: 3 });
+        FX.spawnParticles({
+          x: Map.nexus.x, y: Map.nexus.y, count: 20, color: '#88ff99',
+          size: 3, speed: 60, lifetime: 0.7, gravity: -40, spread: Math.PI * 2
+        });
+        FX.spawnDamageNumber({ x: Map.nexus.x, y: Map.nexus.y - 30, amount: '+' + restored, color: '#44cc66' });
+        Audio.abilityCast();
+      }
+    },
+    lightning: {
+      name: 'Lightning Storm', key: 'R', icon: '\u26A1',
+      cost: 35, cooldown: 20, targeting: 'global', radius: 0,
+      desc: '5 bolts hit random enemies for 80 dmg',
+      cast: function () {
+        var alive = [];
+        for (var i = 0; i < enemies.length; i++) {
+          if (!enemies[i].dead) alive.push(enemies[i]);
+        }
+        if (alive.length === 0) return;
+        var bolts = Math.min(5, alive.length);
+        // Shuffle and pick targets
+        for (var b = 0; b < bolts; b++) {
+          var idx = Math.floor(Math.random() * alive.length);
+          var target = alive[idx];
+          // Chain lightning visual from sky to target
+          var skyX = target.x + (Math.random() - 0.5) * 60;
+          var skyY = target.y - 300 - Math.random() * 100;
+          FX.spawnChain({
+            points: [
+              { x: skyX, y: skyY },
+              { x: skyX + (Math.random() - 0.5) * 40, y: skyY + 100 },
+              { x: target.x + (Math.random() - 0.5) * 20, y: target.y - 50 },
+              { x: target.x, y: target.y }
+            ],
+            element: 'lightning',
+            duration: 0.4
+          });
+          var dmg = Enemies.applyDamage(target, 80, 0);
+          FX.spawnDamageNumber({ x: target.x, y: target.y - 20, amount: dmg, color: '#ffee44' });
+          FX.spawnExplosion({ x: target.x, y: target.y, radius: 20, element: 'lightning', duration: 0.3 });
+          checkEnemyDeath(target);
+          // Remove dead ones from pool so we don't re-target
+          if (target.dead || target.hp <= 0) {
+            alive.splice(idx, 1);
+            if (alive.length === 0) break;
+          }
+        }
+        addScreenShake(3);
+        Audio.abilityCast();
+      }
+    }
+  };
+
+  var ABILITY_ORDER = ['meteor', 'blizzard', 'heal', 'lightning'];
+  var abilityCooldowns = { meteor: 0, blizzard: 0, heal: 0, lightning: 0 };
+  var abilityTargeting  = null;   // null or ability id string
+  var abilityMouseX = 0, abilityMouseY = 0;
 
   // Wave banner animation
   var bannerTimer    = 0;
@@ -244,6 +379,15 @@
         osc('sawtooth', 300, 0.4, 0.10);
         setTimeout(function () { osc('sawtooth', 200, 0.5, 0.08); }, 200);
         setTimeout(function () { osc('sawtooth', 120, 0.7, 0.06); }, 450);
+      },
+      abilityCast: function () {
+        init();
+        // Ascending chord: C5, E5, G5, C6
+        osc('sine', 523, 0.15, 0.10);
+        setTimeout(function () { osc('sine', 659, 0.15, 0.09); }, 40);
+        setTimeout(function () { osc('sine', 784, 0.15, 0.08); }, 80);
+        setTimeout(function () { osc('sine', 1047, 0.2, 0.10); }, 120);
+        noise(0.08, 0.03);
       },
       victory: function () {
         init();
@@ -548,6 +692,128 @@
   }
   buildTowerPanel();
 
+  // ─────────────────────────── Ability Bar Build ─────────────────────────
+  var $abilityBar = document.getElementById('ability-bar');
+
+  function buildAbilityBar() {
+    if (!$abilityBar) return;
+    $abilityBar.innerHTML = '';
+    for (var i = 0; i < ABILITY_ORDER.length; i++) {
+      var aid = ABILITY_ORDER[i];
+      var A = ABILITIES[aid];
+      var btn = document.createElement('div');
+      btn.className = 'ability-card';
+      btn.dataset.abilityId = aid;
+      btn.innerHTML =
+        '<span class="ab-key">' + A.key + '</span>' +
+        '<div class="ab-icon">' + A.icon + '</div>' +
+        '<div class="ab-name">' + A.name + '</div>' +
+        '<div class="ab-cost">' + A.cost + ' mana</div>' +
+        '<div class="ab-cd-overlay"></div>' +
+        '<div class="ab-cd-text"></div>';
+      btn.addEventListener('click', (function (id) {
+        return function () { startAbility(id); };
+      })(aid));
+      $abilityBar.appendChild(btn);
+    }
+  }
+  buildAbilityBar();
+
+  function updateAbilityBar() {
+    if (!$abilityBar) return;
+    var cards = $abilityBar.querySelectorAll('.ability-card');
+    for (var i = 0; i < cards.length; i++) {
+      var aid = cards[i].dataset.abilityId;
+      var A = ABILITIES[aid];
+      var cd = abilityCooldowns[aid];
+      var canCast = mana >= A.cost && cd <= 0 && state === 'wave';
+      var cdOverlay = cards[i].querySelector('.ab-cd-overlay');
+      var cdText = cards[i].querySelector('.ab-cd-text');
+
+      if (cd > 0) {
+        cards[i].classList.add('on-cooldown');
+        cards[i].classList.remove('active');
+        var pct = cd / A.cooldown;
+        cdOverlay.style.height = (pct * 100) + '%';
+        cdText.textContent = Math.ceil(cd) + 's';
+      } else {
+        cards[i].classList.remove('on-cooldown');
+        cdOverlay.style.height = '0%';
+        cdText.textContent = '';
+      }
+
+      if (!canCast) {
+        cards[i].classList.add('disabled');
+      } else {
+        cards[i].classList.remove('disabled');
+      }
+
+      if (abilityTargeting === aid) {
+        cards[i].classList.add('active');
+      } else {
+        cards[i].classList.remove('active');
+      }
+    }
+  }
+
+  // ─────────────────────────── Ability Targeting ─────────────────────────
+  function startAbility(abilityId) {
+    var A = ABILITIES[abilityId];
+    if (!A) return;
+    if (state !== 'wave') return;
+    if (mana < A.cost) return;
+    if (abilityCooldowns[abilityId] > 0) return;
+
+    if (A.targeting === 'instant' || A.targeting === 'global') {
+      // Cast immediately
+      castAbility(abilityId);
+      return;
+    }
+
+    // Enter targeting mode
+    if (abilityTargeting === abilityId) {
+      cancelAbilityTargeting();
+      return;
+    }
+    abilityTargeting = abilityId;
+    cancelPlacement(); // exit tower placement mode
+    deselectTower();
+    updateAbilityBar();
+  }
+
+  function cancelAbilityTargeting() {
+    abilityTargeting = null;
+    updateAbilityBar();
+  }
+
+  function castAbility(abilityId, wx, wy) {
+    var A = ABILITIES[abilityId];
+    if (!A) return;
+    if (mana < A.cost) return;
+    if (abilityCooldowns[abilityId] > 0) return;
+
+    mana -= A.cost;
+    abilityCooldowns[abilityId] = A.cooldown;
+
+    if (A.targeting === 'ground') {
+      A.cast(wx, wy);
+    } else {
+      A.cast();
+    }
+
+    abilityTargeting = null;
+    updateManaDisplay();
+    updateAbilityBar();
+  }
+
+  function updateAbilityCooldowns(dt) {
+    for (var id in abilityCooldowns) {
+      if (abilityCooldowns[id] > 0) {
+        abilityCooldowns[id] = Math.max(0, abilityCooldowns[id] - dt);
+      }
+    }
+  }
+
   function updateTowerPanelAffordability() {
     var cards = $towerPanel.querySelectorAll('.tower-card');
     for (var i = 0; i < cards.length; i++) {
@@ -818,15 +1084,16 @@
   }
 
   // ─────────────────────────── Screen Shake ────────────────────────────
-  function addScreenShake(amount) {
+  function addScreenShake(amount, duration) {
     shakeMag = Math.min(shakeMag + amount, 15);
-    shakeTimer = 0.3;
+    shakeDuration = duration || 0.3;
+    shakeTimer = shakeDuration;
   }
 
   function updateShake(dt) {
     if (shakeTimer > 0) {
       shakeTimer -= dt;
-      var t = Math.max(0, shakeTimer / 0.3);
+      var t = Math.max(0, shakeTimer / (shakeDuration || 0.3));
       var mag = shakeMag * t;
       shakeX = (Math.random() * 2 - 1) * mag;
       shakeY = (Math.random() * 2 - 1) * mag;
@@ -834,6 +1101,76 @@
       shakeX = 0;
       shakeY = 0;
       shakeMag = 0;
+    }
+  }
+
+  // ─────────────────────────── Screen Flash ──────────────────────────
+  function addScreenFlash(r, g, b, alpha, fadeMs) {
+    flashColor = 'rgb(' + r + ',' + g + ',' + b + ')';
+    flashAlpha = alpha;
+    flashDecay = alpha / (fadeMs / 1000);
+  }
+
+  function updateFlash(dt) {
+    if (flashAlpha > 0) {
+      flashAlpha -= flashDecay * dt;
+      if (flashAlpha < 0) flashAlpha = 0;
+    }
+  }
+
+  // ─────────────────────────── Kill Streak / Combo ───────────────────
+  var STREAK_MILESTONES = [3, 5, 10, 15, 25];
+  var STREAK_COLORS     = ['#ffffff', '#ffdd44', '#ff8800', '#ff3333', '#bb44ff'];
+  var STREAK_BONUSES    = { 5: 5, 10: 15, 25: 50 };
+
+  function registerKill(gameTime) {
+    var elapsed = gameTime - lastKillTime;
+    if (elapsed > 2) {
+      killStreak = 0;
+    }
+    killStreak++;
+    lastKillTime = gameTime;
+
+    // Check milestones
+    var milestoneIdx = -1;
+    for (var i = STREAK_MILESTONES.length - 1; i >= 0; i--) {
+      if (killStreak >= STREAK_MILESTONES[i]) {
+        milestoneIdx = i;
+        break;
+      }
+    }
+
+    if (milestoneIdx >= 0) {
+      comboDisplay = killStreak + 'x COMBO!';
+      comboTimer = 1.5;
+      comboScale = 1 + milestoneIdx * 0.25;
+      comboColor = STREAK_COLORS[milestoneIdx];
+    }
+
+    // Streak gold bonus
+    var bonus = STREAK_BONUSES[killStreak];
+    if (bonus) {
+      gold += bonus;
+      totalGoldEarned += bonus;
+      updateGoldDisplay();
+      // Green floating text near top center
+      var vw = window.innerWidth;
+      FX.spawnDamageNumber({
+        x: vw / 2 + cam.x - shakeX,
+        y: 80 + cam.y - shakeY,
+        amount: '+' + bonus + ' STREAK BONUS',
+        color: '#44ff66'
+      });
+    }
+  }
+
+  function updateCombo(dt) {
+    if (comboTimer > 0) {
+      comboTimer -= dt;
+      if (comboTimer <= 0) {
+        comboDisplay = '';
+        comboTimer = 0;
+      }
     }
   }
 
@@ -882,7 +1219,7 @@
     $goldDisplay.textContent = gold;
   }
   function updateManaDisplay() {
-    $manaDisplay.textContent = Math.floor(mana);
+    $manaDisplay.textContent = Math.floor(mana) + '/' + manaMax;
   }
   function updateWaveDisplay() {
     $waveDisplay.textContent = 'Wave ' + currentWave + '/' + totalWaves;
@@ -893,6 +1230,7 @@
     updateManaDisplay();
     updateWaveDisplay();
     updateTowerPanelAffordability();
+    updateAbilityBar();
 
     // Nexus HP display in wave sub
     var hp = Map.nexus.hp;
@@ -938,7 +1276,15 @@
     placementType = null;
     shakeMag = 0;
     shakeTimer = 0;
+    shakeDuration = 0.3;
     bannerTimer = 0;
+    abilityTargeting = null;
+    abilityCooldowns = { meteor: 0, blizzard: 0, heal: 0, lightning: 0 };
+    killStreak = 0;
+    lastKillTime = 0;
+    comboDisplay = '';
+    comboTimer = 0;
+    flashAlpha = 0;
 
     Map.init();
     FX.clear();
@@ -1294,7 +1640,7 @@
       Audio.bossAbility();
       if (ability === 'fireNova') {
         FX.spawnExplosion({ x: data.x, y: data.y, radius: data.radius || 100, element: 'fire', duration: 0.6 });
-        addScreenShake(6);
+        addScreenShake(2, 0.2);
       } else if (ability === 'massHeal') {
         FX.spawnAura({ x: enemy.x, y: enemy.y, radius: 200, element: 'nature', duration: 1.5, pulseSpeed: 3 });
         FX.spawnDamageNumber({ x: enemy.x, y: enemy.y - 30, amount: Math.round((data.percent || 0.15) * 100) + '%', color: '#44ff66' });
@@ -1321,11 +1667,19 @@
     totalGoldEarned += goldReward;
     totalKills++;
 
+    // Mana on kill
+    var manaReward = (enemy.type.behavior === 'boss') ? MANA_PER_BOSS : MANA_PER_KILL;
+    mana = Math.min(manaMax, mana + manaReward);
+
     // Credit kill to the tower that last hit this enemy
     if (enemy._lastHitTowerId) {
       var killer = findTowerById(enemy._lastHitTowerId);
       if (killer) killer.totalKills++;
     }
+
+    // Kill streak tracking
+    var gameTime = performance.now() / 1000;
+    registerKill(gameTime);
 
     var result = FX.spawnDeathEffect({
       x: enemy.x, y: enemy.y,
@@ -1333,6 +1687,12 @@
       color: enemy.type.color || '#ff4444'
     });
     if (result && result.shakeAmount) addScreenShake(result.shakeAmount);
+
+    // Boss death: heavy shake + white flash
+    if (enemy.type.behavior === 'boss') {
+      addScreenShake(6, 0.5);
+      addScreenFlash(255, 255, 255, 0.3, 150);
+    }
 
     Audio.enemyDeath();
     enemy.dead = true;
@@ -1342,7 +1702,8 @@
   function handleNexusHit(enemy, damage) {
     Map.nexus.hp -= damage;
     Audio.nexusHit();
-    addScreenShake(4);
+    addScreenShake(4, 0.3);
+    addScreenFlash(255, 50, 50, 0.2, 200);
     FX.spawnExplosion({
       x: Map.nexus.x, y: Map.nexus.y,
       radius: 30,
@@ -1433,8 +1794,13 @@
     // Tip timer
     if (tipTimer > 0) tipTimer -= dt;
 
-    // Mana regen
-    mana += 1 * dt;
+    // Ability cooldowns tick in all active states
+    updateAbilityCooldowns(dt);
+
+    // Mana regen (only during combat)
+    if (state === 'wave') {
+      mana = Math.min(manaMax, mana + MANA_REGEN * dt);
+    }
 
     // Weather & environment effects update
     Weather.update(dt);
@@ -1443,6 +1809,8 @@
       // Transitional state between wave complete and next build phase
       FX.updateAll(dt);
       updateShake(dt);
+      updateFlash(dt);
+      updateCombo(dt);
       updateBanner(dt);
       updateHUD();
       return;
@@ -1470,6 +1838,8 @@
       // FX still animate during build
       FX.updateAll(dt);
       updateShake(dt);
+      updateFlash(dt);
+      updateCombo(dt);
       updateBanner(dt);
       updateHUD();
       return;
@@ -1524,6 +1894,8 @@
     }
 
     updateShake(dt);
+    updateFlash(dt);
+    updateCombo(dt);
     updateBanner(dt);
     updateHUD();
   }
@@ -1613,6 +1985,11 @@
       drawPlacementGhost(ctx, time);
     }
 
+    // Ability targeting circle
+    if (abilityTargeting && mouseOnCanvas) {
+      drawAbilityTargeting(ctx, time);
+    }
+
     // Synergy lines
     drawSynergyLines(ctx, time);
 
@@ -1632,6 +2009,37 @@
 
     // ── Day/Night overlay (screen space, after all world rendering) ──
     Weather.drawOverlay(ctx, vw, vh, time);
+    // ── Combo counter display (screen space, above enemies, below HUD) ──
+    if (comboTimer > 0 && comboDisplay) {
+      var comboAlpha = comboTimer > 0.5 ? 1 : comboTimer / 0.5;
+      var fontSize = Math.round(36 * comboScale);
+      ctx.save();
+      ctx.globalAlpha = comboAlpha;
+      ctx.font = 'bold ' + fontSize + 'px "Cinzel", "Crimson Text", serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      // Glow
+      ctx.shadowColor = comboColor;
+      ctx.shadowBlur = 20;
+      // Outline
+      ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+      ctx.lineWidth = 4;
+      ctx.strokeText(comboDisplay, vw / 2, vh * 0.35);
+      // Fill
+      ctx.fillStyle = comboColor;
+      ctx.fillText(comboDisplay, vw / 2, vh * 0.35);
+      ctx.shadowBlur = 0;
+      ctx.restore();
+    }
+
+    // ── Screen flash overlay ──
+    if (flashAlpha > 0.001) {
+      ctx.save();
+      ctx.globalAlpha = flashAlpha;
+      ctx.fillStyle = flashColor;
+      ctx.fillRect(0, 0, vw, vh);
+      ctx.restore();
+    }
 
     // ── Tip toast (screen space) ──
     if (tipTimer > 0) {
@@ -1766,6 +2174,43 @@
     ctx.restore();
   }
 
+  // ─────────────────────────── Ability Targeting Cursor ────────────────
+  function drawAbilityTargeting(ctx, time) {
+    if (!abilityTargeting) return;
+    var A = ABILITIES[abilityTargeting];
+    if (!A || A.targeting !== 'ground') return;
+
+    var worldX = mouseX + cam.x - shakeX;
+    var worldY = mouseY + cam.y - shakeY;
+    var radius = A.radius * CELL;
+    var pulse = 0.3 + 0.15 * Math.sin(time * 5);
+
+    ctx.save();
+    // Filled circle
+    ctx.beginPath();
+    ctx.arc(worldX, worldY, radius, 0, Math.PI * 2);
+    var element = abilityTargeting === 'meteor' ? 'fire' : 'ice';
+    var color = abilityTargeting === 'meteor' ? '255,68,34' : '68,204,255';
+    ctx.fillStyle = 'rgba(' + color + ',' + (pulse * 0.15) + ')';
+    ctx.fill();
+    // Border
+    ctx.strokeStyle = 'rgba(' + color + ',' + (pulse + 0.2) + ')';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // Center crosshair
+    ctx.strokeStyle = 'rgba(' + color + ',' + (pulse + 0.3) + ')';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(worldX - 8, worldY);
+    ctx.lineTo(worldX + 8, worldY);
+    ctx.moveTo(worldX, worldY - 8);
+    ctx.lineTo(worldX, worldY + 8);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   // ─────────────────────────── Synergy Lines ───────────────────────────
   function drawSynergyLines(ctx, time) {
     ctx.save();
@@ -1821,6 +2266,14 @@
 
     updateMouseGrid(e.clientX, e.clientY);
 
+    // Ability targeting takes priority
+    if (abilityTargeting) {
+      var worldX = e.clientX + cam.x - shakeX;
+      var worldY = e.clientY + cam.y - shakeY;
+      castAbility(abilityTargeting, worldX, worldY);
+      return;
+    }
+
     if (placementMode) {
       if (mouseGridCol >= 0 && mouseGridCol < Map.MAP_COLS &&
           mouseGridRow >= 0 && mouseGridRow < Map.MAP_ROWS) {
@@ -1840,7 +2293,9 @@
 
   canvas.addEventListener('contextmenu', function (e) {
     e.preventDefault();
-    if (placementMode) {
+    if (abilityTargeting) {
+      cancelAbilityTargeting();
+    } else if (placementMode) {
       cancelPlacement();
     } else {
       deselectTower();
@@ -1854,6 +2309,14 @@
     var t = e.touches[0];
     mouseOnCanvas = true;
     updateMouseGrid(t.clientX, t.clientY);
+
+    // Ability targeting
+    if (abilityTargeting) {
+      var worldX = t.clientX + cam.x - shakeX;
+      var worldY = t.clientY + cam.y - shakeY;
+      castAbility(abilityTargeting, worldX, worldY);
+      return;
+    }
 
     if (placementMode) {
       if (mouseGridCol >= 0 && mouseGridCol < Map.MAP_COLS &&
@@ -1905,6 +2368,19 @@
     }
 
     switch (key.toLowerCase()) {
+      case 'q':
+        if (state === 'wave') startAbility('meteor');
+        break;
+      case 'w':
+        if (state === 'wave') startAbility('blizzard');
+        break;
+      case 'e':
+        if (state === 'wave') startAbility('heal');
+        break;
+      case 'r':
+        if (state === 'wave') startAbility('lightning');
+        break;
+
       case 'u':
         // Upgrade path A
         if (selectedTower && selectedTower.tier < 3) {
@@ -1941,7 +2417,9 @@
         break;
 
       case 'escape':
-        if (placementMode) {
+        if (abilityTargeting) {
+          cancelAbilityTargeting();
+        } else if (placementMode) {
           cancelPlacement();
         } else if (selectedTower) {
           deselectTower();
