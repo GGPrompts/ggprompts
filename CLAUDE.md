@@ -18,16 +18,6 @@ A collection of CSS design system showcases, interactive educational stories, st
 │       └── index.html      # Story file (may include media assets alongside)
 ├── techguides/             # 47 styled developer reference docs
 │   └── CLAUDE.md           # How to build tech guides
-├── slides/                 # HTML presentation viewer & editor
-│   ├── CLAUDE.md           # How to build slide decks
-│   ├── index.html          # Hub page — lists presentations
-│   ├── view.html           # Presentation viewer (?deck=name)
-│   ├── edit.html           # Visual slide editor
-│   ├── engine.js           # Viewer engine (nav, transitions, rendering)
-│   ├── editor.js           # Editor engine (drag, resize, text editing)
-│   ├── themes/             # Theme JS modules (default, graffiti, cyberpunk)
-│   ├── assets/             # Deck images (prefix with deck name)
-│   └── decks/              # JSON presentation files
 ├── music/                  # Chiptune music studio (Mozart's Study)
 │   ├── CLAUDE.md           # How to use the music section
 │   ├── index.html          # Hub page — song browser + tool links
@@ -40,11 +30,21 @@ A collection of CSS design system showcases, interactive educational stories, st
 ├── tools/                  # Creative tools (interactive editors)
 │   ├── CLAUDE.md           # How to build tools
 │   ├── index.html          # Hub page (Rococo-themed card grid)
-│   └── animator/           # Stick Figure Animation Studio
-│       ├── index.html      # Editor (Darkroom-themed, full app)
-│       ├── animator-engine.js  # Figure management, IK, keyframes, undo
-│       ├── timeline.js     # Timeline UI with scrubber + playback
-│       └── gif-export.js   # Pure-JS GIF encoder (LZW + quantizer)
+│   ├── animator/           # Stick Figure Animation Studio
+│   │   ├── index.html      # Editor (Darkroom-themed, full app)
+│   │   ├── animator-engine.js  # Figure management, IK, keyframes, undo
+│   │   ├── timeline.js     # Timeline UI with scrubber + playback
+│   │   └── gif-export.js   # Pure-JS GIF encoder (LZW + quantizer)
+│   └── slides/             # HTML presentation viewer & editor
+│       ├── CLAUDE.md       # How to build slide decks
+│       ├── index.html      # Hub page — lists presentations
+│       ├── view.html       # Presentation viewer (?deck=name)
+│       ├── edit.html       # Visual slide editor
+│       ├── engine.js       # Viewer engine (nav, transitions, rendering)
+│       ├── editor.js       # Editor engine (drag, resize, text editing)
+│       ├── themes/         # Theme JS modules (default, graffiti, cyberpunk)
+│       ├── assets/         # Deck images (prefix with deck name)
+│       └── decks/          # JSON presentation files
 └── games/                  # Browser games (modular JS)
     ├── casino-audio-engine.js  # Shared CasinoAudio for casino games
     ├── casino-theme.css        # Shared Vegas palette for casino games

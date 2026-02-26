@@ -13,6 +13,16 @@ tools/
     animator-engine.js    # Core: figure CRUD, IK solver, keyframes, undo/redo, save/load
     timeline.js           # Timeline UI: keyframe strips, scrubber, playback
     gif-export.js         # Pure-JS GIF encoder (LZW + median-cut quantizer)
+  slides/                 # HTML presentation viewer & editor
+    CLAUDE.md             # Slide system docs (deck format, themes, images)
+    index.html            # Hub page — lists decks
+    view.html             # Presentation viewer (?deck=name)
+    edit.html             # Visual slide editor
+    engine.js             # Viewer engine (nav, transitions, rendering)
+    editor.js             # Editor engine (drag, resize, text editing)
+    themes/               # Theme JS modules (default, graffiti, cyberpunk)
+    assets/               # Deck images (prefix with deck name)
+    decks/                # JSON presentation files
 ```
 
 ## Stick Figure Animation Studio

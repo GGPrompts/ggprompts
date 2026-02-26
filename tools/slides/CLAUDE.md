@@ -51,10 +51,10 @@ Images are stored in `assets/` and referenced by relative path from the deck JSO
 
 ### Conventions
 
-- **Directory**: All deck images go in `slides/assets/`
+- **Directory**: All deck images go in `tools/slides/assets/`
 - **Naming**: Use kebab-case with the deck name as prefix: `demo-architecture.png`, `demo-screenshot.webp`
 - **Formats**: Prefer `.webp` or `.png`. Use `.svg` for diagrams where possible.
-- **Paths in JSON**: Always use `assets/filename.ext` (relative to `slides/`)
+- **Paths in JSON**: Always use `assets/filename.ext` (relative to `tools/slides/`)
 - **External URLs**: Also supported (`"src": "https://..."`) but prefer local assets for reliability on GitHub Pages
 - **Size**: Keep individual images under 1MB. Optimize before committing.
 
@@ -62,7 +62,7 @@ Images are stored in `assets/` and referenced by relative path from the deck JSO
 
 When creating or enhancing a deck with images:
 
-1. Place image files in `slides/assets/` with the deck-name prefix
+1. Place image files in `tools/slides/assets/` with the deck-name prefix
 2. Reference them in the deck JSON as `"src": "assets/deckname-description.ext"`
 3. Always include `alt` text for accessibility
 4. Set `"fit": "contain"` unless the image should crop (`"cover"`)
