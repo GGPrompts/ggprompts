@@ -24,7 +24,7 @@ const Physics = (() => {
             this.vy = opts.vy || 0;
             this.angle = opts.angle || 0;
             this.angularVel = 0;
-            this.mass = opts.mass || (w * h * 0.01);
+            this.mass = Math.max(0.01, opts.mass || (w * h * 0.01));
             this.invMass = opts.isStatic ? 0 : 1 / this.mass;
             this.isStatic = opts.isStatic || false;
             this.restitution = opts.restitution !== undefined ? opts.restitution : RESTITUTION;

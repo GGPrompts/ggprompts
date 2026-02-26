@@ -3,7 +3,7 @@
 // Run: node validate.js
 
 // Mock window for loading puzzles.js
-const window = {};
+globalThis.window = globalThis.window || {};
 require('./puzzles.js');
 const puzzles = window.Puzzles;
 

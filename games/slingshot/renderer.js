@@ -311,7 +311,7 @@ const Renderer = (() => {
     function drawProjectile(body, birdType) {
         const p = worldToScreen(body.x, body.y);
         const r = body.radius * scale;
-        const info = Levels.BIRDS[birdType];
+        const info = Levels.BIRDS[birdType] || Levels.BIRDS['normal'];
 
         ctx.save();
         ctx.translate(p.x, p.y);
@@ -484,7 +484,7 @@ const Renderer = (() => {
         for (let i = currentIndex; i < birds.length; i++) {
             const bx = startX + (i - currentIndex) * 40;
             const by = startY;
-            const info = Levels.BIRDS[birds[i]];
+            const info = Levels.BIRDS[birds[i]] || Levels.BIRDS['normal'];
             const r = i === currentIndex ? 14 : 10;
 
             ctx.fillStyle = info.color;

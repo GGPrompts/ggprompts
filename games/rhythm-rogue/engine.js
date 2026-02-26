@@ -102,7 +102,7 @@
       generateFloor(1);
       RhythmAudio.playSong();
       state = STATE.PLAYING;
-      ChipPlayer.onEnd(function () {
+      if (typeof ChipPlayer !== 'undefined' && typeof ChipPlayer.onEnd === 'function') ChipPlayer.onEnd(function () {
         // Song ended - if player is alive, they win
         if (RhythmEntities.player.alive) {
           state = STATE.VICTORY;

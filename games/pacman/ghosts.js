@@ -188,7 +188,7 @@
                 // 2 tiles ahead of pac-man, then double vector from blinky
                 const ahead2Col = px + dirV.dx * 2;
                 const ahead2Row = py + dirV.dy * 2;
-                const blinky = ghosts[0];
+                const blinky = ghosts.find(g => g.name === 'blinky') || ghosts[0];
                 const vecCol = ahead2Col - blinky.col;
                 const vecRow = ahead2Row - blinky.row;
                 return { col: ahead2Col + vecCol, row: ahead2Row + vecRow };

@@ -94,6 +94,8 @@ window.SketchEngine = (function () {
                 streak: streak
             });
         }
+        currentIndex++;
+        nextDrawing();
     }
 
     function submitGuess(guess) {
@@ -133,6 +135,8 @@ window.SketchEngine = (function () {
             };
 
             if (onDrawingEnd) onDrawingEnd(result);
+            currentIndex++;
+            nextDrawing();
             return result;
         }
 
@@ -153,6 +157,8 @@ window.SketchEngine = (function () {
                 streak: streak
             });
         }
+        currentIndex++;
+        nextDrawing();
     }
 
     function requestHint() {
@@ -170,7 +176,11 @@ window.SketchEngine = (function () {
                 break;
             case 2:
                 hint.type = 'letter';
-                hint.text = word.charAt(0).toUpperCase() + '_ '.repeat(word.length - 1).trim();
+                var blanks = [];
+                for (var i = 1; i < word.length; i++) {
+                    blanks.push(word[i] === ' ' ? ' ' : '_');
+                }
+                hint.text = word.charAt(0).toUpperCase() + ' ' + blanks.join(' ');
                 break;
             case 3:
                 hint.type = 'partial';
@@ -222,6 +232,10 @@ window.SketchEngine = (function () {
         return DRAWINGS_PER_ROUND;
     }
 
+    function getCurrentDrawing() {
+        return currentDrawing;
+    }
+
     function getCurrentWord() {
         return currentDrawing ? currentDrawing.word : '';
     }
@@ -259,6 +273,7 @@ window.SketchEngine = (function () {
         getTimeLeft: getTimeLeft,
         getScore: getScore,
         getStreak: getStreak,
+        getCurrentDrawing: getCurrentDrawing,
         getCurrentIndex: getCurrentIndex,
         getTotalDrawings: getTotalDrawings,
         getCurrentWord: getCurrentWord,

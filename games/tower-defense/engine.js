@@ -2119,10 +2119,8 @@
       // 6. Process projectile hits
       processProjectileHits();
 
-      // 7. Clean dead enemies from array periodically
-      if (Math.random() < 0.05) { // ~5% chance per frame to clean
-        enemies = enemies.filter(function (e) { return !e.dead && !e.reachedNexus; });
-      }
+      // 7. Clean dead enemies from array
+      enemies = enemies.filter(function (e) { return !e.dead && !e.reachedNexus; });
 
       // 8. Check wave completion
       checkWaveComplete();

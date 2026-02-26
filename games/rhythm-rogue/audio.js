@@ -137,7 +137,7 @@ var RhythmAudio = (function () {
       case 'coin':
         osc.type = 'square';
         osc.frequency.setValueAtTime(880, now);
-        osc.frequency.setValueAtTime(1320, now + 0.06);
+        osc.frequency.linearRampToValueAtTime(1320, now + 0.06);
         g.gain.setValueAtTime(0.2, now);
         g.gain.linearRampToValueAtTime(0, now + 0.12);
         osc.start(now);

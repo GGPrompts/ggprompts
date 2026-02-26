@@ -298,7 +298,7 @@
             this.currentAngle = targetAngle;
         }
 
-        this.angularVel = (this.currentAngle - prevAngle) / dt;
+        this.angularVel = dt > 0.0001 ? (this.currentAngle - prevAngle) / dt : 0;
     };
 
     window.PinballPhysics = {

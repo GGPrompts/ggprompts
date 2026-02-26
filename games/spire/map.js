@@ -12,7 +12,7 @@
   S.nodeIcon = type => ({
     combat: '\u2694',
     elite: '\uD83D\uDD25',
-    rest: '\uD83D\uDD25',
+    rest: '\u26FA',
     shop: '\uD83D\uDCB0',
     treasure: '\uD83C\uDF81',
     boss: '\uD83D\uDC80',

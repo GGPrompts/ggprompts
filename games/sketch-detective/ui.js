@@ -126,8 +126,7 @@ window.SketchUI = (function () {
     }
 
     function handleInput() {
-        var result = window.SketchEngine.submitGuess(els.guessInput.value);
-        // No shake on live input, only on Enter
+        // Only submit on Enter keypress, not on live input
     }
 
     function shakeInput() {
@@ -161,7 +160,8 @@ window.SketchUI = (function () {
     function handleNext() {
         clearTimeout(resultTimeout);
         showScreen('game');
-        var drawing = window.SketchEngine.advance();
+        // Drawing already advanced by engine after submitGuess/skip/timeout
+        var drawing = window.SketchEngine.getCurrentDrawing();
         if (drawing) {
             loadDrawing(drawing);
         }

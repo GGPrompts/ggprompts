@@ -662,6 +662,7 @@
 
   S.restUpgrade = () => {
     // Simplified: just go to map (upgrade system not implemented for MVP)
+    const state = S.state;
     state.phase = PHASE_MAP;
   };
 

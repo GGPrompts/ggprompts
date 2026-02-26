@@ -354,7 +354,7 @@ const Engine = (() => {
                         // No birds left, enemies remain
                         state = 'failed';
                         playSound('fail');
-                    } else {
+                    } else if (currentBirdIndex < birds.length) {
                         // Next bird
                         state = 'aiming';
                         loadNextBird();
@@ -363,6 +363,10 @@ const Engine = (() => {
                             b.alive = false;
                         }
                         Renderer.setCameraTarget(0);
+                    } else {
+                        // No birds left, enemies remain — fail
+                        state = 'failed';
+                        playSound('fail');
                     }
                 }
             }

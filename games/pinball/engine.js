@@ -551,7 +551,7 @@
         }
 
         // Off-screen safety
-        if (ball.pos.y > table.height + 50 || ball.pos.x < -50 || ball.pos.x > table.width + 50) {
+        if (ball.active && (ball.pos.y > table.height + 50 || ball.pos.x < -50 || ball.pos.x > table.width + 50)) {
             handleDrain();
         }
     }

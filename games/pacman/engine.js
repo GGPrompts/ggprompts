@@ -34,7 +34,7 @@
 
     // Player
     let pacman = {
-        col: 14, row: 23,
+        col: 14, row: 21,
         dir: 'left', nextDir: 'left',
         speed: 0.09,
         mouthAngle: 0, // animation
@@ -236,7 +236,7 @@
 
         // Warp tunnel
         if (newCol < -1) newCol = COLS;
-        if (newCol > COLS) newCol = -1;
+        if (newCol >= COLS) newCol = -1;
 
         // Snap to grid on perpendicular axis
         if (dv.dx !== 0) {

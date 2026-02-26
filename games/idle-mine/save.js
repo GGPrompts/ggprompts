@@ -55,6 +55,24 @@
     G.importSave = function(str) {
         try {
             var data = JSON.parse(atob(str));
+            // Merge with defaults to handle missing properties
+            var defaults = G.defaultState();
+            for (var key in defaults) {
+                if (data[key] === undefined) {
+                    data[key] = defaults[key];
+                }
+            }
+            if (!data.upgrades || typeof data.upgrades !== 'object') {
+                data.upgrades = defaults.upgrades;
+            }
+            for (var uk in defaults.upgrades) {
+                if (data.upgrades[uk] === undefined) {
+                    data.upgrades[uk] = defaults.upgrades[uk];
+                }
+            }
+            if (!data.achievements || typeof data.achievements !== 'object') {
+                data.achievements = defaults.achievements;
+            }
             G.state = data;
             G.save();
             return true;

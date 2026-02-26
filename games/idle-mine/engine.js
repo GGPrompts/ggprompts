@@ -115,6 +115,7 @@ window.IdleMine = window.IdleMine || {};
     G.formatNumber = function(n) {
         if (n < 0) return '-' + G.formatNumber(-n);
         if (n < 1000) return Math.floor(n).toString();
+        if (!isFinite(n) || n >= 1e36) return '∞';
         var suffixes = ['', 'K', 'M', 'B', 'T', 'Qa', 'Qi', 'Sx', 'Sp', 'Oc', 'No', 'Dc'];
         var tier = Math.floor(Math.log10(n) / 3);
         if (tier >= suffixes.length) tier = suffixes.length - 1;

@@ -176,7 +176,7 @@ window.MahjongEngine = (() => {
       const tile = board.find(t => t.uid === uid);
       if (tile) tile.removed = false;
     }
-    moveCount++;
+    moveCount--;
     selected = null;
     if (onUpdate) onUpdate();
     return true;
@@ -198,17 +198,23 @@ window.MahjongEngine = (() => {
     const remaining = board.filter(t => !t.removed);
     if (remaining.length === 0) return;
 
-    // Extract tile data (face info) from remaining tiles
-    const faces = remaining.map(t => ({
-      type: t.type, suit: t.suit, rank: t.rank, id: t.id,
-      char: t.char, suitChar: t.suitChar, label: t.label,
-      color: t.color, matchGroup: t.matchGroup, copy: t.copy,
-    }));
+    // Face-related keys (everything except position and state)
+    const FACE_KEYS = ['type','suit','rank','id','char','suitChar','label','color','matchGroup','copy'];
+
+    // Extract tile face data from remaining tiles
+    const faces = remaining.map(t => {
+      const face = {};
+      for (const k of FACE_KEYS) {
+        if (k in t) face[k] = t[k];
+      }
+      return face;
+    });
 
     shuffle(faces);
 
-    // Reassign faces to positions
+    // Reassign faces to positions — clear old face keys first to avoid stale props
     remaining.forEach((t, i) => {
+      for (const k of FACE_KEYS) delete t[k];
       Object.assign(t, faces[i]);
     });
 
