@@ -219,13 +219,16 @@ const PLAYER_SPEED = 4;
 const PLAYER_JUMP = -12;
 const PLAYER_MAX_HP = 100;
 const GROUND_HEIGHT_RATIO = 0.18;
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
 const WEAPON_DEFS = [
-  { name: 'Machine Gun', key: '1', ammo: Infinity, maxAmmo: Infinity, fireRate: 5, damage: 8, speed: 14, spread: 0.04, color: '#ffee00', size: 2, sound: 'mg', auto: true },
-  { name: 'Shotgun',     key: '2', ammo: 0, maxAmmo: 40, fireRate: 20, damage: 6, speed: 12, spread: 0.15, color: '#ff8844', size: 3, pellets: 6, sound: 'shotgun', auto: false },
-  { name: 'Rocket',      key: '3', ammo: 0, maxAmmo: 20, fireRate: 30, damage: 50, speed: 8, spread: 0.02, color: '#ff4400', size: 5, explosive: 60, sound: 'rocket', auto: false },
-  { name: 'Laser',       key: '4', ammo: 0, maxAmmo: 100, fireRate: 2, damage: 15, speed: 40, spread: 0, color: '#00ffff', size: 1, piercing: true, sound: 'laser', auto: true },
-  { name: 'Grenades',    key: '5', ammo: 0, maxAmmo: 30, fireRate: 25, damage: 40, speed: 10, spread: 0.03, color: '#44ff44', size: 4, bouncing: true, explosive: 50, sound: 'grenade', auto: false },
-  { name: 'Railgun',     key: '6', ammo: 0, maxAmmo: 15, fireRate: 45, damage: 120, speed: 60, spread: 0, color: '#ff00ff', size: 2, piercing: true, railTrail: true, sound: 'rail', auto: false },
+  { name: 'Machine Gun', key: '1', ammo: Infinity, maxAmmo: Infinity, fireRate: 5, damage: 8, speed: 14, spread: 0.04, color: '#ffee00', size: 3, sound: 'mg', auto: true },
+  { name: 'Shotgun',     key: '2', ammo: 0, maxAmmo: 40, fireRate: 20, damage: 6, speed: 12, spread: 0.15, color: '#ff8844', size: 4, pellets: 6, sound: 'shotgun', auto: false },
+  { name: 'Rocket',      key: '3', ammo: 0, maxAmmo: 20, fireRate: 30, damage: 50, speed: 8, spread: 0.02, color: '#ff4400', size: 6, explosive: 60, sound: 'rocket', auto: false },
+  { name: 'Laser',       key: '4', ammo: 0, maxAmmo: 100, fireRate: 2, damage: 15, speed: 40, spread: 0, color: '#00ffff', size: 2.5, piercing: true, sound: 'laser', auto: true },
+  { name: 'Grenades',    key: '5', ammo: 0, maxAmmo: 30, fireRate: 25, damage: 40, speed: 10, spread: 0.03, color: '#44ff44', size: 5, bouncing: true, explosive: 50, sound: 'grenade', auto: false },
+  { name: 'Railgun',     key: '6', ammo: 0, maxAmmo: 15, fireRate: 45, damage: 120, speed: 60, spread: 0, color: '#ff00ff', size: 3, piercing: true, railTrail: true, sound: 'rail', auto: false },
 ];
 
 /* ===== CANVAS SETUP ===== */
@@ -387,14 +390,15 @@ function spawnGround() {
   const hpScale = 1 + (wave - 1) * 0.12;
   enemies.push({
     type: 'ground',
-    x: fromLeft ? -30 : W + 30,
+    x: fromLeft ? 28 : W - 28,
     y: groundY,
-    vx: fromLeft ? 1 + Math.random() * 0.5 : -(1 + Math.random() * 0.5),
+    vx: fromLeft ? 1.1 + Math.random() * 0.4 : -(1.1 + Math.random() * 0.4),
     vy: 0,
     w: 20, h: 36,
     hp: Math.floor(20 * hpScale),
     maxHp: Math.floor(20 * hpScale),
     fireTimer: 80 + Math.floor(Math.random() * 60),
+    hasEnteredArena: false,
     boss: false,
   });
 }
@@ -656,14 +660,17 @@ function updateEnemies() {
         e.fireTimer = e.boss ? 20 + Math.floor(Math.random() * 15) : 60 + Math.floor(Math.random() * 40);
       }
     } else if (e.type === 'ground') {
+      const targetDir = Math.sign(player.x - e.x) || (e.vx >= 0 ? 1 : -1);
+      e.vx += targetDir * 0.12;
+      e.vx = clamp(e.vx, -2.4, 2.4);
       e.x += e.vx;
-      // Reverse at edges
-      if (e.x < 40 || e.x > W - 40) e.vx = -e.vx;
+      if (e.x > 28 && e.x < W - 28) e.hasEnteredArena = true;
+      e.x = clamp(e.x, 16, W - 16);
       // Keep on ground
       e.y = groundY;
       // Shooting
       e.fireTimer--;
-      if (e.fireTimer <= 0) {
+      if (e.fireTimer <= 0 && e.hasEnteredArena) {
         enemyShoot(e);
         e.fireTimer = 50 + Math.floor(Math.random() * 40);
       }
@@ -726,14 +733,16 @@ function updateHeliMovement(e) {
     case 'dive': {
       // Periodically dive toward player
       if (e.timer % 180 < 60) {
-        e.vy += (py - 60 - e.y) * 0.005;
-        e.vx += (px - e.x) * 0.003;
+        e.vy += (py - 90 - e.y) * 0.0026;
+        e.vx += (px - e.x) * 0.0016;
       } else {
-        e.vy += (100 - e.y) * 0.01;
+        e.vy += (100 - e.y) * 0.006;
         const targetX = px + (e.x > px ? 150 : -150);
-        e.vx += (targetX - e.x) * 0.001;
+        e.vx += (targetX - e.x) * 0.0008;
       }
       e.vx *= 0.99; e.vy *= 0.97;
+      e.vx = clamp(e.vx, -3.4, 3.4);
+      e.vy = clamp(e.vy, -2.8, 2.8);
       break;
     }
     case 'boss': {
@@ -753,6 +762,8 @@ function updateHeliMovement(e) {
         e.vx *= 0.99;
       }
       e.vx *= 0.98; e.vy *= 0.96;
+      e.vx = clamp(e.vx, -3.8, 3.8);
+      e.vy = clamp(e.vy, -3.2, 3.2);
       break;
     }
   }
@@ -773,7 +784,7 @@ function enemyShoot(e) {
   bullets.push({
     x: e.x, y: e.y + (e.type === 'heli' ? e.h / 2 : -12),
     vx: Math.cos(a) * speed, vy: Math.sin(a) * speed,
-    damage, color: '#ff4444', size: 3, life: 180,
+    damage, color: '#ff4444', size: 4, life: 180,
     fromPlayer: false, piercing: false, explosive: 0, bouncing: false,
   });
 
@@ -784,7 +795,7 @@ function enemyShoot(e) {
       bullets.push({
         x: e.x, y: e.y + e.h / 2,
         vx: Math.cos(a2) * speed, vy: Math.sin(a2) * speed,
-        damage: 8, color: '#ff2222', size: 2, life: 150,
+        damage: 8, color: '#ff2222', size: 3, life: 150,
         fromPlayer: false, piercing: false, explosive: 0, bouncing: false,
       });
     }
@@ -1094,15 +1105,23 @@ function drawGroundEnemy(e) {
 
 function drawBullets() {
   for (const b of bullets) {
+    const drawSize = Math.max(3, b.size);
     ctx.fillStyle = b.color;
     ctx.globalAlpha = b.fromPlayer ? 1 : 0.8;
     if (b.bouncing) {
       // Grenade shape
       ctx.beginPath();
-      ctx.arc(b.x, b.y, b.size, 0, Math.PI * 2);
+      ctx.arc(b.x, b.y, drawSize, 0, Math.PI * 2);
       ctx.fill();
     } else {
-      ctx.fillRect(b.x - b.size / 2, b.y - b.size / 2, b.size, b.size);
+      const speedMag = Math.hypot(b.vx, b.vy);
+      const trailLen = clamp(speedMag * 0.7, drawSize * 1.4, drawSize * 4.5);
+      const angle = Math.atan2(b.vy, b.vx);
+      ctx.save();
+      ctx.translate(b.x, b.y);
+      ctx.rotate(angle);
+      ctx.fillRect(-trailLen / 2, -drawSize / 2, trailLen, drawSize);
+      ctx.restore();
     }
   }
   ctx.globalAlpha = 1;
