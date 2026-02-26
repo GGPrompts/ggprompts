@@ -854,7 +854,7 @@ Mar,12,30"></textarea>
 
     document.getElementById('btnAddSeries').addEventListener('click', () => {
         seriesHeaders.push('Series ' + String.fromCharCode(65 + seriesHeaders.length));
-        seriesColors.push(DEFAULT_COLORS[seriesHeaders.length - 1 % DEFAULT_COLORS.length] || '#888888');
+        seriesColors.push(DEFAULT_COLORS[(seriesHeaders.length - 1) % DEFAULT_COLORS.length] || '#888888');
         data.forEach(row => row.push(0));
         buildTable();
         render();
@@ -971,6 +971,15 @@ Mar,12,30"></textarea>
     }
 
     function drawCartesianCanvas(ctx, W, H, nd, opts) {
+        if (!nd.length) {
+            ctx.fillStyle = opts.textColor;
+            ctx.font = `${opts.fontSize}px ${getComputedStyle(document.body).fontFamily}`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('No data', W / 2, H / 2);
+            ctx.textBaseline = 'alphabetic';
+            return;
+        }
         const fs = opts.fontSize;
         const pad = { top: 30, right: 30, bottom: 50, left: 60 };
 
@@ -983,12 +992,14 @@ Mar,12,30"></textarea>
         const plotH = H - pad.top - pad.bottom;
 
         // Compute Y range
-        let yMin = 0, yMax = 1;
+        let yMin = Infinity, yMax = -Infinity;
         nd.forEach(row => row.forEach(v => {
             if (v < yMin) yMin = v;
             if (v > yMax) yMax = v;
         }));
+        if (!isFinite(yMin)) { yMin = 0; yMax = 1; }
         if (yMin > 0) yMin = 0;
+        if (yMax < 0) yMax = 0;
         const yRange = niceRange(yMin, yMax);
         yMin = yRange.min;
         yMax = yRange.max;
@@ -1122,7 +1133,8 @@ Mar,12,30"></textarea>
                     ctx.fillStyle = opts.textColor;
                     ctx.font = `500 ${opts.fontSize - 2}px ${getComputedStyle(document.body).fontFamily}`;
                     ctx.textAlign = 'center';
-                    ctx.fillText(formatNum(v), x + barW / 2, y - 4);
+                    const labelY = v >= 0 ? y - 4 : y + opts.fontSize + 2;
+                    ctx.fillText(formatNum(v), x + barW / 2, labelY);
                 }
             });
         });
@@ -1259,22 +1271,20 @@ Mar,12,30"></textarea>
             ctx.lineWidth = 2;
             ctx.stroke();
 
-            // Label
-            if (opts.showValues || true) {
-                const midAngle = (s.startAngle + s.endAngle) / 2;
-                const pct = total > 0 ? ((s.value / total) * 100).toFixed(1) + '%' : '';
-                const lx = cx + Math.cos(midAngle) * radius * 0.65;
-                const ly = cy + Math.sin(midAngle) * radius * 0.65;
+            // Percentage label (always shown on slices large enough)
+            const midAngle = (s.startAngle + s.endAngle) / 2;
+            const pct = ((s.value / total) * 100).toFixed(1) + '%';
+            const lx = cx + Math.cos(midAngle) * radius * 0.65;
+            const ly = cy + Math.sin(midAngle) * radius * 0.65;
 
-                ctx.fillStyle = '#fff';
-                ctx.font = `600 ${fs - 1}px ${getComputedStyle(document.body).fontFamily}`;
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                if ((s.endAngle - s.startAngle) > 0.25) {
-                    ctx.fillText(pct, lx, ly);
-                }
-                ctx.textBaseline = 'alphabetic';
+            ctx.fillStyle = '#fff';
+            ctx.font = `600 ${fs - 1}px ${getComputedStyle(document.body).fontFamily}`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            if ((s.endAngle - s.startAngle) > 0.25) {
+                ctx.fillText(pct, lx, ly);
             }
+            ctx.textBaseline = 'alphabetic';
         });
 
         // Legend
@@ -1342,6 +1352,10 @@ Mar,12,30"></textarea>
     }
 
     function buildCartesianSVG(svg, ns, W, H, nd, opts) {
+        if (!nd.length) {
+            svg.appendChild(svgText(ns, W / 2, H / 2, 'No data', { 'text-anchor': 'middle', 'dominant-baseline': 'middle', fill: opts.textColor, 'font-family': 'Inter, sans-serif', 'font-size': opts.fontSize }));
+            return;
+        }
         const fs = opts.fontSize;
         const fontFam = 'Inter, sans-serif';
         const pad = { top: 30, right: 30, bottom: 50, left: 60 };
@@ -1354,9 +1368,11 @@ Mar,12,30"></textarea>
         const plotW = W - pad.left - pad.right;
         const plotH = H - pad.top - pad.bottom;
 
-        let yMin = 0, yMax = 1;
+        let yMin = Infinity, yMax = -Infinity;
         nd.forEach(row => row.forEach(v => { if (v < yMin) yMin = v; if (v > yMax) yMax = v; }));
+        if (!isFinite(yMin)) { yMin = 0; yMax = 1; }
         if (yMin > 0) yMin = 0;
+        if (yMax < 0) yMax = 0;
         const yRange = niceRange(yMin, yMax);
         yMin = yRange.min; yMax = yRange.max;
         const yTicks = yRange.ticks;
@@ -1432,7 +1448,8 @@ Mar,12,30"></textarea>
                     const bh = Math.abs(y0 - by);
                     svg.appendChild(svgEl(ns, 'rect', { x: bx, y: Math.min(by, y0), width: Math.max(0, barW - 1), height: bh, fill: seriesColors[s] || '#888', rx: 3 }));
                     if (opts.showValues) {
-                        svg.appendChild(svgText(ns, bx + barW / 2, by - 4, formatNum(v), { 'text-anchor': 'middle', fill: opts.textColor, 'font-family': fontFam, 'font-size': fs - 2, 'font-weight': 500 }));
+                        const labelY = v >= 0 ? by - 4 : by + fs + 2;
+                        svg.appendChild(svgText(ns, bx + barW / 2, labelY, formatNum(v), { 'text-anchor': 'middle', fill: opts.textColor, 'font-family': fontFam, 'font-size': fs - 2, 'font-weight': 500 }));
                     }
                 });
             });
@@ -1560,6 +1577,7 @@ Mar,12,30"></textarea>
     }
 
     function roundRect(ctx, x, y, w, h, r) {
+        if (w <= 0 || h <= 0) { ctx.beginPath(); return; }
         if (h < r * 2) r = h / 2;
         if (w < r * 2) r = w / 2;
         ctx.beginPath();
