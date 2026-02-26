@@ -1,6 +1,6 @@
 # Tech Guides
 
-43 self-contained HTML reference documents for developer tools and concepts, each styled with a design system from `/styles/`.
+47 self-contained HTML reference documents for developer tools and concepts, each styled with a design system from `/styles/`.
 
 ## Concept
 
@@ -137,7 +137,7 @@ Each tech guide uses a style guide's aesthetic. When creating a new guide:
 3. Style all components (code blocks, tables, alerts) to match the aesthetic
 4. Note the style pairing in the index card's "kicker" label
 
-Current pairings include: Git/Letterpress, Docker/Shipping-Container, Python/Swiss-International, Vim/Retro-Terminal, Bash/Hacker, etc.
+See `/STYLE-PAIRINGS.md` for the full mapping of which styles are used and which are available.
 
 ## Naming Convention
 
