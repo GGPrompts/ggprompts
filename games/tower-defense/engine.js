@@ -13,6 +13,7 @@
   var Towers   = window.ArcaneTowers;
   var Enemies  = window.ArcaneEnemies;
   var FX       = window.ArcaneFX;
+  var Weather  = window.ArcaneWeather;
   var CELL     = Map.CELL_SIZE;
 
   // ─────────────────────────── Canvas Setup ────────────────────────────
@@ -373,6 +374,108 @@
     };
   })();
 
+  // ─────────────────────────── BGM Manager ────────────────────────────
+  var BGM = (function () {
+    var enabled = true;
+    var volume = 0.3;
+    var initialized = false;
+    var currentTrack = null;
+    var songCache = {};
+    var SONG_BASE = '../../music/audio-tracker/songs/';
+
+    // Track assignments per game state
+    var TRACKS = {
+      build: 'arcane-bastion.json',
+      wave: 'arcane-bastion.json',
+      boss: 'boss-battle.json',
+      late: 'neon-velocity.json'
+    };
+
+    // Boss waves trigger boss track
+    var BOSS_WAVES = [5, 10, 15, 20];
+    // Late-game waves get the intense track
+    var LATE_WAVE_START = 14;
+
+    function initBGM() {
+      if (initialized || typeof ChipPlayer === 'undefined') return;
+      ChipPlayer.init();
+      ChipPlayer.setVolume(volume);
+      initialized = true;
+    }
+
+    function fetchSong(filename, cb) {
+      if (songCache[filename]) { cb(songCache[filename]); return; }
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', SONG_BASE + filename, true);
+      xhr.responseType = 'json';
+      xhr.onload = function () {
+        if (xhr.status === 200 && xhr.response) {
+          songCache[filename] = xhr.response;
+          cb(xhr.response);
+        }
+      };
+      xhr.onerror = function () { /* silent — no music is fine */ };
+      xhr.send();
+    }
+
+    function playTrack(filename) {
+      if (!enabled || !initialized) return;
+      if (currentTrack === filename && ChipPlayer.isPlaying() && !ChipPlayer.isPaused()) return;
+      ChipPlayer.stop();
+      fetchSong(filename, function (songData) {
+        if (!enabled) return;
+        ChipPlayer.load(songData);
+        ChipPlayer.setVolume(volume);
+        ChipPlayer.play();
+        currentTrack = filename;
+      });
+    }
+
+    function stopBGM() {
+      if (!initialized) return;
+      ChipPlayer.stop();
+      currentTrack = null;
+    }
+
+    function pauseBGM() {
+      if (!initialized || !ChipPlayer.isPlaying()) return;
+      ChipPlayer.pause();
+    }
+
+    function resumeBGM() {
+      if (!initialized || !ChipPlayer.isPaused()) return;
+      ChipPlayer.resume();
+    }
+
+    function setVolume(v) {
+      volume = v;
+      if (initialized) ChipPlayer.setVolume(v);
+    }
+
+    function getTrackForWave(waveNum) {
+      if (BOSS_WAVES.indexOf(waveNum) !== -1) return TRACKS.boss;
+      if (waveNum >= LATE_WAVE_START) return TRACKS.late;
+      return TRACKS.wave;
+    }
+
+    return {
+      init: initBGM,
+      play: playTrack,
+      stop: stopBGM,
+      pause: pauseBGM,
+      resume: resumeBGM,
+      setVolume: setVolume,
+      getTrackForWave: getTrackForWave,
+      TRACKS: TRACKS,
+      isEnabled: function () { return enabled; },
+      toggle: function () {
+        enabled = !enabled;
+        if (!enabled) { stopBGM(); }
+        return enabled;
+      }
+    };
+  })();
+
   // ─────────────────────────── Save / Load ─────────────────────────────
   var SAVE_KEY = 'arcane-bastion-best';
 
@@ -413,6 +516,7 @@
   var $victoryStats   = document.getElementById('victory-stats');
   var $btnVictoryMenu = document.getElementById('btn-victory-menu');
   var $btnPause       = document.getElementById('btn-pause');
+  var $btnMusic       = document.getElementById('btn-music');
 
   // ─────────────────────────── Tower Panel Build ───────────────────────
   var TOWER_ORDER = ['fire', 'ice', 'lightning', 'earth', 'arcane', 'nature', 'shadow', 'light'];
@@ -808,6 +912,7 @@
 
   function enterMenu() {
     state = 'menu';
+    BGM.stop();
     $hud.classList.add('hidden');
     showScreen('menu-screen');
     $bestWave.textContent = 'Wave ' + loadBest();
@@ -816,6 +921,7 @@
 
   function startNewGame() {
     Audio.init();
+    BGM.init();
     state = 'build';
     gold = 400;
     mana = 0;
@@ -836,6 +942,7 @@
 
     Map.init();
     FX.clear();
+    Weather.init();
     updateCamera();
 
     $hud.classList.remove('hidden');
@@ -864,7 +971,12 @@
     $buildBar.classList.remove('hidden');
     $waveStatus.classList.add('hidden');
 
+    // Play build phase music (calmer volume)
+    BGM.setVolume(0.2);
+    BGM.play(BGM.TRACKS.build);
+
     updateWaveDisplay();
+    Weather.setWave(currentWave, false);
     showBanner('Build Phase', currentWave === 1 ? 'Place your first towers' : 'Prepare for Wave ' + currentWave);
   }
 
@@ -890,6 +1002,8 @@
 
     currentWaveData = Enemies.startWave(currentWave, paths);
 
+    Weather.setWave(currentWave, true);
+
     var isBoss = currentWaveData.boss;
     showBanner('Wave ' + currentWave, isBoss ? 'BOSS INCOMING' : '');
     Audio.waveStart();
@@ -898,17 +1012,23 @@
       setTimeout(function () { Audio.bossSpawn(); }, 300);
     }
 
+    // Switch BGM based on wave type — full combat volume
+    BGM.setVolume(0.3);
+    BGM.play(BGM.getTrackForWave(currentWave));
+
     updateHUD();
   }
 
   function enterPause() {
     prevState = state;
     state = 'paused';
+    BGM.pause();
     showScreen('pause-overlay');
   }
 
   function resumeGame() {
     state = prevState;
+    BGM.resume();
     showScreen(null);
   }
 
@@ -917,6 +1037,7 @@
     saveBest(currentWave - 1);
     Audio.portalHumStop();
     Audio.nexusAlarmStop();
+    BGM.stop();
     Audio.gameOver();
 
     $gameoverStats.innerHTML =
@@ -933,6 +1054,7 @@
     saveBest(currentWave);
     Audio.portalHumStop();
     Audio.nexusAlarmStop();
+    BGM.stop();
     Audio.victory();
 
     $victoryStats.innerHTML =
@@ -1314,6 +1436,9 @@
     // Mana regen
     mana += 1 * dt;
 
+    // Weather & environment effects update
+    Weather.update(dt);
+
     if (state === 'waveEnd') {
       // Transitional state between wave complete and next build phase
       FX.updateAll(dt);
@@ -1463,7 +1588,7 @@
       // Attack flash — brief glow + scale pulse for 150ms after firing
       var atkElapsed = time - tw.lastAttackTime;
       if (tw.lastAttackTime >= 0 && atkElapsed < 0.15) {
-        var atkT = 1 - atkElapsed / 0.15; // 1 -> 0 fade
+        var atkT = 1 - atkElapsed / 0.15;
         var sc = 1 + atkT * 0.08;
         ctx.save();
         ctx.translate(tw.x, tw.y);
@@ -1494,6 +1619,9 @@
     // Nexus HP bar (rendered in world space)
     Map.drawNexusHP(ctx, cam, Map.nexus);
 
+    // Weather world effects (rain, portal particles, nexus rings, fog)
+    Weather.drawWorldEffects(ctx, cam, time);
+
     ctx.restore();
 
     // ── Enemies (does its own cam translate via save/translate/restore) ──
@@ -1501,6 +1629,9 @@
 
     // ── FX above layer (projectiles, beams, particles — uses cam offset internally) ──
     FX.drawAbove(ctx, shakeCam, time);
+
+    // ── Day/Night overlay (screen space, after all world rendering) ──
+    Weather.drawOverlay(ctx, vw, vh, time);
 
     // ── Tip toast (screen space) ──
     if (tipTimer > 0) {
@@ -1804,6 +1935,11 @@
         }
         break;
 
+      case 'm':
+        // Toggle music
+        $btnMusic.click();
+        break;
+
       case 'escape':
         if (placementMode) {
           cancelPlacement();
@@ -1830,6 +1966,21 @@
   $btnPause.addEventListener('click', function () {
     if (state === 'build' || state === 'wave') enterPause();
     else if (state === 'paused') resumeGame();
+  });
+  $btnMusic.addEventListener('click', function () {
+    var on = BGM.toggle();
+    $btnMusic.classList.toggle('active', on);
+    // If re-enabling during gameplay, restart appropriate track
+    if (on && (state === 'build' || state === 'wave' || state === 'waveEnd')) {
+      BGM.init();
+      if (state === 'build' || state === 'waveEnd') {
+        BGM.setVolume(0.2);
+        BGM.play(BGM.TRACKS.build);
+      } else {
+        BGM.setVolume(0.3);
+        BGM.play(BGM.getTrackForWave(currentWave));
+      }
+    }
   });
 
   // Speed buttons
@@ -1867,6 +2018,7 @@
   updateCamera();
   window.addEventListener('resize', updateCamera);
   $bestWave.textContent = 'Wave ' + loadBest();
+  if (BGM.isEnabled()) $btnMusic.classList.add('active');
 
   // Start game loop
   lastTime = performance.now();

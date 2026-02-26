@@ -42,6 +42,114 @@
   }
 
   /* ------------------------------------------------------------------ */
+  /*  Elite / Champion modifier system                                   */
+  /* ------------------------------------------------------------------ */
+
+  var MODIFIERS = {
+    armored: {
+      id: 'armored', name: 'Armored',
+      color: '#c0c0c0',       // metallic silver
+      armorBonus: 3,
+    },
+    swift: {
+      id: 'swift', name: 'Swift',
+      color: '#00ccff',        // cyan motion
+      speedMult: 1.4,
+    },
+    vampiric: {
+      id: 'vampiric', name: 'Vampiric',
+      color: '#00ff44',        // green life
+      healFraction: 0.20,      // heals 20% of nexus damage dealt
+    },
+    thorned: {
+      id: 'thorned', name: 'Thorned',
+      color: '#ff6600',        // orange sparks
+      // cosmetic only — reflects 10% damage as visual sparks
+    },
+    giant: {
+      id: 'giant', name: 'Giant',
+      color: '#442200',        // dark outline
+      sizeMult: 2, hpMult: 2, goldMult: 2,
+    },
+    resistant: {
+      id: 'resistant', name: 'Resistant',
+      color: '#ff44ff',        // magenta immunity
+      // immune to one random status (burn/slow/freeze)
+      immunePool: [STATUS.burn, STATUS.slow, STATUS.freeze],
+    },
+  };
+
+  var MODIFIER_KEYS = Object.keys(MODIFIERS);
+
+  /** Roll elite modifiers for a newly created enemy. Mutates enemy in-place. */
+  function rollModifiers(enemy, waveNum) {
+    enemy.modifiers = [];
+
+    // bosses never get modifiers
+    if (enemy.type.behavior === 'boss') return;
+
+    var chance, maxMods;
+    if (waveNum >= 18) {
+      chance = 0.15; maxMods = 2;
+    } else if (waveNum >= 13) {
+      chance = 0.10; maxMods = 1;
+    } else if (waveNum >= 8) {
+      chance = 0.05; maxMods = 1;
+    } else {
+      return; // no elites before wave 8
+    }
+
+    if (Math.random() >= chance) return;
+
+    // pick modifier(s)
+    var pool = MODIFIER_KEYS.slice();
+    var count = 1 + (maxMods > 1 && Math.random() < 0.35 ? 1 : 0);
+    count = Math.min(count, maxMods, pool.length);
+
+    for (var i = 0; i < count; i++) {
+      var idx = Math.floor(Math.random() * pool.length);
+      enemy.modifiers.push(MODIFIERS[pool[idx]]);
+      pool.splice(idx, 1);
+    }
+
+    // apply stat changes
+    applyModifierStats(enemy);
+  }
+
+  function applyModifierStats(enemy) {
+    for (var i = 0; i < enemy.modifiers.length; i++) {
+      var mod = enemy.modifiers[i];
+      switch (mod.id) {
+        case 'armored':
+          enemy.armor += mod.armorBonus;
+          break;
+        case 'swift':
+          enemy.speed = Math.round(enemy.speed * mod.speedMult);
+          enemy.baseSpeed = enemy.speed;
+          break;
+        case 'giant':
+          enemy.hp = Math.round(enemy.hp * mod.hpMult);
+          enemy.maxHp = enemy.hp;
+          enemy._giantGoldMult = mod.goldMult;
+          break;
+        case 'resistant':
+          // pick one random immune status
+          var pool = mod.immunePool;
+          enemy._immuneStatus = pool[Math.floor(Math.random() * pool.length)];
+          break;
+      }
+    }
+  }
+
+  function hasModifier(enemy, modId) {
+    if (!enemy.modifiers) return false;
+    for (var i = 0; i < enemy.modifiers.length; i++) {
+      if (enemy.modifiers[i].id === modId) return true;
+    }
+    return false;
+  }
+
+  /* ------------------------------------------------------------------ */
   /*  Per-type draw functions                                            */
   /* ------------------------------------------------------------------ */
 
@@ -1410,6 +1518,10 @@
       dead:       false,
       reachedNexus: false,
       angle:      0,
+      modifiers:  [],
+      _immuneStatus: null,
+      _giantGoldMult: 1,
+      _prevPositions: [],  // for swift afterimages
     };
     return enemy;
   }
@@ -1465,6 +1577,8 @@
     // status: { type, duration, intensity, source }
     // intensity: burn/poison = DPS, slow = fraction (0.5 = 50% slow), shatter = bonus dmg fraction
     if (enemy.dead) return;
+    // Resistant modifier blocks one status type
+    if (enemy._immuneStatus && status.type === enemy._immuneStatus) return;
     var existing = getStatus(enemy, status.type);
     if (existing) {
       // refresh duration, take stronger intensity
@@ -1594,6 +1708,12 @@
     var type = enemy.type;
 
     enemy.abilityTimer += dt;
+
+    // Swift modifier: track previous positions for afterimage trail
+    if (hasModifier(enemy, 'swift')) {
+      enemy._prevPositions.unshift({ x: enemy.x, y: enemy.y });
+      if (enemy._prevPositions.length > 3) enemy._prevPositions.length = 3;
+    }
 
     switch (type.behavior) {
 
@@ -1783,6 +1903,11 @@
       if (e.reachedNexus) {
         // Bosses deal massive nexus damage, tanks deal moderate, basic deal 1
         var drain = e.type.nexusDrain || (e.type.behavior === 'boss' ? 30 : (e.type.size >= 14 ? 3 : 1));
+        // Vampiric modifier: heal 20% of nexus damage dealt
+        if (hasModifier(e, 'vampiric')) {
+          var healAmt = drain * 0.20 * e.maxHp;
+          e.hp = Math.min(e.maxHp, e.hp + healAmt);
+        }
         if (callbacks.onReachNexus) callbacks.onReachNexus(e, drain);
       }
     }
@@ -1815,6 +1940,10 @@
         spawned.push(passenger);
       }
       if (callbacks.onSplit) callbacks.onSplit(enemy, enemy._passengers.length);
+    }
+    // Giant modifier applies gold multiplier — store on enemy for caller
+    if (enemy._giantGoldMult > 1) {
+      enemy._goldMultiplier = enemy._giantGoldMult;
     }
     if (callbacks.onDeath) callbacks.onDeath(enemy);
   }
@@ -1992,6 +2121,8 @@
           enemy.shieldHp = Math.round(enemy.shieldHp * sp.hpMult);
           enemy.maxShieldHp = enemy.shieldHp;
         }
+        // roll elite modifiers (after wave scaling so bonuses stack on top)
+        rollModifiers(enemy, currentWaveData ? currentWaveData.waveNum : 1);
         sp.spawned++;
         newEnemies.push(enemy);
       }
@@ -2038,7 +2169,8 @@
     if (enemy.statuses.length === 0) return;
     var s = enemy.type.size;
     var ix = enemy.x - s;
-    var iy = enemy.y - s * 1.6 - 12;
+    var hasMods = enemy.modifiers && enemy.modifiers.length > 0;
+    var iy = enemy.y - s * 1.6 - 12 - (hasMods ? 8 : 0);
     var iconSize = 4;
     var gap = 2;
 
@@ -2081,6 +2213,28 @@
   function drawEnemySingle(ctx, enemy, time) {
     if (enemy.dead) return;
 
+    var hasMods = enemy.modifiers && enemy.modifiers.length > 0;
+    var isGiant = hasModifier(enemy, 'giant');
+    var s = enemy.type.size;
+
+    // --- Swift afterimage trail (drawn behind main sprite) ---
+    if (hasModifier(enemy, 'swift') && enemy._prevPositions.length > 0) {
+      for (var ai = enemy._prevPositions.length - 1; ai >= 0; ai--) {
+        var pp = enemy._prevPositions[ai];
+        ctx.save();
+        ctx.globalAlpha = 0.15 - ai * 0.04;
+        // create a temporary shifted enemy for the draw function
+        var ghostX = enemy.x;
+        var ghostY = enemy.y;
+        enemy.x = pp.x;
+        enemy.y = pp.y;
+        enemy.type.drawEnemy(ctx, enemy, time);
+        enemy.x = ghostX;
+        enemy.y = ghostY;
+        ctx.restore();
+      }
+    }
+
     ctx.save();
 
     // untargetable enemies are semi-transparent
@@ -2088,32 +2242,169 @@
       ctx.globalAlpha = 0.3;
     }
 
-    // hit flash
-    if (enemy.hitFlash > 0) {
-      // draw a white flash overlay after main draw
+    // --- Giant modifier: scale canvas around enemy center ---
+    if (isGiant) {
+      ctx.translate(enemy.x, enemy.y);
+      ctx.scale(2, 2);
+      ctx.translate(-enemy.x, -enemy.y);
+    }
+
+    // --- Thorned modifier: spiky outline ---
+    if (hasModifier(enemy, 'thorned')) {
+      ctx.save();
+      var spikes = 12;
+      var outerR = s * (isGiant ? 1.6 : 1.8);
+      var innerR = s * (isGiant ? 1.1 : 1.3);
+      ctx.strokeStyle = '#ff6600';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (var sp = 0; sp <= spikes; sp++) {
+        var ang = (sp / spikes) * Math.PI * 2 + time * 1.5;
+        var r = sp % 2 === 0 ? outerR : innerR;
+        var px = enemy.x + Math.cos(ang) * r;
+        var py = enemy.y + Math.sin(ang) * r;
+        if (sp === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // --- Giant modifier: thick dark outline behind sprite ---
+    if (isGiant) {
+      ctx.save();
+      ctx.strokeStyle = '#221100';
+      ctx.lineWidth = 3;
+      circle(ctx, enemy.x, enemy.y, s * 1.2);
+      ctx.stroke();
+      ctx.restore();
     }
 
     // delegate to type draw function
     enemy.type.drawEnemy(ctx, enemy, time);
 
+    // --- Armored modifier: metallic silver tint overlay ---
+    if (hasModifier(enemy, 'armored')) {
+      ctx.save();
+      ctx.globalAlpha = 0.25 + 0.05 * Math.sin(time * 3);
+      ctx.fillStyle = '#c0c0c0';
+      circle(ctx, enemy.x, enemy.y, s * 1.05);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // --- Vampiric modifier: green health glow ---
+    if (hasModifier(enemy, 'vampiric')) {
+      ctx.save();
+      ctx.globalAlpha = 0.15 + 0.1 * Math.sin(time * 4);
+      glow(ctx, '#00ff44', 12);
+      ctx.fillStyle = '#00ff44';
+      circle(ctx, enemy.x, enemy.y, s * 1.2);
+      ctx.fill();
+      noGlow(ctx);
+      ctx.restore();
+    }
+
+    // --- Thorned modifier: cosmetic damage sparks ---
+    if (hasModifier(enemy, 'thorned') && enemy.hitFlash > 0) {
+      ctx.save();
+      ctx.globalAlpha = enemy.hitFlash * 8;
+      for (var sk = 0; sk < 5; sk++) {
+        var sparkAng = Math.random() * Math.PI * 2;
+        var sparkR = s * (0.8 + Math.random() * 0.8);
+        ctx.fillStyle = '#ff8800';
+        circle(ctx, enemy.x + Math.cos(sparkAng) * sparkR, enemy.y + Math.sin(sparkAng) * sparkR, 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    // --- Resistant modifier: immunity icon ---
+    if (hasModifier(enemy, 'resistant') && enemy._immuneStatus) {
+      ctx.save();
+      var iconX = enemy.x + s * 1.0;
+      var iconY = enemy.y - s * 1.0;
+      ctx.globalAlpha = 0.8;
+      // circle with X through it
+      ctx.strokeStyle = '#ff44ff';
+      ctx.lineWidth = 1.5;
+      circle(ctx, iconX, iconY, 5);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(iconX - 3, iconY - 3);
+      ctx.lineTo(iconX + 3, iconY + 3);
+      ctx.moveTo(iconX + 3, iconY - 3);
+      ctx.lineTo(iconX - 3, iconY + 3);
+      ctx.stroke();
+      // color the icon based on immune type
+      var imColor = enemy._immuneStatus === STATUS.burn ? '#f80' :
+                    enemy._immuneStatus === STATUS.slow ? '#88f' : '#aef';
+      ctx.fillStyle = imColor;
+      circle(ctx, iconX, iconY, 3);
+      ctx.fill();
+      ctx.restore();
+    }
+
     // hit flash overlay
     if (enemy.hitFlash > 0) {
       ctx.globalAlpha = enemy.hitFlash * 5;
       ctx.fillStyle = '#fff';
-      circle(ctx, enemy.x, enemy.y, enemy.type.size * 1.1);
+      circle(ctx, enemy.x, enemy.y, s * 1.1);
       ctx.fill();
       ctx.globalAlpha = 1;
     }
 
     ctx.restore();
 
-    // health bar (always visible if damaged or boss)
-    if (enemy.hp < enemy.maxHp || enemy.type.behavior === 'boss') {
+    // health bar (always visible if damaged, boss, or elite)
+    if (enemy.hp < enemy.maxHp || enemy.type.behavior === 'boss' || hasMods) {
       drawHealthBar(ctx, enemy);
+    }
+
+    // --- Modifier diamond icons above health bar ---
+    if (hasMods) {
+      drawModifierIcons(ctx, enemy, time);
     }
 
     // status effect indicators
     drawStatusIndicators(ctx, enemy, time);
+  }
+
+  /** Draw small colored diamonds above health bar for each modifier */
+  function drawModifierIcons(ctx, enemy, time) {
+    var s = enemy.type.size;
+    var barW = s * 2.4;
+    var baseY = enemy.y - s * 1.6 - 4;
+    // above health bar and shield bar
+    var iconY = baseY - (enemy.maxShieldHp > 0 ? 10 : 6);
+    var iconSize = 4;
+    var gap = 3;
+    var totalW = enemy.modifiers.length * (iconSize * 2 + gap) - gap;
+    var startX = enemy.x - totalW / 2;
+
+    for (var i = 0; i < enemy.modifiers.length; i++) {
+      var mod = enemy.modifiers[i];
+      var cx = startX + i * (iconSize * 2 + gap) + iconSize;
+      var cy = iconY;
+      // draw diamond shape
+      ctx.save();
+      ctx.fillStyle = mod.color;
+      ctx.globalAlpha = 0.8 + 0.2 * Math.sin(time * 5 + i);
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - iconSize);
+      ctx.lineTo(cx + iconSize, cy);
+      ctx.lineTo(cx, cy + iconSize);
+      ctx.lineTo(cx - iconSize, cy);
+      ctx.closePath();
+      ctx.fill();
+      // bright center dot
+      ctx.fillStyle = '#fff';
+      ctx.globalAlpha = 0.5;
+      circle(ctx, cx, cy, 1.5);
+      ctx.fill();
+      ctx.restore();
+    }
   }
 
   /* ------------------------------------------------------------------ */
@@ -2145,9 +2436,11 @@
   var ArcaneEnemies = {
     STATUS:         STATUS,
     TYPES:          TYPES,
+    MODIFIERS:      MODIFIERS,
     createEnemy:    createEnemy,
     applyDamage:    applyDamage,
     applyStatus:    applyStatus,
+    hasModifier:    hasModifier,
     updateAll:      updateAll,
     getWave:        getWave,
     startWave:      startWave,
