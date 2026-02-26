@@ -974,7 +974,7 @@ for (const key in PALETTES) {
       setSlider('lifetime', 'lifetime', randRange(20, 500, 10), v => v);
       setSlider('lineWidth', 'lineWidth', randRange(0.3, 4, 0.1), v => v.toFixed(1));
       setSlider('trailFade', 'trailFade', randRange(0, 0.1, 0.002));
-      setSlider('opacity', 'opacity', randRange(0.05, 1, 0.05), v => v.toFixed(2));
+      setSlider('opacity', 'opacity', randRange(0.15, 1, 0.05), v => v.toFixed(2));
 
       // Randomize color mode
       const modes = ['rainbow', 'monochrome', 'gradient', 'ocean', 'fire', 'aurora', 'sunset', 'neon'];
@@ -984,13 +984,25 @@ for (const key in PALETTES) {
       monoRow.style.display = mode === 'monochrome' ? 'flex' : 'none';
       gradRow.style.display = mode === 'gradient' ? 'flex' : 'none';
 
-      // Randomize mono/gradient colors
-      const randHex = () => '#' + Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, '0');
-      P.monoColor = randHex();
+      // Ensure opacity overpowers trail fade so particles stay visible
+      if (P.opacity < P.trailFade + 0.1) {
+        const newOpacity = Math.min(P.trailFade + 0.15, 1);
+        setSlider('opacity', 'opacity', newOpacity, v => v.toFixed(2));
+      }
+
+      // Randomize mono/gradient colors (ensure brightness so they're visible on black)
+      function randBrightHex() {
+        const h = Math.random() * 360;
+        const s = 60 + Math.random() * 40;   // 60-100% saturation
+        const l = 45 + Math.random() * 30;   // 45-75% lightness
+        const [r, g, b] = hslToRgb(h, s, l);
+        return '#' + ((r << 16) | (g << 8) | b).toString(16).padStart(6, '0');
+      }
+      P.monoColor = randBrightHex();
       P.monoRgb = hexToRgb(P.monoColor);
       document.getElementById('monoColor').value = P.monoColor;
-      P.gradStart = randHex();
-      P.gradEnd = randHex();
+      P.gradStart = randBrightHex();
+      P.gradEnd = randBrightHex();
       P.gradStartRgb = hexToRgb(P.gradStart);
       P.gradEndRgb = hexToRgb(P.gradEnd);
       document.getElementById('gradStart').value = P.gradStart;
@@ -1002,6 +1014,13 @@ for (const key in PALETTES) {
       initParticles();
       zOff = 0;
       frameCount = 0;
+
+      // Ensure animation is running after randomize
+      if (!running) {
+        running = true;
+        document.getElementById('btnPlayPause').textContent = 'Pause';
+        lastTime = performance.now();
+      }
     });
 
     document.getElementById('btnExport').addEventListener('click', () => {
@@ -1020,9 +1039,11 @@ for (const key in PALETTES) {
       resizeTimer = setTimeout(() => { initParticles(); }, 150);
     });
 
-    // Keyboard shortcuts
+    // Keyboard shortcuts — only toggle pause when no other button/input is focused
     document.addEventListener('keydown', (e) => {
       if (e.code === 'Space') {
+        const tag = document.activeElement?.tagName;
+        if (tag === 'BUTTON' || tag === 'INPUT' || tag === 'SELECT') return;
         e.preventDefault();
         document.getElementById('btnPlayPause').click();
       }
