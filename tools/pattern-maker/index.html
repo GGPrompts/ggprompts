@@ -1,0 +1,1393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tiling Pattern Maker - Seamless Repeating Pattern Editor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --font-display: 'Bebas Neue', sans-serif;
+    --font-body: 'Inter', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+
+    --bg-deep: #0c1018;
+    --bg-panel: #141b26;
+    --bg-surface: #1a2332;
+    --bg-input: #0e1520;
+    --border: #2a3a4e;
+    --border-active: #4a9eff;
+    --text: #d0dae8;
+    --text-dim: #6a7a8e;
+    --text-bright: #f0f4f8;
+    --accent: #4a9eff;
+    --accent-glow: rgba(74, 158, 255, 0.3);
+    --accent-warm: #ff8c42;
+    --accent-green: #42d68a;
+    --accent-rose: #e85d75;
+    --grid-line: rgba(74, 158, 255, 0.08);
+
+    --radius: 6px;
+    --transition: 150ms ease;
+  }
+
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    font-family: var(--font-body);
+    font-size: 13px;
+    background: var(--bg-deep);
+    color: var(--text);
+    user-select: none;
+  }
+
+  /* Subtle blueprint grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image:
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size: 40px 40px;
+    opacity: 0.6;
+  }
+
+  /* ---- Layout ---- */
+  #app {
+    display: grid;
+    grid-template-columns: 280px 1fr 280px;
+    grid-template-rows: 48px 1fr;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  /* ---- Header ---- */
+  #header {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 0 16px;
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .back-link {
+    color: var(--text-dim);
+    text-decoration: none;
+    font-size: 12px;
+    font-family: var(--font-mono);
+    transition: color var(--transition);
+    flex-shrink: 0;
+  }
+  .back-link:hover { color: var(--accent); }
+
+  #header h1 {
+    font-family: var(--font-display);
+    font-size: 22px;
+    letter-spacing: 2px;
+    color: var(--text-bright);
+    text-transform: uppercase;
+  }
+
+  .header-actions {
+    margin-left: auto;
+    display: flex;
+    gap: 8px;
+  }
+
+  /* ---- Buttons ---- */
+  .btn {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    padding: 6px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-surface);
+    color: var(--text);
+    cursor: pointer;
+    transition: all var(--transition);
+    white-space: nowrap;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--text-bright); }
+  .btn-primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .btn-primary:hover { background: #5aadff; }
+  .btn-danger { border-color: var(--accent-rose); color: var(--accent-rose); }
+  .btn-danger:hover { background: var(--accent-rose); color: #fff; }
+
+  /* ---- Panels ---- */
+  .panel {
+    background: var(--bg-panel);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .panel:last-of-type { border-right: none; border-left: 1px solid var(--border); }
+
+  .panel::-webkit-scrollbar { width: 5px; }
+  .panel::-webkit-scrollbar-track { background: transparent; }
+  .panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .panel-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .panel-heading {
+    font-family: var(--font-display);
+    font-size: 14px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--accent);
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* ---- Form controls ---- */
+  label {
+    font-size: 11px;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: 2px solid var(--bg-panel);
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: 2px solid var(--bg-panel);
+  }
+
+  input[type="number"] {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    width: 56px;
+    padding: 3px 6px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    text-align: right;
+  }
+  input[type="number"]:focus { outline: none; border-color: var(--accent); }
+
+  input[type="color"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 32px; height: 24px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: none;
+    cursor: pointer;
+    padding: 0;
+  }
+  input[type="color"]::-webkit-color-swatch-wrapper { padding: 2px; }
+  input[type="color"]::-webkit-color-swatch { border: none; border-radius: 3px; }
+
+  select {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 4px 8px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    cursor: pointer;
+  }
+  select:focus { outline: none; border-color: var(--accent); }
+
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .row > label { flex: 1; }
+
+  /* ---- Shape buttons ---- */
+  .shape-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+  .shape-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 4px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-surface);
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 10px;
+    font-family: var(--font-mono);
+    transition: all var(--transition);
+  }
+  .shape-btn:hover { border-color: var(--accent); color: var(--text); }
+  .shape-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(74, 158, 255, 0.08); }
+  .shape-btn svg { width: 24px; height: 24px; }
+
+  /* ---- Shape list ---- */
+  .shape-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 240px;
+    overflow-y: auto;
+  }
+
+  .shape-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border: 1px solid transparent;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    transition: all var(--transition);
+  }
+  .shape-item:hover { background: var(--bg-surface); }
+  .shape-item.selected { border-color: var(--accent); background: rgba(74, 158, 255, 0.06); }
+  .shape-item .swatch {
+    width: 14px; height: 14px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .shape-item .shape-label { flex: 1; color: var(--text); }
+  .shape-item .shape-delete {
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+  }
+  .shape-item .shape-delete:hover { color: var(--accent-rose); }
+
+  /* ---- Canvas area ---- */
+  #canvas-area {
+    position: relative;
+    overflow: hidden;
+    background: var(--bg-deep);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #tile-canvas, #preview-canvas {
+    position: absolute;
+    image-rendering: auto;
+  }
+
+  .mode-tabs {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 2px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 2px;
+    z-index: 10;
+  }
+  .mode-tab {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 5px 14px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: all var(--transition);
+  }
+  .mode-tab:hover { color: var(--text); }
+  .mode-tab.active { background: var(--accent); color: #fff; }
+
+  /* ---- Status bar ---- */
+  .status-bar {
+    position: absolute;
+    bottom: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    background: rgba(20, 27, 38, 0.9);
+    padding: 3px 10px;
+    border-radius: var(--radius);
+    z-index: 10;
+  }
+
+  /* ---- Responsive ---- */
+  @media (max-width: 768px) {
+    #app {
+      grid-template-columns: 1fr;
+      grid-template-rows: 48px 1fr;
+    }
+    .panel { display: none; }
+    #canvas-area { grid-column: 1; }
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- Header -->
+  <div id="header">
+    <a href="../index.html" class="back-link">&larr; tools</a>
+    <h1>Tiling Pattern Maker</h1>
+    <div class="header-actions">
+      <button class="btn" onclick="clearAll()" title="Clear all shapes">Clear</button>
+      <button class="btn" onclick="loadPreset()" title="Load a preset pattern">Preset</button>
+      <button class="btn btn-primary" onclick="exportPNG()" title="Export as PNG">Export PNG</button>
+    </div>
+  </div>
+
+  <!-- Left panel: Shapes toolbox + shape list -->
+  <div class="panel" id="left-panel">
+
+    <div class="panel-section">
+      <div class="panel-heading">Add Shape</div>
+      <div class="shape-grid">
+        <button class="shape-btn active" data-shape="circle" title="Circle">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/></svg>
+          <span>Circle</span>
+        </button>
+        <button class="shape-btn" data-shape="square" title="Square">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="5" width="14" height="14"/></svg>
+          <span>Square</span>
+        </button>
+        <button class="shape-btn" data-shape="triangle" title="Triangle">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12,4 20,20 4,20"/></svg>
+          <span>Triangle</span>
+        </button>
+        <button class="shape-btn" data-shape="hexagon" title="Hexagon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12,2 21,7 21,17 12,22 3,17 3,7"/></svg>
+          <span>Hexagon</span>
+        </button>
+        <button class="shape-btn" data-shape="diamond" title="Diamond">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12,3 21,12 12,21 3,12"/></svg>
+          <span>Diamond</span>
+        </button>
+        <button class="shape-btn" data-shape="line" title="Line">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="20" x2="20" y2="4"/></svg>
+          <span>Line</span>
+        </button>
+        <button class="shape-btn" data-shape="star" title="Star">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12,2 15,9 22,9 16,14 18,21 12,17 6,21 8,14 2,9 9,9"/></svg>
+          <span>Star</span>
+        </button>
+        <button class="shape-btn" data-shape="cross" title="Cross">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="4" x2="12" y2="20"/><line x1="4" y1="12" x2="20" y2="12"/></svg>
+          <span>Cross</span>
+        </button>
+        <button class="shape-btn" data-shape="ring" title="Ring">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/></svg>
+          <span>Ring</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <div class="panel-heading">Shapes on Tile</div>
+      <div class="shape-list" id="shape-list">
+        <div style="color: var(--text-dim); font-size: 11px; padding: 8px; text-align: center;">
+          Click on the tile canvas to place shapes
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <div class="panel-heading">Tile Settings</div>
+      <label>
+        Tile Size
+        <input type="number" id="tile-size" value="200" min="50" max="600" step="10">
+      </label>
+      <label>
+        Background
+        <input type="color" id="bg-color" value="#1a2332">
+      </label>
+      <label>
+        Preview Repeats
+        <input type="number" id="repeat-count" value="4" min="2" max="10" step="1">
+      </label>
+    </div>
+
+  </div>
+
+  <!-- Canvas area -->
+  <div id="canvas-area">
+    <div class="mode-tabs">
+      <button class="mode-tab active" data-mode="edit" onclick="setMode('edit')">Edit Tile</button>
+      <button class="mode-tab" data-mode="preview" onclick="setMode('preview')">Preview Repeat</button>
+    </div>
+    <canvas id="tile-canvas"></canvas>
+    <canvas id="preview-canvas" style="display:none;"></canvas>
+    <div class="status-bar" id="status-bar">Click to place shape | Drag to move | Scroll to resize</div>
+  </div>
+
+  <!-- Right panel: Selected shape properties -->
+  <div class="panel" id="right-panel">
+
+    <div class="panel-section" id="props-empty" style="color: var(--text-dim); font-size: 11px; padding: 16px; text-align: center;">
+      Select a shape to edit its properties
+    </div>
+
+    <div class="panel-section" id="props-panel" style="display:none;">
+      <div class="panel-heading">Shape Properties</div>
+
+      <label>
+        Type
+        <span id="prop-type" style="color: var(--text); font-family: var(--font-mono); font-size: 12px;">--</span>
+      </label>
+
+      <label>
+        Fill Color
+        <input type="color" id="prop-fill" value="#4a9eff">
+      </label>
+
+      <label>
+        Stroke Color
+        <input type="color" id="prop-stroke" value="#ffffff">
+      </label>
+
+      <label>
+        Stroke Width
+        <input type="number" id="prop-stroke-width" value="0" min="0" max="20" step="1">
+      </label>
+
+      <label>
+        Size
+        <span id="prop-size-val" style="font-family: var(--font-mono); font-size: 11px;">30</span>
+      </label>
+      <input type="range" id="prop-size" min="5" max="200" value="30">
+
+      <label>
+        Rotation
+        <span id="prop-rot-val" style="font-family: var(--font-mono); font-size: 11px;">0&deg;</span>
+      </label>
+      <input type="range" id="prop-rotation" min="0" max="360" value="0">
+
+      <label>
+        Opacity
+        <span id="prop-opacity-val" style="font-family: var(--font-mono); font-size: 11px;">100%</span>
+      </label>
+      <input type="range" id="prop-opacity" min="5" max="100" value="100">
+
+      <label>
+        X Position
+        <input type="number" id="prop-x" value="0" min="0" step="1">
+      </label>
+
+      <label>
+        Y Position
+        <input type="number" id="prop-y" value="0" min="0" step="1">
+      </label>
+
+      <div style="display: flex; gap: 6px; margin-top: 4px;">
+        <button class="btn" onclick="duplicateSelected()" style="flex:1;">Duplicate</button>
+        <button class="btn btn-danger" onclick="deleteSelected()" style="flex:1;">Delete</button>
+      </div>
+
+      <div style="display: flex; gap: 6px;">
+        <button class="btn" onclick="moveLayer(-1)" style="flex:1;" title="Move back">&#9660; Back</button>
+        <button class="btn" onclick="moveLayer(1)" style="flex:1;" title="Move forward">&#9650; Front</button>
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <div class="panel-heading">Quick Colors</div>
+      <div id="quick-colors" style="display: flex; flex-wrap: wrap; gap: 4px;"></div>
+    </div>
+
+    <div class="panel-section">
+      <div class="panel-heading">Presets</div>
+      <select id="preset-select" onchange="loadPresetByName(this.value)" style="width: 100%;">
+        <option value="">-- choose preset --</option>
+        <option value="checkerboard">Checkerboard</option>
+        <option value="polka">Polka Dots</option>
+        <option value="chevron">Chevron Stripes</option>
+        <option value="hexgrid">Hexagonal Grid</option>
+        <option value="starburst">Starburst</option>
+        <option value="crosses">Swiss Crosses</option>
+        <option value="diamonds">Diamond Lattice</option>
+        <option value="scales">Fish Scales</option>
+      </select>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+/* ================================================================
+   TILING PATTERN MAKER
+   Bauhaus / Blueprint aesthetic
+   ================================================================ */
+
+// ---- State ----
+const shapes = [];
+let selectedId = null;
+let activeShapeType = 'circle';
+let currentMode = 'edit';
+let tileSize = 200;
+let bgColor = '#1a2332';
+let repeatCount = 4;
+let nextId = 1;
+
+// Drag state
+let dragging = null; // { id, offsetX, offsetY }
+let dragStarted = false;
+
+// Canvases
+const tileCanvas = document.getElementById('tile-canvas');
+const previewCanvas = document.getElementById('preview-canvas');
+const tileCtx = tileCanvas.getContext('2d');
+const previewCtx = previewCanvas.getContext('2d');
+
+const quickPalette = [
+  '#4a9eff', '#ff8c42', '#42d68a', '#e85d75', '#a86edb',
+  '#ffcc33', '#33cccc', '#ff6699', '#88cc44', '#ff4444',
+  '#ffffff', '#cccccc', '#666666', '#333333', '#000000',
+  '#1a2332', '#2d1b4e', '#1b3a2d', '#3a1b1b', '#1b2a3a'
+];
+
+// ---- Init ----
+function init() {
+  resizeCanvases();
+  buildQuickColors();
+  bindEvents();
+  render();
+}
+
+function resizeCanvases() {
+  const area = document.getElementById('canvas-area');
+  const w = area.clientWidth;
+  const h = area.clientHeight;
+
+  tileCanvas.width = w;
+  tileCanvas.height = h;
+  previewCanvas.width = w;
+  previewCanvas.height = h;
+}
+
+function buildQuickColors() {
+  const container = document.getElementById('quick-colors');
+  container.innerHTML = '';
+  quickPalette.forEach(c => {
+    const swatch = document.createElement('div');
+    swatch.style.cssText = `width:20px;height:20px;border-radius:3px;border:1px solid var(--border);background:${c};cursor:pointer;`;
+    swatch.addEventListener('click', () => {
+      if (selectedId !== null) {
+        const s = shapes.find(s => s.id === selectedId);
+        if (s) { s.fill = c; document.getElementById('prop-fill').value = c; render(); }
+      }
+    });
+    container.appendChild(swatch);
+  });
+}
+
+// ---- Shape creation ----
+function createShape(type, x, y) {
+  const id = nextId++;
+  const s = {
+    id, type,
+    x: Math.round(x),
+    y: Math.round(y),
+    size: 30,
+    rotation: 0,
+    fill: '#4a9eff',
+    stroke: '#ffffff',
+    strokeWidth: 0,
+    opacity: 1
+  };
+  shapes.push(s);
+  selectShape(id);
+  updateShapeList();
+  render();
+  return s;
+}
+
+// ---- Drawing shapes ----
+function drawShape(ctx, s, ox, oy) {
+  ctx.save();
+  ctx.globalAlpha = s.opacity;
+  ctx.translate(ox + s.x, oy + s.y);
+  ctx.rotate(s.rotation * Math.PI / 180);
+
+  ctx.fillStyle = s.fill;
+  ctx.strokeStyle = s.stroke;
+  ctx.lineWidth = s.strokeWidth;
+
+  const r = s.size;
+
+  switch (s.type) {
+    case 'circle':
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.fill();
+      if (s.strokeWidth > 0) ctx.stroke();
+      break;
+
+    case 'square':
+      ctx.beginPath();
+      ctx.rect(-r, -r, r * 2, r * 2);
+      ctx.fill();
+      if (s.strokeWidth > 0) ctx.stroke();
+      break;
+
+    case 'triangle': {
+      ctx.beginPath();
+      for (let i = 0; i < 3; i++) {
+        const a = (i * 2 * Math.PI / 3) - Math.PI / 2;
+        const px = Math.cos(a) * r;
+        const py = Math.sin(a) * r;
+        i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fill();
+      if (s.strokeWidth > 0) ctx.stroke();
+      break;
+    }
+
+    case 'hexagon': {
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const a = (i * Math.PI / 3) - Math.PI / 6;
+        const px = Math.cos(a) * r;
+        const py = Math.sin(a) * r;
+        i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fill();
+      if (s.strokeWidth > 0) ctx.stroke();
+      break;
+    }
+
+    case 'diamond':
+      ctx.beginPath();
+      ctx.moveTo(0, -r);
+      ctx.lineTo(r * 0.6, 0);
+      ctx.lineTo(0, r);
+      ctx.lineTo(-r * 0.6, 0);
+      ctx.closePath();
+      ctx.fill();
+      if (s.strokeWidth > 0) ctx.stroke();
+      break;
+
+    case 'line':
+      ctx.beginPath();
+      ctx.moveTo(-r, 0);
+      ctx.lineTo(r, 0);
+      ctx.lineWidth = Math.max(s.strokeWidth || 3, 2);
+      ctx.strokeStyle = s.fill;
+      ctx.stroke();
+      break;
+
+    case 'star': {
+      ctx.beginPath();
+      for (let i = 0; i < 10; i++) {
+        const a = (i * Math.PI / 5) - Math.PI / 2;
+        const dist = i % 2 === 0 ? r : r * 0.4;
+        const px = Math.cos(a) * dist;
+        const py = Math.sin(a) * dist;
+        i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fill();
+      if (s.strokeWidth > 0) ctx.stroke();
+      break;
+    }
+
+    case 'cross': {
+      const w = r * 0.35;
+      ctx.beginPath();
+      ctx.moveTo(-w, -r); ctx.lineTo(w, -r); ctx.lineTo(w, -w);
+      ctx.lineTo(r, -w); ctx.lineTo(r, w); ctx.lineTo(w, w);
+      ctx.lineTo(w, r); ctx.lineTo(-w, r); ctx.lineTo(-w, w);
+      ctx.lineTo(-r, w); ctx.lineTo(-r, -w); ctx.lineTo(-w, -w);
+      ctx.closePath();
+      ctx.fill();
+      if (s.strokeWidth > 0) ctx.stroke();
+      break;
+    }
+
+    case 'ring':
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.arc(0, 0, r * 0.55, 0, Math.PI * 2, true);
+      ctx.fill('evenodd');
+      if (s.strokeWidth > 0) {
+        ctx.beginPath();
+        ctx.arc(0, 0, r, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(0, 0, r * 0.55, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      break;
+  }
+
+  ctx.restore();
+}
+
+// ---- Render ----
+function render() {
+  if (currentMode === 'edit') {
+    renderEditMode();
+  } else {
+    renderPreviewMode();
+  }
+}
+
+function renderEditMode() {
+  const ctx = tileCtx;
+  const w = tileCanvas.width;
+  const h = tileCanvas.height;
+
+  ctx.clearRect(0, 0, w, h);
+
+  // Background
+  ctx.fillStyle = '#0c1018';
+  ctx.fillRect(0, 0, w, h);
+
+  // Center the tile
+  const ox = Math.floor((w - tileSize) / 2);
+  const oy = Math.floor((h - tileSize) / 2);
+
+  // Draw ghost tiles (semi-transparent neighbors for context)
+  ctx.save();
+  ctx.globalAlpha = 0.15;
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      if (dx === 0 && dy === 0) continue;
+      const gx = ox + dx * tileSize;
+      const gy = oy + dy * tileSize;
+      ctx.fillStyle = bgColor;
+      ctx.fillRect(gx, gy, tileSize, tileSize);
+      shapes.forEach(s => drawShape(ctx, s, gx, gy));
+    }
+  }
+  ctx.restore();
+
+  // Draw the main tile
+  ctx.fillStyle = bgColor;
+  ctx.fillRect(ox, oy, tileSize, tileSize);
+  shapes.forEach(s => drawShape(ctx, s, ox, oy));
+
+  // Tile border
+  ctx.strokeStyle = 'rgba(74, 158, 255, 0.4)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
+  ctx.strokeRect(ox, oy, tileSize, tileSize);
+  ctx.setLineDash([]);
+
+  // Selection indicator
+  if (selectedId !== null) {
+    const s = shapes.find(s => s.id === selectedId);
+    if (s) {
+      ctx.save();
+      ctx.translate(ox + s.x, oy + s.y);
+      ctx.rotate(s.rotation * Math.PI / 180);
+      const r = s.size + 6;
+      ctx.strokeStyle = 'rgba(74, 158, 255, 0.7)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([3, 3]);
+      ctx.strokeRect(-r, -r, r * 2, r * 2);
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+  }
+}
+
+function renderPreviewMode() {
+  const ctx = previewCtx;
+  const w = previewCanvas.width;
+  const h = previewCanvas.height;
+
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#0c1018';
+  ctx.fillRect(0, 0, w, h);
+
+  // Create an offscreen tile
+  const offscreen = document.createElement('canvas');
+  offscreen.width = tileSize;
+  offscreen.height = tileSize;
+  const offCtx = offscreen.getContext('2d');
+
+  offCtx.fillStyle = bgColor;
+  offCtx.fillRect(0, 0, tileSize, tileSize);
+  shapes.forEach(s => drawShape(offCtx, s, 0, 0));
+
+  // Tile as pattern
+  const pattern = ctx.createPattern(offscreen, 'repeat');
+
+  // Center the grid
+  const gridW = tileSize * repeatCount;
+  const gridH = tileSize * repeatCount;
+  const ox = Math.floor((w - gridW) / 2);
+  const oy = Math.floor((h - gridH) / 2);
+
+  ctx.save();
+  ctx.translate(ox, oy);
+  ctx.fillStyle = pattern;
+  ctx.fillRect(0, 0, gridW, gridH);
+
+  // Grid lines
+  ctx.strokeStyle = 'rgba(74, 158, 255, 0.15)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= repeatCount; i++) {
+    ctx.beginPath();
+    ctx.moveTo(i * tileSize, 0); ctx.lineTo(i * tileSize, gridH);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, i * tileSize); ctx.lineTo(gridW, i * tileSize);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // Border
+  ctx.strokeStyle = 'rgba(74, 158, 255, 0.3)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(ox, oy, gridW, gridH);
+}
+
+// ---- Mode switching ----
+function setMode(mode) {
+  currentMode = mode;
+  document.querySelectorAll('.mode-tab').forEach(t => t.classList.toggle('active', t.dataset.mode === mode));
+  tileCanvas.style.display = mode === 'edit' ? 'block' : 'none';
+  previewCanvas.style.display = mode === 'preview' ? 'block' : 'none';
+
+  const bar = document.getElementById('status-bar');
+  bar.textContent = mode === 'edit'
+    ? 'Click to place shape | Drag to move | Scroll to resize'
+    : `Showing ${repeatCount}x${repeatCount} tile repeat`;
+  render();
+}
+
+// ---- Selection ----
+function selectShape(id) {
+  selectedId = id;
+  updatePropsPanel();
+  updateShapeList();
+}
+
+function updatePropsPanel() {
+  const empty = document.getElementById('props-empty');
+  const panel = document.getElementById('props-panel');
+  if (selectedId === null) {
+    empty.style.display = '';
+    panel.style.display = 'none';
+    return;
+  }
+  const s = shapes.find(s => s.id === selectedId);
+  if (!s) { selectedId = null; updatePropsPanel(); return; }
+
+  empty.style.display = 'none';
+  panel.style.display = '';
+
+  document.getElementById('prop-type').textContent = s.type;
+  document.getElementById('prop-fill').value = s.fill;
+  document.getElementById('prop-stroke').value = s.stroke;
+  document.getElementById('prop-stroke-width').value = s.strokeWidth;
+  document.getElementById('prop-size').value = s.size;
+  document.getElementById('prop-size-val').textContent = s.size;
+  document.getElementById('prop-rotation').value = s.rotation;
+  document.getElementById('prop-rot-val').textContent = s.rotation + '\u00B0';
+  document.getElementById('prop-opacity').value = Math.round(s.opacity * 100);
+  document.getElementById('prop-opacity-val').textContent = Math.round(s.opacity * 100) + '%';
+  document.getElementById('prop-x').value = s.x;
+  document.getElementById('prop-y').value = s.y;
+}
+
+function updateShapeList() {
+  const list = document.getElementById('shape-list');
+  if (shapes.length === 0) {
+    list.innerHTML = '<div style="color: var(--text-dim); font-size: 11px; padding: 8px; text-align: center;">Click on the tile canvas to place shapes</div>';
+    return;
+  }
+  list.innerHTML = shapes.map(s => `
+    <div class="shape-item${s.id === selectedId ? ' selected' : ''}" data-id="${s.id}">
+      <div class="swatch" style="background:${s.fill};"></div>
+      <span class="shape-label">${s.type} #${s.id}</span>
+      <span class="shape-delete" data-del="${s.id}">&times;</span>
+    </div>
+  `).join('');
+
+  list.querySelectorAll('.shape-item').forEach(el => {
+    el.addEventListener('click', (e) => {
+      if (e.target.dataset.del) {
+        deleteShape(parseInt(e.target.dataset.del));
+        return;
+      }
+      selectShape(parseInt(el.dataset.id));
+      render();
+    });
+  });
+}
+
+// ---- Shape operations ----
+function deleteShape(id) {
+  const idx = shapes.findIndex(s => s.id === id);
+  if (idx > -1) shapes.splice(idx, 1);
+  if (selectedId === id) selectedId = null;
+  updateShapeList();
+  updatePropsPanel();
+  render();
+}
+
+function deleteSelected() {
+  if (selectedId !== null) deleteShape(selectedId);
+}
+
+function duplicateSelected() {
+  if (selectedId === null) return;
+  const s = shapes.find(s => s.id === selectedId);
+  if (!s) return;
+  const dup = { ...s, id: nextId++, x: s.x + 15, y: s.y + 15 };
+  shapes.push(dup);
+  selectShape(dup.id);
+  updateShapeList();
+  render();
+}
+
+function moveLayer(dir) {
+  if (selectedId === null) return;
+  const idx = shapes.findIndex(s => s.id === selectedId);
+  if (idx < 0) return;
+  const newIdx = idx + dir;
+  if (newIdx < 0 || newIdx >= shapes.length) return;
+  [shapes[idx], shapes[newIdx]] = [shapes[newIdx], shapes[idx]];
+  updateShapeList();
+  render();
+}
+
+function clearAll() {
+  if (shapes.length > 0 && !confirm('Clear all shapes?')) return;
+  shapes.length = 0;
+  selectedId = null;
+  nextId = 1;
+  updateShapeList();
+  updatePropsPanel();
+  render();
+}
+
+// ---- Hit testing ----
+function hitTest(mx, my) {
+  const area = document.getElementById('canvas-area');
+  const ox = Math.floor((area.clientWidth - tileSize) / 2);
+  const oy = Math.floor((area.clientHeight - tileSize) / 2);
+
+  // Check shapes in reverse (top first)
+  for (let i = shapes.length - 1; i >= 0; i--) {
+    const s = shapes[i];
+    const sx = ox + s.x;
+    const sy = oy + s.y;
+    const r = s.size + 4;
+
+    // Simple bounding box hit
+    const dx = mx - sx;
+    const dy = my - sy;
+
+    // Rotate point back
+    const angle = -s.rotation * Math.PI / 180;
+    const rdx = dx * Math.cos(angle) - dy * Math.sin(angle);
+    const rdy = dx * Math.sin(angle) + dy * Math.cos(angle);
+
+    if (Math.abs(rdx) <= r && Math.abs(rdy) <= r) {
+      return s;
+    }
+  }
+  return null;
+}
+
+// ---- Events ----
+function bindEvents() {
+  // Shape type buttons
+  document.querySelectorAll('.shape-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      activeShapeType = btn.dataset.shape;
+      document.querySelectorAll('.shape-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+
+  // Tile canvas mouse events
+  tileCanvas.addEventListener('mousedown', onCanvasMouseDown);
+  tileCanvas.addEventListener('mousemove', onCanvasMouseMove);
+  tileCanvas.addEventListener('mouseup', onCanvasMouseUp);
+  tileCanvas.addEventListener('wheel', onCanvasWheel, { passive: false });
+
+  // Property inputs
+  document.getElementById('prop-fill').addEventListener('input', e => {
+    const s = shapes.find(s => s.id === selectedId);
+    if (s) { s.fill = e.target.value; updateShapeList(); render(); }
+  });
+  document.getElementById('prop-stroke').addEventListener('input', e => {
+    const s = shapes.find(s => s.id === selectedId);
+    if (s) { s.stroke = e.target.value; render(); }
+  });
+  document.getElementById('prop-stroke-width').addEventListener('input', e => {
+    const s = shapes.find(s => s.id === selectedId);
+    if (s) { s.strokeWidth = parseInt(e.target.value) || 0; render(); }
+  });
+  document.getElementById('prop-size').addEventListener('input', e => {
+    const s = shapes.find(s => s.id === selectedId);
+    if (s) {
+      s.size = parseInt(e.target.value);
+      document.getElementById('prop-size-val').textContent = s.size;
+      render();
+    }
+  });
+  document.getElementById('prop-rotation').addEventListener('input', e => {
+    const s = shapes.find(s => s.id === selectedId);
+    if (s) {
+      s.rotation = parseInt(e.target.value);
+      document.getElementById('prop-rot-val').textContent = s.rotation + '\u00B0';
+      render();
+    }
+  });
+  document.getElementById('prop-opacity').addEventListener('input', e => {
+    const s = shapes.find(s => s.id === selectedId);
+    if (s) {
+      s.opacity = parseInt(e.target.value) / 100;
+      document.getElementById('prop-opacity-val').textContent = parseInt(e.target.value) + '%';
+      render();
+    }
+  });
+  document.getElementById('prop-x').addEventListener('input', e => {
+    const s = shapes.find(s => s.id === selectedId);
+    if (s) { s.x = parseInt(e.target.value) || 0; render(); }
+  });
+  document.getElementById('prop-y').addEventListener('input', e => {
+    const s = shapes.find(s => s.id === selectedId);
+    if (s) { s.y = parseInt(e.target.value) || 0; render(); }
+  });
+
+  // Tile settings
+  document.getElementById('tile-size').addEventListener('input', e => {
+    tileSize = parseInt(e.target.value) || 200;
+    render();
+  });
+  document.getElementById('bg-color').addEventListener('input', e => {
+    bgColor = e.target.value;
+    render();
+  });
+  document.getElementById('repeat-count').addEventListener('input', e => {
+    repeatCount = parseInt(e.target.value) || 4;
+    if (currentMode === 'preview') {
+      document.getElementById('status-bar').textContent = `Showing ${repeatCount}x${repeatCount} tile repeat`;
+    }
+    render();
+  });
+
+  // Window resize
+  window.addEventListener('resize', () => { resizeCanvases(); render(); });
+
+  // Keyboard
+  window.addEventListener('keydown', e => {
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      if (selectedId !== null && document.activeElement.tagName !== 'INPUT') {
+        deleteSelected();
+      }
+    }
+    if (e.key === 'Escape') {
+      selectedId = null;
+      updatePropsPanel();
+      updateShapeList();
+      render();
+    }
+  });
+}
+
+function onCanvasMouseDown(e) {
+  if (currentMode !== 'edit') return;
+  const rect = tileCanvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+
+  const hit = hitTest(mx, my);
+  if (hit) {
+    selectShape(hit.id);
+    const area = document.getElementById('canvas-area');
+    const ox = Math.floor((area.clientWidth - tileSize) / 2);
+    const oy = Math.floor((area.clientHeight - tileSize) / 2);
+    dragging = { id: hit.id, offsetX: mx - (ox + hit.x), offsetY: my - (oy + hit.y) };
+    dragStarted = false;
+    render();
+  } else {
+    // Place new shape if click is within tile bounds
+    const area = document.getElementById('canvas-area');
+    const ox = Math.floor((area.clientWidth - tileSize) / 2);
+    const oy = Math.floor((area.clientHeight - tileSize) / 2);
+
+    const tx = mx - ox;
+    const ty = my - oy;
+
+    if (tx >= 0 && tx <= tileSize && ty >= 0 && ty <= tileSize) {
+      createShape(activeShapeType, tx, ty);
+    } else {
+      selectedId = null;
+      updatePropsPanel();
+      updateShapeList();
+      render();
+    }
+  }
+}
+
+function onCanvasMouseMove(e) {
+  if (!dragging) return;
+  const rect = tileCanvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const area = document.getElementById('canvas-area');
+  const ox = Math.floor((area.clientWidth - tileSize) / 2);
+  const oy = Math.floor((area.clientHeight - tileSize) / 2);
+
+  const s = shapes.find(s => s.id === dragging.id);
+  if (s) {
+    s.x = Math.round(mx - dragging.offsetX - ox);
+    s.y = Math.round(my - dragging.offsetY - oy);
+    dragStarted = true;
+    updatePropsPanel();
+    render();
+  }
+}
+
+function onCanvasMouseUp() {
+  dragging = null;
+}
+
+function onCanvasWheel(e) {
+  if (selectedId === null || currentMode !== 'edit') return;
+  e.preventDefault();
+  const s = shapes.find(s => s.id === selectedId);
+  if (!s) return;
+
+  if (e.shiftKey) {
+    // Shift+scroll = rotate
+    s.rotation = (s.rotation + (e.deltaY > 0 ? 5 : -5) + 360) % 360;
+  } else {
+    // Scroll = resize
+    s.size = Math.max(3, Math.min(200, s.size + (e.deltaY > 0 ? -2 : 2)));
+  }
+  updatePropsPanel();
+  render();
+}
+
+// ---- Export ----
+function exportPNG() {
+  const exportScale = repeatCount;
+  const expCanvas = document.createElement('canvas');
+  const expSize = tileSize * exportScale;
+  expCanvas.width = expSize;
+  expCanvas.height = expSize;
+  const ctx = expCanvas.getContext('2d');
+
+  // Render one tile to offscreen
+  const tileOff = document.createElement('canvas');
+  tileOff.width = tileSize;
+  tileOff.height = tileSize;
+  const tCtx = tileOff.getContext('2d');
+  tCtx.fillStyle = bgColor;
+  tCtx.fillRect(0, 0, tileSize, tileSize);
+  shapes.forEach(s => drawShape(tCtx, s, 0, 0));
+
+  // Repeat
+  const pattern = ctx.createPattern(tileOff, 'repeat');
+  ctx.fillStyle = pattern;
+  ctx.fillRect(0, 0, expSize, expSize);
+
+  // Download
+  const link = document.createElement('a');
+  link.download = 'pattern-' + Date.now() + '.png';
+  link.href = expCanvas.toDataURL('image/png');
+  link.click();
+}
+
+// ---- Presets ----
+function loadPreset() {
+  const sel = document.getElementById('preset-select');
+  sel.focus();
+}
+
+function loadPresetByName(name) {
+  if (!name) return;
+  if (shapes.length > 0 && !confirm('Replace current shapes with preset?')) {
+    document.getElementById('preset-select').value = '';
+    return;
+  }
+
+  shapes.length = 0;
+  selectedId = null;
+  nextId = 1;
+
+  const T = tileSize;
+  const H = T / 2;
+
+  switch (name) {
+    case 'checkerboard':
+      bgColor = '#1a1a2e';
+      document.getElementById('bg-color').value = bgColor;
+      [{ x: T * 0.25, y: T * 0.25 }, { x: T * 0.75, y: T * 0.75 }].forEach(p => {
+        const s = createShape('square', p.x, p.y);
+        s.size = T * 0.25;
+        s.fill = '#4a9eff';
+        s.strokeWidth = 0;
+      });
+      break;
+
+    case 'polka':
+      bgColor = '#2d1b4e';
+      document.getElementById('bg-color').value = bgColor;
+      [{ x: H, y: H }, { x: 0, y: 0 }, { x: T, y: 0 }, { x: 0, y: T }, { x: T, y: T }].forEach((p, i) => {
+        const s = createShape('circle', p.x, p.y);
+        s.size = T * 0.12;
+        s.fill = i === 0 ? '#ff8c42' : '#ffcc33';
+        s.strokeWidth = 0;
+      });
+      break;
+
+    case 'chevron': {
+      bgColor = '#1b2a3a';
+      document.getElementById('bg-color').value = bgColor;
+      const rows = 4;
+      for (let i = 0; i < rows; i++) {
+        const y = (i + 0.5) * (T / rows);
+        const s = createShape('line', H, y);
+        s.size = T * 0.55;
+        s.rotation = 15;
+        s.fill = i % 2 === 0 ? '#42d68a' : '#33cccc';
+        s.strokeWidth = 4;
+      }
+      break;
+    }
+
+    case 'hexgrid':
+      bgColor = '#0e1520';
+      document.getElementById('bg-color').value = bgColor;
+      [{ x: H, y: H }, { x: 0, y: 0 }, { x: T, y: 0 }, { x: 0, y: T }, { x: T, y: T }].forEach(p => {
+        const s = createShape('hexagon', p.x, p.y);
+        s.size = T * 0.22;
+        s.fill = 'transparent';
+        s.stroke = '#4a9eff';
+        s.strokeWidth = 2;
+      });
+      break;
+
+    case 'starburst':
+      bgColor = '#1a0a2e';
+      document.getElementById('bg-color').value = bgColor;
+      [{ x: H, y: H, c: '#ffcc33', sz: 0.2 },
+       { x: 0, y: 0, c: '#e85d75', sz: 0.15 },
+       { x: T, y: 0, c: '#e85d75', sz: 0.15 },
+       { x: 0, y: T, c: '#e85d75', sz: 0.15 },
+       { x: T, y: T, c: '#e85d75', sz: 0.15 }].forEach(p => {
+        const s = createShape('star', p.x, p.y);
+        s.size = T * p.sz;
+        s.fill = p.c;
+        s.strokeWidth = 0;
+      });
+      break;
+
+    case 'crosses':
+      bgColor = '#cc0000';
+      document.getElementById('bg-color').value = bgColor;
+      [{ x: H, y: H }].forEach(p => {
+        const s = createShape('cross', p.x, p.y);
+        s.size = T * 0.18;
+        s.fill = '#ffffff';
+        s.strokeWidth = 0;
+      });
+      break;
+
+    case 'diamonds': {
+      bgColor = '#1b3a2d';
+      document.getElementById('bg-color').value = bgColor;
+      const pts = [{ x: H, y: 0 }, { x: 0, y: H }, { x: T, y: H }, { x: H, y: T }];
+      pts.forEach(p => {
+        const s = createShape('diamond', p.x, p.y);
+        s.size = T * 0.22;
+        s.fill = '#42d68a';
+        s.strokeWidth = 0;
+      });
+      const center = createShape('diamond', H, H);
+      center.size = T * 0.12;
+      center.fill = '#ffcc33';
+      break;
+    }
+
+    case 'scales': {
+      bgColor = '#0e2030';
+      document.getElementById('bg-color').value = bgColor;
+      const colors = ['#2a6090', '#3a80b0', '#2a6090'];
+      for (let row = 0; row < 3; row++) {
+        const y = row * (T / 2.5);
+        const off = row % 2 === 0 ? 0 : H;
+        for (let col = -1; col <= 1; col++) {
+          const s = createShape('circle', off + col * T, y);
+          s.size = T * 0.28;
+          s.fill = colors[row % colors.length];
+          s.stroke = '#4a90c0';
+          s.strokeWidth = 1;
+        }
+      }
+      break;
+    }
+  }
+
+  document.getElementById('preset-select').value = '';
+  updateShapeList();
+  if (shapes.length > 0) selectShape(shapes[0].id);
+  render();
+}
+
+// ---- Start ----
+window.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>

@@ -1,0 +1,1411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Maze Generator — Algorithm Visualization</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --font-display: 'Space Grotesk', sans-serif;
+    --font-body: 'Inter', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+
+    --bg-primary: #0f1117;
+    --bg-secondary: #161922;
+    --bg-panel: #1c1f2e;
+    --bg-input: #232738;
+    --border: #2d3148;
+    --border-focus: #5b6abf;
+
+    --text-primary: #e2e4ed;
+    --text-secondary: #8b90a5;
+    --text-muted: #5c6078;
+
+    --accent: #6c7bf0;
+    --accent-glow: rgba(108, 123, 240, 0.25);
+    --success: #4ade80;
+    --warning: #fbbf24;
+    --danger: #f87171;
+
+    --wall-color: #2d3148;
+    --path-color: #0f1117;
+    --current-color: #6c7bf0;
+    --visited-color: #3b3f5c;
+    --solution-color: #4ade80;
+    --start-color: #6c7bf0;
+    --end-color: #f87171;
+    --frontier-color: #fbbf24;
+
+    --radius: 8px;
+    --radius-sm: 4px;
+  }
+
+  html, body {
+    height: 100%;
+    font-family: var(--font-body);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    overflow: hidden;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse at 15% 20%, rgba(108, 123, 240, 0.06) 0%, transparent 50%),
+      radial-gradient(ellipse at 85% 80%, rgba(74, 222, 128, 0.04) 0%, transparent 50%);
+  }
+
+  /* Layout */
+  #app {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    grid-template-rows: auto 1fr;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  /* Header */
+  #header {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 10px 20px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .back-link {
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 13px;
+    font-family: var(--font-mono);
+    transition: color 0.2s;
+  }
+  .back-link:hover { color: var(--accent); }
+
+  .header-title {
+    font-family: var(--font-display);
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
+  }
+
+  .header-badge {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 2px 8px;
+    background: var(--accent-glow);
+    color: var(--accent);
+    border-radius: 10px;
+    border: 1px solid rgba(108, 123, 240, 0.3);
+  }
+
+  .header-stats {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-secondary);
+    display: flex;
+    gap: 16px;
+  }
+  .header-stats span { color: var(--accent); }
+
+  /* Sidebar */
+  #sidebar {
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--border);
+    padding: 16px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  #sidebar::-webkit-scrollbar { width: 5px; }
+  #sidebar::-webkit-scrollbar-track { background: transparent; }
+  #sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .panel {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: var(--bg-input);
+    border-bottom: 1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-secondary);
+    cursor: pointer;
+  }
+  .panel-header .toggle { font-size: 10px; color: var(--text-muted); }
+
+  .panel-body {
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  /* Form Controls */
+  .control-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .control-row label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+
+  .control-row .value-badge {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--accent);
+    min-width: 32px;
+    text-align: right;
+  }
+
+  select, input[type="number"] {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    background: var(--bg-input);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 6px 10px;
+    outline: none;
+    transition: border-color 0.2s;
+    width: 100%;
+  }
+  select:focus, input[type="number"]:focus { border-color: var(--border-focus); }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    box-shadow: 0 0 6px var(--accent-glow);
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: none;
+  }
+
+  input[type="color"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 28px;
+    height: 28px;
+    border: 2px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: none;
+    cursor: pointer;
+    padding: 0;
+  }
+  input[type="color"]::-webkit-color-swatch-wrapper { padding: 2px; }
+  input[type="color"]::-webkit-color-swatch { border-radius: 2px; border: none; }
+
+  /* Buttons */
+  .btn {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 8px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-input);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .btn:hover { border-color: var(--border-focus); background: var(--bg-panel); }
+  .btn:active { transform: scale(0.97); }
+
+  .btn-primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .btn-primary:hover { background: #5b6abf; border-color: #5b6abf; }
+
+  .btn-success {
+    background: rgba(74, 222, 128, 0.15);
+    border-color: rgba(74, 222, 128, 0.4);
+    color: var(--success);
+  }
+  .btn-success:hover { background: rgba(74, 222, 128, 0.25); }
+
+  .btn-danger {
+    background: rgba(248, 113, 113, 0.15);
+    border-color: rgba(248, 113, 113, 0.4);
+    color: var(--danger);
+  }
+  .btn-danger:hover { background: rgba(248, 113, 113, 0.25); }
+
+  .btn-row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .btn-row .btn { flex: 1; text-align: center; }
+
+  /* Canvas Area */
+  #canvas-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  #mazeCanvas {
+    border: 2px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 0 30px rgba(0, 0, 0, 0.3);
+    image-rendering: pixelated;
+    max-width: 100%;
+    max-height: 100%;
+  }
+
+  /* Info Panel */
+  .info-panel {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.7;
+    color: var(--text-secondary);
+  }
+  .info-panel strong { color: var(--text-primary); font-weight: 600; }
+  .info-panel .highlight { color: var(--accent); }
+  .info-panel .tag {
+    display: inline-block;
+    padding: 1px 6px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    font-size: 10px;
+    margin: 1px 2px;
+  }
+
+  /* Legend */
+  .legend {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 12px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+  .legend-swatch {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    border: 1px solid rgba(255,255,255,0.1);
+    flex-shrink: 0;
+  }
+
+  /* Status Bar */
+  #status-bar {
+    position: absolute;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-muted);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 5px 16px;
+    pointer-events: none;
+  }
+  #status-bar .active { color: var(--accent); }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    #app {
+      grid-template-columns: 1fr;
+      grid-template-rows: auto auto 1fr;
+    }
+    #sidebar {
+      border-right: none;
+      border-bottom: 1px solid var(--border);
+      max-height: 45vh;
+      overflow-y: auto;
+    }
+    #canvas-area { padding: 10px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div id="header">
+    <a href="../index.html" class="back-link">&larr; Tools</a>
+    <div class="header-title">Maze Generator</div>
+    <div class="header-badge">algorithm viz</div>
+    <div class="header-stats">
+      <div>Cells: <span id="statCells">0</span></div>
+      <div>Steps: <span id="statSteps">0</span></div>
+      <div>Time: <span id="statTime">0ms</span></div>
+    </div>
+  </div>
+
+  <div id="sidebar">
+    <!-- Generation Panel -->
+    <div class="panel">
+      <div class="panel-header">Generation <span class="toggle">&#9660;</span></div>
+      <div class="panel-body">
+        <div class="control-row">
+          <label>Algorithm</label>
+        </div>
+        <select id="genAlgo">
+          <option value="dfs">DFS (Recursive Backtracker)</option>
+          <option value="prims">Prim's Algorithm</option>
+          <option value="kruskals">Kruskal's Algorithm</option>
+        </select>
+
+        <div class="control-row">
+          <label>Grid Width</label>
+          <span class="value-badge" id="widthVal">25</span>
+        </div>
+        <input type="range" id="gridWidth" min="5" max="50" value="25">
+
+        <div class="control-row">
+          <label>Grid Height</label>
+          <span class="value-badge" id="heightVal">25</span>
+        </div>
+        <input type="range" id="gridHeight" min="5" max="50" value="25">
+
+        <div class="control-row">
+          <label>Animation Speed</label>
+          <span class="value-badge" id="speedVal">50</span>
+        </div>
+        <input type="range" id="animSpeed" min="1" max="200" value="50">
+
+        <div class="btn-row">
+          <button class="btn btn-primary" id="btnGenerate">Generate</button>
+          <button class="btn" id="btnPause">Pause</button>
+          <button class="btn" id="btnStep">Step</button>
+        </div>
+        <button class="btn btn-danger" id="btnReset" style="width:100%">Reset Grid</button>
+      </div>
+    </div>
+
+    <!-- Solving Panel -->
+    <div class="panel">
+      <div class="panel-header">Pathfinding <span class="toggle">&#9660;</span></div>
+      <div class="panel-body">
+        <div class="control-row">
+          <label>Algorithm</label>
+        </div>
+        <select id="solveAlgo">
+          <option value="bfs">BFS (Breadth-First)</option>
+          <option value="astar">A* (Heuristic)</option>
+        </select>
+        <div class="btn-row">
+          <button class="btn btn-success" id="btnSolve">Solve</button>
+          <button class="btn" id="btnClearSolution">Clear</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Colors Panel -->
+    <div class="panel">
+      <div class="panel-header">Colors <span class="toggle">&#9660;</span></div>
+      <div class="panel-body">
+        <div class="control-row">
+          <label>Walls</label>
+          <input type="color" id="colorWall" value="#2d3148">
+        </div>
+        <div class="control-row">
+          <label>Path</label>
+          <input type="color" id="colorPath" value="#0f1117">
+        </div>
+        <div class="control-row">
+          <label>Current Cell</label>
+          <input type="color" id="colorCurrent" value="#6c7bf0">
+        </div>
+        <div class="control-row">
+          <label>Visited</label>
+          <input type="color" id="colorVisited" value="#3b3f5c">
+        </div>
+        <div class="control-row">
+          <label>Solution</label>
+          <input type="color" id="colorSolution" value="#4ade80">
+        </div>
+        <div class="control-row">
+          <label>Frontier</label>
+          <input type="color" id="colorFrontier" value="#fbbf24">
+        </div>
+      </div>
+    </div>
+
+    <!-- Export Panel -->
+    <div class="panel">
+      <div class="panel-header">Export <span class="toggle">&#9660;</span></div>
+      <div class="panel-body">
+        <button class="btn" id="btnExport" style="width:100%">Export as PNG</button>
+      </div>
+    </div>
+
+    <!-- Algorithm Info -->
+    <div class="panel">
+      <div class="panel-header">Algorithm Info <span class="toggle">&#9660;</span></div>
+      <div class="panel-body">
+        <div class="info-panel" id="algoInfo"></div>
+      </div>
+    </div>
+
+    <!-- Legend -->
+    <div class="panel">
+      <div class="panel-header">Legend <span class="toggle">&#9660;</span></div>
+      <div class="panel-body">
+        <div class="legend" id="legend">
+          <div class="legend-item"><div class="legend-swatch" id="swWall"></div> Wall</div>
+          <div class="legend-item"><div class="legend-swatch" id="swPath"></div> Path</div>
+          <div class="legend-item"><div class="legend-swatch" id="swCurrent"></div> Current</div>
+          <div class="legend-item"><div class="legend-swatch" id="swVisited"></div> Visited</div>
+          <div class="legend-item"><div class="legend-swatch" id="swSolution"></div> Solution</div>
+          <div class="legend-item"><div class="legend-swatch" id="swFrontier"></div> Frontier</div>
+          <div class="legend-item"><div class="legend-swatch" style="background:var(--start-color)"></div> Start</div>
+          <div class="legend-item"><div class="legend-swatch" style="background:var(--end-color)"></div> End</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="canvas-area">
+    <canvas id="mazeCanvas"></canvas>
+    <div id="status-bar">Ready</div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  // ========== DOM References ==========
+  const canvas = document.getElementById('mazeCanvas');
+  const ctx = canvas.getContext('2d');
+
+  const elGenAlgo = document.getElementById('genAlgo');
+  const elSolveAlgo = document.getElementById('solveAlgo');
+  const elGridWidth = document.getElementById('gridWidth');
+  const elGridHeight = document.getElementById('gridHeight');
+  const elAnimSpeed = document.getElementById('animSpeed');
+  const elWidthVal = document.getElementById('widthVal');
+  const elHeightVal = document.getElementById('heightVal');
+  const elSpeedVal = document.getElementById('speedVal');
+
+  const btnGenerate = document.getElementById('btnGenerate');
+  const btnPause = document.getElementById('btnPause');
+  const btnStep = document.getElementById('btnStep');
+  const btnReset = document.getElementById('btnReset');
+  const btnSolve = document.getElementById('btnSolve');
+  const btnClearSolution = document.getElementById('btnClearSolution');
+  const btnExport = document.getElementById('btnExport');
+
+  const statCells = document.getElementById('statCells');
+  const statSteps = document.getElementById('statSteps');
+  const statTime = document.getElementById('statTime');
+  const statusBar = document.getElementById('status-bar');
+  const algoInfo = document.getElementById('algoInfo');
+
+  const colorInputs = {
+    wall: document.getElementById('colorWall'),
+    path: document.getElementById('colorPath'),
+    current: document.getElementById('colorCurrent'),
+    visited: document.getElementById('colorVisited'),
+    solution: document.getElementById('colorSolution'),
+    frontier: document.getElementById('colorFrontier'),
+  };
+
+  // ========== State ==========
+  let cols = 25, rows = 25;
+  let cellSize = 10;
+  const WALL_WIDTH = 1;
+
+  // Grid: each cell stores { top, right, bottom, left } walls (true = wall exists)
+  // Plus state: 'unvisited', 'visited', 'current', 'frontier', 'path', 'solution'
+  let grid = [];
+  let genState = null;    // generator coroutine state
+  let solveState = null;  // solver coroutine state
+  let animFrame = null;
+  let paused = false;
+  let stepMode = false;
+  let stepReady = false;
+  let mazeComplete = false;
+  let solveComplete = false;
+  let totalSteps = 0;
+  let startTime = 0;
+
+  // ========== Algorithm Info ==========
+  const ALGO_INFO = {
+    dfs: `<strong>DFS — Recursive Backtracker</strong><br><br>
+      Carves a path by always moving to a random unvisited neighbor. When stuck, it <em>backtracks</em> until it finds an unvisited cell.<br><br>
+      <span class="tag">O(V)</span> time &nbsp; <span class="tag">Stack-based</span><br><br>
+      Produces mazes with <span class="highlight">long, winding corridors</span> and fewer dead ends. Has a characteristic "river-like" appearance.`,
+    prims: `<strong>Prim's Algorithm</strong><br><br>
+      Starts from one cell and maintains a <em>frontier</em> of cells adjacent to the maze. Each step picks a random frontier cell and connects it.<br><br>
+      <span class="tag">O(V log V)</span> time &nbsp; <span class="tag">Frontier set</span><br><br>
+      Produces mazes with <span class="highlight">many short branches</span> radiating from the start. Tends to create more uniform-looking mazes.`,
+    kruskals: `<strong>Kruskal's Algorithm</strong><br><br>
+      Lists all possible walls, shuffles them, then removes each wall if the two cells it separates belong to <em>different sets</em> (Union-Find).<br><br>
+      <span class="tag">O(E log E)</span> time &nbsp; <span class="tag">Union-Find</span><br><br>
+      Produces mazes with <span class="highlight">evenly distributed passages</span>. Generation appears to happen simultaneously across the entire grid.`,
+    bfs: `<strong>BFS — Breadth-First Search</strong><br><br>
+      Explores all cells at distance <em>d</em> before distance <em>d+1</em>. Guarantees the <span class="highlight">shortest path</span> in unweighted graphs.<br><br>
+      <span class="tag">O(V + E)</span> time &nbsp; <span class="tag">Queue</span>`,
+    astar: `<strong>A* Search</strong><br><br>
+      Uses a heuristic (Manhattan distance) to guide search toward the goal. Explores fewer cells than BFS while still finding the <span class="highlight">optimal path</span>.<br><br>
+      <span class="tag">O(V log V)</span> time &nbsp; <span class="tag">Priority Queue</span>`,
+  };
+
+  // ========== Grid Helpers ==========
+  function initGrid() {
+    grid = [];
+    for (let r = 0; r < rows; r++) {
+      grid[r] = [];
+      for (let c = 0; c < cols; c++) {
+        grid[r][c] = {
+          row: r, col: c,
+          top: true, right: true, bottom: true, left: true,
+          state: 'unvisited',
+          parent: null,    // for solve path reconstruction
+          g: Infinity,     // for A*
+          f: Infinity,     // for A*
+        };
+      }
+    }
+  }
+
+  function getNeighbors(r, c) {
+    const n = [];
+    if (r > 0) n.push({ row: r - 1, col: c, dir: 'top', opp: 'bottom' });
+    if (r < rows - 1) n.push({ row: r + 1, col: c, dir: 'bottom', opp: 'top' });
+    if (c > 0) n.push({ row: r, col: c - 1, dir: 'left', opp: 'right' });
+    if (c < cols - 1) n.push({ row: r, col: c + 1, dir: 'right', opp: 'left' });
+    return n;
+  }
+
+  function removeWall(cell, neighbor, dir, opp) {
+    cell[dir] = false;
+    neighbor[opp] = false;
+  }
+
+  function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  function canPass(cell, dir) {
+    return !cell[dir];
+  }
+
+  // ========== Generation Algorithms (Generators) ==========
+
+  function* genDFS() {
+    const stack = [];
+    const startR = 0, startC = 0;
+    const startCell = grid[startR][startC];
+    startCell.state = 'current';
+    stack.push(startCell);
+    yield;
+
+    while (stack.length > 0) {
+      const current = stack[stack.length - 1];
+      current.state = 'current';
+
+      const neighbors = getNeighbors(current.row, current.col);
+      shuffle(neighbors);
+      let found = false;
+
+      for (const n of neighbors) {
+        const nc = grid[n.row][n.col];
+        if (nc.state === 'unvisited') {
+          removeWall(current, nc, n.dir, n.opp);
+          current.state = 'visited';
+          nc.state = 'current';
+          stack.push(nc);
+          found = true;
+          yield;
+          break;
+        }
+      }
+
+      if (!found) {
+        current.state = 'visited';
+        stack.pop();
+        if (stack.length > 0) {
+          stack[stack.length - 1].state = 'current';
+        }
+        yield;
+      }
+    }
+  }
+
+  function* genPrims() {
+    const frontier = [];
+    const startR = Math.floor(rows / 2);
+    const startC = Math.floor(cols / 2);
+    const startCell = grid[startR][startC];
+    startCell.state = 'visited';
+
+    for (const n of getNeighbors(startR, startC)) {
+      const nc = grid[n.row][n.col];
+      if (nc.state === 'unvisited') {
+        nc.state = 'frontier';
+        nc._fromDir = n.opp;   // direction back to the visited cell
+        nc._fromRow = startR;
+        nc._fromCol = startC;
+        frontier.push(nc);
+      }
+    }
+    yield;
+
+    while (frontier.length > 0) {
+      const idx = Math.floor(Math.random() * frontier.length);
+      const cell = frontier[idx];
+      frontier.splice(idx, 1);
+
+      if (cell.state !== 'frontier') continue;
+
+      // Find all visited neighbors and pick one randomly
+      const visitedNeighbors = [];
+      for (const n of getNeighbors(cell.row, cell.col)) {
+        if (grid[n.row][n.col].state === 'visited') {
+          visitedNeighbors.push(n);
+        }
+      }
+
+      if (visitedNeighbors.length > 0) {
+        const pick = visitedNeighbors[Math.floor(Math.random() * visitedNeighbors.length)];
+        const neighbor = grid[pick.row][pick.col];
+        removeWall(cell, neighbor, pick.opp, pick.dir);
+      }
+
+      cell.state = 'current';
+      yield;
+
+      cell.state = 'visited';
+
+      for (const n of getNeighbors(cell.row, cell.col)) {
+        const nc = grid[n.row][n.col];
+        if (nc.state === 'unvisited') {
+          nc.state = 'frontier';
+          frontier.push(nc);
+        }
+      }
+      yield;
+    }
+  }
+
+  function* genKruskals() {
+    // Union-Find
+    const parent = new Array(rows * cols);
+    const rank = new Array(rows * cols).fill(0);
+    for (let i = 0; i < parent.length; i++) parent[i] = i;
+
+    function find(x) {
+      while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; }
+      return x;
+    }
+    function union(a, b) {
+      const ra = find(a), rb = find(b);
+      if (ra === rb) return false;
+      if (rank[ra] < rank[rb]) parent[ra] = rb;
+      else if (rank[ra] > rank[rb]) parent[rb] = ra;
+      else { parent[rb] = ra; rank[ra]++; }
+      return true;
+    }
+
+    const idx = (r, c) => r * cols + c;
+
+    // Collect all edges
+    const edges = [];
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (r < rows - 1) edges.push({ r1: r, c1: c, r2: r + 1, c2: c, dir: 'bottom', opp: 'top' });
+        if (c < cols - 1) edges.push({ r1: r, c1: c, r2: r, c2: c + 1, dir: 'right', opp: 'left' });
+      }
+    }
+    shuffle(edges);
+
+    // Mark all as unvisited initially
+    yield;
+
+    for (const edge of edges) {
+      const a = idx(edge.r1, edge.c1);
+      const b = idx(edge.r2, edge.c2);
+
+      const cellA = grid[edge.r1][edge.c1];
+      const cellB = grid[edge.r2][edge.c2];
+
+      // Highlight the two cells being considered
+      cellA.state = 'current';
+      cellB.state = 'current';
+      yield;
+
+      if (union(a, b)) {
+        removeWall(cellA, cellB, edge.dir, edge.opp);
+        cellA.state = 'visited';
+        cellB.state = 'visited';
+      } else {
+        cellA.state = cellA.state === 'current' ? (cellA.top && cellA.right && cellA.bottom && cellA.left ? 'unvisited' : 'visited') : cellA.state;
+        cellB.state = cellB.state === 'current' ? (cellB.top && cellB.right && cellB.bottom && cellB.left ? 'unvisited' : 'visited') : cellB.state;
+        // Restore to visited if they have passages
+        if (!cellA.top || !cellA.right || !cellA.bottom || !cellA.left) cellA.state = 'visited';
+        if (!cellB.top || !cellB.right || !cellB.bottom || !cellB.left) cellB.state = 'visited';
+      }
+      yield;
+    }
+
+    // Mark all remaining as visited
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        grid[r][c].state = 'visited';
+      }
+    }
+  }
+
+  // ========== Solving Algorithms (Generators) ==========
+
+  function* solveBFS() {
+    const startR = 0, startC = 0;
+    const endR = rows - 1, endC = cols - 1;
+    const queue = [grid[startR][startC]];
+    grid[startR][startC].state = 'current';
+    grid[startR][startC].parent = null;
+
+    // Track visited in solve differently
+    const visited = new Set();
+    visited.add(`${startR},${startC}`);
+    yield;
+
+    while (queue.length > 0) {
+      const cell = queue.shift();
+      const { row, col } = cell;
+
+      if (row === endR && col === endC) {
+        // Trace solution
+        let c = cell;
+        while (c) {
+          c.state = 'solution';
+          c = c.parent;
+          yield;
+        }
+        return;
+      }
+
+      cell.state = 'visited';
+
+      const dirs = [
+        { dr: -1, dc: 0, wall: 'top' },
+        { dr: 1, dc: 0, wall: 'bottom' },
+        { dr: 0, dc: -1, wall: 'left' },
+        { dr: 0, dc: 1, wall: 'right' },
+      ];
+
+      for (const d of dirs) {
+        const nr = row + d.dr;
+        const nc = col + d.dc;
+        const key = `${nr},${nc}`;
+        if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && !visited.has(key) && canPass(cell, d.wall)) {
+          visited.add(key);
+          const neighbor = grid[nr][nc];
+          neighbor.parent = cell;
+          neighbor.state = 'frontier';
+          queue.push(neighbor);
+        }
+      }
+      yield;
+    }
+  }
+
+  function* solveAStar() {
+    const startR = 0, startC = 0;
+    const endR = rows - 1, endC = cols - 1;
+
+    function heuristic(r, c) {
+      return Math.abs(r - endR) + Math.abs(c - endC);
+    }
+
+    // Simple priority queue (binary heap would be overkill for this visualization)
+    const openSet = [];
+    const closedSet = new Set();
+
+    const start = grid[startR][startC];
+    start.g = 0;
+    start.f = heuristic(startR, startC);
+    start.parent = null;
+    start.state = 'current';
+    openSet.push(start);
+    yield;
+
+    while (openSet.length > 0) {
+      // Find lowest f
+      let lowestIdx = 0;
+      for (let i = 1; i < openSet.length; i++) {
+        if (openSet[i].f < openSet[lowestIdx].f) lowestIdx = i;
+      }
+      const current = openSet.splice(lowestIdx, 1)[0];
+      const { row, col } = current;
+
+      if (row === endR && col === endC) {
+        let c = current;
+        while (c) {
+          c.state = 'solution';
+          c = c.parent;
+          yield;
+        }
+        return;
+      }
+
+      closedSet.add(`${row},${col}`);
+      current.state = 'visited';
+
+      const dirs = [
+        { dr: -1, dc: 0, wall: 'top' },
+        { dr: 1, dc: 0, wall: 'bottom' },
+        { dr: 0, dc: -1, wall: 'left' },
+        { dr: 0, dc: 1, wall: 'right' },
+      ];
+
+      for (const d of dirs) {
+        const nr = row + d.dr;
+        const nc = col + d.dc;
+        const key = `${nr},${nc}`;
+        if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && !closedSet.has(key) && canPass(current, d.wall)) {
+          const neighbor = grid[nr][nc];
+          const tentativeG = current.g + 1;
+
+          if (tentativeG < neighbor.g) {
+            neighbor.parent = current;
+            neighbor.g = tentativeG;
+            neighbor.f = tentativeG + heuristic(nr, nc);
+
+            if (!openSet.includes(neighbor)) {
+              openSet.push(neighbor);
+              neighbor.state = 'frontier';
+            }
+          }
+        }
+      }
+      yield;
+    }
+  }
+
+  // ========== Rendering ==========
+
+  function computeCellSize() {
+    const area = document.getElementById('canvas-area');
+    const maxW = area.clientWidth - 40;
+    const maxH = area.clientHeight - 60;
+    const sizeW = Math.floor(maxW / cols);
+    const sizeH = Math.floor(maxH / rows);
+    cellSize = Math.max(4, Math.min(sizeW, sizeH, 30));
+  }
+
+  function resizeCanvas() {
+    computeCellSize();
+    const totalW = cols * cellSize + WALL_WIDTH;
+    const totalH = rows * cellSize + WALL_WIDTH;
+    canvas.width = totalW;
+    canvas.height = totalH;
+  }
+
+  function getCellColor(cell) {
+    switch (cell.state) {
+      case 'solution': return colorInputs.solution.value;
+      case 'current': return colorInputs.current.value;
+      case 'frontier': return colorInputs.frontier.value;
+      case 'visited': return colorInputs.visited.value;
+      default: return colorInputs.path.value;
+    }
+  }
+
+  function render() {
+    const wallColor = colorInputs.wall.value;
+    const pathBg = colorInputs.path.value;
+    const w = canvas.width;
+    const h = canvas.height;
+
+    // Fill background (wall color everywhere)
+    ctx.fillStyle = wallColor;
+    ctx.fillRect(0, 0, w, h);
+
+    // Draw each cell
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const cell = grid[r][c];
+        const x = c * cellSize + WALL_WIDTH;
+        const y = r * cellSize + WALL_WIDTH;
+        const s = cellSize - WALL_WIDTH;
+
+        // Cell interior
+        ctx.fillStyle = getCellColor(cell);
+        ctx.fillRect(x, y, s, s);
+
+        // Remove walls by extending cell fill into wall gaps
+        if (!cell.top && r > 0) {
+          ctx.fillStyle = getBridgeColor(cell, grid[r - 1][c]);
+          ctx.fillRect(x, y - WALL_WIDTH, s, WALL_WIDTH);
+        }
+        if (!cell.left && c > 0) {
+          ctx.fillStyle = getBridgeColor(cell, grid[r][c - 1]);
+          ctx.fillRect(x - WALL_WIDTH, y, WALL_WIDTH, s);
+        }
+      }
+    }
+
+    // Draw start and end markers
+    drawMarker(0, 0, colorInputs.current.value, 'S');
+    drawMarker(rows - 1, cols - 1, '#f87171', 'E');
+  }
+
+  function getBridgeColor(cellA, cellB) {
+    // For removed walls, use the "higher priority" state color
+    const priority = { solution: 5, current: 4, frontier: 3, visited: 2, unvisited: 1 };
+    const pa = priority[cellA.state] || 1;
+    const pb = priority[cellB.state] || 1;
+    return pa >= pb ? getCellColor(cellA) : getCellColor(cellB);
+  }
+
+  function drawMarker(r, c, color, label) {
+    const x = c * cellSize + WALL_WIDTH;
+    const y = r * cellSize + WALL_WIDTH;
+    const s = cellSize - WALL_WIDTH;
+    const cx = x + s / 2;
+    const cy = y + s / 2;
+    const radius = Math.max(3, s * 0.35);
+
+    ctx.fillStyle = color;
+    ctx.globalAlpha = 0.8;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    if (cellSize >= 12) {
+      ctx.fillStyle = '#fff';
+      ctx.font = `bold ${Math.max(8, s * 0.45)}px ${getComputedStyle(document.documentElement).getPropertyValue('--font-mono')}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, cx, cy + 1);
+    }
+  }
+
+  // ========== Animation Loop ==========
+
+  function getStepsPerFrame() {
+    const speed = parseInt(elAnimSpeed.value);
+    if (speed <= 20) return 1;
+    if (speed <= 60) return Math.floor(speed / 10);
+    if (speed <= 120) return Math.floor(speed / 5);
+    return Math.floor(speed / 2);
+  }
+
+  function getFrameDelay() {
+    const speed = parseInt(elAnimSpeed.value);
+    if (speed <= 20) return Math.max(5, 200 - speed * 10);
+    return 16; // ~60fps for fast speeds, batch more steps per frame
+  }
+
+  let lastFrameTime = 0;
+
+  function animationLoop(timestamp) {
+    if (!genState && !solveState) {
+      animFrame = null;
+      return;
+    }
+
+    const delay = getFrameDelay();
+    if (timestamp - lastFrameTime < delay) {
+      animFrame = requestAnimationFrame(animationLoop);
+      return;
+    }
+    lastFrameTime = timestamp;
+
+    if (paused && !stepReady) {
+      animFrame = requestAnimationFrame(animationLoop);
+      return;
+    }
+
+    const activeState = solveState || genState;
+    const stepsPerFrame = stepReady ? 1 : getStepsPerFrame();
+
+    for (let i = 0; i < stepsPerFrame; i++) {
+      const result = activeState.next();
+      totalSteps++;
+      if (result.done) {
+        if (solveState) {
+          solveState = null;
+          solveComplete = true;
+          setStatus('Solution found!');
+        } else {
+          genState = null;
+          mazeComplete = true;
+          // Mark all as visited (path) for clean look
+          for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+              if (grid[r][c].state === 'current' || grid[r][c].state === 'frontier') {
+                grid[r][c].state = 'visited';
+              }
+            }
+          }
+          setStatus('Maze complete');
+        }
+        break;
+      }
+    }
+
+    stepReady = false;
+    updateStats();
+    render();
+    if (genState || solveState) {
+      animFrame = requestAnimationFrame(animationLoop);
+    }
+  }
+
+  function startAnimation() {
+    if (animFrame) cancelAnimationFrame(animFrame);
+    lastFrameTime = 0;
+    animFrame = requestAnimationFrame(animationLoop);
+  }
+
+  // ========== Controls ==========
+
+  function setStatus(msg, highlight) {
+    statusBar.innerHTML = highlight ? `<span class="active">${msg}</span>` : msg;
+  }
+
+  function updateStats() {
+    statCells.textContent = cols * rows;
+    statSteps.textContent = totalSteps;
+    const elapsed = startTime ? Date.now() - startTime : 0;
+    statTime.textContent = elapsed >= 1000 ? (elapsed / 1000).toFixed(1) + 's' : elapsed + 'ms';
+  }
+
+  function updateLegendSwatches() {
+    document.getElementById('swWall').style.background = colorInputs.wall.value;
+    document.getElementById('swPath').style.background = colorInputs.path.value;
+    document.getElementById('swCurrent').style.background = colorInputs.current.value;
+    document.getElementById('swVisited').style.background = colorInputs.visited.value;
+    document.getElementById('swSolution').style.background = colorInputs.solution.value;
+    document.getElementById('swFrontier').style.background = colorInputs.frontier.value;
+  }
+
+  function updateAlgoInfo() {
+    const active = solveState || !mazeComplete ? elGenAlgo.value : elSolveAlgo.value;
+    const key = mazeComplete && !solveState ? elSolveAlgo.value : elGenAlgo.value;
+    algoInfo.innerHTML = ALGO_INFO[key] || '';
+  }
+
+  function doGenerate() {
+    if (animFrame) cancelAnimationFrame(animFrame);
+    genState = null;
+    solveState = null;
+    solveComplete = false;
+    mazeComplete = false;
+    paused = false;
+    stepMode = false;
+    stepReady = false;
+    totalSteps = 0;
+
+    cols = parseInt(elGridWidth.value);
+    rows = parseInt(elGridHeight.value);
+    initGrid();
+    resizeCanvas();
+
+    startTime = Date.now();
+    const algo = elGenAlgo.value;
+
+    switch (algo) {
+      case 'dfs': genState = genDFS(); break;
+      case 'prims': genState = genPrims(); break;
+      case 'kruskals': genState = genKruskals(); break;
+    }
+
+    btnPause.textContent = 'Pause';
+    setStatus(`Generating (${algo.toUpperCase()})...`, true);
+    updateAlgoInfo();
+    render();
+    startAnimation();
+  }
+
+  function doReset() {
+    if (animFrame) cancelAnimationFrame(animFrame);
+    genState = null;
+    solveState = null;
+    mazeComplete = false;
+    solveComplete = false;
+    paused = false;
+    totalSteps = 0;
+    startTime = 0;
+
+    cols = parseInt(elGridWidth.value);
+    rows = parseInt(elGridHeight.value);
+    initGrid();
+    resizeCanvas();
+    render();
+    updateStats();
+    setStatus('Ready');
+    btnPause.textContent = 'Pause';
+  }
+
+  function doPause() {
+    if (!genState && !solveState) return;
+    paused = !paused;
+    btnPause.textContent = paused ? 'Resume' : 'Pause';
+    setStatus(paused ? 'Paused' : 'Running...', !paused);
+  }
+
+  function doStep() {
+    if (!genState && !solveState) return;
+    paused = true;
+    stepReady = true;
+    btnPause.textContent = 'Resume';
+    setStatus('Step mode', false);
+    if (!animFrame) startAnimation();
+  }
+
+  function doSolve() {
+    if (!mazeComplete) return;
+    if (animFrame) cancelAnimationFrame(animFrame);
+
+    // Reset cell states for solve (keep walls)
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const cell = grid[r][c];
+        cell.state = 'unvisited';
+        cell.parent = null;
+        cell.g = Infinity;
+        cell.f = Infinity;
+      }
+    }
+    solveState = null;
+    solveComplete = false;
+    paused = false;
+    totalSteps = 0;
+    startTime = Date.now();
+
+    const algo = elSolveAlgo.value;
+    switch (algo) {
+      case 'bfs': solveState = solveBFS(); break;
+      case 'astar': solveState = solveAStar(); break;
+    }
+
+    btnPause.textContent = 'Pause';
+    setStatus(`Solving (${algo.toUpperCase()})...`, true);
+    updateAlgoInfo();
+    render();
+    startAnimation();
+  }
+
+  function doClearSolution() {
+    if (animFrame) cancelAnimationFrame(animFrame);
+    solveState = null;
+    solveComplete = false;
+
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const cell = grid[r][c];
+        if (cell.state === 'solution' || cell.state === 'frontier' || cell.state === 'current') {
+          cell.state = 'visited';
+        }
+        // Reset cells that were unvisited during solve back
+        if (cell.state === 'unvisited') cell.state = 'visited';
+        cell.parent = null;
+        cell.g = Infinity;
+        cell.f = Infinity;
+      }
+    }
+
+    render();
+    setStatus('Solution cleared');
+  }
+
+  function doExport() {
+    // Render a clean version to an offscreen canvas
+    const offscreen = document.createElement('canvas');
+    offscreen.width = canvas.width * 2;
+    offscreen.height = canvas.height * 2;
+    const oc = offscreen.getContext('2d');
+    oc.scale(2, 2);
+
+    // Replicate render on offscreen
+    const wallColor = colorInputs.wall.value;
+    oc.fillStyle = wallColor;
+    oc.fillRect(0, 0, canvas.width, canvas.height);
+
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const cell = grid[r][c];
+        const x = c * cellSize + WALL_WIDTH;
+        const y = r * cellSize + WALL_WIDTH;
+        const s = cellSize - WALL_WIDTH;
+        oc.fillStyle = getCellColor(cell);
+        oc.fillRect(x, y, s, s);
+        if (!cell.top && r > 0) {
+          oc.fillStyle = getBridgeColor(cell, grid[r - 1][c]);
+          oc.fillRect(x, y - WALL_WIDTH, s, WALL_WIDTH);
+        }
+        if (!cell.left && c > 0) {
+          oc.fillStyle = getBridgeColor(cell, grid[r][c - 1]);
+          oc.fillRect(x - WALL_WIDTH, y, WALL_WIDTH, s);
+        }
+      }
+    }
+
+    drawMarkerOffscreen(oc, 0, 0, colorInputs.current.value, 'S');
+    drawMarkerOffscreen(oc, rows - 1, cols - 1, '#f87171', 'E');
+
+    offscreen.toBlob(function(blob) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `maze-${cols}x${rows}-${elGenAlgo.value}.png`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }, 'image/png');
+  }
+
+  function drawMarkerOffscreen(oc, r, c, color, label) {
+    const x = c * cellSize + WALL_WIDTH;
+    const y = r * cellSize + WALL_WIDTH;
+    const s = cellSize - WALL_WIDTH;
+    const cx = x + s / 2;
+    const cy = y + s / 2;
+    const radius = Math.max(3, s * 0.35);
+    oc.fillStyle = color;
+    oc.globalAlpha = 0.8;
+    oc.beginPath();
+    oc.arc(cx, cy, radius, 0, Math.PI * 2);
+    oc.fill();
+    oc.globalAlpha = 1;
+    if (cellSize >= 12) {
+      oc.fillStyle = '#fff';
+      oc.font = `bold ${Math.max(8, s * 0.45)}px monospace`;
+      oc.textAlign = 'center';
+      oc.textBaseline = 'middle';
+      oc.fillText(label, cx, cy + 1);
+    }
+  }
+
+  // ========== Event Listeners ==========
+
+  btnGenerate.addEventListener('click', doGenerate);
+  btnPause.addEventListener('click', doPause);
+  btnStep.addEventListener('click', doStep);
+  btnReset.addEventListener('click', doReset);
+  btnSolve.addEventListener('click', doSolve);
+  btnClearSolution.addEventListener('click', doClearSolution);
+  btnExport.addEventListener('click', doExport);
+
+  elGridWidth.addEventListener('input', () => { elWidthVal.textContent = elGridWidth.value; });
+  elGridHeight.addEventListener('input', () => { elHeightVal.textContent = elGridHeight.value; });
+  elAnimSpeed.addEventListener('input', () => { elSpeedVal.textContent = elAnimSpeed.value; });
+
+  elGenAlgo.addEventListener('change', updateAlgoInfo);
+  elSolveAlgo.addEventListener('change', updateAlgoInfo);
+
+  // Color inputs update legend and re-render
+  Object.values(colorInputs).forEach(input => {
+    input.addEventListener('input', () => {
+      updateLegendSwatches();
+      render();
+    });
+  });
+
+  // Panel collapse/expand
+  document.querySelectorAll('.panel-header').forEach(header => {
+    header.addEventListener('click', () => {
+      const body = header.nextElementSibling;
+      const toggle = header.querySelector('.toggle');
+      if (body.style.display === 'none') {
+        body.style.display = '';
+        toggle.textContent = '\u25BC';
+      } else {
+        body.style.display = 'none';
+        toggle.textContent = '\u25B6';
+      }
+    });
+  });
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', (e) => {
+    if (e.code === 'Space') { e.preventDefault(); doPause(); }
+    if (e.code === 'ArrowRight') { e.preventDefault(); doStep(); }
+    if (e.code === 'KeyG') { doGenerate(); }
+    if (e.code === 'KeyS' && !e.ctrlKey) { doSolve(); }
+    if (e.code === 'KeyR') { doReset(); }
+  });
+
+  // Resize handling
+  window.addEventListener('resize', () => {
+    resizeCanvas();
+    render();
+  });
+
+  // ========== Init ==========
+  initGrid();
+  resizeCanvas();
+  updateLegendSwatches();
+  updateAlgoInfo();
+  render();
+  updateStats();
+})();
+</script>
+</body>
+</html>

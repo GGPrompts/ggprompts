@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ASCII Art Editor</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <style>
+        /* ================================================================
+           ASCII ART EDITOR — Retro CRT Terminal Aesthetic
+           VT323 (UI text), Share Tech Mono (canvas grid)
+        ================================================================ */
+        :root {
+            --crt-black: #0a0a0a;
+            --crt-dark: #0d1a0d;
+            --crt-bg: #0c0c0c;
+            --crt-surface: #111;
+            --crt-panel: #0f1a0f;
+            --crt-green: #33ff33;
+            --crt-green-dim: #1a8c1a;
+            --crt-green-bright: #66ff66;
+            --crt-green-glow: rgba(51, 255, 51, 0.15);
+            --crt-amber: #ffaa00;
+            --crt-amber-dim: #996600;
+            --crt-cyan: #00cccc;
+            --crt-red: #ff3333;
+            --crt-white: #cccccc;
+            --crt-gray: #555;
+            --crt-gray-dark: #333;
+            --crt-border: #1a3a1a;
+            --crt-highlight: rgba(51, 255, 51, 0.08);
+
+            --font-ui: 'VT323', monospace;
+            --font-grid: 'Share Tech Mono', monospace;
+
+            --scanline-opacity: 0.04;
+        }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        html { font-size: 16px; }
+
+        body {
+            font-family: var(--font-ui);
+            font-size: 18px;
+            color: var(--crt-green);
+            background: var(--crt-bg);
+            height: 100vh;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        /* Scanline overlay */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: repeating-linear-gradient(
+                0deg, transparent, transparent 2px,
+                rgba(0,0,0,var(--scanline-opacity)) 2px,
+                rgba(0,0,0,var(--scanline-opacity)) 4px
+            );
+            pointer-events: none;
+            z-index: 9999;
+        }
+
+        /* CRT vignette */
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.5) 100%);
+            pointer-events: none;
+            z-index: 9998;
+        }
+
+        /* ── App Layout ─────────────────────────────────────────── */
+        .app {
+            display: grid;
+            grid-template-columns: 220px 1fr;
+            grid-template-rows: 44px 1fr 32px;
+            grid-template-areas:
+                "toolbar toolbar"
+                "sidebar canvas"
+                "status  status";
+            height: 100vh;
+            gap: 0;
+        }
+
+        /* ── Toolbar ────────────────────────────────────────────── */
+        .toolbar {
+            grid-area: toolbar;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 0 10px;
+            background: var(--crt-dark);
+            border-bottom: 1px solid var(--crt-border);
+            z-index: 10;
+        }
+
+        .toolbar-title {
+            font-size: 16px;
+            letter-spacing: 2px;
+            color: var(--crt-green);
+            text-shadow: 0 0 8px var(--crt-green-glow);
+            margin-right: 8px;
+        }
+
+        .toolbar-sep {
+            width: 1px;
+            height: 24px;
+            background: var(--crt-border);
+            margin: 0 6px;
+        }
+
+        .toolbar button, .toolbar select {
+            font-family: var(--font-ui);
+            font-size: 16px;
+            background: var(--crt-surface);
+            color: var(--crt-green);
+            border: 1px solid var(--crt-border);
+            padding: 4px 10px;
+            cursor: pointer;
+            transition: background 0.15s, border-color 0.15s;
+        }
+
+        .toolbar button:hover, .toolbar select:hover {
+            background: var(--crt-panel);
+            border-color: var(--crt-green-dim);
+        }
+
+        .toolbar button.active {
+            background: var(--crt-green-dim);
+            color: var(--crt-black);
+            border-color: var(--crt-green);
+        }
+
+        .toolbar select {
+            appearance: none;
+            padding-right: 18px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='6'%3E%3Cpath d='M0 0l4 6 4-6z' fill='%2333ff33'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 6px center;
+        }
+
+        .toolbar select option {
+            background: var(--crt-surface);
+            color: var(--crt-green);
+        }
+
+        .toolbar-spacer { flex: 1; }
+
+        .toolbar .size-inputs {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 15px;
+            color: var(--crt-green-dim);
+        }
+
+        .toolbar .size-inputs input {
+            font-family: var(--font-ui);
+            font-size: 15px;
+            width: 48px;
+            background: var(--crt-surface);
+            color: var(--crt-green);
+            border: 1px solid var(--crt-border);
+            padding: 3px 5px;
+            text-align: center;
+        }
+
+        .toolbar .size-inputs input:focus {
+            outline: none;
+            border-color: var(--crt-green-dim);
+        }
+
+        /* ── Sidebar ────────────────────────────────────────────── */
+        .sidebar {
+            grid-area: sidebar;
+            background: var(--crt-dark);
+            border-right: 1px solid var(--crt-border);
+            overflow-y: auto;
+            padding: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .sidebar::-webkit-scrollbar { width: 6px; }
+        .sidebar::-webkit-scrollbar-track { background: var(--crt-dark); }
+        .sidebar::-webkit-scrollbar-thumb { background: var(--crt-border); }
+
+        .panel-heading {
+            font-size: 14px;
+            letter-spacing: 2px;
+            color: var(--crt-green-dim);
+            text-transform: uppercase;
+            border-bottom: 1px solid var(--crt-border);
+            padding-bottom: 4px;
+            margin-bottom: 4px;
+        }
+
+        /* Character palette */
+        .char-palette {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, 28px);
+            gap: 2px;
+        }
+
+        .char-btn {
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-grid);
+            font-size: 16px;
+            background: var(--crt-surface);
+            color: var(--crt-green);
+            border: 1px solid var(--crt-gray-dark);
+            cursor: pointer;
+            transition: background 0.1s, border-color 0.1s;
+        }
+
+        .char-btn:hover {
+            background: var(--crt-panel);
+            border-color: var(--crt-green-dim);
+        }
+
+        .char-btn.selected {
+            background: var(--crt-green-dim);
+            color: var(--crt-black);
+            border-color: var(--crt-green);
+            box-shadow: 0 0 6px var(--crt-green-glow);
+        }
+
+        .palette-section { margin-bottom: 2px; }
+
+        .palette-section-label {
+            font-size: 13px;
+            color: var(--crt-gray);
+            margin: 4px 0 2px;
+        }
+
+        /* Custom char input */
+        .custom-char {
+            display: flex;
+            gap: 4px;
+            margin-top: 4px;
+        }
+
+        .custom-char input {
+            flex: 1;
+            font-family: var(--font-grid);
+            font-size: 16px;
+            background: var(--crt-surface);
+            color: var(--crt-green);
+            border: 1px solid var(--crt-border);
+            padding: 4px 6px;
+            text-align: center;
+        }
+
+        .custom-char input:focus {
+            outline: none;
+            border-color: var(--crt-green-dim);
+        }
+
+        .custom-char button {
+            font-family: var(--font-ui);
+            font-size: 14px;
+            background: var(--crt-surface);
+            color: var(--crt-green);
+            border: 1px solid var(--crt-border);
+            padding: 4px 8px;
+            cursor: pointer;
+        }
+
+        .custom-char button:hover {
+            background: var(--crt-panel);
+            border-color: var(--crt-green-dim);
+        }
+
+        /* Color mode selector */
+        .color-mode {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+
+        .color-btn {
+            width: 24px;
+            height: 24px;
+            border: 2px solid var(--crt-gray-dark);
+            cursor: pointer;
+            transition: border-color 0.1s;
+        }
+
+        .color-btn:hover { border-color: var(--crt-white); }
+
+        .color-btn.selected {
+            border-color: var(--crt-green);
+            box-shadow: 0 0 6px var(--crt-green-glow);
+        }
+
+        /* ── Canvas Area ────────────────────────────────────────── */
+        .canvas-area {
+            grid-area: canvas;
+            overflow: auto;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding: 16px;
+            background: var(--crt-bg);
+        }
+
+        .canvas-area::-webkit-scrollbar { width: 8px; height: 8px; }
+        .canvas-area::-webkit-scrollbar-track { background: var(--crt-bg); }
+        .canvas-area::-webkit-scrollbar-thumb { background: var(--crt-border); }
+
+        .grid-container {
+            display: inline-block;
+            border: 1px solid var(--crt-border);
+            background: var(--crt-black);
+            box-shadow: 0 0 20px rgba(51, 255, 51, 0.05), inset 0 0 30px rgba(0,0,0,0.5);
+            line-height: 0;
+            cursor: crosshair;
+        }
+
+        .grid-row {
+            display: flex;
+            line-height: 1;
+        }
+
+        .grid-cell {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-grid);
+            color: var(--crt-green);
+            background: transparent;
+            border: none;
+            transition: background 0.05s;
+            overflow: hidden;
+        }
+
+        .grid-cell:hover {
+            background: var(--crt-highlight);
+        }
+
+        .grid-cell.filled {
+            text-shadow: 0 0 4px var(--crt-green-glow);
+        }
+
+        /* Grid lines toggle */
+        .grid-container.show-grid .grid-cell {
+            outline: 1px solid rgba(51, 255, 51, 0.06);
+        }
+
+        /* ── Status Bar ─────────────────────────────────────────── */
+        .status-bar {
+            grid-area: status;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 0 12px;
+            background: var(--crt-dark);
+            border-top: 1px solid var(--crt-border);
+            font-size: 15px;
+            color: var(--crt-green-dim);
+        }
+
+        .status-bar .blink {
+            animation: blink 1s step-end infinite;
+        }
+
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
+
+        /* ── Toast Notification ─────────────────────────────────── */
+        .toast {
+            position: fixed;
+            bottom: 48px;
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            background: var(--crt-dark);
+            color: var(--crt-green);
+            border: 1px solid var(--crt-green-dim);
+            padding: 8px 20px;
+            font-family: var(--font-ui);
+            font-size: 16px;
+            z-index: 10000;
+            opacity: 0;
+            transition: opacity 0.3s, transform 0.3s;
+            pointer-events: none;
+            text-shadow: 0 0 6px var(--crt-green-glow);
+        }
+
+        .toast.visible {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* ── Responsive ─────────────────────────────────────────── */
+        @media (max-width: 768px) {
+            .app {
+                grid-template-columns: 1fr;
+                grid-template-rows: 44px auto 1fr 32px;
+                grid-template-areas:
+                    "toolbar"
+                    "sidebar"
+                    "canvas"
+                    "status";
+            }
+
+            .sidebar {
+                border-right: none;
+                border-bottom: 1px solid var(--crt-border);
+                max-height: 180px;
+                overflow-y: auto;
+                flex-direction: row;
+                flex-wrap: wrap;
+            }
+
+            .sidebar > div {
+                min-width: 140px;
+            }
+
+            .toolbar {
+                overflow-x: auto;
+                flex-wrap: nowrap;
+            }
+
+            .toolbar-spacer { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <!-- TOOLBAR -->
+        <div class="toolbar">
+            <a href="../" style="text-decoration:none;color:var(--crt-green-dim);font-size:18px;margin-right:4px;" title="Back to Tools">&larr;</a>
+            <span class="toolbar-title">ASCII ART</span>
+            <div class="toolbar-sep"></div>
+
+            <button id="btn-draw" class="active" title="Draw (D)">Draw</button>
+            <button id="btn-erase" title="Eraser (E)">Erase</button>
+            <button id="btn-fill" title="Fill (F)">Fill</button>
+
+            <div class="toolbar-sep"></div>
+
+            <div class="size-inputs">
+                <label>W</label>
+                <input type="number" id="grid-width" value="60" min="5" max="200">
+                <label>H</label>
+                <input type="number" id="grid-height" value="30" min="5" max="100">
+                <button id="btn-resize" title="Apply grid size">Apply</button>
+            </div>
+
+            <div class="toolbar-sep"></div>
+
+            <select id="font-size" title="Grid font size">
+                <option value="10">10px</option>
+                <option value="12">12px</option>
+                <option value="14" selected>14px</option>
+                <option value="16">16px</option>
+                <option value="18">18px</option>
+                <option value="20">20px</option>
+                <option value="24">24px</option>
+            </select>
+
+            <button id="btn-grid-toggle" title="Toggle grid lines (G)">Grid</button>
+
+            <div class="toolbar-spacer"></div>
+
+            <button id="btn-copy" title="Copy to clipboard (Ctrl+C)">Copy</button>
+            <button id="btn-clear" title="Clear canvas">Clear</button>
+        </div>
+
+        <!-- SIDEBAR -->
+        <div class="sidebar">
+            <div>
+                <div class="panel-heading">Character</div>
+                <div class="palette-section">
+                    <div class="palette-section-label">Blocks</div>
+                    <div class="char-palette" id="palette-blocks"></div>
+                </div>
+                <div class="palette-section">
+                    <div class="palette-section-label">Box Drawing</div>
+                    <div class="char-palette" id="palette-box"></div>
+                </div>
+                <div class="palette-section">
+                    <div class="palette-section-label">Symbols</div>
+                    <div class="char-palette" id="palette-symbols"></div>
+                </div>
+                <div class="palette-section">
+                    <div class="palette-section-label">Shading</div>
+                    <div class="char-palette" id="palette-shading"></div>
+                </div>
+                <div class="palette-section">
+                    <div class="palette-section-label">Common</div>
+                    <div class="char-palette" id="palette-common"></div>
+                </div>
+                <div class="palette-section">
+                    <div class="palette-section-label">Custom</div>
+                    <div class="custom-char">
+                        <input type="text" id="custom-char-input" maxlength="1" placeholder="?">
+                        <button id="btn-use-custom">Use</button>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <div class="panel-heading">Color</div>
+                <div class="color-mode" id="color-palette"></div>
+            </div>
+        </div>
+
+        <!-- CANVAS -->
+        <div class="canvas-area" id="canvas-area">
+            <div class="grid-container show-grid" id="grid-container"></div>
+        </div>
+
+        <!-- STATUS BAR -->
+        <div class="status-bar">
+            <span>READY <span class="blink">_</span></span>
+            <span id="status-pos">0, 0</span>
+            <span id="status-char">Char: #</span>
+            <span id="status-size">60 x 30</span>
+            <span id="status-tool">Tool: Draw</span>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <script>
+    /* ================================================================
+       ASCII ART EDITOR — Main Logic
+    ================================================================ */
+    (function() {
+        'use strict';
+
+        // ── State ──────────────────────────────────────────────────
+        let gridW = 60;
+        let gridH = 30;
+        let grid = [];           // 2D array: grid[row][col] = { ch, color }
+        let currentChar = '#';
+        let currentColor = '#33ff33';
+        let tool = 'draw';       // draw | erase | fill
+        let isDrawing = false;
+        let showGrid = true;
+        let fontSize = 14;
+        let undoStack = [];
+        let redoStack = [];
+        const MAX_UNDO = 60;
+
+        // Character palettes
+        const PALETTES = {
+            blocks: ['\u2588', '\u2589', '\u258A', '\u258B', '\u258C', '\u258D', '\u258E', '\u258F',
+                     '\u2580', '\u2584', '\u2590', '\u2596', '\u2597', '\u2598', '\u2599', '\u259A'],
+            box:    ['\u2500', '\u2502', '\u250C', '\u2510', '\u2514', '\u2518', '\u251C', '\u2524',
+                     '\u252C', '\u2534', '\u253C', '\u2550', '\u2551', '\u2554', '\u2557', '\u255A',
+                     '\u255D', '\u2560', '\u2563', '\u2566', '\u2569', '\u256C'],
+            symbols: ['*', '#', '@', '&', '%', '+', '=', '~', '^', ':', ';',
+                      '!', '?', '$', '<', '>', '/', '\\', '|', '(', ')', '{', '}', '[', ']'],
+            shading: ['\u2591', '\u2592', '\u2593', '\u2588', '.', ',', '-', '\'', '"', '`'],
+            common:  ['#', '@', '*', '.', 'o', 'O', '0', 'X', 'x', '+', '-', '=', '|', '/', '\\',
+                      '_', '^', '~', 'A', 'V', '<', '>', 'M', 'W', 'N']
+        };
+
+        const COLORS = [
+            { name: 'Green',  hex: '#33ff33' },
+            { name: 'Amber',  hex: '#ffaa00' },
+            { name: 'Cyan',   hex: '#00cccc' },
+            { name: 'Red',    hex: '#ff3333' },
+            { name: 'White',  hex: '#cccccc' },
+            { name: 'Blue',   hex: '#3399ff' },
+            { name: 'Purple', hex: '#cc66ff' },
+            { name: 'Pink',   hex: '#ff66aa' },
+        ];
+
+        // ── DOM refs ───────────────────────────────────────────────
+        const $grid = document.getElementById('grid-container');
+        const $canvasArea = document.getElementById('canvas-area');
+        const $toast = document.getElementById('toast');
+        const $statusPos = document.getElementById('status-pos');
+        const $statusChar = document.getElementById('status-char');
+        const $statusSize = document.getElementById('status-size');
+        const $statusTool = document.getElementById('status-tool');
+        const $gridW = document.getElementById('grid-width');
+        const $gridH = document.getElementById('grid-height');
+        const $fontSize = document.getElementById('font-size');
+
+        // ── Initialize ─────────────────────────────────────────────
+        function init() {
+            buildPalettes();
+            buildColorPalette();
+            createGrid(gridW, gridH);
+            bindToolbar();
+            bindKeyboard();
+            updateStatus();
+        }
+
+        // ── Grid ───────────────────────────────────────────────────
+        function createGrid(w, h) {
+            gridW = w;
+            gridH = h;
+            grid = [];
+            $grid.innerHTML = '';
+
+            const cellSize = fontSize * 1.1;
+
+            for (let r = 0; r < h; r++) {
+                grid[r] = [];
+                const rowEl = document.createElement('div');
+                rowEl.className = 'grid-row';
+
+                for (let c = 0; c < w; c++) {
+                    grid[r][c] = { ch: ' ', color: currentColor };
+
+                    const cell = document.createElement('span');
+                    cell.className = 'grid-cell';
+                    cell.style.width = cellSize + 'px';
+                    cell.style.height = cellSize + 'px';
+                    cell.style.fontSize = fontSize + 'px';
+                    cell.dataset.row = r;
+                    cell.dataset.col = c;
+                    cell.textContent = ' ';
+
+                    rowEl.appendChild(cell);
+                }
+                $grid.appendChild(rowEl);
+            }
+
+            bindGridEvents();
+            $statusSize.textContent = w + ' x ' + h;
+            undoStack = [];
+            redoStack = [];
+        }
+
+        function resizeGrid(newW, newH) {
+            pushUndo();
+            const oldGrid = grid.map(row => row.map(cell => ({ ...cell })));
+            const oldH = oldGrid.length;
+            const oldW = oldH > 0 ? oldGrid[0].length : 0;
+
+            createGrid(newW, newH);
+
+            // Restore old content
+            for (let r = 0; r < Math.min(oldH, newH); r++) {
+                for (let c = 0; c < Math.min(oldW, newW); c++) {
+                    grid[r][c] = { ...oldGrid[r][c] };
+                    const cell = getCellEl(r, c);
+                    if (cell) {
+                        cell.textContent = grid[r][c].ch;
+                        cell.style.color = grid[r][c].color;
+                        if (grid[r][c].ch !== ' ') cell.classList.add('filled');
+                    }
+                }
+            }
+        }
+
+        function getCellEl(r, c) {
+            const row = $grid.children[r];
+            return row ? row.children[c] : null;
+        }
+
+        // ── Grid Events ────────────────────────────────────────────
+        function bindGridEvents() {
+            $grid.addEventListener('mousedown', onGridMouseDown);
+            $grid.addEventListener('mousemove', onGridMouseMove);
+            $grid.addEventListener('mouseup', onGridMouseUp);
+            $grid.addEventListener('mouseleave', onGridMouseUp);
+
+            // Touch support
+            $grid.addEventListener('touchstart', onTouchStart, { passive: false });
+            $grid.addEventListener('touchmove', onTouchMove, { passive: false });
+            $grid.addEventListener('touchend', onGridMouseUp);
+        }
+
+        function onTouchStart(e) {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const target = document.elementFromPoint(touch.clientX, touch.clientY);
+            if (target && target.classList.contains('grid-cell')) {
+                isDrawing = true;
+                pushUndo();
+                applyTool(target);
+            }
+        }
+
+        function onTouchMove(e) {
+            e.preventDefault();
+            if (!isDrawing) return;
+            const touch = e.touches[0];
+            const target = document.elementFromPoint(touch.clientX, touch.clientY);
+            if (target && target.classList.contains('grid-cell')) {
+                applyTool(target);
+            }
+        }
+
+        function onGridMouseDown(e) {
+            if (e.button !== 0) return;
+            const cell = e.target.closest('.grid-cell');
+            if (!cell) return;
+            isDrawing = true;
+            pushUndo();
+            applyTool(cell);
+        }
+
+        function onGridMouseMove(e) {
+            const cell = e.target.closest('.grid-cell');
+            if (cell) {
+                $statusPos.textContent = cell.dataset.col + ', ' + cell.dataset.row;
+            }
+            if (!isDrawing || !cell) return;
+            applyTool(cell);
+        }
+
+        function onGridMouseUp() {
+            isDrawing = false;
+        }
+
+        // ── Tools ──────────────────────────────────────────────────
+        function applyTool(cellEl) {
+            const r = parseInt(cellEl.dataset.row);
+            const c = parseInt(cellEl.dataset.col);
+
+            if (tool === 'draw') {
+                grid[r][c] = { ch: currentChar, color: currentColor };
+                cellEl.textContent = currentChar;
+                cellEl.style.color = currentColor;
+                cellEl.classList.toggle('filled', currentChar !== ' ');
+            } else if (tool === 'erase') {
+                grid[r][c] = { ch: ' ', color: currentColor };
+                cellEl.textContent = ' ';
+                cellEl.classList.remove('filled');
+            } else if (tool === 'fill') {
+                floodFill(r, c);
+            }
+        }
+
+        function floodFill(startR, startC) {
+            const target = grid[startR][startC].ch;
+            if (target === currentChar) return;
+
+            const stack = [[startR, startC]];
+            const visited = new Set();
+
+            while (stack.length > 0) {
+                const [r, c] = stack.pop();
+                const key = r + ',' + c;
+                if (visited.has(key)) continue;
+                if (r < 0 || r >= gridH || c < 0 || c >= gridW) continue;
+                if (grid[r][c].ch !== target) continue;
+
+                visited.add(key);
+                grid[r][c] = { ch: currentChar, color: currentColor };
+
+                const cellEl = getCellEl(r, c);
+                if (cellEl) {
+                    cellEl.textContent = currentChar;
+                    cellEl.style.color = currentColor;
+                    cellEl.classList.toggle('filled', currentChar !== ' ');
+                }
+
+                stack.push([r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]);
+            }
+        }
+
+        // ── Undo / Redo ────────────────────────────────────────────
+        function pushUndo() {
+            undoStack.push(grid.map(row => row.map(cell => ({ ...cell }))));
+            if (undoStack.length > MAX_UNDO) undoStack.shift();
+            redoStack = [];
+        }
+
+        function undo() {
+            if (undoStack.length === 0) return;
+            redoStack.push(grid.map(row => row.map(cell => ({ ...cell }))));
+            const state = undoStack.pop();
+            restoreState(state);
+        }
+
+        function redo() {
+            if (redoStack.length === 0) return;
+            undoStack.push(grid.map(row => row.map(cell => ({ ...cell }))));
+            const state = redoStack.pop();
+            restoreState(state);
+        }
+
+        function restoreState(state) {
+            for (let r = 0; r < Math.min(state.length, gridH); r++) {
+                for (let c = 0; c < Math.min(state[r].length, gridW); c++) {
+                    grid[r][c] = { ...state[r][c] };
+                    const cellEl = getCellEl(r, c);
+                    if (cellEl) {
+                        cellEl.textContent = grid[r][c].ch;
+                        cellEl.style.color = grid[r][c].color;
+                        cellEl.classList.toggle('filled', grid[r][c].ch !== ' ');
+                    }
+                }
+            }
+        }
+
+        // ── Palette Building ───────────────────────────────────────
+        function buildPalettes() {
+            Object.keys(PALETTES).forEach(key => {
+                const container = document.getElementById('palette-' + key);
+                if (!container) return;
+
+                PALETTES[key].forEach(ch => {
+                    const btn = document.createElement('button');
+                    btn.className = 'char-btn';
+                    btn.textContent = ch;
+                    btn.title = ch + ' (U+' + ch.charCodeAt(0).toString(16).toUpperCase().padStart(4, '0') + ')';
+                    btn.addEventListener('click', () => selectChar(ch, btn));
+                    container.appendChild(btn);
+                });
+            });
+
+            // Select default
+            const firstBtn = document.querySelector('.char-btn');
+            if (firstBtn) selectChar(PALETTES.blocks[0], firstBtn);
+        }
+
+        function selectChar(ch, btnEl) {
+            document.querySelectorAll('.char-btn.selected').forEach(b => b.classList.remove('selected'));
+            if (btnEl) btnEl.classList.add('selected');
+            currentChar = ch;
+            $statusChar.textContent = 'Char: ' + ch;
+        }
+
+        function buildColorPalette() {
+            const container = document.getElementById('color-palette');
+            COLORS.forEach((c, i) => {
+                const btn = document.createElement('div');
+                btn.className = 'color-btn' + (i === 0 ? ' selected' : '');
+                btn.style.background = c.hex;
+                btn.title = c.name;
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.color-btn.selected').forEach(b => b.classList.remove('selected'));
+                    btn.classList.add('selected');
+                    currentColor = c.hex;
+                });
+                container.appendChild(btn);
+            });
+        }
+
+        // ── Toolbar Binding ────────────────────────────────────────
+        function bindToolbar() {
+            const $btnDraw = document.getElementById('btn-draw');
+            const $btnErase = document.getElementById('btn-erase');
+            const $btnFill = document.getElementById('btn-fill');
+
+            function setTool(t) {
+                tool = t;
+                $btnDraw.classList.toggle('active', t === 'draw');
+                $btnErase.classList.toggle('active', t === 'erase');
+                $btnFill.classList.toggle('active', t === 'fill');
+                $statusTool.textContent = 'Tool: ' + t.charAt(0).toUpperCase() + t.slice(1);
+                $grid.style.cursor = t === 'fill' ? 'cell' : 'crosshair';
+            }
+
+            $btnDraw.addEventListener('click', () => setTool('draw'));
+            $btnErase.addEventListener('click', () => setTool('erase'));
+            $btnFill.addEventListener('click', () => setTool('fill'));
+
+            document.getElementById('btn-resize').addEventListener('click', () => {
+                const w = Math.max(5, Math.min(200, parseInt($gridW.value) || 60));
+                const h = Math.max(5, Math.min(100, parseInt($gridH.value) || 30));
+                $gridW.value = w;
+                $gridH.value = h;
+                resizeGrid(w, h);
+                toast('Grid resized to ' + w + ' x ' + h);
+            });
+
+            $fontSize.addEventListener('change', () => {
+                fontSize = parseInt($fontSize.value);
+                const cellSize = fontSize * 1.1;
+                document.querySelectorAll('.grid-cell').forEach(cell => {
+                    cell.style.width = cellSize + 'px';
+                    cell.style.height = cellSize + 'px';
+                    cell.style.fontSize = fontSize + 'px';
+                });
+            });
+
+            document.getElementById('btn-grid-toggle').addEventListener('click', () => {
+                showGrid = !showGrid;
+                $grid.classList.toggle('show-grid', showGrid);
+            });
+
+            document.getElementById('btn-copy').addEventListener('click', copyToClipboard);
+
+            document.getElementById('btn-clear').addEventListener('click', () => {
+                pushUndo();
+                for (let r = 0; r < gridH; r++) {
+                    for (let c = 0; c < gridW; c++) {
+                        grid[r][c] = { ch: ' ', color: currentColor };
+                        const cellEl = getCellEl(r, c);
+                        if (cellEl) {
+                            cellEl.textContent = ' ';
+                            cellEl.classList.remove('filled');
+                        }
+                    }
+                }
+                toast('Canvas cleared');
+            });
+
+            document.getElementById('btn-use-custom').addEventListener('click', () => {
+                const input = document.getElementById('custom-char-input');
+                const ch = input.value;
+                if (ch.length === 1) {
+                    document.querySelectorAll('.char-btn.selected').forEach(b => b.classList.remove('selected'));
+                    currentChar = ch;
+                    $statusChar.textContent = 'Char: ' + ch;
+                    toast('Using custom character: ' + ch);
+                }
+            });
+        }
+
+        // ── Keyboard ───────────────────────────────────────────────
+        function bindKeyboard() {
+            document.addEventListener('keydown', (e) => {
+                // Don't capture if typing in an input
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+
+                if (e.key === 'd' || e.key === 'D') {
+                    document.getElementById('btn-draw').click();
+                } else if (e.key === 'e' || e.key === 'E') {
+                    document.getElementById('btn-erase').click();
+                } else if (e.key === 'f' || e.key === 'F') {
+                    document.getElementById('btn-fill').click();
+                } else if (e.key === 'g' || e.key === 'G') {
+                    document.getElementById('btn-grid-toggle').click();
+                } else if (e.ctrlKey && e.key === 'z') {
+                    e.preventDefault();
+                    undo();
+                } else if (e.ctrlKey && (e.key === 'y' || (e.shiftKey && e.key === 'Z'))) {
+                    e.preventDefault();
+                    redo();
+                } else if (e.ctrlKey && e.key === 'c') {
+                    // Only intercept if not in an input
+                    e.preventDefault();
+                    copyToClipboard();
+                }
+            });
+        }
+
+        // ── Copy to Clipboard ──────────────────────────────────────
+        function copyToClipboard() {
+            const lines = [];
+            for (let r = 0; r < gridH; r++) {
+                let line = '';
+                for (let c = 0; c < gridW; c++) {
+                    line += grid[r][c].ch;
+                }
+                // Trim trailing spaces
+                lines.push(line.replace(/\s+$/, ''));
+            }
+
+            // Remove trailing empty lines
+            while (lines.length > 0 && lines[lines.length - 1] === '') {
+                lines.pop();
+            }
+
+            const text = lines.join('\n');
+
+            navigator.clipboard.writeText(text).then(() => {
+                toast('Copied to clipboard!');
+            }).catch(() => {
+                // Fallback
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                ta.style.position = 'fixed';
+                ta.style.left = '-9999px';
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                toast('Copied to clipboard!');
+            });
+        }
+
+        // ── Status & Toast ─────────────────────────────────────────
+        function updateStatus() {
+            $statusSize.textContent = gridW + ' x ' + gridH;
+        }
+
+        let toastTimer = null;
+        function toast(msg) {
+            $toast.textContent = msg;
+            $toast.classList.add('visible');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => $toast.classList.remove('visible'), 2000);
+        }
+
+        // ── Boot ───────────────────────────────────────────────────
+        init();
+    })();
+    </script>
+</body>
+</html>

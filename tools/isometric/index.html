@@ -1,0 +1,1207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Isometric Scene Builder</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        /* ================================================================
+           ISOMETRIC SCENE BUILDER — Clean pixel-art diorama editor
+           Nunito (UI), JetBrains Mono (status/coords)
+        ================================================================ */
+        :root {
+            --bg: #f0f0f0;
+            --bg-panel: #ffffff;
+            --bg-canvas: #e8e8e8;
+            --text: #2c2c2c;
+            --text-secondary: #666;
+            --text-muted: #999;
+            --accent: #4a90d9;
+            --accent-hover: #3a7bc8;
+            --accent-light: #e8f0fa;
+            --border: #d0d0d0;
+            --border-light: #e0e0e0;
+            --danger: #d94a4a;
+            --danger-hover: #c83a3a;
+            --shadow: rgba(0,0,0,0.08);
+            --shadow-md: rgba(0,0,0,0.12);
+            --radius: 8px;
+            --font-ui: 'Nunito', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: var(--font-ui);
+            font-size: 14px;
+            color: var(--text);
+            background: var(--bg);
+            height: 100vh;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        /* ── App Layout ─────────────────────────────────────────── */
+        .app {
+            display: grid;
+            grid-template-columns: 220px 1fr;
+            grid-template-rows: 48px 1fr 32px;
+            height: 100vh;
+        }
+
+        /* ── Top Bar ────────────────────────────────────────────── */
+        .topbar {
+            grid-column: 1 / -1;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 0 16px;
+            background: var(--bg-panel);
+            border-bottom: 1px solid var(--border);
+            box-shadow: 0 1px 3px var(--shadow);
+            z-index: 10;
+        }
+
+        .topbar a.back {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 8px;
+            border-radius: var(--radius);
+            transition: background 0.15s;
+        }
+        .topbar a.back:hover { background: var(--accent-light); color: var(--accent); }
+
+        .topbar h1 {
+            font-size: 15px;
+            font-weight: 800;
+            color: var(--text);
+            letter-spacing: -0.02em;
+        }
+
+        .topbar .sep {
+            width: 1px;
+            height: 24px;
+            background: var(--border);
+        }
+
+        .topbar-actions {
+            display: flex;
+            gap: 6px;
+            margin-left: auto;
+        }
+
+        /* ── Buttons ────────────────────────────────────────────── */
+        .btn {
+            font-family: var(--font-ui);
+            font-size: 12px;
+            font-weight: 700;
+            padding: 6px 14px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: var(--bg-panel);
+            color: var(--text);
+            cursor: pointer;
+            transition: all 0.15s;
+            white-space: nowrap;
+        }
+        .btn:hover { background: #f5f5f5; border-color: #bbb; }
+
+        .btn-primary {
+            background: var(--accent);
+            color: #fff;
+            border-color: var(--accent);
+        }
+        .btn-primary:hover { background: var(--accent-hover); }
+
+        .btn-danger {
+            color: var(--danger);
+            border-color: var(--danger);
+        }
+        .btn-danger:hover { background: #fde8e8; }
+
+        .btn-sm { padding: 4px 10px; font-size: 11px; }
+
+        .btn.active {
+            background: var(--accent);
+            color: #fff;
+            border-color: var(--accent);
+        }
+
+        /* ── Sidebar ────────────────────────────────────────────── */
+        .sidebar {
+            background: var(--bg-panel);
+            border-right: 1px solid var(--border);
+            overflow-y: auto;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .panel-heading {
+            font-size: 10px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+        }
+
+        /* Block palette */
+        .block-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+        }
+
+        .block-swatch {
+            aspect-ratio: 1;
+            border: 2px solid var(--border);
+            border-radius: 6px;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.15s;
+        }
+        .block-swatch:hover { border-color: var(--accent); transform: scale(1.05); }
+        .block-swatch.active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+
+        .block-swatch canvas {
+            width: 100%;
+            height: 100%;
+            image-rendering: pixelated;
+        }
+
+        .block-swatch .label {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            text-align: center;
+            font-size: 9px;
+            font-weight: 700;
+            color: #fff;
+            background: rgba(0,0,0,0.5);
+            padding: 1px 0;
+            line-height: 1.3;
+        }
+
+        /* Custom color */
+        .color-row {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .color-row input[type="color"] {
+            width: 36px;
+            height: 28px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            cursor: pointer;
+            padding: 1px;
+        }
+
+        /* Layer control */
+        .layer-control {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .layer-display {
+            font-family: var(--font-mono);
+            font-size: 18px;
+            font-weight: 500;
+            color: var(--accent);
+            min-width: 24px;
+            text-align: center;
+        }
+
+        .layer-btns {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .layer-btns .btn {
+            padding: 2px 8px;
+            font-size: 14px;
+            line-height: 1;
+        }
+
+        /* Tools */
+        .tool-row {
+            display: flex;
+            gap: 6px;
+        }
+
+        .tool-btn {
+            flex: 1;
+            padding: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            text-align: center;
+        }
+
+        /* ── Canvas Area ────────────────────────────────────────── */
+        .canvas-wrap {
+            position: relative;
+            overflow: hidden;
+            background: var(--bg-canvas);
+        }
+
+        .canvas-wrap canvas {
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        /* ── Status Bar ─────────────────────────────────────────── */
+        .statusbar {
+            grid-column: 1 / -1;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 0 16px;
+            font-family: var(--font-mono);
+            font-size: 11px;
+            color: var(--text-muted);
+            background: var(--bg-panel);
+            border-top: 1px solid var(--border);
+        }
+
+        .statusbar span { white-space: nowrap; }
+
+        /* Tooltip */
+        .tooltip {
+            position: fixed;
+            padding: 4px 8px;
+            font-size: 11px;
+            font-weight: 600;
+            background: #333;
+            color: #fff;
+            border-radius: 4px;
+            pointer-events: none;
+            z-index: 100;
+            display: none;
+            white-space: nowrap;
+        }
+
+        /* ── Responsive ─────────────────────────────────────────── */
+        @media (max-width: 768px) {
+            .app {
+                grid-template-columns: 1fr;
+                grid-template-rows: 48px auto 1fr 32px;
+            }
+            .sidebar {
+                flex-direction: row;
+                overflow-x: auto;
+                overflow-y: hidden;
+                border-right: none;
+                border-bottom: 1px solid var(--border);
+                padding: 8px 12px;
+                gap: 12px;
+            }
+            .block-grid {
+                display: flex;
+                gap: 6px;
+            }
+            .block-swatch {
+                width: 44px;
+                height: 44px;
+                flex-shrink: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <!-- Top Bar -->
+        <div class="topbar">
+            <a href="../index.html" class="back">&larr; Tools</a>
+            <div class="sep"></div>
+            <h1>Isometric Scene Builder</h1>
+            <div class="topbar-actions">
+                <button class="btn btn-danger" id="btnClear">Clear</button>
+                <button class="btn btn-primary" id="btnExport">Export PNG</button>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div>
+                <div class="panel-heading">Blocks</div>
+                <div class="block-grid" id="blockGrid"></div>
+            </div>
+
+            <div>
+                <div class="panel-heading">Custom Color</div>
+                <div class="color-row">
+                    <input type="color" id="customColor" value="#6b8cff">
+                    <button class="btn btn-sm" id="btnUseCustom">Use</button>
+                </div>
+            </div>
+
+            <div>
+                <div class="panel-heading">Layer (Height)</div>
+                <div class="layer-control">
+                    <div class="layer-btns">
+                        <button class="btn btn-sm" id="btnLayerUp">&#9650;</button>
+                        <button class="btn btn-sm" id="btnLayerDown">&#9660;</button>
+                    </div>
+                    <div class="layer-display" id="layerDisplay">0</div>
+                    <span style="font-size:11px; color:var(--text-muted)">of 15</span>
+                </div>
+            </div>
+
+            <div>
+                <div class="panel-heading">Tool</div>
+                <div class="tool-row">
+                    <button class="btn tool-btn active" id="btnToolPlace" data-tool="place">Place</button>
+                    <button class="btn tool-btn" id="btnToolErase" data-tool="erase">Erase</button>
+                </div>
+            </div>
+
+            <div>
+                <div class="panel-heading">View</div>
+                <div style="display:flex; flex-direction:column; gap:4px;">
+                    <label style="font-size:12px; display:flex; align-items:center; gap:6px; cursor:pointer;">
+                        <input type="checkbox" id="chkGrid" checked> Show grid
+                    </label>
+                    <label style="font-size:12px; display:flex; align-items:center; gap:6px; cursor:pointer;">
+                        <input type="checkbox" id="chkShadow" checked> Shadows
+                    </label>
+                </div>
+            </div>
+
+            <div>
+                <div class="panel-heading">Shortcuts</div>
+                <div style="font-size:11px; color:var(--text-muted); line-height:1.6;">
+                    <b>Click</b> Place / Erase<br>
+                    <b>Right-click</b> Erase<br>
+                    <b>Scroll</b> Zoom<br>
+                    <b>Middle-drag</b> Pan<br>
+                    <b>+/-</b> Layer up/down<br>
+                    <b>1-9</b> Select block
+                </div>
+            </div>
+        </div>
+
+        <!-- Canvas -->
+        <div class="canvas-wrap" id="canvasWrap">
+            <canvas id="mainCanvas"></canvas>
+        </div>
+
+        <!-- Status Bar -->
+        <div class="statusbar">
+            <span id="statusCoord">--</span>
+            <span id="statusBlocks">Blocks: 0</span>
+            <span id="statusZoom">Zoom: 100%</span>
+        </div>
+    </div>
+
+    <div class="tooltip" id="tooltip"></div>
+
+    <script>
+    /* ================================================================
+       ISOMETRIC SCENE BUILDER ENGINE
+    ================================================================ */
+    (function() {
+        'use strict';
+
+        // ── Constants ──────────────────────────────────────────
+        const GRID_W = 20;
+        const GRID_H = 20;
+        const MAX_LAYERS = 16;
+        const TILE_W = 32;
+        const TILE_H = 16;
+        const BLOCK_H = 12;
+
+        // ── Block Types ────────────────────────────────────────
+        const BLOCK_TYPES = [
+            { id: 'grass',   name: 'Grass',   top: '#5ea832', left: '#6b4930', right: '#573b24', topTex: 'grass' },
+            { id: 'dirt',    name: 'Dirt',     top: '#8b6f47', left: '#6b4930', right: '#573b24' },
+            { id: 'stone',   name: 'Stone',    top: '#9a9a9a', left: '#787878', right: '#636363' },
+            { id: 'wood',    name: 'Wood',     top: '#c49a6c', left: '#a07844', right: '#8a6438', topTex: 'wood' },
+            { id: 'water',   name: 'Water',    top: '#4a9ad9', left: '#3a7ab8', right: '#2a6a9e', topTex: 'water', alpha: 0.8 },
+            { id: 'sand',    name: 'Sand',     top: '#e8d68c', left: '#d4bf6e', right: '#c0a85a' },
+            { id: 'snow',    name: 'Snow',     top: '#eef4f8', left: '#d0dce4', right: '#b8c8d4' },
+            { id: 'brick',   name: 'Brick',    top: '#b85c3a', left: '#983c2a', right: '#7e2c1a', topTex: 'brick' },
+            { id: 'leaf',    name: 'Leaves',   top: '#3ca828', left: '#2c8a1a', right: '#1e7210', topTex: 'leaf' },
+            { id: 'lava',    name: 'Lava',     top: '#ff6a1a', left: '#d44a0a', right: '#b03a00', topTex: 'lava' },
+            { id: 'ice',     name: 'Ice',      top: '#c8e8f8', left: '#a8d0ec', right: '#90bce0', alpha: 0.85 },
+            { id: 'gold',    name: 'Gold',     top: '#ffd700', left: '#d4a800', right: '#b08e00' },
+        ];
+
+        // ── State ──────────────────────────────────────────────
+        let blocks = {};          // key: "x,y,z" → blockTypeIndex or { custom: color }
+        let currentBlock = 0;     // index into BLOCK_TYPES, or -1 for custom
+        let customColor = '#6b8cff';
+        let currentLayer = 0;
+        let currentTool = 'place';
+        let showGrid = true;
+        let showShadow = true;
+
+        // Camera
+        let camX = 0, camY = 0, zoom = 1;
+        let isPanning = false, panStartX, panStartY, panCamX, panCamY;
+
+        // Hover
+        let hoverCell = null; // {gx, gy}
+
+        // DOM
+        const canvas = document.getElementById('mainCanvas');
+        const ctx = canvas.getContext('2d');
+        const wrap = document.getElementById('canvasWrap');
+
+        // ── Coordinate Conversions ─────────────────────────────
+        function gridToScreen(gx, gy, gz) {
+            const sx = (gx - gy) * (TILE_W / 2) * zoom;
+            const sy = (gx + gy) * (TILE_H / 2) * zoom - gz * BLOCK_H * zoom;
+            return { x: sx + camX, y: sy + camY };
+        }
+
+        function screenToGrid(sx, sy) {
+            const rx = (sx - camX) / zoom;
+            const ry = (sy - camY) / zoom + currentLayer * BLOCK_H;
+            const gx = (rx / (TILE_W / 2) + ry / (TILE_H / 2)) / 2;
+            const gy = (ry / (TILE_H / 2) - rx / (TILE_W / 2)) / 2;
+            return { gx: Math.floor(gx), gy: Math.floor(gy) };
+        }
+
+        function blockKey(x, y, z) { return x + ',' + y + ',' + z; }
+
+        function countBlocks() { return Object.keys(blocks).length; }
+
+        // ── Block Drawing ──────────────────────────────────────
+        function getBlockColors(blockData) {
+            if (typeof blockData === 'object' && blockData.custom) {
+                const c = blockData.custom;
+                return {
+                    top: c,
+                    left: darkenColor(c, 0.75),
+                    right: darkenColor(c, 0.55),
+                    topTex: null,
+                    alpha: 1
+                };
+            }
+            const bt = BLOCK_TYPES[blockData];
+            return {
+                top: bt.top,
+                left: bt.left,
+                right: bt.right,
+                topTex: bt.topTex || null,
+                alpha: bt.alpha || 1
+            };
+        }
+
+        function darkenColor(hex, factor) {
+            const r = parseInt(hex.slice(1,3), 16);
+            const g = parseInt(hex.slice(3,5), 16);
+            const b = parseInt(hex.slice(5,7), 16);
+            return '#' + [r,g,b].map(c => {
+                const v = Math.round(c * factor);
+                return Math.max(0, Math.min(255, v)).toString(16).padStart(2, '0');
+            }).join('');
+        }
+
+        function drawIsoCube(ctx, sx, sy, colors, z) {
+            const tw = TILE_W * zoom;
+            const th = TILE_H * zoom;
+            const bh = BLOCK_H * zoom;
+            const htw = tw / 2;
+            const hth = th / 2;
+
+            const alpha = colors.alpha || 1;
+            if (alpha < 1) ctx.globalAlpha = alpha;
+
+            // Top face
+            ctx.fillStyle = colors.top;
+            ctx.beginPath();
+            ctx.moveTo(sx, sy - hth);
+            ctx.lineTo(sx + htw, sy);
+            ctx.lineTo(sx, sy + hth);
+            ctx.lineTo(sx - htw, sy);
+            ctx.closePath();
+            ctx.fill();
+
+            // Top face texture
+            if (colors.topTex) drawTopTexture(ctx, sx, sy, colors.topTex, htw, hth);
+
+            // Left face
+            ctx.fillStyle = colors.left;
+            ctx.beginPath();
+            ctx.moveTo(sx - htw, sy);
+            ctx.lineTo(sx, sy + hth);
+            ctx.lineTo(sx, sy + hth + bh);
+            ctx.lineTo(sx - htw, sy + bh);
+            ctx.closePath();
+            ctx.fill();
+
+            // Right face
+            ctx.fillStyle = colors.right;
+            ctx.beginPath();
+            ctx.moveTo(sx + htw, sy);
+            ctx.lineTo(sx, sy + hth);
+            ctx.lineTo(sx, sy + hth + bh);
+            ctx.lineTo(sx + htw, sy + bh);
+            ctx.closePath();
+            ctx.fill();
+
+            // Edge outlines
+            ctx.strokeStyle = 'rgba(0,0,0,0.12)';
+            ctx.lineWidth = Math.max(0.5, 0.5 * zoom);
+
+            // Top
+            ctx.beginPath();
+            ctx.moveTo(sx, sy - hth);
+            ctx.lineTo(sx + htw, sy);
+            ctx.lineTo(sx, sy + hth);
+            ctx.lineTo(sx - htw, sy);
+            ctx.closePath();
+            ctx.stroke();
+
+            // Left
+            ctx.beginPath();
+            ctx.moveTo(sx - htw, sy);
+            ctx.lineTo(sx - htw, sy + bh);
+            ctx.lineTo(sx, sy + hth + bh);
+            ctx.lineTo(sx, sy + hth);
+            ctx.closePath();
+            ctx.stroke();
+
+            // Right
+            ctx.beginPath();
+            ctx.moveTo(sx + htw, sy);
+            ctx.lineTo(sx + htw, sy + bh);
+            ctx.lineTo(sx, sy + hth + bh);
+            ctx.stroke();
+
+            if (alpha < 1) ctx.globalAlpha = 1;
+        }
+
+        function drawTopTexture(ctx, sx, sy, type, htw, hth) {
+            ctx.save();
+            // Clip to top face
+            ctx.beginPath();
+            ctx.moveTo(sx, sy - hth);
+            ctx.lineTo(sx + htw, sy);
+            ctx.lineTo(sx, sy + hth);
+            ctx.lineTo(sx - htw, sy);
+            ctx.closePath();
+            ctx.clip();
+
+            const s = zoom;
+
+            if (type === 'grass') {
+                // Small darker speckles
+                ctx.fillStyle = 'rgba(40,100,20,0.3)';
+                for (let i = 0; i < 6; i++) {
+                    const ox = (hashN(sx + i * 7, sy + i * 13, 0) - 0.5) * htw * 1.2;
+                    const oy = (hashN(sx + i * 11, sy + i * 3, 1) - 0.5) * hth * 1.2;
+                    ctx.fillRect(sx + ox, sy + oy, 2 * s, 1 * s);
+                }
+            } else if (type === 'wood') {
+                ctx.strokeStyle = 'rgba(100,60,20,0.25)';
+                ctx.lineWidth = 1 * s;
+                for (let i = -2; i <= 2; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(sx - htw * 0.6, sy + i * 3 * s);
+                    ctx.lineTo(sx + htw * 0.6, sy + i * 3 * s);
+                    ctx.stroke();
+                }
+            } else if (type === 'water') {
+                ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+                ctx.lineWidth = 1 * s;
+                const t = Date.now() / 1200;
+                for (let i = -1; i <= 1; i++) {
+                    ctx.beginPath();
+                    const oy = i * 4 * s;
+                    ctx.moveTo(sx - htw * 0.5, sy + oy + Math.sin(t + i) * 1.5 * s);
+                    ctx.quadraticCurveTo(sx, sy + oy - Math.sin(t + i + 1) * 1.5 * s,
+                                         sx + htw * 0.5, sy + oy + Math.sin(t + i + 2) * 1.5 * s);
+                    ctx.stroke();
+                }
+            } else if (type === 'brick') {
+                ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+                ctx.lineWidth = 0.5 * s;
+                for (let i = -1; i <= 1; i++) {
+                    const oy = i * 4 * s;
+                    ctx.beginPath();
+                    ctx.moveTo(sx - htw * 0.7, sy + oy);
+                    ctx.lineTo(sx + htw * 0.7, sy + oy);
+                    ctx.stroke();
+                    const ox = (i % 2 === 0) ? 0 : htw * 0.35;
+                    ctx.beginPath();
+                    ctx.moveTo(sx + ox, sy + oy);
+                    ctx.lineTo(sx + ox, sy + oy + 4 * s);
+                    ctx.stroke();
+                }
+            } else if (type === 'leaf') {
+                ctx.fillStyle = 'rgba(20,80,10,0.25)';
+                for (let i = 0; i < 5; i++) {
+                    const ox = (hashN(sx + i * 17, sy + i * 23, 2) - 0.5) * htw;
+                    const oy = (hashN(sx + i * 29, sy + i * 7, 3) - 0.5) * hth;
+                    ctx.beginPath();
+                    ctx.arc(sx + ox, sy + oy, 2 * s, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            } else if (type === 'lava') {
+                ctx.fillStyle = 'rgba(255,255,80,0.35)';
+                const t = Date.now() / 800;
+                for (let i = 0; i < 4; i++) {
+                    const ox = Math.sin(t + i * 1.5) * htw * 0.3;
+                    const oy = Math.cos(t + i * 2.1) * hth * 0.3;
+                    ctx.beginPath();
+                    ctx.arc(sx + ox, sy + oy, (2 + Math.sin(t + i)) * s, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+            ctx.restore();
+        }
+
+        // Simple hash for deterministic pseudo-random per-tile variation
+        function hashN(a, b, seed) {
+            let h = (a * 2654435761 ^ b * 2246822519 ^ seed * 3266489917) >>> 0;
+            return (h & 0xffff) / 0xffff;
+        }
+
+        // ── Grid Drawing ───────────────────────────────────────
+        function drawGrid() {
+            if (!showGrid) return;
+            ctx.strokeStyle = 'rgba(0,0,0,0.08)';
+            ctx.lineWidth = Math.max(0.5, 0.5 * zoom);
+
+            for (let gx = 0; gx <= GRID_W; gx++) {
+                const a = gridToScreen(gx, 0, currentLayer);
+                const b = gridToScreen(gx, GRID_H, currentLayer);
+                ctx.beginPath();
+                ctx.moveTo(a.x, a.y);
+                ctx.lineTo(b.x, b.y);
+                ctx.stroke();
+            }
+            for (let gy = 0; gy <= GRID_H; gy++) {
+                const a = gridToScreen(0, gy, currentLayer);
+                const b = gridToScreen(GRID_W, gy, currentLayer);
+                ctx.beginPath();
+                ctx.moveTo(a.x, a.y);
+                ctx.lineTo(b.x, b.y);
+                ctx.stroke();
+            }
+        }
+
+        // ── Hover Highlight ────────────────────────────────────
+        function drawHover() {
+            if (!hoverCell) return;
+            const { gx, gy } = hoverCell;
+            if (gx < 0 || gx >= GRID_W || gy < 0 || gy >= GRID_H) return;
+
+            const p = gridToScreen(gx, gy, currentLayer);
+            const cx = p.x;
+            const cy = p.y;
+            const htw = (TILE_W * zoom) / 2;
+            const hth = (TILE_H * zoom) / 2;
+
+            if (currentTool === 'erase') {
+                // Red highlight
+                ctx.fillStyle = 'rgba(220,50,50,0.25)';
+            } else {
+                // Preview with transparency
+                ctx.fillStyle = 'rgba(74,144,217,0.2)';
+            }
+
+            ctx.beginPath();
+            ctx.moveTo(cx, cy - hth);
+            ctx.lineTo(cx + htw, cy);
+            ctx.lineTo(cx, cy + hth);
+            ctx.lineTo(cx - htw, cy);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.strokeStyle = currentTool === 'erase' ? 'rgba(220,50,50,0.6)' : 'rgba(74,144,217,0.6)';
+            ctx.lineWidth = 1.5 * zoom;
+            ctx.stroke();
+
+            // Ghost block preview when placing
+            if (currentTool === 'place') {
+                const key = blockKey(gx, gy, currentLayer);
+                if (!blocks[key]) {
+                    ctx.globalAlpha = 0.4;
+                    const blockData = currentBlock === -1 ? { custom: customColor } : currentBlock;
+                    const colors = getBlockColors(blockData);
+                    drawIsoCube(ctx, cx, cy, colors, currentLayer);
+                    ctx.globalAlpha = 1;
+                }
+            }
+        }
+
+        // ── Shadow Drawing ─────────────────────────────────────
+        function drawShadows() {
+            if (!showShadow) return;
+            // Cast a simple shadow on layer 0 for blocks above
+            const sorted = getSortedBlocks();
+            ctx.fillStyle = 'rgba(0,0,0,0.08)';
+            for (const { x, y, z } of sorted) {
+                if (z === 0) continue;
+                const p = gridToScreen(x, y, 0);
+                const htw = (TILE_W * zoom) / 2;
+                const hth = (TILE_H * zoom) / 2;
+                ctx.beginPath();
+                ctx.moveTo(p.x, p.y - hth);
+                ctx.lineTo(p.x + htw, p.y);
+                ctx.lineTo(p.x, p.y + hth);
+                ctx.lineTo(p.x - htw, p.y);
+                ctx.closePath();
+                ctx.fill();
+            }
+        }
+
+        // ── Sort Blocks (painter's algorithm) ──────────────────
+        function getSortedBlocks() {
+            const list = [];
+            for (const key in blocks) {
+                const [x, y, z] = key.split(',').map(Number);
+                list.push({ x, y, z, data: blocks[key] });
+            }
+            list.sort((a, b) => {
+                // Sort by z first, then by (x+y) for depth, then by y
+                if (a.z !== b.z) return a.z - b.z;
+                const da = a.x + a.y, db = b.x + b.y;
+                if (da !== db) return da - db;
+                return a.y - b.y;
+            });
+            return list;
+        }
+
+        // ── Main Render ────────────────────────────────────────
+        function render() {
+            const dpr = window.devicePixelRatio || 1;
+            const w = wrap.clientWidth;
+            const h = wrap.clientHeight;
+
+            if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
+                canvas.width = w * dpr;
+                canvas.height = h * dpr;
+                canvas.style.width = w + 'px';
+                canvas.style.height = h + 'px';
+            }
+
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            ctx.clearRect(0, 0, w, h);
+
+            // Background
+            ctx.fillStyle = '#e8e8e8';
+            ctx.fillRect(0, 0, w, h);
+
+            // Grid
+            drawGrid();
+
+            // Shadows
+            drawShadows();
+
+            // Blocks
+            const sorted = getSortedBlocks();
+            for (const block of sorted) {
+                const p = gridToScreen(block.x, block.y, block.z);
+                const colors = getBlockColors(block.data);
+                drawIsoCube(ctx, p.x, p.y, colors, block.z);
+            }
+
+            // Hover
+            drawHover();
+
+            // Update status
+            document.getElementById('statusBlocks').textContent = 'Blocks: ' + countBlocks();
+            document.getElementById('statusZoom').textContent = 'Zoom: ' + Math.round(zoom * 100) + '%';
+
+            requestAnimationFrame(render);
+        }
+
+        // ── Center Camera ──────────────────────────────────────
+        function centerCamera() {
+            const w = wrap.clientWidth;
+            const h = wrap.clientHeight;
+            // Center the grid in the viewport
+            const midP = gridToScreen(GRID_W / 2, GRID_H / 2, 0);
+            // We want midP to map to center of canvas, so adjust cam
+            camX = w / 2;
+            camY = h / 3;
+        }
+
+        // ── Input Handling ─────────────────────────────────────
+        function onMouseDown(e) {
+            if (e.button === 1 || (e.button === 0 && e.altKey)) {
+                // Middle click or alt+click to pan
+                isPanning = true;
+                panStartX = e.clientX;
+                panStartY = e.clientY;
+                panCamX = camX;
+                panCamY = camY;
+                e.preventDefault();
+                return;
+            }
+
+            if (e.button === 2 || (e.button === 0 && currentTool === 'erase')) {
+                // Right click or erase tool
+                eraseAt(e);
+                return;
+            }
+
+            if (e.button === 0 && currentTool === 'place') {
+                placeAt(e);
+            }
+        }
+
+        function onMouseMove(e) {
+            if (isPanning) {
+                camX = panCamX + (e.clientX - panStartX);
+                camY = panCamY + (e.clientY - panStartY);
+                return;
+            }
+
+            const rect = canvas.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+            const grid = screenToGrid(mx, my);
+            hoverCell = grid;
+
+            if (grid.gx >= 0 && grid.gx < GRID_W && grid.gy >= 0 && grid.gy < GRID_H) {
+                document.getElementById('statusCoord').textContent =
+                    'Grid: ' + grid.gx + ', ' + grid.gy + ' Layer: ' + currentLayer;
+            } else {
+                document.getElementById('statusCoord').textContent = '--';
+            }
+
+            // Continuous place/erase while dragging
+            if (e.buttons & 1) {
+                if (currentTool === 'place') placeAt(e);
+                else if (currentTool === 'erase') eraseAt(e);
+            }
+            if (e.buttons & 2) {
+                eraseAt(e);
+            }
+        }
+
+        function onMouseUp(e) {
+            if (isPanning) {
+                isPanning = false;
+            }
+        }
+
+        function onWheel(e) {
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+
+            const oldZoom = zoom;
+            const delta = e.deltaY > 0 ? 0.9 : 1.1;
+            zoom = Math.max(0.3, Math.min(4, zoom * delta));
+
+            // Zoom toward cursor
+            camX = mx - (mx - camX) * (zoom / oldZoom);
+            camY = my - (my - camY) * (zoom / oldZoom);
+        }
+
+        function placeAt(e) {
+            const rect = canvas.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+            const grid = screenToGrid(mx, my);
+
+            if (grid.gx < 0 || grid.gx >= GRID_W || grid.gy < 0 || grid.gy >= GRID_H) return;
+
+            const key = blockKey(grid.gx, grid.gy, currentLayer);
+            const blockData = currentBlock === -1 ? { custom: customColor } : currentBlock;
+            blocks[key] = blockData;
+        }
+
+        function eraseAt(e) {
+            const rect = canvas.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+            const grid = screenToGrid(mx, my);
+
+            if (grid.gx < 0 || grid.gx >= GRID_W || grid.gy < 0 || grid.gy >= GRID_H) return;
+
+            const key = blockKey(grid.gx, grid.gy, currentLayer);
+            delete blocks[key];
+        }
+
+        // ── Block Palette ──────────────────────────────────────
+        function buildPalette() {
+            const grid = document.getElementById('blockGrid');
+            grid.innerHTML = '';
+            BLOCK_TYPES.forEach((bt, i) => {
+                const swatch = document.createElement('div');
+                swatch.className = 'block-swatch' + (i === currentBlock ? ' active' : '');
+                swatch.title = bt.name;
+
+                // Mini canvas preview
+                const c = document.createElement('canvas');
+                c.width = 48; c.height = 48;
+                const cx = c.getContext('2d');
+                // Draw a mini iso cube
+                drawMiniCube(cx, 24, 18, bt);
+                swatch.appendChild(c);
+
+                const label = document.createElement('div');
+                label.className = 'label';
+                label.textContent = bt.name;
+                swatch.appendChild(label);
+
+                swatch.addEventListener('click', () => {
+                    currentBlock = i;
+                    currentTool = 'place';
+                    updateToolButtons();
+                    updatePaletteSelection();
+                });
+
+                grid.appendChild(swatch);
+            });
+        }
+
+        function drawMiniCube(ctx, sx, sy, bt) {
+            const tw = 28, th = 14, bh = 10;
+            const htw = tw / 2, hth = th / 2;
+
+            // Top
+            ctx.fillStyle = bt.top;
+            ctx.beginPath();
+            ctx.moveTo(sx, sy - hth);
+            ctx.lineTo(sx + htw, sy);
+            ctx.lineTo(sx, sy + hth);
+            ctx.lineTo(sx - htw, sy);
+            ctx.closePath();
+            ctx.fill();
+
+            // Left
+            ctx.fillStyle = bt.left;
+            ctx.beginPath();
+            ctx.moveTo(sx - htw, sy);
+            ctx.lineTo(sx, sy + hth);
+            ctx.lineTo(sx, sy + hth + bh);
+            ctx.lineTo(sx - htw, sy + bh);
+            ctx.closePath();
+            ctx.fill();
+
+            // Right
+            ctx.fillStyle = bt.right;
+            ctx.beginPath();
+            ctx.moveTo(sx + htw, sy);
+            ctx.lineTo(sx, sy + hth);
+            ctx.lineTo(sx, sy + hth + bh);
+            ctx.lineTo(sx + htw, sy + bh);
+            ctx.closePath();
+            ctx.fill();
+
+            // Outline
+            ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+            ctx.lineWidth = 0.5;
+            ctx.beginPath();
+            ctx.moveTo(sx, sy - hth);
+            ctx.lineTo(sx + htw, sy);
+            ctx.lineTo(sx + htw, sy + bh);
+            ctx.lineTo(sx, sy + hth + bh);
+            ctx.lineTo(sx - htw, sy + bh);
+            ctx.lineTo(sx - htw, sy);
+            ctx.closePath();
+            ctx.stroke();
+        }
+
+        function updatePaletteSelection() {
+            const swatches = document.querySelectorAll('.block-swatch');
+            swatches.forEach((s, i) => {
+                s.classList.toggle('active', i === currentBlock);
+            });
+        }
+
+        // ── Layer Controls ─────────────────────────────────────
+        function setLayer(l) {
+            currentLayer = Math.max(0, Math.min(MAX_LAYERS - 1, l));
+            document.getElementById('layerDisplay').textContent = currentLayer;
+        }
+
+        // ── Tool Buttons ───────────────────────────────────────
+        function updateToolButtons() {
+            document.getElementById('btnToolPlace').classList.toggle('active', currentTool === 'place');
+            document.getElementById('btnToolErase').classList.toggle('active', currentTool === 'erase');
+        }
+
+        // ── Export PNG ─────────────────────────────────────────
+        function exportPNG() {
+            // Find bounding box of all blocks
+            const keys = Object.keys(blocks);
+            if (keys.length === 0) { alert('Scene is empty!'); return; }
+
+            let minSX = Infinity, minSY = Infinity, maxSX = -Infinity, maxSY = -Infinity;
+            const tw = TILE_W, th = TILE_H, bh = BLOCK_H;
+            const htw = tw / 2, hth = th / 2;
+
+            for (const key of keys) {
+                const [x, y, z] = key.split(',').map(Number);
+                const sx = (x - y) * htw;
+                const sy = (x + y) * hth - z * bh;
+                minSX = Math.min(minSX, sx - htw);
+                maxSX = Math.max(maxSX, sx + htw);
+                minSY = Math.min(minSY, sy - hth);
+                maxSY = Math.max(maxSY, sy + hth + bh);
+            }
+
+            const pad = 20;
+            const w = (maxSX - minSX) + pad * 2;
+            const h = (maxSY - minSY) + pad * 2;
+
+            const expCanvas = document.createElement('canvas');
+            expCanvas.width = Math.ceil(w * 2);
+            expCanvas.height = Math.ceil(h * 2);
+            const ectx = expCanvas.getContext('2d');
+            ectx.scale(2, 2);
+
+            // White background
+            ectx.fillStyle = '#f5f5f5';
+            ectx.fillRect(0, 0, w, h);
+
+            // Save current state and temporarily change cam/zoom for export
+            const origCamX = camX, origCamY = camY, origZoom = zoom;
+            camX = -minSX + pad;
+            camY = -minSY + pad;
+            zoom = 1;
+
+            // Draw shadows
+            if (showShadow) {
+                const sorted = getSortedBlocks();
+                ectx.fillStyle = 'rgba(0,0,0,0.08)';
+                for (const block of sorted) {
+                    if (block.z === 0) continue;
+                    const p = gridToScreen(block.x, block.y, 0);
+                    ectx.beginPath();
+                    ectx.moveTo(p.x, p.y - hth);
+                    ectx.lineTo(p.x + htw, p.y);
+                    ectx.lineTo(p.x, p.y + hth);
+                    ectx.lineTo(p.x - htw, p.y);
+                    ectx.closePath();
+                    ectx.fill();
+                }
+            }
+
+            // Draw blocks
+            const sorted = getSortedBlocks();
+            for (const block of sorted) {
+                const p = gridToScreen(block.x, block.y, block.z);
+                const colors = getBlockColors(block.data);
+                drawIsoCube(ectx, p.x, p.y, colors, block.z);
+            }
+
+            // Restore
+            camX = origCamX; camY = origCamY; zoom = origZoom;
+
+            // Download
+            expCanvas.toBlob(blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'isometric-scene.png';
+                a.click();
+                URL.revokeObjectURL(url);
+            });
+        }
+
+        // ── Clear ──────────────────────────────────────────────
+        function clearScene() {
+            if (countBlocks() > 0 && !confirm('Clear all blocks?')) return;
+            blocks = {};
+        }
+
+        // ── Keyboard ───────────────────────────────────────────
+        function onKeyDown(e) {
+            if (e.key === '+' || e.key === '=') { setLayer(currentLayer + 1); e.preventDefault(); }
+            else if (e.key === '-' || e.key === '_') { setLayer(currentLayer - 1); e.preventDefault(); }
+            else if (e.key >= '1' && e.key <= '9') {
+                const idx = parseInt(e.key) - 1;
+                if (idx < BLOCK_TYPES.length) {
+                    currentBlock = idx;
+                    currentTool = 'place';
+                    updateToolButtons();
+                    updatePaletteSelection();
+                }
+                e.preventDefault();
+            }
+            else if (e.key === 'e' || e.key === 'E') {
+                currentTool = currentTool === 'erase' ? 'place' : 'erase';
+                updateToolButtons();
+            }
+        }
+
+        // ── Init ───────────────────────────────────────────────
+        function init() {
+            buildPalette();
+            centerCamera();
+
+            // Events
+            canvas.addEventListener('mousedown', onMouseDown);
+            canvas.addEventListener('mousemove', onMouseMove);
+            canvas.addEventListener('mouseup', onMouseUp);
+            canvas.addEventListener('mouseleave', () => { hoverCell = null; isPanning = false; });
+            canvas.addEventListener('wheel', onWheel, { passive: false });
+            canvas.addEventListener('contextmenu', e => e.preventDefault());
+            document.addEventListener('keydown', onKeyDown);
+
+            // Layer buttons
+            document.getElementById('btnLayerUp').addEventListener('click', () => setLayer(currentLayer + 1));
+            document.getElementById('btnLayerDown').addEventListener('click', () => setLayer(currentLayer - 1));
+
+            // Tool buttons
+            document.getElementById('btnToolPlace').addEventListener('click', () => {
+                currentTool = 'place';
+                updateToolButtons();
+            });
+            document.getElementById('btnToolErase').addEventListener('click', () => {
+                currentTool = 'erase';
+                updateToolButtons();
+            });
+
+            // Custom color
+            document.getElementById('customColor').addEventListener('input', e => {
+                customColor = e.target.value;
+            });
+            document.getElementById('btnUseCustom').addEventListener('click', () => {
+                currentBlock = -1;
+                currentTool = 'place';
+                updateToolButtons();
+                updatePaletteSelection();
+            });
+
+            // View toggles
+            document.getElementById('chkGrid').addEventListener('change', e => { showGrid = e.target.checked; });
+            document.getElementById('chkShadow').addEventListener('change', e => { showShadow = e.target.checked; });
+
+            // Actions
+            document.getElementById('btnClear').addEventListener('click', clearScene);
+            document.getElementById('btnExport').addEventListener('click', exportPNG);
+
+            // Window resize
+            window.addEventListener('resize', () => {
+                // Handled in render loop via size check
+            });
+
+            // Start render loop
+            requestAnimationFrame(render);
+        }
+
+        init();
+    })();
+    </script>
+</body>
+</html>
