@@ -1341,12 +1341,11 @@
     pathPattern = null;
     computeAllPaths();
     // Update public API references (grid/spawnCells are reassigned in build fns)
-    API.grid = grid;
-    API.spawnCells = spawnCells;
+    if (typeof API !== 'undefined') {
+      API.grid = grid;
+      API.spawnCells = spawnCells;
+    }
   }
-
-  // Auto-init when loaded
-  init('arcaneBastion');
 
   // ── Expose Public API ──
   const API = {
@@ -1388,6 +1387,11 @@
     // Re-init (e.g. for level restart or map change)
     init: init
   };
+
+  // Auto-init default map
+  init('arcaneBastion');
+  API.grid = grid;
+  API.spawnCells = spawnCells;
 
   window.ArcaneMap = API;
 
