@@ -1,0 +1,1044 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Lights Out — Neon Grid Puzzle</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0a0a0f;
+            --bg-panel: #0d0d14;
+            --grid-line: rgba(255,255,255,0.06);
+            --text-primary: #e0e0e8;
+            --text-secondary: rgba(224,224,232,0.5);
+            --font-display: 'Orbitron', sans-serif;
+            --font-mono: 'Share Tech Mono', monospace;
+
+            /* Tier colors */
+            --neon-green: #39ff14;
+            --neon-green-glow: rgba(57,255,20,0.5);
+            --neon-blue: #00d4ff;
+            --neon-blue-glow: rgba(0,212,255,0.5);
+            --neon-red: #ff1744;
+            --neon-red-glow: rgba(255,23,68,0.5);
+            --neon-purple: #bf40ff;
+            --neon-purple-glow: rgba(191,64,255,0.5);
+
+            /* Active tier (set by JS) */
+            --neon: var(--neon-green);
+            --neon-glow: var(--neon-green-glow);
+            --cell-on: var(--neon);
+            --cell-on-glow: var(--neon-glow);
+            --cell-off: #16161e;
+            --cell-off-border: #22222e;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: var(--font-mono);
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Animated scanlines */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                rgba(0,0,0,0.08) 2px,
+                rgba(0,0,0,0.08) 4px
+            );
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        /* Grid background pattern */
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-image:
+                linear-gradient(var(--grid-line) 1px, transparent 1px),
+                linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+            background-size: 40px 40px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* Ambient glow */
+        .ambient-glow {
+            position: fixed;
+            width: 400px; height: 400px;
+            border-radius: 50%;
+            filter: blur(120px);
+            opacity: 0.15;
+            pointer-events: none;
+            z-index: 0;
+            transition: background 0.6s ease;
+        }
+        .ambient-glow.top { top: -100px; left: 30%; background: var(--neon); }
+        .ambient-glow.bottom { bottom: -100px; right: 20%; background: var(--neon); }
+
+        #game-container {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            padding: 20px;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+        }
+        .header h1 {
+            font-family: var(--font-display);
+            font-size: 2rem;
+            font-weight: 800;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--neon);
+            text-shadow: 0 0 10px var(--neon-glow), 0 0 30px var(--neon-glow);
+            transition: color 0.4s, text-shadow 0.4s;
+        }
+        .header .subtitle {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            letter-spacing: 0.3em;
+            margin-top: 4px;
+        }
+
+        /* HUD bar */
+        .hud {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+            font-family: var(--font-display);
+            font-size: 0.7rem;
+            letter-spacing: 0.1em;
+        }
+        .hud-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+        }
+        .hud-label {
+            font-size: 0.55rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+        }
+        .hud-value {
+            color: var(--neon);
+            font-weight: 700;
+            font-size: 1rem;
+            text-shadow: 0 0 8px var(--neon-glow);
+            transition: color 0.4s, text-shadow 0.4s;
+        }
+        .hud-value.lights-remaining {
+            min-width: 2ch;
+            text-align: center;
+        }
+
+        /* Tier badge */
+        .tier-badge {
+            font-family: var(--font-display);
+            font-size: 0.55rem;
+            font-weight: 700;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            padding: 3px 12px;
+            border: 1px solid var(--neon);
+            border-radius: 2px;
+            color: var(--neon);
+            text-shadow: 0 0 6px var(--neon-glow);
+            box-shadow: 0 0 8px var(--neon-glow), inset 0 0 8px rgba(0,0,0,0.5);
+            transition: all 0.4s;
+        }
+
+        /* Grid wrapper */
+        .grid-wrapper {
+            position: relative;
+            padding: 12px;
+            border: 1px solid rgba(255,255,255,0.08);
+            background: var(--bg-panel);
+            box-shadow: 0 0 40px rgba(0,0,0,0.5), inset 0 0 1px rgba(255,255,255,0.05);
+        }
+
+        /* The 5x5 grid */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 4px;
+        }
+
+        .cell {
+            width: 64px;
+            height: 64px;
+            border-radius: 4px;
+            cursor: pointer;
+            position: relative;
+            transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
+            -webkit-tap-highlight-color: transparent;
+            border: 1px solid var(--cell-off-border);
+            background: var(--cell-off);
+        }
+
+        .cell.on {
+            background: var(--cell-on);
+            border-color: var(--cell-on);
+            box-shadow:
+                0 0 12px var(--cell-on-glow),
+                0 0 30px var(--cell-on-glow),
+                inset 0 0 10px rgba(255,255,255,0.15);
+            animation: pulse-glow 2s ease-in-out infinite;
+        }
+
+        .cell:active {
+            transform: scale(0.92);
+        }
+
+        .cell.hint-highlight {
+            outline: 2px solid rgba(255,255,255,0.8);
+            outline-offset: -2px;
+            animation: hint-blink 0.8s ease-in-out infinite;
+        }
+
+        .cell.just-toggled {
+            animation: toggle-flash 0.2s ease-out;
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 12px var(--cell-on-glow), 0 0 30px var(--cell-on-glow), inset 0 0 10px rgba(255,255,255,0.15); }
+            50% { box-shadow: 0 0 16px var(--cell-on-glow), 0 0 40px var(--cell-on-glow), inset 0 0 14px rgba(255,255,255,0.2); }
+        }
+
+        @keyframes hint-blink {
+            0%, 100% { outline-color: rgba(255,255,255,0.8); }
+            50% { outline-color: rgba(255,255,255,0.2); }
+        }
+
+        @keyframes toggle-flash {
+            0% { filter: brightness(2); }
+            100% { filter: brightness(1); }
+        }
+
+        /* Win cascade */
+        .cell.win-cascade {
+            animation: cascade-off 0.4s ease-out forwards;
+        }
+
+        @keyframes cascade-off {
+            0% { background: var(--cell-on); box-shadow: 0 0 20px var(--cell-on-glow), 0 0 50px var(--cell-on-glow); transform: scale(1.1); }
+            50% { background: var(--cell-on); box-shadow: 0 0 40px var(--cell-on-glow), 0 0 80px var(--cell-on-glow); transform: scale(1.15); }
+            100% { background: var(--cell-off); box-shadow: none; transform: scale(1); border-color: var(--cell-off-border); }
+        }
+
+        /* Buttons row */
+        .controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .btn {
+            font-family: var(--font-display);
+            font-size: 0.6rem;
+            font-weight: 600;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            padding: 8px 18px;
+            border: 1px solid var(--neon);
+            background: transparent;
+            color: var(--neon);
+            cursor: pointer;
+            border-radius: 2px;
+            transition: all 0.2s;
+            text-shadow: 0 0 4px var(--neon-glow);
+        }
+        .btn:hover {
+            background: var(--neon);
+            color: var(--bg-dark);
+            box-shadow: 0 0 15px var(--neon-glow);
+            text-shadow: none;
+        }
+        .btn:active { transform: scale(0.95); }
+        .btn:disabled {
+            opacity: 0.3;
+            cursor: default;
+            pointer-events: none;
+        }
+
+        /* Level select overlay */
+        .overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(5,5,10,0.92);
+            z-index: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+        .overlay.visible {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .level-select-panel {
+            background: var(--bg-panel);
+            border: 1px solid rgba(255,255,255,0.1);
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+        }
+        .level-select-panel h2 {
+            font-family: var(--font-display);
+            font-size: 1rem;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--text-primary);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .tier-section {
+            margin-bottom: 18px;
+        }
+        .tier-label {
+            font-family: var(--font-display);
+            font-size: 0.6rem;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            padding-bottom: 4px;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+        }
+        .tier-label.green { color: var(--neon-green); }
+        .tier-label.blue { color: var(--neon-blue); }
+        .tier-label.red { color: var(--neon-red); }
+        .tier-label.purple { color: var(--neon-purple); }
+
+        .level-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+            gap: 6px;
+        }
+
+        .level-btn {
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-display);
+            font-size: 0.65rem;
+            font-weight: 700;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: var(--cell-off);
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-radius: 2px;
+            transition: all 0.15s;
+        }
+        .level-btn:hover {
+            border-color: var(--neon);
+            color: var(--neon);
+        }
+        .level-btn.completed {
+            border-color: var(--neon-green);
+            color: var(--neon-green);
+            text-shadow: 0 0 6px var(--neon-green-glow);
+        }
+        .level-btn.current {
+            border-color: var(--neon);
+            color: var(--neon);
+            box-shadow: 0 0 10px var(--neon-glow);
+            text-shadow: 0 0 6px var(--neon-glow);
+        }
+        .level-btn.locked {
+            opacity: 0.25;
+            cursor: default;
+            pointer-events: none;
+        }
+
+        .close-overlay {
+            position: absolute;
+            top: 12px; right: 16px;
+            font-size: 1.2rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+            background: none;
+            border: none;
+            font-family: var(--font-mono);
+        }
+        .close-overlay:hover { color: var(--text-primary); }
+
+        /* Win banner */
+        .win-banner {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            font-family: var(--font-display);
+            font-size: 1.4rem;
+            font-weight: 800;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--neon);
+            text-shadow: 0 0 20px var(--neon-glow), 0 0 50px var(--neon-glow);
+            z-index: 100;
+            pointer-events: none;
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.4s;
+            opacity: 0;
+            white-space: nowrap;
+        }
+        .win-banner.show {
+            transform: translate(-50%, -50%) scale(1);
+            opacity: 1;
+        }
+        .win-stats {
+            font-size: 0.6rem;
+            font-weight: 400;
+            letter-spacing: 0.15em;
+            color: var(--text-secondary);
+            margin-top: 8px;
+        }
+
+        /* Level select scrollbar */
+        .level-select-panel::-webkit-scrollbar { width: 6px; }
+        .level-select-panel::-webkit-scrollbar-track { background: transparent; }
+        .level-select-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .cell { width: 52px; height: 52px; }
+            .header h1 { font-size: 1.4rem; }
+            .hud { gap: 16px; }
+            .hud-value { font-size: 0.85rem; }
+            .level-select-panel { padding: 20px; }
+        }
+
+        @media (max-width: 400px) {
+            .cell { width: 44px; height: 44px; }
+            .grid { gap: 3px; }
+            .header h1 { font-size: 1.1rem; }
+            .hud { gap: 12px; }
+            .controls { gap: 6px; }
+            .btn { padding: 6px 12px; font-size: 0.5rem; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="ambient-glow top"></div>
+<div class="ambient-glow bottom"></div>
+
+<div id="game-container">
+    <div class="header">
+        <h1>Lights Out</h1>
+        <div class="subtitle">Toggle all lights to darkness</div>
+    </div>
+
+    <div class="hud">
+        <div class="hud-item">
+            <span class="hud-label">Level</span>
+            <span class="hud-value" id="hud-level">1</span>
+        </div>
+        <div class="tier-badge" id="tier-badge">Easy</div>
+        <div class="hud-item">
+            <span class="hud-label">Moves</span>
+            <span class="hud-value" id="hud-moves">0</span>
+        </div>
+        <div class="hud-item">
+            <span class="hud-label">Optimal</span>
+            <span class="hud-value" id="hud-optimal">—</span>
+        </div>
+        <div class="hud-item">
+            <span class="hud-label">Lights</span>
+            <span class="hud-value lights-remaining" id="hud-lights">0</span>
+        </div>
+    </div>
+
+    <div class="grid-wrapper">
+        <div class="grid" id="grid"></div>
+        <div class="win-banner" id="win-banner">
+            Blackout
+            <div class="win-stats" id="win-stats"></div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button class="btn" id="btn-hint">Hint</button>
+        <button class="btn" id="btn-reset">Reset</button>
+        <button class="btn" id="btn-levels">Levels</button>
+        <button class="btn" id="btn-next" disabled>Next</button>
+    </div>
+</div>
+
+<div class="overlay" id="level-overlay">
+    <div class="level-select-panel">
+        <button class="close-overlay" id="close-levels">&times;</button>
+        <h2>Select Level</h2>
+        <div id="level-list"></div>
+    </div>
+</div>
+
+<script>
+(function() {
+    'use strict';
+
+    const N = 5;
+    const TOTAL_CELLS = N * N;
+
+    // =============================================
+    // GF(2) Linear Algebra for 5x5 Lights Out
+    // =============================================
+    // The toggle matrix A for a 5x5 grid over GF(2):
+    // A[i][j] = 1 if pressing cell j affects cell i (self + orthogonal neighbors)
+    // We precompute the null space and a particular solution finder.
+
+    function buildToggleMatrix() {
+        const A = [];
+        for (let i = 0; i < TOTAL_CELLS; i++) {
+            A[i] = new Uint8Array(TOTAL_CELLS);
+            const r = Math.floor(i / N), c = i % N;
+            A[i][i] = 1;
+            if (r > 0) A[i][i - N] = 1;
+            if (r < N - 1) A[i][i + N] = 1;
+            if (c > 0) A[i][i - 1] = 1;
+            if (c < N - 1) A[i][i + 1] = 1;
+        }
+        return A;
+    }
+
+    // Solve Ax = b over GF(2) using Gaussian elimination
+    // Returns solution vector (Uint8Array of length 25) or null if unsolvable
+    function solveGF2(b) {
+        const A = buildToggleMatrix();
+        // Augmented matrix [A | b]
+        const aug = A.map((row, i) => {
+            const r = new Uint8Array(TOTAL_CELLS + 1);
+            r.set(row);
+            r[TOTAL_CELLS] = b[i];
+            return r;
+        });
+
+        const pivotCol = new Int8Array(TOTAL_CELLS).fill(-1);
+        let row = 0;
+
+        for (let col = 0; col < TOTAL_CELLS && row < TOTAL_CELLS; col++) {
+            // Find pivot
+            let pivotRow = -1;
+            for (let r = row; r < TOTAL_CELLS; r++) {
+                if (aug[r][col] === 1) { pivotRow = r; break; }
+            }
+            if (pivotRow === -1) continue;
+
+            // Swap
+            [aug[row], aug[pivotRow]] = [aug[pivotRow], aug[row]];
+            pivotCol[col] = row;
+
+            // Eliminate
+            for (let r = 0; r < TOTAL_CELLS; r++) {
+                if (r !== row && aug[r][col] === 1) {
+                    for (let c = 0; c <= TOTAL_CELLS; c++) {
+                        aug[r][c] ^= aug[row][c];
+                    }
+                }
+            }
+            row++;
+        }
+
+        // Check consistency
+        for (let r = row; r < TOTAL_CELLS; r++) {
+            if (aug[r][TOTAL_CELLS] === 1) return null; // Unsolvable
+        }
+
+        // Back-substitute (free variables = 0 for minimal solution)
+        const x = new Uint8Array(TOTAL_CELLS);
+        for (let col = 0; col < TOTAL_CELLS; col++) {
+            if (pivotCol[col] >= 0) {
+                x[col] = aug[pivotCol[col]][TOTAL_CELLS];
+            }
+        }
+        return x;
+    }
+
+    // Check if a board state is solvable
+    function isSolvable(board) {
+        return solveGF2(board) !== null;
+    }
+
+    // Get optimal solution (minimum moves)
+    function getOptimalSolution(board) {
+        return solveGF2(board);
+    }
+
+    // =============================================
+    // Level Generation
+    // =============================================
+    // Generate a solvable puzzle by starting from all-off and pressing random cells.
+    // This guarantees solvability since the sequence of presses IS the solution.
+
+    function seededRandom(seed) {
+        let s = seed;
+        return function() {
+            s = (s * 1664525 + 1013904223) & 0xFFFFFFFF;
+            return (s >>> 0) / 4294967296;
+        };
+    }
+
+    function generateLevel(levelNum) {
+        const rng = seededRandom(levelNum * 7919 + 31337);
+
+        // Determine number of presses based on difficulty
+        let minPresses, maxPresses;
+        if (levelNum <= 15) {
+            // Easy: 1-4 presses
+            minPresses = 1 + Math.floor((levelNum - 1) / 5);
+            maxPresses = Math.min(4, minPresses + 1);
+        } else if (levelNum <= 30) {
+            // Medium: 4-8 presses
+            minPresses = 4 + Math.floor((levelNum - 16) / 5);
+            maxPresses = Math.min(8, minPresses + 2);
+        } else if (levelNum <= 45) {
+            // Hard: 7-12 presses
+            minPresses = 7 + Math.floor((levelNum - 31) / 5);
+            maxPresses = Math.min(12, minPresses + 2);
+        } else {
+            // Expert: 10-16 presses
+            minPresses = 10 + Math.floor((levelNum - 46) / 4);
+            maxPresses = Math.min(16, minPresses + 3);
+        }
+
+        const numPresses = minPresses + Math.floor(rng() * (maxPresses - minPresses + 1));
+
+        // Press random cells to build the puzzle
+        const solution = new Uint8Array(TOTAL_CELLS);
+        const board = new Uint8Array(TOTAL_CELLS);
+
+        for (let p = 0; p < numPresses; p++) {
+            let cell;
+            // Try to pick a cell not yet pressed (to keep solution minimal)
+            let attempts = 0;
+            do {
+                cell = Math.floor(rng() * TOTAL_CELLS);
+                attempts++;
+            } while (solution[cell] === 1 && attempts < 50);
+
+            // Toggle solution
+            solution[cell] ^= 1;
+
+            // Apply press to board
+            const r = Math.floor(cell / N), c = cell % N;
+            board[cell] ^= 1;
+            if (r > 0) board[cell - N] ^= 1;
+            if (r < N - 1) board[cell + N] ^= 1;
+            if (c > 0) board[cell - 1] ^= 1;
+            if (c < N - 1) board[cell + 1] ^= 1;
+        }
+
+        // Count the actual optimal moves via solver
+        const optSol = solveGF2(board);
+        const optMoves = optSol ? optSol.reduce((a, b) => a + b, 0) : numPresses;
+
+        return {
+            board: Array.from(board),
+            optimalMoves: optMoves,
+            solution: optSol ? Array.from(optSol) : Array.from(solution)
+        };
+    }
+
+    // =============================================
+    // Tier definitions
+    // =============================================
+    const TIERS = [
+        { name: 'Easy', levels: [1, 15], color: 'green', css: '--neon-green', cssGlow: '--neon-green-glow' },
+        { name: 'Medium', levels: [16, 30], color: 'blue', css: '--neon-blue', cssGlow: '--neon-blue-glow' },
+        { name: 'Hard', levels: [31, 45], color: 'red', css: '--neon-red', cssGlow: '--neon-red-glow' },
+        { name: 'Expert', levels: [46, 60], color: 'purple', css: '--neon-purple', cssGlow: '--neon-purple-glow' },
+    ];
+    const TOTAL_LEVELS = 60;
+
+    function getTier(levelNum) {
+        for (const t of TIERS) {
+            if (levelNum >= t.levels[0] && levelNum <= t.levels[1]) return t;
+        }
+        return TIERS[TIERS.length - 1];
+    }
+
+    // =============================================
+    // State
+    // =============================================
+    let currentLevel = 1;
+    let board = [];
+    let initialBoard = [];
+    let moves = 0;
+    let optimalMoves = 0;
+    let solution = [];
+    let hintsShowing = false;
+    let won = false;
+    let progress = {}; // { levelNum: { completed: true, bestMoves: n } }
+
+    function loadProgress() {
+        try {
+            const data = localStorage.getItem('lightsout-progress');
+            if (data) progress = JSON.parse(data);
+        } catch (e) { progress = {}; }
+    }
+
+    function saveProgress() {
+        try {
+            localStorage.setItem('lightsout-progress', JSON.stringify(progress));
+        } catch (e) {}
+    }
+
+    function getHighestUnlocked() {
+        let highest = 1;
+        for (let i = 1; i <= TOTAL_LEVELS; i++) {
+            if (progress[i] && progress[i].completed) {
+                highest = Math.max(highest, i + 1);
+            }
+        }
+        return Math.min(highest, TOTAL_LEVELS);
+    }
+
+    // =============================================
+    // DOM
+    // =============================================
+    const gridEl = document.getElementById('grid');
+    const hudLevel = document.getElementById('hud-level');
+    const hudMoves = document.getElementById('hud-moves');
+    const hudOptimal = document.getElementById('hud-optimal');
+    const hudLights = document.getElementById('hud-lights');
+    const tierBadge = document.getElementById('tier-badge');
+    const btnHint = document.getElementById('btn-hint');
+    const btnReset = document.getElementById('btn-reset');
+    const btnLevels = document.getElementById('btn-levels');
+    const btnNext = document.getElementById('btn-next');
+    const winBanner = document.getElementById('win-banner');
+    const winStats = document.getElementById('win-stats');
+    const levelOverlay = document.getElementById('level-overlay');
+    const levelList = document.getElementById('level-list');
+    const closeOverlayBtn = document.getElementById('close-levels');
+
+    let cells = [];
+
+    function createGrid() {
+        gridEl.innerHTML = '';
+        cells = [];
+        for (let i = 0; i < TOTAL_CELLS; i++) {
+            const cell = document.createElement('div');
+            cell.className = 'cell';
+            cell.dataset.index = i;
+            cell.addEventListener('click', () => onCellClick(i));
+            gridEl.appendChild(cell);
+            cells.push(cell);
+        }
+    }
+
+    function renderBoard() {
+        for (let i = 0; i < TOTAL_CELLS; i++) {
+            cells[i].classList.toggle('on', board[i] === 1);
+            cells[i].classList.remove('hint-highlight', 'win-cascade');
+        }
+        hudMoves.textContent = moves;
+        hudLights.textContent = board.reduce((a, b) => a + b, 0);
+    }
+
+    function setTheme(tier) {
+        const root = document.documentElement;
+        root.style.setProperty('--neon', `var(${tier.css})`);
+        root.style.setProperty('--neon-glow', `var(${tier.cssGlow})`);
+        root.style.setProperty('--cell-on', `var(${tier.css})`);
+        root.style.setProperty('--cell-on-glow', `var(${tier.cssGlow})`);
+    }
+
+    function updateHUD() {
+        const tier = getTier(currentLevel);
+        hudLevel.textContent = currentLevel;
+        hudOptimal.textContent = optimalMoves;
+        tierBadge.textContent = tier.name;
+        setTheme(tier);
+    }
+
+    // =============================================
+    // Game Logic
+    // =============================================
+    function loadLevel(num) {
+        currentLevel = num;
+        const level = generateLevel(num);
+        board = [...level.board];
+        initialBoard = [...level.board];
+        optimalMoves = level.optimalMoves;
+        solution = level.solution;
+        moves = 0;
+        won = false;
+        hintsShowing = false;
+        winBanner.classList.remove('show');
+        btnNext.disabled = true;
+
+        updateHUD();
+        renderBoard();
+    }
+
+    function pressCell(index) {
+        const r = Math.floor(index / N), c = index % N;
+        board[index] ^= 1;
+        if (r > 0) board[index - N] ^= 1;
+        if (r < N - 1) board[index + N] ^= 1;
+        if (c > 0) board[index - 1] ^= 1;
+        if (c < N - 1) board[index + 1] ^= 1;
+    }
+
+    function onCellClick(index) {
+        if (won) return;
+
+        // Clear hints on move
+        if (hintsShowing) {
+            hintsShowing = false;
+            cells.forEach(c => c.classList.remove('hint-highlight'));
+        }
+
+        pressCell(index);
+        moves++;
+
+        // Flash toggled cells
+        const r = Math.floor(index / N), c = index % N;
+        const affected = [index];
+        if (r > 0) affected.push(index - N);
+        if (r < N - 1) affected.push(index + N);
+        if (c > 0) affected.push(index - 1);
+        if (c < N - 1) affected.push(index + 1);
+
+        affected.forEach(i => {
+            cells[i].classList.remove('just-toggled');
+            void cells[i].offsetWidth; // Force reflow
+            cells[i].classList.add('just-toggled');
+        });
+
+        renderBoard();
+        checkWin();
+    }
+
+    function checkWin() {
+        if (board.every(v => v === 0)) {
+            won = true;
+            btnNext.disabled = false;
+
+            // Save progress
+            const prev = progress[currentLevel];
+            if (!prev || !prev.completed || moves < prev.bestMoves) {
+                progress[currentLevel] = { completed: true, bestMoves: moves };
+            }
+            saveProgress();
+
+            // Win cascade animation
+            const order = [];
+            // Spiral from center outward
+            const center = 12;
+            const visited = new Set();
+            const queue = [center];
+            visited.add(center);
+            while (queue.length > 0) {
+                const idx = queue.shift();
+                order.push(idx);
+                const r = Math.floor(idx / N), c = idx % N;
+                const neighbors = [];
+                if (r > 0) neighbors.push(idx - N);
+                if (r < N - 1) neighbors.push(idx + N);
+                if (c > 0) neighbors.push(idx - 1);
+                if (c < N - 1) neighbors.push(idx + 1);
+                // Diagonals for more dramatic cascade
+                if (r > 0 && c > 0) neighbors.push(idx - N - 1);
+                if (r > 0 && c < N - 1) neighbors.push(idx - N + 1);
+                if (r < N - 1 && c > 0) neighbors.push(idx + N - 1);
+                if (r < N - 1 && c < N - 1) neighbors.push(idx + N + 1);
+                for (const n of neighbors) {
+                    if (!visited.has(n)) {
+                        visited.add(n);
+                        queue.push(n);
+                    }
+                }
+            }
+
+            // First, turn all cells ON for the cascade effect
+            order.forEach((idx, i) => {
+                setTimeout(() => {
+                    cells[idx].classList.add('on');
+                }, i * 40);
+            });
+
+            // Then cascade them off
+            const onDelay = order.length * 40 + 200;
+            order.forEach((idx, i) => {
+                setTimeout(() => {
+                    cells[idx].classList.add('win-cascade');
+                    cells[idx].classList.remove('on');
+                }, onDelay + i * 50);
+            });
+
+            // Show banner
+            const bannerDelay = onDelay + order.length * 50 + 200;
+            const rating = moves <= optimalMoves ? 'PERFECT' : moves <= optimalMoves * 1.5 ? 'GREAT' : 'CLEARED';
+            winStats.textContent = `${moves} moves${moves <= optimalMoves ? ' (optimal!)' : ` / ${optimalMoves} optimal`}`;
+
+            setTimeout(() => {
+                winBanner.querySelector('.win-stats').previousSibling.textContent = rating + ' ';
+                winBanner.classList.add('show');
+            }, bannerDelay);
+        }
+    }
+
+    function showHints() {
+        if (won) return;
+
+        // Recompute solution from current board state
+        const currentSolution = solveGF2(new Uint8Array(board));
+        if (!currentSolution) return;
+
+        hintsShowing = !hintsShowing;
+        cells.forEach((cell, i) => {
+            cell.classList.toggle('hint-highlight', hintsShowing && currentSolution[i] === 1);
+        });
+    }
+
+    function resetLevel() {
+        board = [...initialBoard];
+        moves = 0;
+        won = false;
+        hintsShowing = false;
+        winBanner.classList.remove('show');
+        btnNext.disabled = true;
+        renderBoard();
+        updateHUD();
+    }
+
+    function nextLevel() {
+        if (currentLevel < TOTAL_LEVELS) {
+            loadLevel(currentLevel + 1);
+        }
+    }
+
+    // =============================================
+    // Level Select
+    // =============================================
+    function renderLevelSelect() {
+        levelList.innerHTML = '';
+        const unlocked = getHighestUnlocked();
+
+        for (const tier of TIERS) {
+            const section = document.createElement('div');
+            section.className = 'tier-section';
+
+            const label = document.createElement('div');
+            label.className = `tier-label ${tier.color}`;
+            label.textContent = `${tier.name} (${tier.levels[0]}–${tier.levels[1]})`;
+            section.appendChild(label);
+
+            const grid = document.createElement('div');
+            grid.className = 'level-grid';
+
+            for (let i = tier.levels[0]; i <= tier.levels[1]; i++) {
+                const btn = document.createElement('button');
+                btn.className = 'level-btn';
+                btn.textContent = i;
+
+                if (progress[i] && progress[i].completed) {
+                    btn.classList.add('completed');
+                } else if (i === currentLevel) {
+                    btn.classList.add('current');
+                } else if (i > unlocked) {
+                    btn.classList.add('locked');
+                }
+
+                if (i <= unlocked) {
+                    btn.addEventListener('click', () => {
+                        loadLevel(i);
+                        closeLevelSelect();
+                    });
+                }
+
+                grid.appendChild(btn);
+            }
+
+            section.appendChild(grid);
+            levelList.appendChild(section);
+        }
+    }
+
+    function openLevelSelect() {
+        renderLevelSelect();
+        levelOverlay.classList.add('visible');
+    }
+
+    function closeLevelSelect() {
+        levelOverlay.classList.remove('visible');
+    }
+
+    // =============================================
+    // Event Listeners
+    // =============================================
+    btnHint.addEventListener('click', showHints);
+    btnReset.addEventListener('click', resetLevel);
+    btnLevels.addEventListener('click', openLevelSelect);
+    btnNext.addEventListener('click', nextLevel);
+    closeOverlayBtn.addEventListener('click', closeLevelSelect);
+    levelOverlay.addEventListener('click', (e) => {
+        if (e.target === levelOverlay) closeLevelSelect();
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeLevelSelect();
+        if (e.key === 'h' || e.key === 'H') showHints();
+        if (e.key === 'r' || e.key === 'R') resetLevel();
+        if (e.key === 'n' || e.key === 'N') { if (!btnNext.disabled) nextLevel(); }
+    });
+
+    // =============================================
+    // Init
+    // =============================================
+    loadProgress();
+    createGrid();
+
+    // Start at highest unlocked level if user has progress, else level 1
+    const startLevel = getHighestUnlocked();
+    // If the highest unlocked is completed, stay there; otherwise start there
+    const lastIncomplete = (() => {
+        for (let i = 1; i <= TOTAL_LEVELS; i++) {
+            if (!progress[i] || !progress[i].completed) return i;
+        }
+        return TOTAL_LEVELS;
+    })();
+    loadLevel(Math.min(lastIncomplete, startLevel));
+
+})();
+</script>
+</body>
+</html>

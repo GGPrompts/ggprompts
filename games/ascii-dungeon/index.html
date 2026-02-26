@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>ASCII Dungeon — Roguelike</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --green: #00ff41;
+            --green-dim: #00aa2a;
+            --green-dark: #004d13;
+            --bg: #0a0a0a;
+            --bg-panel: #0c0c0c;
+            --border: #1a3a1a;
+            --text-dim: #336633;
+            --amber: #ffaa00;
+            --red: #ff4444;
+            --cyan: #00ffff;
+            --font: 'JetBrains Mono', 'Courier New', monospace;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        html {
+            font-size: 14px;
+            height: 100%;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--green);
+            font-family: var(--font);
+            height: 100%;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* CRT / scanline overlay */
+        body::after {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 1px,
+                rgba(0, 0, 0, 0.15) 1px,
+                rgba(0, 0, 0, 0.15) 2px
+            );
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background: radial-gradient(ellipse at center, transparent 60%, rgba(0, 0, 0, 0.4) 100%);
+            pointer-events: none;
+            z-index: 999;
+        }
+
+        #game {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            max-width: 80ch;
+            height: 100%;
+            max-height: 100vh;
+            position: relative;
+        }
+
+        /* Title bar */
+        #title-bar {
+            background: var(--bg-panel);
+            border-bottom: 1px solid var(--border);
+            padding: 4px 8px;
+            font-size: 0.75rem;
+            color: var(--green-dim);
+            display: flex;
+            justify-content: space-between;
+            flex-shrink: 0;
+        }
+
+        #title-bar .title {
+            color: var(--green);
+            font-weight: 700;
+            letter-spacing: 2px;
+        }
+
+        /* HUD */
+        #hud {
+            background: var(--bg-panel);
+            border-bottom: 1px solid var(--border);
+            padding: 4px 8px;
+            font-size: 0.7rem;
+            flex-shrink: 0;
+        }
+
+        #stats {
+            color: var(--green);
+            white-space: nowrap;
+            overflow: hidden;
+        }
+
+        #floor-info {
+            color: var(--green-dim);
+            margin-top: 2px;
+            font-size: 0.65rem;
+        }
+
+        .key-hint {
+            color: var(--text-dim);
+        }
+
+        /* Map display */
+        #map {
+            flex: 1;
+            overflow: hidden;
+            white-space: pre;
+            font-size: 1rem;
+            line-height: 1.2;
+            padding: 4px;
+            color: var(--green-dark);
+            background: var(--bg);
+            position: relative;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        #map .player {
+            color: var(--green);
+            font-weight: 700;
+            text-shadow: 0 0 6px var(--green), 0 0 12px var(--green-dim);
+        }
+
+        #map .dim {
+            color: #1a2a1a;
+        }
+
+        /* Message log */
+        #log {
+            background: var(--bg-panel);
+            border-top: 1px solid var(--border);
+            padding: 4px 8px;
+            font-size: 0.7rem;
+            white-space: pre-wrap;
+            line-height: 1.4;
+            min-height: 5.5em;
+            max-height: 5.5em;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        /* Inventory / Help overlay */
+        #inv-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.92);
+            z-index: 100;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+
+        #inv-overlay.visible {
+            display: flex;
+        }
+
+        #inv-list {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            padding: 12px 16px;
+            max-width: 60ch;
+            width: 100%;
+            max-height: 70vh;
+            overflow-y: auto;
+            font-size: 0.8rem;
+        }
+
+        .inv-header {
+            color: var(--green);
+            font-weight: 700;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 6px;
+            margin-bottom: 8px;
+            letter-spacing: 1px;
+        }
+
+        .inv-header.game-over {
+            color: var(--red);
+            text-align: center;
+            font-size: 1.1rem;
+        }
+
+        .inv-header.victory {
+            color: var(--amber);
+            text-align: center;
+            font-size: 1rem;
+        }
+
+        .inv-item {
+            padding: 3px 4px;
+            cursor: pointer;
+            border-radius: 2px;
+        }
+
+        .inv-item:hover {
+            background: rgba(0, 255, 65, 0.08);
+        }
+
+        .inv-item.equipped {
+            color: var(--green-dim);
+            font-style: italic;
+            cursor: default;
+        }
+
+        .inv-key {
+            color: var(--amber);
+            font-weight: 700;
+        }
+
+        .inv-empty {
+            color: var(--text-dim);
+            font-style: italic;
+            padding: 8px 0;
+        }
+
+        .help-text {
+            white-space: pre;
+            color: var(--green-dim);
+            line-height: 1.6;
+        }
+
+        .score-text {
+            white-space: pre;
+            color: var(--green-dim);
+            line-height: 1.8;
+            text-align: center;
+        }
+
+        .final-score {
+            color: var(--amber);
+            font-weight: 700;
+            font-size: 1.2rem;
+        }
+
+        .restart-hint {
+            color: var(--text-dim);
+            font-size: 0.75rem;
+        }
+
+        /* Minimap */
+        #minimap {
+            position: absolute;
+            top: 50px;
+            right: 8px;
+            border: 1px solid var(--border);
+            background: rgba(0, 0, 0, 0.85);
+            display: none;
+            z-index: 50;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+
+        #minimap.visible {
+            display: block;
+        }
+
+        /* Mobile d-pad */
+        #dpad {
+            display: none;
+            position: fixed;
+            bottom: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 200;
+        }
+
+        #dpad button {
+            background: rgba(0, 255, 65, 0.15);
+            border: 1px solid var(--border);
+            color: var(--green);
+            font-family: var(--font);
+            font-size: 1.4rem;
+            width: 48px;
+            height: 48px;
+            cursor: pointer;
+            touch-action: manipulation;
+        }
+
+        #dpad button:active {
+            background: rgba(0, 255, 65, 0.35);
+        }
+
+        .dpad-row {
+            display: flex;
+            justify-content: center;
+            gap: 2px;
+        }
+
+        #mobile-actions {
+            display: none;
+            position: fixed;
+            bottom: 12px;
+            right: 12px;
+            z-index: 200;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        #mobile-actions button {
+            background: rgba(0, 255, 65, 0.12);
+            border: 1px solid var(--border);
+            color: var(--green-dim);
+            font-family: var(--font);
+            font-size: 0.6rem;
+            padding: 8px 10px;
+            cursor: pointer;
+            touch-action: manipulation;
+        }
+
+        /* Responsive: mobile */
+        @media (max-width: 768px) {
+            html { font-size: 10px; }
+            #map { font-size: 0.7rem; line-height: 1.1; }
+            #hud { font-size: 0.6rem; }
+            #log { font-size: 0.6rem; min-height: 4em; max-height: 4em; }
+            #dpad { display: block; }
+            #mobile-actions { display: flex; }
+            body::after { display: none; }
+        }
+
+        @media (max-width: 480px) {
+            html { font-size: 8px; }
+            #map { font-size: 0.6rem; }
+        }
+
+        /* Flicker animation for atmosphere */
+        @keyframes flicker {
+            0%, 97%, 100% { opacity: 1; }
+            98% { opacity: 0.95; }
+            99% { opacity: 0.98; }
+        }
+
+        #map {
+            animation: flicker 4s infinite;
+        }
+    </style>
+</head>
+<body>
+    <div id="game">
+        <div id="title-bar">
+            <span class="title">ASCII DUNGEON</span>
+            <span>? for help</span>
+        </div>
+        <div id="hud">
+            <div id="stats"></div>
+            <div id="floor-info"></div>
+        </div>
+        <pre id="map"></pre>
+        <pre id="log"></pre>
+        <div id="inv-overlay">
+            <div id="inv-list"></div>
+        </div>
+        <canvas id="minimap"></canvas>
+    </div>
+
+    <!-- Mobile d-pad -->
+    <div id="dpad">
+        <div class="dpad-row">
+            <button onclick="Engine.mobile('up')">^</button>
+        </div>
+        <div class="dpad-row">
+            <button onclick="Engine.mobile('left')">&lt;</button>
+            <button onclick="Engine.mobile('wait')">.</button>
+            <button onclick="Engine.mobile('right')">&gt;</button>
+        </div>
+        <div class="dpad-row">
+            <button onclick="Engine.mobile('down')">v</button>
+        </div>
+    </div>
+    <div id="mobile-actions">
+        <button onclick="Engine.mobile('pickup')">Get</button>
+        <button onclick="Engine.mobile('stairs')">Strs</button>
+        <button onclick="Engine.mobile('inv')">Inv</button>
+        <button onclick="Engine.mobile('map')">Map</button>
+    </div>
+
+    <script src="dungeon-gen.js"></script>
+    <script src="items.js"></script>
+    <script src="entities.js"></script>
+    <script src="ui.js"></script>
+    <script src="engine.js"></script>
+    <script>
+        // Expose mobile controls and start
+        Engine.mobile = function (action) {
+            const keyMap = {
+                up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight',
+                wait: '.', pickup: 'g', stairs: '>', inv: 'i', map: 'm'
+            };
+            const key = keyMap[action];
+            if (key) {
+                document.dispatchEvent(new KeyboardEvent('keydown', { key }));
+            }
+        };
+        Engine.start();
+    </script>
+</body>
+</html>

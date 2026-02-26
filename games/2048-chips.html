@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2048 Chips — Casino Collection</title>
+<link rel="stylesheet" href="casino-theme.css">
+<link href="https://fonts.googleapis.com/css2?family=Abril+Fatface&family=Inter:wght@400;600;700;900&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+<style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+    body {
+        background: var(--felt-dark);
+        background-image:
+            radial-gradient(ellipse at 50% 0%, rgba(57,255,20,.04) 0%, transparent 60%),
+            repeating-conic-gradient(rgba(0,0,0,.03) 0% 25%, transparent 0% 50%);
+        background-size: 100% 100%, 12px 12px;
+        color: var(--text-light);
+        font-family: var(--font-body);
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 1rem;
+        user-select: none;
+        -webkit-user-select: none;
+    }
+
+    h1 {
+        font-family: var(--font-display);
+        font-size: clamp(1.8rem, 5vw, 2.8rem);
+        background: var(--gold-gradient);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin-bottom: .25rem;
+        text-align: center;
+    }
+
+    .subtitle {
+        font-family: var(--font-body);
+        font-size: .85rem;
+        color: var(--chrome-dark);
+        margin-bottom: .75rem;
+        text-align: center;
+    }
+
+    /* Header bar */
+    .header {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        flex-wrap: wrap;
+        justify-content: center;
+        margin-bottom: .75rem;
+        width: 100%;
+        max-width: 480px;
+    }
+
+    .score-box {
+        background: var(--felt-green);
+        border: 2px solid var(--gold-dark);
+        border-radius: 8px;
+        padding: .4rem 1rem;
+        text-align: center;
+        min-width: 90px;
+    }
+    .score-box .label {
+        font-size: .65rem;
+        text-transform: uppercase;
+        letter-spacing: .08em;
+        color: var(--gold-light);
+    }
+    .score-box .value {
+        font-family: var(--font-body);
+        font-weight: 900;
+        font-size: 1.2rem;
+        color: #fff;
+    }
+
+    .btn {
+        font-family: var(--font-body);
+        font-weight: 700;
+        font-size: .8rem;
+        padding: .5rem 1rem;
+        border: 2px solid var(--gold-dark);
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all .15s;
+        text-transform: uppercase;
+        letter-spacing: .05em;
+    }
+    .btn:hover { transform: translateY(-1px); }
+    .btn:active { transform: translateY(0); }
+
+    .btn-new {
+        background: var(--velvet-red);
+        color: #fff;
+    }
+    .btn-new:hover { background: #a02030; }
+
+    .btn-undo {
+        background: var(--deep-purple);
+        color: var(--chrome);
+    }
+    .btn-undo:hover { background: #2a1448; }
+    .btn-undo:disabled {
+        opacity: .35;
+        cursor: default;
+        transform: none;
+    }
+
+    /* Grid */
+    .grid-wrap {
+        position: relative;
+        width: min(85vw, 440px);
+        height: min(85vw, 440px);
+        background: rgba(0,0,0,.35);
+        border-radius: 12px;
+        border: 3px solid var(--gold-dark);
+        padding: 8px;
+    }
+
+    .grid-bg {
+        display: grid;
+        grid-template: repeat(4,1fr)/repeat(4,1fr);
+        gap: 8px;
+        width: 100%;
+        height: 100%;
+    }
+
+    .cell-bg {
+        background: rgba(255,255,255,.06);
+        border-radius: 50%;
+    }
+
+    .tile-layer {
+        position: absolute;
+        inset: 8px;
+    }
+
+    /* Tile (chip) */
+    .tile {
+        position: absolute;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        transition: top .12s ease, left .12s ease;
+        z-index: 1;
+    }
+
+    .tile-inner {
+        width: 88%;
+        height: 88%;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: var(--font-body);
+        font-weight: 900;
+        border: 3px dashed rgba(255,255,255,.5);
+        box-shadow:
+            inset 0 2px 6px rgba(255,255,255,.25),
+            inset 0 -2px 6px rgba(0,0,0,.3),
+            0 4px 12px rgba(0,0,0,.4);
+        position: relative;
+        text-shadow: 0 1px 2px rgba(0,0,0,.5);
+    }
+
+    /* Edge spots on the chip */
+    .tile-inner::before {
+        content: '';
+        position: absolute;
+        inset: 3px;
+        border-radius: 50%;
+        border: 2px solid rgba(255,255,255,.15);
+    }
+
+    @keyframes pop-in {
+        0%   { transform: scale(0); opacity: 0; }
+        60%  { transform: scale(1.15); }
+        100% { transform: scale(1); opacity: 1; }
+    }
+    .tile-new .tile-inner {
+        animation: pop-in .2s ease-out;
+    }
+
+    @keyframes merge-pop {
+        0%   { transform: scale(1); }
+        40%  { transform: scale(1.25); }
+        100% { transform: scale(1); }
+    }
+    .tile-merged .tile-inner {
+        animation: merge-pop .2s ease-out;
+        z-index: 2;
+    }
+
+    /* Chip denominations & colors */
+    .chip-1    .tile-inner { background: #e8e8e8; color: #333; border-color: rgba(0,0,0,.2); }
+    .chip-2    .tile-inner { background: #e04040; color: #fff; border-color: rgba(255,255,255,.4); }
+    .chip-5    .tile-inner { background: #2060c0; color: #fff; border-color: rgba(255,255,255,.4); }
+    .chip-10   .tile-inner { background: #1e8a3e; color: #fff; border-color: rgba(255,255,255,.4); }
+    .chip-25   .tile-inner { background: #1a1a1a; color: #f0c84d; border-color: rgba(240,200,77,.4); }
+    .chip-50   .tile-inner { background: #7b2d8e; color: #fff; border-color: rgba(255,255,255,.4); }
+    .chip-100  .tile-inner { background: #d4a017; color: #1a1a1a; border-color: rgba(0,0,0,.3); }
+    .chip-500  .tile-inner { background: #e06020; color: #fff; border-color: rgba(255,255,255,.4); }
+    .chip-1000 .tile-inner { background: #c0c0c0; color: #1a1a1a; border-color: rgba(0,0,0,.25);
+        background: linear-gradient(135deg,#888,#c0c0c0,#e8e8e8,#c0c0c0,#888); }
+    .chip-5000 .tile-inner { background: linear-gradient(135deg,#a67c00,#d4a017,#f0c84d,#d4a017,#a67c00); color: #1a1a1a; border-color: rgba(0,0,0,.3); }
+    .chip-10000 .tile-inner { background: linear-gradient(135deg,#ff2d7b,#ff6090,#ff2d7b); color: #fff; border-color: rgba(255,255,255,.5);
+        box-shadow: inset 0 2px 6px rgba(255,255,255,.3), inset 0 -2px 6px rgba(0,0,0,.3), 0 0 20px rgba(255,45,123,.5), 0 4px 12px rgba(0,0,0,.4); }
+
+    /* Overlay */
+    .overlay {
+        position: absolute;
+        inset: 0;
+        background: rgba(0,0,0,.7);
+        border-radius: 12px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity .3s;
+    }
+    .overlay.active {
+        opacity: 1;
+        pointer-events: auto;
+    }
+    .overlay h2 {
+        font-family: var(--font-display);
+        font-size: 2rem;
+        margin-bottom: .5rem;
+    }
+    .overlay .win-text { color: var(--gold-light); }
+    .overlay .lose-text { color: var(--neon-pink); }
+    .overlay .btn {
+        margin-top: 1rem;
+    }
+    .overlay .btn-continue {
+        background: var(--felt-green);
+        color: #fff;
+        margin-top: .5rem;
+    }
+
+    .back-link {
+        margin-top: 1rem;
+        font-size: .8rem;
+    }
+    .back-link a {
+        color: var(--gold);
+        text-decoration: none;
+    }
+    .back-link a:hover { text-decoration: underline; }
+
+    /* Responsive font sizes for chip labels */
+    .tile { font-size: clamp(.7rem, 2.5vw, 1.1rem); }
+
+    @media (max-width: 480px) {
+        .grid-wrap { border-width: 2px; padding: 6px; }
+        .grid-bg { gap: 6px; }
+        .tile-inner { border-width: 2px; }
+    }
+</style>
+</head>
+<body>
+
+<h1>2048 Chips</h1>
+<p class="subtitle">Merge poker chips to reach the $10K denomination!</p>
+
+<div class="header">
+    <div class="score-box"><div class="label">Score</div><div class="value" id="score">0</div></div>
+    <div class="score-box"><div class="label">Best</div><div class="value" id="best">0</div></div>
+    <button class="btn btn-undo" id="btn-undo" disabled>Undo</button>
+    <button class="btn btn-new" id="btn-new">New Game</button>
+</div>
+
+<div class="grid-wrap" id="grid-wrap">
+    <div class="grid-bg" id="grid-bg"></div>
+    <div class="tile-layer" id="tile-layer"></div>
+    <div class="overlay" id="overlay">
+        <h2 id="overlay-title"></h2>
+        <p id="overlay-sub"></p>
+        <button class="btn btn-new" id="overlay-new">New Game</button>
+        <button class="btn btn-continue" id="overlay-continue" style="display:none">Keep Playing</button>
+    </div>
+</div>
+
+<p class="back-link"><a href="index.html">&larr; Back to Games</a></p>
+
+<script>
+(function(){
+    /* Denomination ladder: powers-of-2 mapped to chip values */
+    const DENOMS = [1,2,5,10,25,50,100,500,1000,5000,10000];
+    /* power-of-2 value -> denomination index:  2^1=2->0, 2^2=4->1, ... */
+    /* We store internal values as indices 0..10 and map to display */
+
+    const SIZE = 4;
+    let grid, score, best, prevState, won, keepPlaying;
+
+    const $score = document.getElementById('score');
+    const $best = document.getElementById('best');
+    const $undo = document.getElementById('btn-undo');
+    const $tileLayer = document.getElementById('tile-layer');
+    const $overlay = document.getElementById('overlay');
+    const $overlayTitle = document.getElementById('overlay-title');
+    const $overlaySub = document.getElementById('overlay-sub');
+    const $overlayContinue = document.getElementById('overlay-continue');
+
+    /* Init grid background cells */
+    const $gridBg = document.getElementById('grid-bg');
+    for(let i=0;i<16;i++){const d=document.createElement('div');d.className='cell-bg';$gridBg.appendChild(d)}
+
+    function denomLabel(idx){
+        const v = DENOMS[idx];
+        if(v>=1000) return '$'+(v/1000)+'K';
+        return '$'+v;
+    }
+
+    function chipClass(idx){ return 'chip-'+DENOMS[idx]; }
+
+    function cellSize(){
+        const rect = $tileLayer.getBoundingClientRect();
+        const gap = rect.width < 300 ? 6 : 8;
+        return { s: (rect.width - gap*3) / 4, gap: gap, total: rect.width };
+    }
+
+    function tilePos(r,c){
+        const {s,gap} = cellSize();
+        return { left: c*(s+gap), top: r*(s+gap) };
+    }
+
+    function cloneGrid(g){ return g.map(r=>r.slice()); }
+
+    function newGame(){
+        grid = Array.from({length:SIZE},()=>Array(SIZE).fill(null));
+        score = 0;
+        prevState = null;
+        won = false;
+        keepPlaying = false;
+        $undo.disabled = true;
+        $overlay.classList.remove('active');
+        addRandom();
+        addRandom();
+        render();
+        updateScore();
+    }
+
+    function addRandom(){
+        const empty=[];
+        for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++) if(grid[r][c]===null) empty.push([r,c]);
+        if(!empty.length) return;
+        const [r,c] = empty[Math.floor(Math.random()*empty.length)];
+        /* 90% spawn $1 (idx 0), 10% spawn $2 (idx 1) */
+        grid[r][c] = Math.random()<0.9 ? 0 : 1;
+    }
+
+    function savePrev(){
+        prevState = { grid: cloneGrid(grid), score: score };
+        $undo.disabled = false;
+    }
+
+    function undo(){
+        if(!prevState) return;
+        grid = prevState.grid;
+        score = prevState.score;
+        prevState = null;
+        $undo.disabled = true;
+        $overlay.classList.remove('active');
+        render();
+        updateScore();
+    }
+
+    function updateScore(){
+        $score.textContent = score.toLocaleString();
+        best = Math.max(best, score);
+        $best.textContent = best.toLocaleString();
+        try{ localStorage.setItem('2048chips-best', best); }catch(e){}
+    }
+
+    /* Movement */
+    function move(dir){
+        savePrev();
+        let moved = false;
+        const mergedCells = [];
+
+        function slide(line){
+            /* Remove nulls */
+            let tiles = line.filter(v=>v!==null);
+            let merged = Array(tiles.length).fill(false);
+            /* Merge */
+            for(let i=0;i<tiles.length-1;i++){
+                if(tiles[i]===tiles[i+1] && tiles[i]<DENOMS.length-1){
+                    tiles[i]++;
+                    score += DENOMS[tiles[i]];
+                    tiles.splice(i+1,1);
+                    merged[i] = true;
+                }
+            }
+            /* Pad */
+            while(tiles.length<SIZE) tiles.push(null);
+            return { tiles, merged };
+        }
+
+        function getLine(i, dir){
+            let line=[];
+            for(let j=0;j<SIZE;j++){
+                if(dir==='left')  line.push(grid[i][j]);
+                if(dir==='right') line.push(grid[i][SIZE-1-j]);
+                if(dir==='up')    line.push(grid[j][i]);
+                if(dir==='down')  line.push(grid[SIZE-1-j][i]);
+            }
+            return line;
+        }
+
+        function setLine(i, tiles, merged, dir){
+            for(let j=0;j<SIZE;j++){
+                let r,c;
+                if(dir==='left')  { r=i; c=j; }
+                if(dir==='right') { r=i; c=SIZE-1-j; }
+                if(dir==='up')    { r=j; c=i; }
+                if(dir==='down')  { r=SIZE-1-j; c=i; }
+                if(grid[r][c]!==tiles[j]) moved=true;
+                grid[r][c]=tiles[j];
+                if(merged[j]) mergedCells.push([r,c]);
+            }
+        }
+
+        for(let i=0;i<SIZE;i++){
+            const line = getLine(i, dir);
+            const {tiles, merged} = slide(line);
+            setLine(i, tiles, merged, dir);
+        }
+
+        if(!moved){
+            prevState = null;
+            $undo.disabled = !prevState;
+            return;
+        }
+
+        addRandom();
+        render(mergedCells);
+        updateScore();
+        checkWin();
+        if(!canMove()) showOverlay('lose');
+    }
+
+    function canMove(){
+        for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++){
+            if(grid[r][c]===null) return true;
+            if(c<SIZE-1 && grid[r][c]===grid[r][c+1]) return true;
+            if(r<SIZE-1 && grid[r][c]===grid[r+1][c]) return true;
+        }
+        return false;
+    }
+
+    function checkWin(){
+        if(won || keepPlaying) return;
+        for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++){
+            if(grid[r][c]===DENOMS.length-1){ won=true; showOverlay('win'); return; }
+        }
+    }
+
+    function showOverlay(type){
+        if(type==='win'){
+            $overlayTitle.textContent='$10,000!';
+            $overlayTitle.className='win-text';
+            $overlaySub.textContent='You hit the jackpot!';
+            $overlayContinue.style.display='inline-block';
+        } else {
+            $overlayTitle.textContent='Game Over';
+            $overlayTitle.className='lose-text';
+            $overlaySub.textContent='Final pot: $'+score.toLocaleString();
+            $overlayContinue.style.display='none';
+        }
+        $overlay.classList.add('active');
+    }
+
+    /* Render */
+    let tileElements = [];
+
+    function render(mergedCells){
+        $tileLayer.innerHTML='';
+        tileElements=[];
+        const {s} = cellSize();
+        const newCells = [];
+
+        for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++){
+            const v = grid[r][c];
+            if(v===null) continue;
+
+            const pos = tilePos(r,c);
+            const tile = document.createElement('div');
+            const isMerged = mergedCells && mergedCells.some(([mr,mc])=>mr===r&&mc===c);
+            const isNew = !prevState || (prevState && prevState.grid[r][c]===null && !isMerged);
+
+            tile.className = 'tile '+chipClass(v)+(isNew?' tile-new':'')+(isMerged?' tile-merged':'');
+            tile.style.width = s+'px';
+            tile.style.height = s+'px';
+            tile.style.left = pos.left+'px';
+            tile.style.top = pos.top+'px';
+            tile.style.fontSize = s < 70 ? '0.65rem' : s < 90 ? '0.8rem' : '1rem';
+
+            const inner = document.createElement('div');
+            inner.className = 'tile-inner';
+            inner.textContent = denomLabel(v);
+            tile.appendChild(inner);
+            $tileLayer.appendChild(tile);
+        }
+    }
+
+    /* Input */
+    document.addEventListener('keydown', function(e){
+        if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)){
+            e.preventDefault();
+            if($overlay.classList.contains('active') && !keepPlaying) return;
+            const map = {ArrowLeft:'left',ArrowRight:'right',ArrowUp:'up',ArrowDown:'down'};
+            move(map[e.key]);
+        }
+    });
+
+    /* Touch / swipe */
+    let tx,ty;
+    const $wrap = document.getElementById('grid-wrap');
+    $wrap.addEventListener('touchstart',function(e){
+        const t=e.touches[0]; tx=t.clientX; ty=t.clientY;
+    },{passive:true});
+    $wrap.addEventListener('touchend',function(e){
+        if($overlay.classList.contains('active') && !keepPlaying) return;
+        const t=e.changedTouches[0];
+        const dx=t.clientX-tx, dy=t.clientY-ty;
+        const ax=Math.abs(dx), ay=Math.abs(dy);
+        if(Math.max(ax,ay)<30) return;
+        if(ax>ay) move(dx>0?'right':'left');
+        else move(dy>0?'down':'up');
+    },{passive:true});
+
+    /* Buttons */
+    document.getElementById('btn-new').addEventListener('click', newGame);
+    document.getElementById('overlay-new').addEventListener('click', newGame);
+    $undo.addEventListener('click', undo);
+    $overlayContinue.addEventListener('click', function(){
+        keepPlaying = true;
+        $overlay.classList.remove('active');
+    });
+
+    /* Resize handler */
+    window.addEventListener('resize', function(){ render(); });
+
+    /* Load best & start */
+    best = parseInt(localStorage.getItem('2048chips-best'))||0;
+    $best.textContent = best.toLocaleString();
+    newGame();
+})();
+</script>
+</body>
+</html>

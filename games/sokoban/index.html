@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Sokoban -- Stone & Crate</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --stone-dark: #1a1714;
+            --stone-mid: #2e2822;
+            --stone-light: #44392e;
+            --wood-dark: #5a3a1a;
+            --wood-mid: #7a5030;
+            --wood-light: #a07040;
+            --gold: #d4a017;
+            --gold-light: #f0c84d;
+            --gold-dim: #8a6a10;
+            --green-glow: #44dd44;
+            --green-dim: #2a5a2a;
+            --blue-player: #4488cc;
+            --text-light: #e8dfd4;
+            --text-dim: rgba(232, 223, 212, 0.5);
+            --font-display: 'Cinzel', serif;
+            --font-body: 'Inter', sans-serif;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: var(--stone-dark);
+            color: var(--text-light);
+            font-family: var(--font-body);
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        /* --- LEVEL SELECT SCREEN --- */
+        #level-select {
+            position: fixed;
+            inset: 0;
+            background: var(--stone-dark);
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        #level-select.hidden { display: none; }
+
+        .ls-header {
+            text-align: center;
+            padding: 24px 16px 8px;
+            flex-shrink: 0;
+        }
+
+        .ls-header h1 {
+            font-family: var(--font-display);
+            font-size: 2rem;
+            color: var(--gold);
+            text-shadow: 0 2px 8px rgba(212, 160, 23, 0.3);
+            letter-spacing: 0.05em;
+        }
+
+        .ls-header p {
+            color: var(--text-dim);
+            margin-top: 4px;
+            font-size: 0.85rem;
+        }
+
+        .ls-back {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            background: none;
+            border: 1px solid var(--stone-light);
+            color: var(--text-dim);
+            font-family: var(--font-body);
+            font-size: 0.85rem;
+            padding: 6px 14px;
+            border-radius: 4px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .ls-back:hover {
+            border-color: var(--gold-dim);
+            color: var(--gold);
+        }
+
+        .ls-tier {
+            padding: 8px 16px;
+        }
+
+        .ls-tier h2 {
+            font-family: var(--font-display);
+            font-size: 0.9rem;
+            color: var(--gold-dim);
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            padding-bottom: 4px;
+            border-bottom: 1px solid rgba(212, 160, 23, 0.15);
+        }
+
+        .ls-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 8px;
+            padding-bottom: 8px;
+        }
+
+        .ls-card {
+            background: var(--stone-mid);
+            border: 1px solid var(--stone-light);
+            border-radius: 6px;
+            padding: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .ls-card:hover {
+            border-color: var(--gold-dim);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        }
+
+        .ls-card.completed {
+            border-color: var(--green-dim);
+        }
+
+        .ls-card.completed::after {
+            content: '';
+            position: absolute;
+            top: 6px;
+            right: 8px;
+            width: 8px;
+            height: 8px;
+            background: var(--green-glow);
+            border-radius: 50%;
+            box-shadow: 0 0 6px var(--green-glow);
+        }
+
+        .ls-num {
+            font-family: var(--font-display);
+            font-size: 1.1rem;
+            color: var(--gold);
+        }
+
+        .ls-name {
+            font-size: 0.78rem;
+            color: var(--text-light);
+            margin-top: 2px;
+        }
+
+        .ls-meta {
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            margin-top: 4px;
+        }
+
+        .ls-best {
+            color: var(--green-glow);
+            font-size: 0.7rem;
+        }
+
+        /* --- GAME SCREEN --- */
+        #game-screen {
+            display: none;
+            flex-direction: column;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        #game-screen.active { display: flex; }
+
+        .game-topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            background: var(--stone-mid);
+            border-bottom: 1px solid var(--stone-light);
+            flex-shrink: 0;
+            gap: 8px;
+            min-height: 48px;
+        }
+
+        .topbar-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+        }
+
+        .btn {
+            background: var(--stone-light);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: var(--text-light);
+            font-family: var(--font-body);
+            font-size: 0.8rem;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.15s;
+            white-space: nowrap;
+        }
+
+        .btn:hover { background: var(--wood-dark); border-color: var(--gold-dim); }
+        .btn:active { transform: scale(0.97); }
+
+        .level-name {
+            font-family: var(--font-display);
+            font-size: 0.9rem;
+            color: var(--gold);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .topbar-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-shrink: 0;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-label {
+            font-size: 0.6rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-dim);
+        }
+
+        .stat-value {
+            font-family: var(--font-display);
+            font-size: 1rem;
+            color: var(--text-light);
+        }
+
+        .stat-value.par { color: var(--gold-dim); }
+
+        .canvas-wrap {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            background: var(--stone-dark);
+            position: relative;
+            touch-action: none;
+        }
+
+        #game-canvas {
+            image-rendering: pixelated;
+        }
+
+        /* --- D-PAD (mobile) --- */
+        .dpad {
+            display: none;
+            position: fixed;
+            bottom: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 160px;
+            height: 160px;
+            z-index: 50;
+        }
+
+        .dpad-btn {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            background: rgba(68, 57, 46, 0.8);
+            border: 1px solid rgba(212, 160, 23, 0.3);
+            border-radius: 8px;
+            color: var(--gold);
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+
+        .dpad-btn:active {
+            background: rgba(90, 58, 26, 0.9);
+        }
+
+        .dpad-up    { top: 0;   left: 55px; }
+        .dpad-down  { bottom: 0; left: 55px; }
+        .dpad-left  { top: 55px; left: 0; }
+        .dpad-right { top: 55px; right: 0; }
+
+        /* --- WIN OVERLAY --- */
+        #win-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(10, 10, 15, 0.85);
+            z-index: 200;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #win-overlay.show { display: flex; }
+
+        .win-box {
+            background: var(--stone-mid);
+            border: 2px solid var(--gold);
+            border-radius: 12px;
+            padding: 32px 40px;
+            text-align: center;
+            box-shadow: 0 0 40px rgba(212, 160, 23, 0.2);
+            max-width: 340px;
+        }
+
+        .win-title {
+            font-family: var(--font-display);
+            font-size: 1.6rem;
+            color: var(--gold);
+            margin-bottom: 8px;
+        }
+
+        .win-stats {
+            color: var(--text-light);
+            font-size: 0.9rem;
+            margin-bottom: 16px;
+            line-height: 1.8;
+        }
+
+        .win-star {
+            color: var(--gold-light);
+            font-size: 1.5rem;
+            margin-bottom: 12px;
+        }
+
+        .win-buttons {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .win-buttons .btn {
+            font-size: 0.85rem;
+            padding: 8px 18px;
+        }
+
+        .btn-gold {
+            background: linear-gradient(135deg, var(--gold-dim), var(--gold));
+            color: var(--stone-dark);
+            font-weight: 600;
+            border-color: var(--gold-light);
+        }
+
+        .btn-gold:hover {
+            background: linear-gradient(135deg, var(--gold), var(--gold-light));
+        }
+
+        /* --- MOBILE BOTTOM BAR --- */
+        .mobile-bar {
+            display: none;
+            padding: 6px 12px;
+            background: var(--stone-mid);
+            border-top: 1px solid var(--stone-light);
+            justify-content: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        /* --- RESPONSIVE --- */
+        @media (max-width: 768px) {
+            .ls-header h1 { font-size: 1.4rem; }
+            .ls-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); }
+
+            .game-topbar { padding: 6px 8px; }
+            .level-name { font-size: 0.78rem; }
+            .btn { font-size: 0.72rem; padding: 5px 8px; }
+
+            .dpad { display: block; }
+            .mobile-bar { display: flex; }
+            .canvas-wrap { padding-bottom: 170px; }
+
+            .topbar-right .btn { display: none; }
+        }
+
+        @media (max-width: 480px) {
+            .ls-grid { grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 6px; }
+            .ls-card { padding: 8px; }
+            .ls-num { font-size: 0.95rem; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- LEVEL SELECT -->
+<div id="level-select">
+    <a href="../index.html" class="ls-back">Back to Arcade</a>
+    <div class="ls-header">
+        <h1>Stone & Crate</h1>
+        <p>Push every crate onto its glowing target.</p>
+    </div>
+    <div id="level-list"></div>
+</div>
+
+<!-- GAME -->
+<div id="game-screen">
+    <div class="game-topbar">
+        <div class="topbar-left">
+            <button class="btn" id="btn-levels" title="Level Select">Levels</button>
+            <span class="level-name" id="level-title"></span>
+        </div>
+        <div class="topbar-right">
+            <div class="stat">
+                <div class="stat-label">Moves</div>
+                <div class="stat-value" id="stat-moves">0</div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">Par</div>
+                <div class="stat-value par" id="stat-par">0</div>
+            </div>
+            <button class="btn" id="btn-undo" title="Undo (Z)">Undo</button>
+            <button class="btn" id="btn-reset" title="Reset (R)">Reset</button>
+        </div>
+    </div>
+
+    <div class="canvas-wrap" id="canvas-wrap">
+        <canvas id="game-canvas"></canvas>
+    </div>
+
+    <!-- Mobile buttons -->
+    <div class="mobile-bar">
+        <button class="btn" id="btn-undo-m">Undo</button>
+        <button class="btn" id="btn-reset-m">Reset</button>
+    </div>
+
+    <!-- D-Pad -->
+    <div class="dpad" id="dpad">
+        <div class="dpad-btn dpad-up" data-dir="UP">&#9650;</div>
+        <div class="dpad-btn dpad-down" data-dir="DOWN">&#9660;</div>
+        <div class="dpad-btn dpad-left" data-dir="LEFT">&#9664;</div>
+        <div class="dpad-btn dpad-right" data-dir="RIGHT">&#9654;</div>
+    </div>
+</div>
+
+<!-- WIN OVERLAY -->
+<div id="win-overlay">
+    <div class="win-box">
+        <div class="win-star" id="win-stars"></div>
+        <div class="win-title">Level Complete!</div>
+        <div class="win-stats" id="win-stats"></div>
+        <div class="win-buttons">
+            <button class="btn" id="win-retry">Retry</button>
+            <button class="btn btn-gold" id="win-next">Next Level</button>
+            <button class="btn" id="win-levels">Levels</button>
+        </div>
+    </div>
+</div>
+
+<script src="levels.js"></script>
+<script src="engine.js"></script>
+<script src="renderer.js"></script>
+<script>
+(function () {
+    const E = window.SokobanEngine;
+    const R = window.SokobanRenderer;
+    const levels = window.SokobanLevels;
+
+    // DOM refs
+    const $ls = document.getElementById('level-select');
+    const $game = document.getElementById('game-screen');
+    const $canvas = document.getElementById('game-canvas');
+    const $wrap = document.getElementById('canvas-wrap');
+    const $title = document.getElementById('level-title');
+    const $moves = document.getElementById('stat-moves');
+    const $par = document.getElementById('stat-par');
+    const $winOverlay = document.getElementById('win-overlay');
+    const $winStats = document.getElementById('win-stats');
+    const $winStars = document.getElementById('win-stars');
+    const $list = document.getElementById('level-list');
+
+    let currentLevel = 0;
+    let animLock = false;
+    let targetPulseRAF = null;
+
+    R.init($canvas);
+
+    // --- Level Select ---
+    const tiers = [
+        { name: 'Tutorial', start: 0, end: 10 },
+        { name: 'Easy', start: 10, end: 20 },
+        { name: 'Medium', start: 20, end: 35 },
+        { name: 'Hard', start: 35, end: 45 },
+        { name: 'Expert', start: 45, end: 50 }
+    ];
+
+    function buildLevelList() {
+        $list.innerHTML = '';
+        for (const tier of tiers) {
+            const sec = document.createElement('div');
+            sec.className = 'ls-tier';
+            sec.innerHTML = `<h2>${tier.name}</h2>`;
+            const grid = document.createElement('div');
+            grid.className = 'ls-grid';
+
+            for (let i = tier.start; i < tier.end && i < levels.length; i++) {
+                const lv = levels[i];
+                const prog = E.getLevelProgress(i);
+                const card = document.createElement('div');
+                card.className = 'ls-card' + (prog.completed ? ' completed' : '');
+                card.innerHTML = `
+                    <div class="ls-num">${i + 1}</div>
+                    <div class="ls-name">${lv.name}</div>
+                    <div class="ls-meta">Par: ${lv.par}</div>
+                    ${prog.bestMoves ? `<div class="ls-best">Best: ${prog.bestMoves}</div>` : ''}
+                `;
+                card.addEventListener('click', () => startLevel(i));
+                grid.appendChild(card);
+            }
+
+            sec.appendChild(grid);
+            $list.appendChild(sec);
+        }
+    }
+
+    function showLevelSelect() {
+        $winOverlay.classList.remove('show');
+        $game.classList.remove('active');
+        $ls.classList.remove('hidden');
+        stopPulseLoop();
+        buildLevelList();
+    }
+
+    function startLevel(idx) {
+        currentLevel = idx;
+        $ls.classList.add('hidden');
+        $game.classList.add('active');
+        $winOverlay.classList.remove('show');
+
+        E.initLevel(idx);
+        const s = E.getState();
+
+        // Wait a frame so layout is computed
+        requestAnimationFrame(() => {
+            R.resize(s);
+            R.render(s);
+            updateUI(s);
+            startPulseLoop();
+        });
+    }
+
+    // --- Engine callbacks ---
+    E.setCallbacks(
+        function onUpdate(state, moveData) {
+            updateUI(state);
+            if (moveData) {
+                animLock = true;
+                R.animateMove(moveData, state, () => { animLock = false; });
+            } else {
+                R.render(state);
+            }
+        },
+        function onWin(state) {
+            setTimeout(() => showWin(state), 300);
+        }
+    );
+
+    function updateUI(state) {
+        $title.textContent = `${state.level + 1}. ${state.name}`;
+        $moves.textContent = state.moves;
+        $par.textContent = state.par;
+    }
+
+    function showWin(state) {
+        const ratio = state.par / state.moves;
+        let stars = '';
+        if (ratio >= 1) stars = '*** ';
+        else if (ratio >= 0.7) stars = '** ';
+        else stars = '* ';
+
+        // Replace asterisks with filled stars, pad to 3
+        const count = stars.trim().length;
+        $winStars.textContent = '\u2605'.repeat(count) + '\u2606'.repeat(3 - count);
+
+        $winStats.innerHTML = `
+            Moves: <strong>${state.moves}</strong> / Par: <strong>${state.par}</strong><br>
+            ${state.moves <= state.par ? 'At or under par -- excellent!' : 'Try again for a better score.'}
+        `;
+        $winOverlay.classList.add('show');
+    }
+
+    // --- Controls ---
+    function handleDir(dir) {
+        if (animLock) return;
+        E.move(dir);
+    }
+
+    document.addEventListener('keydown', function (e) {
+        if ($ls.offsetParent !== null && !$ls.classList.contains('hidden')) return;
+        if ($winOverlay.classList.contains('show')) return;
+
+        switch (e.key) {
+            case 'ArrowUp':    case 'w': case 'W': e.preventDefault(); handleDir('UP');    break;
+            case 'ArrowDown':  case 's': case 'S': e.preventDefault(); handleDir('DOWN');  break;
+            case 'ArrowLeft':  case 'a': case 'A': e.preventDefault(); handleDir('LEFT');  break;
+            case 'ArrowRight': case 'd': case 'D': e.preventDefault(); handleDir('RIGHT'); break;
+            case 'z': case 'Z': e.preventDefault(); E.undo(); break;
+            case 'r': case 'R': e.preventDefault(); E.reset(); break;
+            case 'Escape': showLevelSelect(); break;
+        }
+    });
+
+    // Buttons
+    document.getElementById('btn-levels').addEventListener('click', showLevelSelect);
+    document.getElementById('btn-undo').addEventListener('click', () => E.undo());
+    document.getElementById('btn-undo-m').addEventListener('click', () => E.undo());
+    document.getElementById('btn-reset').addEventListener('click', () => E.reset());
+    document.getElementById('btn-reset-m').addEventListener('click', () => E.reset());
+
+    // D-Pad
+    document.querySelectorAll('.dpad-btn').forEach(btn => {
+        btn.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            handleDir(btn.dataset.dir);
+        });
+    });
+
+    // Swipe on canvas
+    let touchStart = null;
+    $wrap.addEventListener('touchstart', e => {
+        if (e.touches.length === 1) {
+            touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        }
+    }, { passive: true });
+
+    $wrap.addEventListener('touchend', e => {
+        if (!touchStart) return;
+        const end = e.changedTouches[0];
+        const dx = end.clientX - touchStart.x;
+        const dy = end.clientY - touchStart.y;
+        const absDx = Math.abs(dx);
+        const absDy = Math.abs(dy);
+        const threshold = 30;
+
+        if (Math.max(absDx, absDy) > threshold) {
+            if (absDx > absDy) {
+                handleDir(dx > 0 ? 'RIGHT' : 'LEFT');
+            } else {
+                handleDir(dy > 0 ? 'DOWN' : 'UP');
+            }
+        }
+        touchStart = null;
+    }, { passive: true });
+
+    // Win buttons
+    document.getElementById('win-retry').addEventListener('click', () => {
+        $winOverlay.classList.remove('show');
+        E.reset();
+        startPulseLoop();
+    });
+    document.getElementById('win-next').addEventListener('click', () => {
+        if (currentLevel + 1 < levels.length) {
+            startLevel(currentLevel + 1);
+        } else {
+            showLevelSelect();
+        }
+    });
+    document.getElementById('win-levels').addEventListener('click', showLevelSelect);
+
+    // Resize
+    window.addEventListener('resize', () => {
+        const s = E.getState();
+        if (s && $game.classList.contains('active')) {
+            R.resize(s);
+            R.render(s);
+        }
+    });
+
+    // Target glow pulse loop
+    function startPulseLoop() {
+        stopPulseLoop();
+        function tick() {
+            const s = E.getState();
+            if (s && !s.won && $game.classList.contains('active')) {
+                R.render(s);
+            }
+            targetPulseRAF = requestAnimationFrame(tick);
+        }
+        targetPulseRAF = requestAnimationFrame(tick);
+    }
+
+    function stopPulseLoop() {
+        if (targetPulseRAF) {
+            cancelAnimationFrame(targetPulseRAF);
+            targetPulseRAF = null;
+        }
+    }
+
+    // Init
+    buildLevelList();
+})();
+</script>
+</body>
+</html>
