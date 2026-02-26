@@ -63,6 +63,9 @@
 
   // Selection
   var selectedTower  = null;
+  var towerPlaceCount = 0;
+  var tipTimer       = 0;
+  var tipText        = '';
 
   // Wave banner animation
   var bannerTimer    = 0;
@@ -478,6 +481,12 @@
     FX.spawnPlaceEffect({ x: tx, y: ty, element: placementType });
     Audio.towerPlace();
 
+    // Show upgrade tip after first tower placed
+    towerPlaceCount++;
+    if (towerPlaceCount === 1) {
+      showTip('Click placed towers to upgrade them!');
+    }
+
     // Stay in placement mode if player can still afford it
     if (gold < cost) cancelPlacement();
 
@@ -582,6 +591,11 @@
   }
 
   // ─────────────────────────── HUD Updates ─────────────────────────────
+  function showTip(text) {
+    tipText = text;
+    tipTimer = 4.0; // show for 4 seconds
+  }
+
   function updateGoldDisplay() {
     $goldDisplay.textContent = gold;
   }
@@ -1079,6 +1093,9 @@
 
   // ─────────────────────────── Main Update ─────────────────────────────
   function update(dt) {
+    // Tip timer
+    if (tipTimer > 0) tipTimer -= dt;
+
     // Mana regen
     mana += 1 * dt;
 
@@ -1197,9 +1214,29 @@
       Map.drawBuildHighlight(ctx, cam, mouseGridCol, mouseGridRow, valid);
     }
 
-    // Draw towers
+    // Draw towers + upgrade-available glow
     for (var i = 0; i < towers.length; i++) {
       var tw = towers[i];
+      // Pulsing glow if upgrade is affordable
+      if (tw.tier < 3 && tw !== selectedTower) {
+        var pathA = tw.tier === 1 ? 'tier2a' : 'tier3a';
+        var pathB = tw.tier === 1 ? 'tier2b' : 'tier3b';
+        var infoA = Towers.getUpgradeInfo(tw, pathA);
+        var infoB = Towers.getUpgradeInfo(tw, pathB);
+        if ((infoA && gold >= infoA.cost) || (infoB && gold >= infoB.cost)) {
+          var pulse = 0.3 + 0.25 * Math.sin(time * 3);
+          ctx.save();
+          ctx.shadowColor = tw.type.color;
+          ctx.shadowBlur = 12 * pulse;
+          ctx.beginPath();
+          ctx.arc(tw.x, tw.y, CELL * 0.4, 0, Math.PI * 2);
+          ctx.strokeStyle = tw.type.color;
+          ctx.globalAlpha = pulse * 0.6;
+          ctx.lineWidth = 2;
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
       tw.type.drawTower(ctx, tw.x, tw.y, CELL, tw.tier, time);
     }
 
@@ -1226,6 +1263,30 @@
 
     // ── FX above layer (projectiles, beams, particles — uses cam offset internally) ──
     FX.drawAbove(ctx, shakeCam, time);
+
+    // ── Tip toast (screen space) ──
+    if (tipTimer > 0) {
+      var tipAlpha = tipTimer > 0.5 ? 1 : tipTimer / 0.5;
+      ctx.save();
+      ctx.globalAlpha = tipAlpha;
+      ctx.font = 'bold 16px "Crimson Text", serif';
+      var tw2 = ctx.measureText(tipText).width;
+      var tx2 = (canvas.width - tw2) / 2;
+      var ty2 = canvas.height * 0.2;
+      // Background pill
+      ctx.fillStyle = 'rgba(10, 10, 18, 0.85)';
+      ctx.beginPath();
+      ctx.roundRect(tx2 - 16, ty2 - 20, tw2 + 32, 32, 8);
+      ctx.fill();
+      ctx.strokeStyle = '#d4a017';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      // Text
+      ctx.fillStyle = '#ffdd88';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(tipText, tx2, ty2 - 4);
+      ctx.restore();
+    }
   }
 
   // ─────────────────────────── Menu Background ─────────────────────────

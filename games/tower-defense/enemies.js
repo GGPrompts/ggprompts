@@ -1472,7 +1472,7 @@
         type: typeId,
         count: count,
         delay: 0.5 + 0.3 / Math.max(1, waveNum * 0.1),
-        spawnIndex: g % 2,
+        spawnIndex: g % 4,
         startDelay: delay,
       });
       delay += count * 0.25 + 1.0;
