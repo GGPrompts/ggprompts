@@ -391,7 +391,29 @@ const Renderer = (() => {
 
     function drawSlingshot(x, y) {
         const p = worldToScreen(x, y);
+        const gp = worldToScreen(x, Levels.GROUND);
         const s = scale;
+
+        // Raised earth mound under slingshot
+        const moundH = gp.y - p.y;
+        if (moundH > 2) {
+            ctx.fillStyle = '#5a9a4a';
+            ctx.beginPath();
+            ctx.moveTo(p.x - 70 * s, gp.y);
+            ctx.quadraticCurveTo(p.x - 50 * s, p.y + 4 * s, p.x, p.y + 4 * s);
+            ctx.quadraticCurveTo(p.x + 50 * s, p.y + 4 * s, p.x + 70 * s, gp.y);
+            ctx.closePath();
+            ctx.fill();
+
+            // Darker base edge
+            ctx.strokeStyle = '#4a8a3a';
+            ctx.lineWidth = 2 * s;
+            ctx.beginPath();
+            ctx.moveTo(p.x - 70 * s, gp.y);
+            ctx.quadraticCurveTo(p.x - 50 * s, p.y + 4 * s, p.x, p.y + 4 * s);
+            ctx.quadraticCurveTo(p.x + 50 * s, p.y + 4 * s, p.x + 70 * s, gp.y);
+            ctx.stroke();
+        }
 
         // Back arm
         ctx.fillStyle = '#6b4226';

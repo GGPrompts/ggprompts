@@ -420,6 +420,9 @@
         const dv = DIRS[ghost.dir];
         if (!dv) return;
 
+        const prevCol = ghost.col;
+        const prevRow = ghost.row;
+
         ghost.col += dv.dx * speed;
         ghost.row += dv.dy * speed;
 
@@ -427,15 +430,29 @@
         if (ghost.col < -1) ghost.col = COLS;
         if (ghost.col > COLS) ghost.col = -1;
 
-        // Check if at tile center (decision point)
-        const tileCol = Math.round(ghost.col);
-        const tileRow = Math.round(ghost.row);
-        const dc = Math.abs(ghost.col - tileCol);
-        const dr = Math.abs(ghost.row - tileRow);
+        // Check if we crossed the next tile center in our direction of travel
+        let snapped = false;
+        if (dv.dx !== 0) {
+            const nextCenter = dv.dx > 0
+                ? Math.floor(prevCol) + 1
+                : Math.ceil(prevCol) - 1;
+            if ((dv.dx > 0 && ghost.col >= nextCenter) || (dv.dx < 0 && ghost.col <= nextCenter)) {
+                ghost.col = nextCenter;
+                ghost.row = Math.round(ghost.row);
+                snapped = true;
+            }
+        } else if (dv.dy !== 0) {
+            const nextCenter = dv.dy > 0
+                ? Math.floor(prevRow) + 1
+                : Math.ceil(prevRow) - 1;
+            if ((dv.dy > 0 && ghost.row >= nextCenter) || (dv.dy < 0 && ghost.row <= nextCenter)) {
+                ghost.row = nextCenter;
+                ghost.col = Math.round(ghost.col);
+                snapped = true;
+            }
+        }
 
-        if (dc < speed * 1.2 && dr < speed * 1.2) {
-            ghost.col = tileCol;
-            ghost.row = tileRow;
+        if (snapped) {
             ghost.dir = chooseDirection(ghost, targetCol, targetRow);
         }
     }
@@ -445,6 +462,9 @@
         const dv = DIRS[ghost.dir];
         if (!dv) { ghost.dir = 'left'; return; }
 
+        const prevCol = ghost.col;
+        const prevRow = ghost.row;
+
         ghost.col += dv.dx * speed;
         ghost.row += dv.dy * speed;
 
@@ -452,14 +472,29 @@
         if (ghost.col < -1) ghost.col = COLS;
         if (ghost.col > COLS) ghost.col = -1;
 
-        const tileCol = Math.round(ghost.col);
-        const tileRow = Math.round(ghost.row);
-        const dc = Math.abs(ghost.col - tileCol);
-        const dr = Math.abs(ghost.row - tileRow);
+        // Check if we crossed the next tile center in our direction of travel
+        let snapped = false;
+        if (dv.dx !== 0) {
+            const nextCenter = dv.dx > 0
+                ? Math.floor(prevCol) + 1
+                : Math.ceil(prevCol) - 1;
+            if ((dv.dx > 0 && ghost.col >= nextCenter) || (dv.dx < 0 && ghost.col <= nextCenter)) {
+                ghost.col = nextCenter;
+                ghost.row = Math.round(ghost.row);
+                snapped = true;
+            }
+        } else if (dv.dy !== 0) {
+            const nextCenter = dv.dy > 0
+                ? Math.floor(prevRow) + 1
+                : Math.ceil(prevRow) - 1;
+            if ((dv.dy > 0 && ghost.row >= nextCenter) || (dv.dy < 0 && ghost.row <= nextCenter)) {
+                ghost.row = nextCenter;
+                ghost.col = Math.round(ghost.col);
+                snapped = true;
+            }
+        }
 
-        if (dc < speed * 1.2 && dr < speed * 1.2) {
-            ghost.col = tileCol;
-            ghost.row = tileRow;
+        if (snapped) {
             ghost.dir = chooseRandomDirection(ghost);
         }
     }

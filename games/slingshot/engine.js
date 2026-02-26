@@ -7,7 +7,7 @@
 const Engine = (() => {
     // Constants
     const SLINGSHOT_X = 200;
-    const SLINGSHOT_Y = Levels.GROUND;
+    const SLINGSHOT_Y = Levels.GROUND - 80; // Raised on a platform
     const BAND_ORIGIN_Y = SLINGSHOT_Y - 65;
     const MAX_PULL = 120;
     const LAUNCH_POWER = 8;
@@ -632,6 +632,9 @@ const Engine = (() => {
             pullX = wx;
             pullY = wy;
         }
+
+        // Keep bird above ground so it doesn't spawn underground
+        pullY = Math.min(pullY, Levels.GROUND - 20);
 
         // Trajectory preview
         const launchVX = (SLINGSHOT_X - pullX) * LAUNCH_POWER;
