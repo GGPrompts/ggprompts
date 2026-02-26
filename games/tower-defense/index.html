@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Arcane Bastion — Tower Defense</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-dark: #0a0a12;
+  --bg-medium: #151525;
+  --bg-light: #1e1e35;
+  --text-primary: #e8e0d0;
+  --text-secondary: #a89880;
+  --gold: #d4a017;
+  --gold-glow: rgba(212, 160, 23, 0.4);
+  --mana-blue: #4488ff;
+  --mana-glow: rgba(68, 136, 255, 0.4);
+  --nexus-crystal: #44ddff;
+  --danger-red: #ff4444;
+  --danger-glow: rgba(255, 68, 68, 0.4);
+  --success-green: #44cc66;
+  --font-display: 'Cinzel', serif;
+  --font-body: 'Crimson Text', serif;
+  --panel-bg: rgba(15, 15, 30, 0.88);
+  --panel-border: rgba(100, 90, 70, 0.35);
+  --panel-glow: rgba(212, 160, 23, 0.08);
+}
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: var(--bg-dark);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+}
+
+canvas {
+  display: block;
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  cursor: crosshair;
+}
+
+/* ── Shared Panel Style ───────────────────────── */
+.panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  box-shadow: inset 0 0 20px var(--panel-glow), 0 4px 20px rgba(0,0,0,0.5);
+  backdrop-filter: blur(6px);
+}
+
+/* ── Screen Overlays ──────────────────────────── */
+.screen-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  background: rgba(5, 5, 12, 0.92);
+  transition: opacity 0.4s;
+}
+.screen-overlay.hidden { display: none; }
+
+/* ── Menu Screen ──────────────────────────────── */
+#menu-screen {
+  text-align: center;
+  background: radial-gradient(ellipse at center, rgba(30,20,50,0.95) 0%, rgba(5,5,12,0.98) 70%);
+}
+#menu-screen .back-link {
+  position: absolute;
+  top: 16px; left: 20px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-family: var(--font-body);
+  font-size: 1rem;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+#menu-screen .back-link:hover { opacity: 1; color: var(--gold); }
+
+.menu-title {
+  font-family: var(--font-display);
+  font-size: 3.5rem;
+  font-weight: 700;
+  color: var(--gold);
+  text-shadow: 0 0 30px var(--gold-glow), 0 0 60px rgba(212,160,23,0.15);
+  letter-spacing: 0.15em;
+  margin-bottom: 0.15em;
+}
+.menu-subtitle {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  color: var(--text-secondary);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  margin-bottom: 2rem;
+}
+.menu-best {
+  font-family: var(--font-body);
+  font-size: 1rem;
+  color: var(--text-secondary);
+  margin-bottom: 2.5rem;
+}
+.menu-best span { color: var(--gold); font-weight: 600; }
+
+.btn {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  padding: 14px 48px;
+  border: 1px solid var(--gold);
+  background: linear-gradient(180deg, rgba(212,160,23,0.15) 0%, rgba(212,160,23,0.05) 100%);
+  color: var(--gold);
+  cursor: pointer;
+  border-radius: 4px;
+  letter-spacing: 0.1em;
+  transition: all 0.2s;
+  text-transform: uppercase;
+}
+.btn:hover {
+  background: linear-gradient(180deg, rgba(212,160,23,0.3) 0%, rgba(212,160,23,0.1) 100%);
+  box-shadow: 0 0 20px var(--gold-glow);
+  transform: translateY(-1px);
+}
+.btn:active { transform: translateY(0); }
+
+.btn-small {
+  font-size: 0.85rem;
+  padding: 8px 20px;
+}
+.btn-danger {
+  border-color: var(--danger-red);
+  color: var(--danger-red);
+  background: linear-gradient(180deg, rgba(255,68,68,0.12) 0%, rgba(255,68,68,0.03) 100%);
+}
+.btn-danger:hover {
+  background: linear-gradient(180deg, rgba(255,68,68,0.25) 0%, rgba(255,68,68,0.08) 100%);
+  box-shadow: 0 0 20px var(--danger-glow);
+}
+.btn-mana {
+  border-color: var(--mana-blue);
+  color: var(--mana-blue);
+  background: linear-gradient(180deg, rgba(68,136,255,0.12) 0%, rgba(68,136,255,0.03) 100%);
+}
+.btn-mana:hover {
+  background: linear-gradient(180deg, rgba(68,136,255,0.25) 0%, rgba(68,136,255,0.08) 100%);
+  box-shadow: 0 0 20px var(--mana-glow);
+}
+
+/* ── HUD ──────────────────────────────────────── */
+#hud {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+#hud.hidden { display: none; }
+#hud > * { pointer-events: auto; }
+
+/* Top bar */
+#hud-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  gap: 10px;
+}
+
+.hud-resource {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  min-width: 80px;
+}
+.hud-resource .icon {
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+}
+.hud-gold .icon { background: var(--gold); color: #000; }
+.hud-gold .val { color: var(--gold); }
+.hud-mana .icon { background: var(--mana-blue); color: #fff; }
+.hud-mana .val { color: var(--mana-blue); }
+
+.hud-wave-info {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  text-align: center;
+  color: var(--text-secondary);
+}
+.hud-wave-info .wave-num { color: var(--gold); font-weight: 600; font-size: 1.1rem; }
+.hud-wave-info .wave-sub { font-size: 0.75rem; color: var(--text-secondary); display: block; }
+
+.hud-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Speed controls */
+.speed-btn {
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  padding: 4px 10px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 3px;
+  transition: all 0.15s;
+}
+.speed-btn.active {
+  border-color: var(--gold);
+  color: var(--gold);
+  background: rgba(212,160,23,0.12);
+}
+.speed-btn:hover { border-color: rgba(212,160,23,0.5); }
+
+#btn-pause {
+  font-size: 0.75rem;
+  padding: 4px 10px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 3px;
+}
+#btn-pause:hover { border-color: var(--gold); color: var(--gold); }
+
+/* Build timer / send wave bar */
+#hud-build-bar {
+  position: absolute;
+  top: 50px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 16px;
+  pointer-events: auto;
+}
+#hud-build-bar.hidden { display: none; }
+
+#build-timer-text {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  min-width: 50px;
+  text-align: center;
+}
+#btn-send-wave {
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  padding: 5px 18px;
+  border: 1px solid var(--gold);
+  background: linear-gradient(180deg, rgba(212,160,23,0.18) 0%, rgba(212,160,23,0.05) 100%);
+  color: var(--gold);
+  cursor: pointer;
+  border-radius: 3px;
+  letter-spacing: 0.05em;
+  transition: all 0.15s;
+}
+#btn-send-wave:hover {
+  background: rgba(212,160,23,0.25);
+  box-shadow: 0 0 12px var(--gold-glow);
+}
+#early-bonus {
+  font-size: 0.75rem;
+  color: var(--gold);
+  opacity: 0.7;
+}
+
+/* Wave enemies remaining */
+#hud-wave-status {
+  position: absolute;
+  top: 50px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  padding: 6px 16px;
+}
+#hud-wave-status.hidden { display: none; }
+
+/* ── Tower Panel (Bottom) ─────────────────────── */
+#tower-panel {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  padding: 8px 12px;
+  max-width: 96vw;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(212,160,23,0.3) transparent;
+}
+#tower-panel.hidden { display: none; }
+
+.tower-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 72px;
+  min-width: 72px;
+  padding: 6px 4px;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 5px;
+  cursor: pointer;
+  background: rgba(0,0,0,0.3);
+  transition: all 0.15s;
+  position: relative;
+}
+.tower-card:hover {
+  border-color: rgba(255,255,255,0.3);
+  background: rgba(255,255,255,0.05);
+  transform: translateY(-2px);
+}
+.tower-card.selected {
+  border-color: var(--gold);
+  background: rgba(212,160,23,0.1);
+  box-shadow: 0 0 10px var(--gold-glow);
+}
+.tower-card.disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.tower-card .tc-icon {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  margin-bottom: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  border: 1px solid rgba(255,255,255,0.15);
+}
+.tower-card .tc-name {
+  font-family: var(--font-display);
+  font-size: 0.55rem;
+  text-align: center;
+  color: var(--text-primary);
+  line-height: 1.15;
+  margin-bottom: 2px;
+}
+.tower-card .tc-cost {
+  font-family: var(--font-display);
+  font-size: 0.65rem;
+  color: var(--gold);
+}
+.tower-card .tc-key {
+  position: absolute;
+  top: 2px; right: 4px;
+  font-size: 0.55rem;
+  color: var(--text-secondary);
+  opacity: 0.5;
+}
+
+/* ── Tower Info (Selected Tower Details) ──────── */
+#tower-info {
+  position: absolute;
+  bottom: 90px;
+  left: 12px;
+  width: 260px;
+  padding: 12px;
+  font-size: 0.85rem;
+  z-index: 12;
+}
+#tower-info.hidden { display: none; }
+
+#tower-info .ti-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+#tower-info .ti-icon {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  border: 1px solid rgba(255,255,255,0.2);
+}
+#tower-info .ti-name {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 600;
+}
+#tower-info .ti-tier {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  margin-left: auto;
+}
+
+#tower-info .ti-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px 10px;
+  margin-bottom: 8px;
+  font-size: 0.8rem;
+}
+#tower-info .ti-stats .stat-label { color: var(--text-secondary); }
+#tower-info .ti-stats .stat-val { color: var(--text-primary); text-align: right; }
+
+#tower-info .ti-synergies {
+  margin-bottom: 8px;
+  font-size: 0.75rem;
+}
+#tower-info .ti-synergies .syn-title {
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 2px;
+}
+#tower-info .ti-synergy-item {
+  color: #88ccff;
+  padding: 1px 0;
+}
+
+#tower-info .ti-upgrades {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 8px;
+}
+.upgrade-btn {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 8px;
+  border: 1px solid rgba(212,160,23,0.3);
+  border-radius: 4px;
+  background: rgba(212,160,23,0.05);
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: left;
+}
+.upgrade-btn:hover {
+  border-color: var(--gold);
+  background: rgba(212,160,23,0.12);
+}
+.upgrade-btn.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.upgrade-btn .upg-name {
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  color: var(--gold);
+}
+.upgrade-btn .upg-desc {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  margin-top: 1px;
+}
+.upgrade-btn .upg-cost {
+  font-size: 0.72rem;
+  color: var(--gold);
+  margin-top: 2px;
+}
+
+#tower-info .ti-actions {
+  display: flex;
+  gap: 6px;
+}
+
+/* ── Wave Banner ──────────────────────────────── */
+#wave-banner {
+  position: absolute;
+  top: 30%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-family: var(--font-display);
+  font-size: 3rem;
+  font-weight: 700;
+  color: var(--gold);
+  text-shadow: 0 0 40px var(--gold-glow), 0 0 80px rgba(212,160,23,0.2);
+  letter-spacing: 0.15em;
+  z-index: 50;
+  pointer-events: none;
+  opacity: 0;
+  transition: none;
+}
+#wave-banner .banner-sub {
+  display: block;
+  font-size: 1rem;
+  color: var(--text-secondary);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  margin-top: 4px;
+  text-shadow: none;
+}
+
+/* ── Pause Overlay ────────────────────────────── */
+#pause-overlay {
+  gap: 16px;
+}
+#pause-overlay h2 {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  color: var(--gold);
+  letter-spacing: 0.12em;
+  margin-bottom: 8px;
+}
+
+/* ── Game Over / Victory ──────────────────────── */
+#gameover-screen h2, #victory-screen h2 {
+  font-family: var(--font-display);
+  font-size: 2.5rem;
+  letter-spacing: 0.12em;
+  margin-bottom: 8px;
+}
+#gameover-screen h2 { color: var(--danger-red); text-shadow: 0 0 30px var(--danger-glow); }
+#victory-screen h2 { color: var(--gold); text-shadow: 0 0 30px var(--gold-glow); }
+
+.end-stats {
+  font-family: var(--font-body);
+  font-size: 1rem;
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+  line-height: 1.8;
+}
+.end-stats span { color: var(--text-primary); font-weight: 600; }
+
+/* ── Nexus HP (HUD overlay) ───────────────────── */
+#nexus-hp-bar {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 160px;
+  height: 6px;
+  background: rgba(0,0,0,0.5);
+  border-radius: 3px;
+  overflow: hidden;
+  border: 1px solid rgba(68,221,255,0.2);
+  pointer-events: none;
+}
+#nexus-hp-bar.hidden { display: none; }
+#nexus-hp-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--nexus-crystal), #88eeff);
+  border-radius: 3px;
+  transition: width 0.3s;
+}
+
+/* ── Responsive ───────────────────────────────── */
+@media (max-width: 768px) {
+  .menu-title { font-size: 2rem; }
+  .menu-subtitle { font-size: 0.8rem; }
+  .btn { font-size: 0.9rem; padding: 10px 32px; }
+
+  #hud-top { padding: 6px 8px; }
+  .hud-resource { font-size: 0.85rem; min-width: 60px; }
+  .hud-wave-info { font-size: 0.8rem; }
+
+  #tower-panel {
+    bottom: 4px;
+    padding: 4px 6px;
+    gap: 4px;
+  }
+  .tower-card { width: 58px; min-width: 58px; padding: 4px 2px; }
+  .tower-card .tc-icon { width: 26px; height: 26px; font-size: 0.8rem; }
+  .tower-card .tc-name { font-size: 0.48rem; }
+  .tower-card .tc-cost { font-size: 0.55rem; }
+  .tower-card .tc-key { display: none; }
+
+  #tower-info {
+    bottom: 70px;
+    left: 6px;
+    width: 220px;
+    padding: 8px;
+    font-size: 0.78rem;
+  }
+  #tower-info .ti-name { font-size: 0.85rem; }
+
+  #wave-banner { font-size: 2rem; }
+  #wave-banner .banner-sub { font-size: 0.75rem; }
+
+  #hud-build-bar, #hud-wave-status { top: 42px; }
+}
+
+@media (max-width: 480px) {
+  .tower-card { width: 50px; min-width: 50px; }
+  .tower-card .tc-icon { width: 22px; height: 22px; }
+  .tower-card .tc-name { display: none; }
+
+  #tower-info { width: 180px; }
+}
+</style>
+</head>
+<body>
+
+<canvas id="game-canvas"></canvas>
+
+<!-- ── Menu Screen ──────────────────────────── -->
+<div id="menu-screen" class="screen-overlay">
+  <a href="/games/" class="back-link">&larr; Back to Games</a>
+  <h1 class="menu-title">Arcane Bastion</h1>
+  <p class="menu-subtitle">Tower Defense</p>
+  <p class="menu-best">Best: <span id="best-wave">Wave 0</span></p>
+  <button id="btn-new-game" class="btn">New Game</button>
+</div>
+
+<!-- ── HUD ──────────────────────────────────── -->
+<div id="hud" class="hidden">
+
+  <!-- Top Bar -->
+  <div id="hud-top" class="panel">
+    <div class="hud-resource hud-gold">
+      <div class="icon">G</div>
+      <span class="val" id="gold-display">200</span>
+    </div>
+    <div class="hud-resource hud-mana">
+      <div class="icon">M</div>
+      <span class="val" id="mana-display">0</span>
+    </div>
+    <div class="hud-wave-info">
+      <span class="wave-num" id="wave-display">Wave 1</span>
+      <span class="wave-sub" id="wave-sub"></span>
+    </div>
+    <div class="hud-right">
+      <button class="speed-btn active" data-speed="1">1x</button>
+      <button class="speed-btn" data-speed="2">2x</button>
+      <button class="speed-btn" data-speed="3">3x</button>
+      <button id="btn-pause" title="Pause (Esc)">II</button>
+    </div>
+  </div>
+
+  <!-- Build Phase Bar -->
+  <div id="hud-build-bar" class="panel hidden">
+    <span id="build-timer-text">Build</span>
+    <button id="btn-send-wave">Send Wave</button>
+    <span id="early-bonus"></span>
+  </div>
+
+  <!-- Wave Status -->
+  <div id="hud-wave-status" class="panel hidden">
+    <span id="enemies-remaining"></span>
+  </div>
+
+  <!-- Tower Panel -->
+  <div id="tower-panel" class="panel"></div>
+
+  <!-- Tower Info -->
+  <div id="tower-info" class="panel hidden"></div>
+
+</div>
+
+<!-- ── Wave Banner ──────────────────────────── -->
+<div id="wave-banner">
+  <span id="banner-text">Wave 1</span>
+  <span class="banner-sub" id="banner-sub"></span>
+</div>
+
+<!-- ── Pause Overlay ────────────────────────── -->
+<div id="pause-overlay" class="screen-overlay hidden">
+  <h2>Paused</h2>
+  <button id="btn-resume" class="btn">Resume</button>
+  <button id="btn-quit" class="btn btn-small btn-danger" style="margin-top:8px;">Quit to Menu</button>
+</div>
+
+<!-- ── Game Over ────────────────────────────── -->
+<div id="gameover-screen" class="screen-overlay hidden">
+  <h2>The Bastion Has Fallen</h2>
+  <div class="end-stats" id="gameover-stats"></div>
+  <button id="btn-retry" class="btn btn-danger">Try Again</button>
+</div>
+
+<!-- ── Victory ──────────────────────────────── -->
+<div id="victory-screen" class="screen-overlay hidden">
+  <h2>Victory!</h2>
+  <div class="end-stats" id="victory-stats"></div>
+  <button id="btn-victory-menu" class="btn">Return to Menu</button>
+</div>
+
+<script src="map.js"></script>
+<script src="towers.js"></script>
+<script src="enemies.js"></script>
+<script src="effects.js"></script>
+<script src="engine.js"></script>
+</body>
+</html>
