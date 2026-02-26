@@ -1912,58 +1912,6 @@
         break;
       }
 
-      case 'burrow': {
-        var bInterval = type.burrowInterval || 4;
-        var bDur = type.burrowDuration || 2;
-        var bCycle = enemy.abilityTimer % (bInterval + bDur);
-        var wasBurrowed = enemy.abilityActive;
-        enemy.abilityActive = bCycle >= bInterval;
-        // set invisible so towers can't target while burrowed
-        enemy.invisible = enemy.abilityActive;
-        // track emerge animation
-        if (wasBurrowed && !enemy.abilityActive) {
-          enemy._justEmerged = 1.0;
-        }
-        if (enemy._justEmerged > 0) {
-          enemy._justEmerged = Math.max(0, enemy._justEmerged - dt * 3);
-        }
-        break;
-      }
-
-      case 'enrage': {
-        // speed scales from 1x at full HP to 2x at 10% HP
-        // multiply current speed (which already has slows applied) by rage factor
-        var hpFrac = enemy.hp / enemy.maxHp;
-        var rageFactor = Math.min(1, Math.max(0, 1 - (hpFrac - 0.1) / 0.9));
-        enemy.speed *= (1 + rageFactor);
-        break;
-      }
-
-      case 'reflect': {
-        // reflect is passive — handled in applyDamage wrapper
-        // visual: abilityActive pulses when recently hit
-        if (enemy.hitFlash > 0) {
-          enemy.abilityActive = true;
-        } else {
-          enemy.abilityActive = false;
-        }
-        break;
-      }
-
-      case 'carrier': {
-        // assign passengers on first tick if not yet assigned
-        if (!enemy._passengers) {
-          enemy._passengers = [];
-          var pTypes = type.passengerTypes || ['imp'];
-          var pCount = type.passengerCount || 3;
-          for (var p = 0; p < pCount; p++) {
-            var pType = pTypes[Math.floor(seededRandom(enemy.id * 31 + p * 13) * pTypes.length)];
-            enemy._passengers.push(pType);
-          }
-        }
-        break;
-      }
-
       // 'walk' — no special behavior
     }
   }

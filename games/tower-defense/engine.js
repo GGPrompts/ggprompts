@@ -212,6 +212,7 @@
 
   // Timing
   var lastTime = 0;
+  var gameTime = 0;
 
   // ─────────────────────────── Audio Engine ─────────────────────────────
   var Audio = (function () {
@@ -381,15 +382,6 @@
         setTimeout(function () { osc('sawtooth', 200, 0.5, 0.08); }, 200);
         setTimeout(function () { osc('sawtooth', 120, 0.7, 0.06); }, 450);
       },
-      abilityCast: function () {
-        init();
-        // Ascending chord: C5, E5, G5, C6
-        osc('sine', 523, 0.15, 0.10);
-        setTimeout(function () { osc('sine', 659, 0.15, 0.09); }, 40);
-        setTimeout(function () { osc('sine', 784, 0.15, 0.08); }, 80);
-        setTimeout(function () { osc('sine', 1047, 0.2, 0.10); }, 120);
-        noise(0.08, 0.03);
-      },
       victory: function () {
         init();
         var notes = [523, 659, 784, 1047];
@@ -523,108 +515,6 @@
         osc('sine', 600, 0.15, 0.08);
         osc('sine', 900, 0.12, 0.06);
         noise(0.1, 0.04);
-      }
-    };
-  })();
-
-  // ─────────────────────────── BGM Manager ────────────────────────────
-  var BGM = (function () {
-    var enabled = true;
-    var volume = 0.3;
-    var initialized = false;
-    var currentTrack = null;
-    var songCache = {};
-    var SONG_BASE = '../../music/audio-tracker/songs/';
-
-    // Track assignments per game state
-    var TRACKS = {
-      build: 'arcane-bastion.json',
-      wave: 'arcane-bastion.json',
-      boss: 'boss-battle.json',
-      late: 'neon-velocity.json'
-    };
-
-    // Boss waves trigger boss track
-    var BOSS_WAVES = [5, 10, 15, 20];
-    // Late-game waves get the intense track
-    var LATE_WAVE_START = 14;
-
-    function initBGM() {
-      if (initialized || typeof ChipPlayer === 'undefined') return;
-      ChipPlayer.init();
-      ChipPlayer.setVolume(volume);
-      initialized = true;
-    }
-
-    function fetchSong(filename, cb) {
-      if (songCache[filename]) { cb(songCache[filename]); return; }
-      var xhr = new XMLHttpRequest();
-      xhr.open('GET', SONG_BASE + filename, true);
-      xhr.responseType = 'json';
-      xhr.onload = function () {
-        if (xhr.status === 200 && xhr.response) {
-          songCache[filename] = xhr.response;
-          cb(xhr.response);
-        }
-      };
-      xhr.onerror = function () { /* silent — no music is fine */ };
-      xhr.send();
-    }
-
-    function playTrack(filename) {
-      if (!enabled || !initialized) return;
-      if (currentTrack === filename && ChipPlayer.isPlaying() && !ChipPlayer.isPaused()) return;
-      ChipPlayer.stop();
-      fetchSong(filename, function (songData) {
-        if (!enabled) return;
-        ChipPlayer.load(songData);
-        ChipPlayer.setVolume(volume);
-        ChipPlayer.play();
-        currentTrack = filename;
-      });
-    }
-
-    function stopBGM() {
-      if (!initialized) return;
-      ChipPlayer.stop();
-      currentTrack = null;
-    }
-
-    function pauseBGM() {
-      if (!initialized || !ChipPlayer.isPlaying()) return;
-      ChipPlayer.pause();
-    }
-
-    function resumeBGM() {
-      if (!initialized || !ChipPlayer.isPaused()) return;
-      ChipPlayer.resume();
-    }
-
-    function setVolume(v) {
-      volume = v;
-      if (initialized) ChipPlayer.setVolume(v);
-    }
-
-    function getTrackForWave(waveNum) {
-      if (BOSS_WAVES.indexOf(waveNum) !== -1) return TRACKS.boss;
-      if (waveNum >= LATE_WAVE_START) return TRACKS.late;
-      return TRACKS.wave;
-    }
-
-    return {
-      init: initBGM,
-      play: playTrack,
-      stop: stopBGM,
-      pause: pauseBGM,
-      resume: resumeBGM,
-      setVolume: setVolume,
-      getTrackForWave: getTrackForWave,
-      TRACKS: TRACKS,
-      isEnabled: function () { return enabled; },
-      toggle: function () {
-        enabled = !enabled;
-        if (!enabled) { stopBGM(); }
-        return enabled;
       }
     };
   })();
@@ -1144,9 +1034,8 @@
     if (gold < cost) return false;
 
     var pos = Map.gridToWorld(col, row);
-    // Center of cell
-    var tx = pos.x + CELL / 2;
-    var ty = pos.y + CELL / 2;
+    var tx = pos.x;
+    var ty = pos.y;
 
     Map.placeTower(col, row, placementType);
     // Verify paths still exist after placement
@@ -1944,8 +1833,8 @@
         // Disable towers within the breath line
         for (var t = 0; t < towers.length; t++) {
           var tw = towers[t];
-          var twX = tw.col * Map.cellSize + Map.cellSize / 2;
-          var twY = tw.row * Map.cellSize + Map.cellSize / 2;
+          var twX = tw.col * CELL + CELL / 2;
+          var twY = tw.row * CELL + CELL / 2;
           // check distance from line (simplified: circle check along line)
           var dx = twX - data.x;
           var dy = twY - data.y;
@@ -2199,8 +2088,8 @@
         }
         // Lich King death aura: towers within radius deal 20% less damage
         if (lichDeathAura) {
-          var twX = tw.col * Map.cellSize + Map.cellSize / 2;
-          var twY = tw.row * Map.cellSize + Map.cellSize / 2;
+          var twX = tw.col * CELL + CELL / 2;
+          var twY = tw.row * CELL + CELL / 2;
           var adx = twX - lichDeathAura.x;
           var ady = twY - lichDeathAura.y;
           if (adx * adx + ady * ady <= lichDeathAura._deathAuraRadius * lichDeathAura._deathAuraRadius) {
@@ -2214,7 +2103,7 @@
       }
 
       // 2. Update towers (targeting + firing)
-      towerCallbacks.time = time;
+      towerCallbacks.time = gameTime;
       Towers.updateAll(towers, enemies, dt, towerCallbacks);
       Towers.updateAbilityCooldowns(towers, dt);
 
@@ -2408,8 +2297,8 @@
       ctx.globalAlpha = tipAlpha;
       ctx.font = 'bold 16px "Crimson Text", serif';
       var tw2 = ctx.measureText(tipText).width;
-      var tx2 = (canvas.width - tw2) / 2;
-      var ty2 = canvas.height * 0.2;
+      var tx2 = (window.innerWidth - tw2) / 2;
+      var ty2 = window.innerHeight * 0.2;
       // Background pill
       ctx.fillStyle = 'rgba(10, 10, 18, 0.85)';
       ctx.beginPath();
@@ -2514,8 +2403,8 @@
     if (!T) return;
 
     var pos = Map.gridToWorld(mouseGridCol, mouseGridRow);
-    var gx = pos.x + CELL / 2;
-    var gy = pos.y + CELL / 2;
+    var gx = pos.x;
+    var gy = pos.y;
 
     ctx.save();
     ctx.globalAlpha = 0.5;
@@ -2839,6 +2728,7 @@
 
     var rawDt = Math.min((timestamp - lastTime) / 1000, 0.05);
     lastTime = timestamp;
+    gameTime = timestamp / 1000;
 
     if (state === 'menu') {
       render(timestamp);
@@ -2855,7 +2745,6 @@
     render(timestamp);
   }
 
-=======
   // ─────────────────────────── Map Selection UI ───────────────────────
   var $mapSelector = document.getElementById('map-selector');
 
