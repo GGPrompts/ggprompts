@@ -1300,9 +1300,10 @@
     var upgrades = UPGRADES[elem];
     if (!upgrades) return null;
 
+    // path should be 'a' or 'b'
     if (tower.tier === 1) {
       return upgrades['tier2' + path] || null;
-    } else if (tower.tier === 2 && tower.upgradePath === path) {
+    } else if (tower.tier === 2) {
       return upgrades['tier3' + path] || null;
     }
 

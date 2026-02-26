@@ -342,14 +342,15 @@
     // Upgrades
     if (tower.tier < 3) {
       html += '<div class="ti-upgrades">';
-      var pathA = tower.tier === 1 ? 'tier2a' : 'tier3a';
-      var pathB = tower.tier === 1 ? 'tier2b' : 'tier3b';
-      var infoA = Towers.getUpgradeInfo(tower, pathA);
-      var infoB = Towers.getUpgradeInfo(tower, pathB);
+      // At tier 1: show both paths (a, b). At tier 2: only show the chosen path.
+      var showA = tower.tier === 1 || tower.upgradePath === 'a';
+      var showB = tower.tier === 1 || tower.upgradePath === 'b';
+      var infoA = showA ? Towers.getUpgradeInfo(tower, 'a') : null;
+      var infoB = showB ? Towers.getUpgradeInfo(tower, 'b') : null;
 
       if (infoA) {
         var canA = gold >= infoA.cost;
-        html += '<div class="upgrade-btn' + (canA ? '' : ' disabled') + '" data-path="' + pathA + '">';
+        html += '<div class="upgrade-btn' + (canA ? '' : ' disabled') + '" data-path="a">';
         html += '<span class="upg-name">[U] ' + infoA.name + '</span>';
         html += '<span class="upg-desc">' + infoA.desc + '</span>';
         html += '<span class="upg-cost">' + infoA.cost + ' gold</span>';
@@ -357,7 +358,7 @@
       }
       if (infoB) {
         var canB = gold >= infoB.cost;
-        html += '<div class="upgrade-btn' + (canB ? '' : ' disabled') + '" data-path="' + pathB + '">';
+        html += '<div class="upgrade-btn' + (canB ? '' : ' disabled') + '" data-path="b">';
         html += '<span class="upg-name">[I] ' + infoB.name + '</span>';
         html += '<span class="upg-desc">' + infoB.desc + '</span>';
         html += '<span class="upg-cost">' + infoB.cost + ' gold</span>';
@@ -781,6 +782,7 @@
           fromX: tower.x, fromY: tower.y,
           toX: target.x, toY: target.y,
           targetId: target.id,
+          towerId: tower.id,
           element: tower.type.element,
           damage: stats.damage,
           speed: stats.projectileSpeed || 400,
@@ -799,6 +801,7 @@
         // Beams deal damage immediately
         var dmg = Enemies.applyDamage(target, stats.damage, stats.armorPierce || 0);
         tower.totalDamage += dmg;
+        target._lastHitTowerId = tower.id;
         FX.spawnDamageNumber({ x: target.x, y: target.y - 20, amount: dmg });
         applyElementalStatus(target, tower.type.element, stats);
         checkEnemyDeath(target);
@@ -816,6 +819,7 @@
           if (dist <= sr) {
             var dmg2 = Enemies.applyDamage(e, stats.damage, stats.armorPierce || 0);
             tower.totalDamage += dmg2;
+            e._lastHitTowerId = tower.id;
             FX.spawnDamageNumber({ x: e.x, y: e.y - 20, amount: dmg2 });
             applyElementalStatus(e, tower.type.element, stats);
             checkEnemyDeath(e);
@@ -845,6 +849,7 @@
         points.push({ x: targets[i].x, y: targets[i].y });
         var dmg = Enemies.applyDamage(targets[i], stats.damage * dmgMult, stats.armorPierce || 0);
         tower.totalDamage += dmg;
+        targets[i]._lastHitTowerId = tower.id;
         FX.spawnDamageNumber({ x: targets[i].x, y: targets[i].y - 20, amount: dmg });
         applyElementalStatus(targets[i], tower.type.element, stats);
         checkEnemyDeath(targets[i]);
@@ -861,6 +866,7 @@
         if (tower.type.element === 'nature') {
           var dmg = Enemies.applyDamage(e, (tower.type.auraDPS || 12) * dt, 0);
           tower.totalDamage += dmg;
+          e._lastHitTowerId = tower.id;
           Enemies.applyStatus(e, {
             type: 'poison',
             intensity: tower.type.poisonDPS || 6,
@@ -940,8 +946,14 @@
         amount: dmg
       });
 
-      // Track damage on tower (find tower by element match — best effort)
-      // Projectile may not carry tower ref, so we attribute generically
+      // Credit damage and potential kill to the tower that fired
+      if (proj.towerId) {
+        var srcTower = findTowerById(proj.towerId);
+        if (srcTower) {
+          srcTower.totalDamage += dmg;
+          enemy._lastHitTowerId = proj.towerId;
+        }
+      }
       applyElementalStatus(enemy, proj.element, proj);
       checkEnemyDeath(enemy);
     }
@@ -991,6 +1003,12 @@
     gold += goldReward;
     totalGoldEarned += goldReward;
     totalKills++;
+
+    // Credit kill to the tower that last hit this enemy
+    if (enemy._lastHitTowerId) {
+      var killer = findTowerById(enemy._lastHitTowerId);
+      if (killer) killer.totalKills++;
+    }
 
     var result = FX.spawnDeathEffect({
       x: enemy.x, y: enemy.y,
@@ -1219,10 +1237,10 @@
       var tw = towers[i];
       // Pulsing glow if upgrade is affordable
       if (tw.tier < 3 && tw !== selectedTower) {
-        var pathA = tw.tier === 1 ? 'tier2a' : 'tier3a';
-        var pathB = tw.tier === 1 ? 'tier2b' : 'tier3b';
-        var infoA = Towers.getUpgradeInfo(tw, pathA);
-        var infoB = Towers.getUpgradeInfo(tw, pathB);
+        var showGlowA = tw.tier === 1 || tw.upgradePath === 'a';
+        var showGlowB = tw.tier === 1 || tw.upgradePath === 'b';
+        var infoA = showGlowA ? Towers.getUpgradeInfo(tw, 'a') : null;
+        var infoB = showGlowB ? Towers.getUpgradeInfo(tw, 'b') : null;
         if ((infoA && gold >= infoA.cost) || (infoB && gold >= infoB.cost)) {
           var pulse = 0.3 + 0.25 * Math.sin(time * 3);
           ctx.save();
@@ -1515,6 +1533,13 @@
     return null;
   }
 
+  function findTowerById(id) {
+    for (var i = 0; i < towers.length; i++) {
+      if (towers[i].id === id) return towers[i];
+    }
+    return null;
+  }
+
   // ─────────────────────────── Input: Keyboard ─────────────────────────
   document.addEventListener('keydown', function (e) {
     var key = e.key;
@@ -1532,16 +1557,14 @@
       case 'u':
         // Upgrade path A
         if (selectedTower && selectedTower.tier < 3) {
-          var pathA = selectedTower.tier === 1 ? 'tier2a' : 'tier3a';
-          doUpgrade(pathA);
+          doUpgrade('a');
         }
         break;
 
       case 'i':
         // Upgrade path B
         if (selectedTower && selectedTower.tier < 3) {
-          var pathB = selectedTower.tier === 1 ? 'tier2b' : 'tier3b';
-          doUpgrade(pathB);
+          doUpgrade('b');
         }
         break;
 

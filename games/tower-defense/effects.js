@@ -195,6 +195,7 @@
     p.x      = opts.fromX;
     p.y      = opts.fromY;
     p.targetId = opts.targetId || null;
+    p.towerId  = opts.towerId || null;
     p.element  = opts.element || 'physical';
     p.damage   = opts.damage  || 0;
     p.speed    = opts.speed   || 300;
