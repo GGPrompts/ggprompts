@@ -804,7 +804,7 @@
       const a = getRoom(node.left);
       const b = getRoom(node.right);
       if (a && b) {
-        carveCorridor(m, a.cx, a.cy, b.cx, b.cy, opts.corridorWidth, drs, rms);
+        carveCorridor(m, a.cx, a.cy, b.cx, b.cy, opts.corridorWidth);
         steps.push({ label: 'Connecting rooms', snapshot: cloneMap(m) });
       }
     }
@@ -814,6 +814,7 @@
     split(root, maxDepth);
     createRooms(root);
     connectRooms(root);
+    placeDoors(m, rms, drs);
 
     return { map: m, rooms: rms, doors: drs, steps };
   }
@@ -869,9 +870,10 @@
       remaining.splice(remaining.indexOf(bestR), 1);
       connected.push(bestR);
 
-      carveCorridor(m, rms[bestC].cx, rms[bestC].cy, rms[bestR].cx, rms[bestR].cy, opts.corridorWidth, drs, rms);
+      carveCorridor(m, rms[bestC].cx, rms[bestC].cy, rms[bestR].cx, rms[bestR].cy, opts.corridorWidth);
       steps.push({ label: 'Connecting rooms', snapshot: cloneMap(m) });
     }
+    placeDoors(m, rms, drs);
 
     return { map: m, rooms: rms, doors: drs, steps };
   }
@@ -885,10 +887,13 @@
     const dirs = [[0,-1],[0,1],[-1,0],[1,0]];
     const walkers = [];
 
+    // Start all walkers from the same point so carving is connected from the start
+    const startX = rndInt(Math.floor(opts.w * 0.3), Math.floor(opts.w * 0.7));
+    const startY = rndInt(Math.floor(opts.h * 0.3), Math.floor(opts.h * 0.7));
     for (let i = 0; i < opts.numWalkers; i++) {
       walkers.push({
-        x: rndInt(2, opts.w - 3),
-        y: rndInt(2, opts.h - 3),
+        x: startX,
+        y: startY,
         dir: rndInt(0, 3)
       });
     }
@@ -938,13 +943,63 @@
       steps.push({ label: 'Smoothing pass ' + (pass + 1), snapshot: cloneMap(m) });
     }
 
+    // Ensure connectivity: keep only the largest connected floor region
+    ensureConnectivity(m, opts.w, opts.h);
+    steps.push({ label: 'Ensuring connectivity', snapshot: cloneMap(m) });
+
     return { map: m, rooms: [], doors: [], steps };
   }
 
+  // Flood-fill to keep only the largest connected floor region
+  function ensureConnectivity(m, w, h) {
+    const visited = [];
+    for (let y = 0; y < h; y++) visited[y] = new Uint8Array(w);
+
+    const regions = [];
+    const cardDirs = [[0,-1],[0,1],[-1,0],[1,0]];
+
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        if (visited[y][x] || (m[y][x] !== TILE.FLOOR && m[y][x] !== TILE.CORRIDOR)) continue;
+        const region = [];
+        const stack = [[x, y]];
+        visited[y][x] = 1;
+        while (stack.length > 0) {
+          const [cx, cy] = stack.pop();
+          region.push([cx, cy]);
+          for (const [dx, dy] of cardDirs) {
+            const nx = cx + dx, ny = cy + dy;
+            if (nx >= 0 && nx < w && ny >= 0 && ny < h && !visited[ny][nx] &&
+                (m[ny][nx] === TILE.FLOOR || m[ny][nx] === TILE.CORRIDOR)) {
+              visited[ny][nx] = 1;
+              stack.push([nx, ny]);
+            }
+          }
+        }
+        regions.push(region);
+      }
+    }
+
+    if (regions.length <= 1) return;
+
+    // Find largest region
+    let largest = 0;
+    for (let i = 1; i < regions.length; i++) {
+      if (regions[i].length > regions[largest].length) largest = i;
+    }
+
+    // Remove all other regions
+    for (let i = 0; i < regions.length; i++) {
+      if (i === largest) continue;
+      for (const [rx, ry] of regions[i]) {
+        m[ry][rx] = TILE.WALL;
+      }
+    }
+  }
+
   // ========== SHARED: CORRIDOR CARVING ==========
-  function carveCorridor(m, x1, y1, x2, y2, width, drs, rms) {
+  function carveCorridor(m, x1, y1, x2, y2, width) {
     const hw = Math.floor(width / 2);
-    let cx = x1, cy = y1;
 
     // L-shaped corridor (randomly pick horizontal-first or vertical-first)
     const hFirst = rng() < 0.5;
@@ -974,9 +1029,6 @@
       carveLine(x1, y1, x1, y2);
       carveLine(x1, y2, x2, y2);
     }
-
-    // Place doors at room entrances
-    placeDoors(m, rms, drs);
   }
 
   function placeDoors(m, rms, drs) {
@@ -1410,13 +1462,13 @@
   }
 
   function exportJSON() {
-    const tileNames = ['void', 'wall', 'floor', 'corridor', 'door'];
     const data = {
       seed: currentSeed,
       width: mapW,
       height: mapH,
       algorithm: document.getElementById('opt-algo').value,
       theme: document.getElementById('opt-theme').value,
+      tileKey: { void: 0, wall: 1, floor: 2, corridor: 3, door: 4 },
       rooms: rooms.map(r => ({ x: r.x, y: r.y, width: r.w, height: r.h })),
       doors: doors.map(d => ({ x: d.x, y: d.y })),
       tiles: []
@@ -1460,6 +1512,19 @@
     const isDrunkard = this.value === 'drunkard';
     document.getElementById('panel-rooms').style.display = isDrunkard ? 'none' : '';
     document.getElementById('panel-drunkard').style.display = isDrunkard ? '' : 'none';
+  });
+
+  // Re-render when theme changes
+  document.getElementById('opt-theme').addEventListener('change', () => {
+    if (map.length > 0) render();
+  });
+
+  // Show/hide speed row based on step mode
+  const stepCheck = document.getElementById('opt-step');
+  const speedRow = document.getElementById('speed-row');
+  speedRow.style.display = stepCheck.checked ? '' : 'none';
+  stepCheck.addEventListener('change', () => {
+    speedRow.style.display = stepCheck.checked ? '' : 'none';
   });
 
   // Resize handler

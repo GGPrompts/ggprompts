@@ -873,10 +873,10 @@
         <div class="preview-toolbar">
             <span class="label">Preview</span>
             <div class="breakpoint-btns">
-                <button class="bp-btn" onclick="setBreakpoint(360)" title="Mobile">360px</button>
-                <button class="bp-btn" onclick="setBreakpoint(768)" title="Tablet">768px</button>
-                <button class="bp-btn" onclick="setBreakpoint(1024)" title="Laptop">1024px</button>
-                <button class="bp-btn active" onclick="setBreakpoint(0)" title="Full width">Auto</button>
+                <button class="bp-btn" onclick="setBreakpoint(360,event)" title="Mobile">360px</button>
+                <button class="bp-btn" onclick="setBreakpoint(768,event)" title="Tablet">768px</button>
+                <button class="bp-btn" onclick="setBreakpoint(1024,event)" title="Laptop">1024px</button>
+                <button class="bp-btn active" onclick="setBreakpoint(0,event)" title="Full width">Auto</button>
             </div>
             <span class="preview-size-label" id="previewSizeLabel">auto</span>
         </div>
@@ -1131,7 +1131,7 @@ function renderFlexItems() {
 }
 
 /* ── Breakpoints ───────────────────────────────────── */
-function setBreakpoint(px) {
+function setBreakpoint(px, ev) {
     const frame = document.getElementById('previewFrame');
     const label = document.getElementById('previewSizeLabel');
     document.querySelectorAll('.bp-btn').forEach(b => b.classList.remove('active'));
@@ -1139,12 +1139,11 @@ function setBreakpoint(px) {
     if (px === 0) {
         frame.style.width = '100%';
         label.textContent = 'auto';
-        event.target.classList.add('active');
     } else {
         frame.style.width = px + 'px';
         label.textContent = px + 'px';
-        document.querySelector(`.bp-btn[onclick*="${px}"]`).classList.add('active');
     }
+    if (ev && ev.target) ev.target.classList.add('active');
 }
 
 /* ── Preview Update ────────────────────────────────── */
@@ -1253,7 +1252,7 @@ function generateCSS() {
     let css = '';
 
     if (mode === 'grid') {
-        css += formatCSS('.container', [
+        const gridProps = [
             ['display', 'grid'],
             ['grid-template-columns', columns.join(' ')],
             ['grid-template-rows', rows.join(' ')],
@@ -1261,11 +1260,12 @@ function generateCSS() {
                 ['grid-template-areas', '\n    ' + areas.map(r => '"' + r.join(' ') + '"').join('\n    ')]
             ] : []),
             ['gap', gap],
-            ['justify-content', jc],
-            ['align-items', ai],
-            ['align-content', ac],
-            ...(padding !== '0' ? [['padding', padding]] : []),
-        ]);
+        ];
+        if (jc !== 'stretch') gridProps.push(['justify-content', jc]);
+        if (ai !== 'stretch') gridProps.push(['align-items', ai]);
+        if (ac !== 'stretch') gridProps.push(['align-content', ac]);
+        if (padding !== '0') gridProps.push(['padding', padding]);
+        css += formatCSS('.container', gridProps);
 
         // Item placement rules
         if (areasEnabled) {
@@ -1283,19 +1283,19 @@ function generateCSS() {
         const fd = document.getElementById('flexDirection').value;
         const fw = document.getElementById('flexWrap').value;
 
-        css += formatCSS('.container', [
+        const flexProps = [
             ['display', 'flex'],
-            ['flex-direction', fd],
-            ['flex-wrap', fw],
-            ['gap', gap],
-            ['justify-content', jc],
-            ['align-items', ai],
-            ['align-content', ac],
-            ...(padding !== '0' ? [['padding', padding]] : []),
-        ]);
+        ];
+        if (fd !== 'row') flexProps.push(['flex-direction', fd]);
+        if (fw !== 'nowrap') flexProps.push(['flex-wrap', fw]);
+        flexProps.push(['gap', gap]);
+        if (jc !== 'stretch') flexProps.push(['justify-content', jc]);
+        if (ai !== 'stretch') flexProps.push(['align-items', ai]);
+        if (ac !== 'stretch') flexProps.push(['align-content', ac]);
+        if (padding !== '0') flexProps.push(['padding', padding]);
+        css += formatCSS('.container', flexProps);
 
         // Item rules
-        const defaultItem = { grow: 1, shrink: 1, basis: 'auto', order: 0, alignSelf: 'auto' };
         flexItems.forEach((item, i) => {
             const props = [];
             if (item.grow !== 1 || item.shrink !== 1 || item.basis !== 'auto') {
@@ -1324,12 +1324,14 @@ function formatCSS(selector, props) {
 }
 
 function highlightCSS(css) {
-    return css
-        .replace(/\/\*[^]*?\*\//g, m => `<span class="comment">${esc(m)}</span>`)
-        .replace(/([.#]?[\w-]+)\s*\{/g, (_, sel) => `<span class="sel">${esc(sel)}</span> {`)
-        .replace(/([\w-]+)(\s*:\s*)([^;]+)(;)/g, (_, prop, colon, val, semi) =>
-            `<span class="prop">${esc(prop)}</span>${colon}<span class="val">${esc(val)}</span>${semi}`
-        );
+    // Escape first, then highlight on the safe string
+    let h = esc(css);
+    h = h.replace(/\/\*[^]*?\*\//g, m => `<span class="comment">${m}</span>`);
+    h = h.replace(/([\w-]+)(\s*:\s*)([^;]+)(;)/g, (_, prop, colon, val, semi) =>
+        `<span class="prop">${prop}</span>${colon}<span class="val">${val}</span>${semi}`
+    );
+    h = h.replace(/([.#]?[\w-]+)\s*\{/g, (_, sel) => `<span class="sel">${sel}</span> {`);
+    return h;
 }
 
 function esc(s) {
@@ -1356,9 +1358,9 @@ function resetAll() {
     gridItemPlacements = [{gridArea:''},{gridArea:''},{gridArea:''}];
 
     flexItems = [
-        { grow:1, shrink:1, basis:'auto', order:0, alignSelf:'auto' },
-        { grow:1, shrink:1, basis:'auto', order:0, alignSelf:'auto' },
-        { grow:1, shrink:1, basis:'auto', order:0, alignSelf:'auto' },
+        { grow:1, shrink:1, basis:'auto', order:0, alignSelf:'auto', minW:'', maxW:'' },
+        { grow:1, shrink:1, basis:'auto', order:0, alignSelf:'auto', minW:'', maxW:'' },
+        { grow:1, shrink:1, basis:'auto', order:0, alignSelf:'auto', minW:'', maxW:'' },
     ];
 
     document.getElementById('gapValue').value = '12px';

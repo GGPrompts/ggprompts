@@ -769,14 +769,21 @@
       renderCellBased(pts);
     }
 
+    // Precompute Delaunay if needed for borders or overlay
+    var cachedTris = null;
+    if ((state.showBorders && state.borderWidth > 0 && pts.length >= 3) ||
+        (state.showDelaunay && pts.length >= 3)) {
+      cachedTris = delaunayTriangulation(pts);
+    }
+
     // Borders
     if (state.showBorders && state.borderWidth > 0 && pts.length >= 2) {
-      drawVoronoiBorders(pts);
+      drawVoronoiBorders(pts, cachedTris);
     }
 
     // Delaunay overlay
     if (state.showDelaunay && pts.length >= 3) {
-      drawDelaunay(pts);
+      drawDelaunay(pts, cachedTris);
     }
 
     // Seed points
@@ -986,7 +993,7 @@
     return output;
   }
 
-  function drawVoronoiBorders(pts) {
+  function drawVoronoiBorders(pts, cachedTris) {
     if (pts.length < 2) return;
 
     ctx.strokeStyle = state.darkMode ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.15)';
@@ -1008,7 +1015,7 @@
       return;
     }
 
-    const tris = delaunayTriangulation(pts);
+    const tris = cachedTris || delaunayTriangulation(pts);
     if (tris.length === 0) return;
 
     // Circumcenters
@@ -1061,8 +1068,8 @@
     ctx.stroke();
   }
 
-  function drawDelaunay(pts) {
-    const tris = delaunayTriangulation(pts);
+  function drawDelaunay(pts, cachedTris) {
+    const tris = cachedTris || delaunayTriangulation(pts);
     ctx.strokeStyle = state.darkMode ? 'rgba(129, 140, 248, 0.5)' : 'rgba(99, 102, 241, 0.4)';
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -1094,7 +1101,7 @@
   // --- Mouse / Touch interaction ---
   function getPointerPos(e) {
     const rect = canvas.getBoundingClientRect();
-    const touch = e.touches ? e.touches[0] : e;
+    const touch = e.touches && e.touches[0] ? e.touches[0] : (e.changedTouches && e.changedTouches[0] ? e.changedTouches[0] : e);
     return {
       x: touch.clientX - rect.left,
       y: touch.clientY - rect.top
@@ -1105,7 +1112,7 @@
     e.preventDefault();
     const pos = getPointerPos(e);
 
-    // Check if near an existing point
+    // Check if near an existing point (start drag)
     const hit = findNearest(pos.x, pos.y);
     if (hit.index >= 0 && hit.distSq < 400) { // within 20px
       state.dragging = hit.index;
@@ -1114,16 +1121,18 @@
 
       if (state.colorMode === 'custom') {
         state.selectedRegion = hit.index;
+        render();
       }
       return;
     }
 
-    // Custom mode: check region click
+    // Custom mode: region click (not near a point, so select nearest region)
     if (state.colorMode === 'custom' && state.points.length > 0) {
       const nearest = findNearest(pos.x, pos.y);
       if (nearest.index >= 0) {
         state.selectedRegion = nearest.index;
         render();
+        return;
       }
     }
 
@@ -1131,17 +1140,28 @@
     addPoint(pos.x, pos.y);
   }
 
+  var rafPending = false;
+
   function onPointerMove(e) {
     if (state.dragging === null) return;
     e.preventDefault();
     const pos = getPointerPos(e);
     state.points[state.dragging].x = pos.x + state.dragOffset.x;
     state.points[state.dragging].y = pos.y + state.dragOffset.y;
-    render();
+    if (!rafPending) {
+      rafPending = true;
+      requestAnimationFrame(function() {
+        rafPending = false;
+        render();
+      });
+    }
   }
 
   function onPointerUp(e) {
-    state.dragging = null;
+    if (state.dragging !== null) {
+      state.dragging = null;
+      render();
+    }
   }
 
   canvas.addEventListener('mousedown', onPointerDown);
@@ -1150,7 +1170,7 @@
   canvas.addEventListener('mouseleave', onPointerUp);
   canvas.addEventListener('touchstart', onPointerDown, { passive: false });
   canvas.addEventListener('touchmove', onPointerMove, { passive: false });
-  canvas.addEventListener('touchend', onPointerUp);
+  canvas.addEventListener('touchend', function(e) { e.preventDefault(); onPointerUp(e); }, { passive: false });
 
   // --- Control bindings ---
   document.getElementById('btnRandom').addEventListener('click', randomizePoints);
@@ -1189,7 +1209,7 @@
   document.getElementById('toggleTheme').addEventListener('click', function() {
     state.darkMode = !state.darkMode;
     this.classList.toggle('active', state.darkMode);
-    document.documentElement.setAttribute('data-theme', state.darkMode ? 'dark' : '');
+    if (state.darkMode) { document.documentElement.setAttribute('data-theme', 'dark'); } else { document.documentElement.removeAttribute('data-theme'); }
     render();
   });
 

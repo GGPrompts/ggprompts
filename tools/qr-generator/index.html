@@ -578,6 +578,11 @@
     // QR Encoding
     // ----------------------------------------------------------
 
+    // Encode string to UTF-8 bytes
+    function toUTF8Bytes(str) {
+        return new TextEncoder().encode(str);
+    }
+
     function getMinVersion(dataLength, ecLevelIdx) {
         for (let v = 1; v <= 40; v++) {
             const entry = EC_TABLE[v][ecLevelIdx];
@@ -590,7 +595,7 @@
         return -1;
     }
 
-    function encodeData(text, version, ecLevelIdx) {
+    function encodeData(utf8Bytes, version, ecLevelIdx) {
         const entry = EC_TABLE[version][ecLevelIdx];
         const totalDataCW = entry[0];
         const charCountBits = version <= 9 ? 8 : 16;
@@ -605,13 +610,11 @@
 
         // Mode indicator: 0100 = byte mode
         pushBits(4, 4);
-        // Character count
-        pushBits(text.length, charCountBits);
-        // Data
-        for (let i = 0; i < text.length; i++) {
-            let code = text.charCodeAt(i);
-            if (code > 255) code = 63; // '?' for non-Latin1
-            pushBits(code, 8);
+        // Character count (byte count in byte mode)
+        pushBits(utf8Bytes.length, charCountBits);
+        // Data bytes (already UTF-8 encoded)
+        for (let i = 0; i < utf8Bytes.length; i++) {
+            pushBits(utf8Bytes[i], 8);
         }
         // Terminator (up to 4 zero bits)
         const terminatorLen = Math.min(4, totalDataCW * 8 - bits.length);
@@ -802,11 +805,7 @@
         let col = size - 1;
         while (col >= 0) {
             if (col === 6) col--; // skip timing column
-            let upward = ((size - 1 - col) >> 1) % 2 === 0;
-            // Determine direction based on strip index
-            // Even strips go upward, odd go downward
-            const stripIdx = col >= 7 ? (size - 1 - col) : (size - 2 - col);
-            upward = stripIdx % 2 === 0;
+            const upward = ((size - 1 - col) >> 1) % 2 === 0;
 
             for (let row = upward ? size - 1 : 0;
                  upward ? row >= 0 : row < size;
@@ -947,15 +946,15 @@
         // Around top-left finder (vertical)
         const vPositions = [8, 7, 5, 4, 3, 2, 1, 0]; // rows, col=8
         for (let i = 0; i < 8; i++) {
-            matrix[vPositions[i]][8] = (bits >> (i)) & 1;
+            matrix[vPositions[i]][8] = (bits >> (7 - i)) & 1;
         }
 
         // Around bottom-left finder (vertical) and top-right finder (horizontal)
         for (let i = 0; i < 7; i++) {
-            matrix[size - 1 - i][8] = (bits >> (14 - i)) & 1;
+            matrix[size - 1 - i][8] = (bits >> i) & 1;
         }
         for (let i = 0; i < 8; i++) {
-            matrix[8][size - 8 + i] = (bits >> (7 - i)) & 1;
+            matrix[8][size - 8 + i] = (bits >> (7 + i)) & 1;
         }
 
         // Dark module
@@ -983,7 +982,8 @@
 
     function generateQR(text, ecLevel) {
         const ecLevelIdx = EC_LEVELS[ecLevel];
-        const dataLength = text.length;
+        const utf8Bytes = toUTF8Bytes(text);
+        const dataLength = utf8Bytes.length;
 
         const version = getMinVersion(dataLength, ecLevelIdx);
         if (version < 0) {
@@ -993,7 +993,7 @@
         const size = version * 4 + 17;
 
         // Encode data
-        const dataCW = encodeData(text, version, ecLevelIdx);
+        const dataCW = encodeData(utf8Bytes, version, ecLevelIdx);
         const allCW = computeECC(dataCW, version, ecLevelIdx);
 
         // Create matrix and place function patterns
@@ -1055,7 +1055,7 @@
             size,
             ecLevel,
             mask: bestMask,
-            dataBytes: dataCW.length,
+            dataBytes: utf8Bytes.length,
         };
     }
 
@@ -1184,6 +1184,10 @@
         errorMsg.classList.remove('show');
 
         if (!text) {
+            currentQR = null;
+            canvas.style.display = 'none';
+            placeholder.style.display = '';
+            infoBar.style.display = 'none';
             errorMsg.textContent = 'Please enter some text or a URL.';
             errorMsg.classList.add('show');
             return;

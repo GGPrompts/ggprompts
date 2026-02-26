@@ -595,11 +595,15 @@
     var STORAGE_KEY = "soundscape-mixer-state";
 
     function ensureAudio() {
-        if (audioCtx) return;
+        if (audioCtx) {
+            if (audioCtx.state === "suspended") audioCtx.resume();
+            return;
+        }
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         masterGain = audioCtx.createGain();
-        masterGain.gain.value = 0.75;
+        masterGain.gain.value = masterVol / 100;
         masterGain.connect(audioCtx.destination);
+        if (audioCtx.state === "suspended") audioCtx.resume();
     }
 
     // ── Noise buffer utility ─────────────────────────────────
@@ -1490,10 +1494,10 @@
 
     function startChannel(id) {
         ensureAudio();
-        if (audioCtx.state === "suspended") audioCtx.resume();
 
         var state = channelStates[id];
-        if (state.active) return;
+        if (state.active || state._starting) return;
+        state._starting = true;
 
         var ch = channels.find(function(c) { return c.id === id; });
         if (!ch) return;
@@ -1508,6 +1512,7 @@
         state.active = true;
         state.gainNode = gainNode;
         state.audioData = audioData;
+        state._starting = false;
 
         updateChannelUI(id);
         updatePlayButton();
@@ -1515,6 +1520,7 @@
 
     function stopChannel(id) {
         var state = channelStates[id];
+        state._starting = false;
         if (!state.active) return;
 
         // Cleanup custom timers
@@ -1526,10 +1532,18 @@
         if (state.audioData && state.audioData.sources) {
             state.audioData.sources.forEach(function(s) {
                 try { s.stop(); } catch(e) {}
+                try { s.disconnect(); } catch(e) {}
             });
         }
 
-        // Disconnect gain
+        // Disconnect all intermediate nodes
+        if (state.audioData && state.audioData.nodes) {
+            state.audioData.nodes.forEach(function(n) {
+                try { n.disconnect(); } catch(e) {}
+            });
+        }
+
+        // Disconnect channel gain
         if (state.gainNode) {
             try { state.gainNode.disconnect(); } catch(e) {}
         }
@@ -1544,7 +1558,7 @@
 
     function updateChannelGain(id) {
         var state = channelStates[id];
-        if (state.gainNode) {
+        if (state.gainNode && audioCtx) {
             state.gainNode.gain.setTargetAtTime(state.volume / 100, audioCtx.currentTime, 0.05);
         }
     }
@@ -1569,7 +1583,6 @@
     // ── Play All / Stop All ──────────────────────────────────
     $playAllBtn.addEventListener("click", function() {
         ensureAudio();
-        if (audioCtx.state === "suspended") audioCtx.resume();
 
         if (isPlaying) {
             // Stop all
@@ -1599,7 +1612,7 @@
     $masterVolume.addEventListener("input", function() {
         masterVol = parseInt($masterVolume.value);
         $masterValue.textContent = masterVol + "%";
-        if (masterGain) {
+        if (masterGain && audioCtx) {
             masterGain.gain.setTargetAtTime(masterVol / 100, audioCtx.currentTime, 0.05);
         }
         autosave();
@@ -1670,7 +1683,6 @@
     // ── Scene presets ────────────────────────────────────────
     function applyScene(scene) {
         ensureAudio();
-        if (audioCtx.state === "suspended") audioCtx.resume();
 
         // Stop all first
         channels.forEach(function(ch) {
@@ -1725,7 +1737,7 @@
         var dpr = window.devicePixelRatio || 1;
         $bgCanvas.width = window.innerWidth * dpr;
         $bgCanvas.height = window.innerHeight * dpr;
-        bgCtx.scale(dpr, dpr);
+        bgCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
         $bgCanvas.style.width = window.innerWidth + "px";
         $bgCanvas.style.height = window.innerHeight + "px";
 
@@ -1773,8 +1785,10 @@
     initParticles();
     drawParticles();
 
+    var resizeTimer = null;
     window.addEventListener("resize", function() {
-        initParticles();
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(initParticles, 150);
     });
 
     // ── Autosave / Restore ───────────────────────────────────

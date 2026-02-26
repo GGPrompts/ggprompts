@@ -456,7 +456,7 @@
     resize();
 
     // ── 4x4 Matrix Math ──────────────────────────────────────
-    // Matrices stored as flat Float64Array[16], column-major
+    // Matrices stored as flat Float64Array[16], row-major
     const Mat4 = {
         create() {
             return new Float64Array(16);
@@ -969,11 +969,12 @@
     }
 
     // ── Main Render Loop ─────────────────────────────────────
-    let lastTime = 0;
+    let lastTime = -1;
 
     function render(time) {
         requestAnimationFrame(render);
 
+        if (lastTime < 0) lastTime = time;
         const dt = (time - lastTime) / 1000;
         lastTime = time;
 
@@ -986,9 +987,9 @@
             document.getElementById('fpsDisplay').textContent = fps + ' fps';
         }
 
-        // Auto rotate
+        // Auto rotate (delta-time based for frame-rate independence)
         if (autoRotate && !isDragging) {
-            const speed = rotSpeed * 0.0003;
+            const speed = rotSpeed * 0.018 * dt;
             rotY += speed;
             rotX += speed * 0.3;
         }
@@ -1021,7 +1022,7 @@
         const [mr, mg, mb] = hexToRgb(meshColorHex);
 
         if (renderMode === 'solid') {
-            // Painter's algorithm with back-face culling
+            // Painter's algorithm with two-sided lighting
             const facesWithDepth = [];
             for (let i = 0; i < mesh.faces.length; i++) {
                 const f = mesh.faces[i];
@@ -1029,25 +1030,23 @@
                 const tv1 = transformed[f[1]];
                 const tv2 = transformed[f[2]];
                 const normal = faceNormal(tv0, tv1, tv2);
-                // Camera looks down -Z in view space, so view direction is [0,0,-1]
-                // Back-face cull: if normal.z < 0, face is pointing away
-                const centerZ = f.reduce((sum, idx) => sum + transformed[idx][2], 0) / f.length;
-                const viewDir = [0, 0, -1];
-                if (vecDot(normal, viewDir) >= 0) continue; // cull
-                // Average depth for sorting
+                // Average depth for sorting (back to front)
                 const avgDepth = f.reduce((sum, idx) => sum + transformed[idx][2], 0) / f.length;
                 facesWithDepth.push({ face: f, depth: avgDepth, normal });
             }
-            // Sort back to front
+            // Sort back to front (most negative z first)
             facesWithDepth.sort((a, b) => a.depth - b.depth);
 
             facesWithDepth.forEach(({ face, normal }) => {
                 const pts = face.map(idx => projected[idx]).filter(Boolean);
                 if (pts.length < 3) return;
 
-                // Simple directional lighting
-                const nLen = Math.sqrt(normal[0]*normal[0] + normal[1]*normal[1] + normal[2]*normal[2]);
-                const nx = normal[0]/nLen, ny = normal[1]/nLen, nz = normal[2]/nLen;
+                // Two-sided directional lighting: flip normal if it faces away from camera
+                let nLen = Math.sqrt(normal[0]*normal[0] + normal[1]*normal[1] + normal[2]*normal[2]);
+                if (nLen < 1e-10) nLen = 1;
+                let nx = normal[0]/nLen, ny = normal[1]/nLen, nz = normal[2]/nLen;
+                // Camera looks down -Z; if normal points away (dot with viewDir >= 0), flip it
+                if (nz <= 0) { nx = -nx; ny = -ny; nz = -nz; }
                 const light = [0.3, 0.6, -0.7];
                 const lLen = Math.sqrt(light[0]*light[0] + light[1]*light[1] + light[2]*light[2]);
                 const lx = light[0]/lLen, ly = light[1]/lLen, lz = light[2]/lLen;

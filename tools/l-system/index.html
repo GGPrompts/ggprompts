@@ -731,6 +731,7 @@ button.primary:hover {
   // State
   // ============================================================
   let currentPreset = -1;
+  let currentDrawChars = null; // custom draw-char set from preset (e.g. Penrose)
   let panX = 0, panY = 0, zoom = 1;
   let isDragging = false, dragStartX = 0, dragStartY = 0;
 
@@ -770,16 +771,34 @@ button.primary:hover {
   function addRuleRow(key = '', val = '') {
     const row = document.createElement('div');
     row.className = 'rule-row';
-    row.innerHTML = `<input type="text" value="${key}" style="width:30px;text-align:center;flex:0 0 30px" spellcheck="false" maxlength="2"><span class="rule-arrow">&rarr;</span><input type="text" value="${val}" spellcheck="false"><button title="Remove">&times;</button>`;
-    row.querySelector('button').addEventListener('click', () => {
-      row.remove();
-      scheduleRender();
-    });
-    row.querySelectorAll('input').forEach(inp => inp.addEventListener('change', scheduleRender));
+
+    const keyInput = document.createElement('input');
+    keyInput.type = 'text';
+    keyInput.value = key;
+    keyInput.style.cssText = 'width:30px;text-align:center;flex:0 0 30px';
+    keyInput.spellcheck = false;
+    keyInput.maxLength = 2;
+
+    const arrow = document.createElement('span');
+    arrow.className = 'rule-arrow';
+    arrow.innerHTML = '&rarr;';
+
+    const valInput = document.createElement('input');
+    valInput.type = 'text';
+    valInput.value = val;
+    valInput.spellcheck = false;
+
+    const removeBtn = document.createElement('button');
+    removeBtn.title = 'Remove';
+    removeBtn.innerHTML = '&times;';
+    removeBtn.addEventListener('click', () => { row.remove(); currentDrawChars = null; scheduleRender(); });
+
+    row.append(keyInput, arrow, valInput, removeBtn);
+    [keyInput, valInput].forEach(inp => inp.addEventListener('change', () => { currentDrawChars = null; scheduleRender(); }));
     rulesContainer.appendChild(row);
   }
 
-  addRuleBtn.addEventListener('click', () => addRuleRow());
+  addRuleBtn.addEventListener('click', () => { currentDrawChars = null; addRuleRow(); });
 
   // ============================================================
   // Section collapse
@@ -844,6 +863,7 @@ button.primary:hover {
     colorBase.value = p.colorBase || '#5a3a1a';
     colorTip.value = p.colorTip || '#3da53d';
     stochasticCb.checked = !!p.stochastic;
+    currentDrawChars = p.drawChars || null;
     if (p.angleVar !== undefined) { angleVarSlider.value = p.angleVar; angleVarVal.textContent = p.angleVar; }
     if (p.lengthVar !== undefined) { lengthVarSlider.value = p.lengthVar; lengthVarVal.textContent = p.lengthVar + '%'; }
 
@@ -857,17 +877,25 @@ button.primary:hover {
   // ============================================================
   // L-System string generation
   // ============================================================
+  const MAX_STRING_LEN = 2_000_000;
+  const MAX_GEN_MS = 3000; // abort generation after 3 seconds
+
   function generateLSystem(axiom, rules, iterations) {
     let current = axiom;
+    const t0 = performance.now();
     for (let i = 0; i < iterations; i++) {
       let next = '';
       for (const ch of current) {
         next += (rules[ch] !== undefined) ? rules[ch] : ch;
       }
       current = next;
-      // Safety: cap at 2M characters
-      if (current.length > 2000000) {
-        current = current.substring(0, 2000000);
+      // Safety: cap string length
+      if (current.length > MAX_STRING_LEN) {
+        current = current.substring(0, MAX_STRING_LEN);
+        break;
+      }
+      // Safety: cap generation time
+      if (performance.now() - t0 > MAX_GEN_MS) {
         break;
       }
     }
@@ -881,17 +909,19 @@ button.primary:hover {
     const {
       angle: angleDeg, stepLength, lineWidth, lengthDecay, widthDecay,
       colorMode: cMode, colorBase: cBase, colorTip: cTip,
-      stochastic, angleVar, lengthVar, seed
+      stochastic, angleVar, lengthVar, seed,
+      drawChars: drawCharsOverride
     } = config;
 
     const angleRad = angleDeg * Math.PI / 180;
     const rng = stochastic ? mulberry32(seed) : null;
 
     // Determine which chars cause drawing
-    const drawChars = new Set(['F', 'G', 'A', 'B']);
-    // For presets that use digits as draw chars
-    for (const ch of str) {
-      if (ch >= '0' && ch <= '9') drawChars.add(ch);
+    let drawChars;
+    if (drawCharsOverride) {
+      drawChars = new Set(drawCharsOverride);
+    } else {
+      drawChars = new Set(['F', 'G', 'A', 'B']);
     }
 
     // First pass: compute bounding box
@@ -1114,7 +1144,19 @@ button.primary:hover {
     // Generate L-system
     const rules = getRules();
     const axiom = axiomInput.value || 'F';
-    const iterations = parseInt(iterSlider.value);
+    let iterations = parseInt(iterSlider.value);
+
+    // Estimate growth factor and warn if iterations would be excessive
+    const avgExpansion = Object.values(rules).reduce((sum, r) => sum + r.length, 0) / Math.max(Object.keys(rules).length, 1);
+    if (avgExpansion > 1) {
+      const estLen = axiom.length * Math.pow(avgExpansion, iterations);
+      // If estimated length far exceeds cap, reduce iterations to a safe level
+      if (estLen > MAX_STRING_LEN * 10) {
+        const safeIter = Math.max(1, Math.floor(Math.log(MAX_STRING_LEN / axiom.length) / Math.log(avgExpansion)));
+        iterations = Math.min(iterations, safeIter + 1);
+      }
+    }
+
     const t0 = performance.now();
     const lStr = generateLSystem(axiom, rules, iterations);
     const t1 = performance.now();
@@ -1132,7 +1174,8 @@ button.primary:hover {
       stochastic: stochasticCb.checked,
       angleVar: parseFloat(angleVarSlider.value),
       lengthVar: parseFloat(lengthVarSlider.value),
-      seed: parseInt(seedInput.value) || 42
+      seed: parseInt(seedInput.value) || 42,
+      drawChars: currentDrawChars || null
     };
 
     const { segments, bounds } = interpretTurtle(lStr, config);
@@ -1167,7 +1210,8 @@ button.primary:hover {
     ctx.restore();
 
     const t3 = performance.now();
-    infoOverlay.textContent = `${lStr.length.toLocaleString()} chars | ${segments.length.toLocaleString()} segments | gen ${(t1 - t0).toFixed(0)}ms | draw ${(t3 - t2).toFixed(0)}ms`;
+    const truncated = lStr.length >= MAX_STRING_LEN;
+    infoOverlay.textContent = `${lStr.length.toLocaleString()} chars | ${segments.length.toLocaleString()} segments | gen ${(t1 - t0).toFixed(0)}ms | draw ${(t3 - t2).toFixed(0)}ms${truncated ? ' | TRUNCATED' : ''}`;
   }
 
   function autoFitView(bounds, w, h) {

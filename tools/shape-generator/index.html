@@ -311,6 +311,7 @@
             transform: translate(-50%, -50%);
             box-shadow: 0 0 6px rgba(99,102,241,0.5);
             transition: box-shadow var(--transition);
+            touch-action: none;
         }
         .br-handle:hover, .br-handle.dragging {
             box-shadow: 0 0 12px rgba(99,102,241,0.8);
@@ -356,6 +357,7 @@
             z-index: 10;
             transform: translate(-50%, -50%);
             box-shadow: 0 0 6px rgba(99,102,241,0.5);
+            touch-action: none;
         }
         .cp-vertex:hover { box-shadow: 0 0 12px rgba(99,102,241,0.8); }
         .cp-edge-line {
@@ -951,16 +953,16 @@
         e.preventDefault();
         hObj.el.classList.add('dragging');
 
-        var rect = brEditorWrap.getBoundingClientRect();
         var def = hObj.def;
-        var w = brSize.w;
-        var h = brSize.h;
 
         function onMove(ev) {
             var clientX, clientY;
             if (ev.touches) { clientX = ev.touches[0].clientX; clientY = ev.touches[0].clientY; }
             else { clientX = ev.clientX; clientY = ev.clientY; }
 
+            var rect = brEditorWrap.getBoundingClientRect();
+            var w = brSize.w;
+            var h = brSize.h;
             var relX = clientX - rect.left;
             var relY = clientY - rect.top;
 
@@ -1127,7 +1129,7 @@
 
         if (blobFormat === 'clip-path') {
             var path = getBlobSVGPath();
-            var svgId = 'blob-clip-' + Date.now();
+            var svgId = 'blob-clip-active';
             // Use an inline SVG for the clip path
             var existingSvg = document.getElementById('blob-svg-defs');
             if (existingSvg) existingSvg.remove();
@@ -1277,6 +1279,10 @@
         return 'polygon(' + pts.join(', ') + ')';
     }
 
+    var cpHandleEls = [];   // { el, label } for in-place position updates
+    var cpLineEls = [];     // SVG line elements for in-place updates
+    var cpVertexCount = -1; // tracks when full rebuild is needed
+
     function renderClipPath() {
         var w = cpSize.w;
         var h = cpSize.h;
@@ -1292,91 +1298,120 @@
         cpShape.style.background = getBackground();
         cpShape.style.clipPath = getClipPathCSS();
 
-        // Remove old handles
-        cpArea.querySelectorAll('.cp-vertex, .cp-vertex-label').forEach(function(el) { el.remove(); });
+        var needsRebuild = cpVertexCount !== cpVertices.length;
+        cpVertexCount = cpVertices.length;
 
-        // Draw edge lines
-        var svgNS = 'http://www.w3.org/2000/svg';
-        cpEdgeSvg.innerHTML = '';
+        if (needsRebuild) {
+            // Full rebuild: remove old handles and recreate
+            cpArea.querySelectorAll('.cp-vertex, .cp-vertex-label').forEach(function(el) { el.remove(); });
+            cpHandleEls = [];
+
+            cpVertices.forEach(function(v, idx) {
+                var handle = document.createElement('div');
+                handle.className = 'cp-vertex';
+                cpArea.appendChild(handle);
+
+                var label = document.createElement('div');
+                label.className = 'cp-vertex-label';
+                cpArea.appendChild(label);
+
+                cpHandleEls.push({ el: handle, label: label });
+
+                handle.addEventListener('contextmenu', function(e) {
+                    e.preventDefault();
+                    if (cpVertices.length > 3) {
+                        cpVertices.splice(idx, 1);
+                        renderAll();
+                    }
+                });
+                handle.addEventListener('mousedown', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    startCpDrag(e, idx);
+                });
+                handle.addEventListener('touchstart', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    startCpDrag(e, idx);
+                }, { passive: false });
+            });
+
+            // Rebuild SVG lines
+            var svgNS = 'http://www.w3.org/2000/svg';
+            cpEdgeSvg.innerHTML = '';
+            cpLineEls = [];
+            for (var i = 0; i < cpVertices.length; i++) {
+                var line = document.createElementNS(svgNS, 'line');
+                line.setAttribute('stroke', 'rgba(99,102,241,0.4)');
+                line.setAttribute('stroke-width', '1');
+                line.setAttribute('stroke-dasharray', '4 3');
+                cpEdgeSvg.appendChild(line);
+                cpLineEls.push(line);
+            }
+
+            // Rebuild vertex list in panel
+            cpVertexListEl.innerHTML = '';
+            cpVertices.forEach(function(v, idx) {
+                var row = document.createElement('div');
+                row.className = 'control-row';
+                row.style.marginBottom = '6px';
+                row.innerHTML = '<label style="width:32px;font-size:10px;">#' + (idx + 1) + '</label>' +
+                    '<input type="number" min="0" max="100" value="' + round1(v.x) + '" style="width:48px;" data-idx="' + idx + '" data-axis="x">' +
+                    '<span style="font-size:10px;color:var(--text-muted);">,</span>' +
+                    '<input type="number" min="0" max="100" value="' + round1(v.y) + '" style="width:48px;" data-idx="' + idx + '" data-axis="y">';
+                cpVertexListEl.appendChild(row);
+            });
+            cpVertexListEl.querySelectorAll('input[type="number"]').forEach(function(input) {
+                input.addEventListener('input', function() {
+                    var i = parseInt(this.dataset.idx);
+                    var axis = this.dataset.axis;
+                    cpVertices[i][axis] = clamp(parseFloat(this.value) || 0, 0, 100);
+                    renderAll();
+                });
+            });
+        }
+
+        // Update positions (fast path -- no DOM create/destroy)
         cpEdgeSvg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
         cpEdgeSvg.style.width = w + 'px';
         cpEdgeSvg.style.height = h + 'px';
 
         for (var i = 0; i < cpVertices.length; i++) {
-            var v1 = cpVertices[i];
+            var v = cpVertices[i];
+            var px = v.x / 100 * w;
+            var py = v.y / 100 * h;
+
+            cpHandleEls[i].el.style.left = px + 'px';
+            cpHandleEls[i].el.style.top = py + 'px';
+            cpHandleEls[i].label.style.left = px + 'px';
+            cpHandleEls[i].label.style.top = (py - 14) + 'px';
+            cpHandleEls[i].label.textContent = round1(v.x) + ', ' + round1(v.y);
+
             var v2 = cpVertices[(i + 1) % cpVertices.length];
-            var line = document.createElementNS(svgNS, 'line');
-            line.setAttribute('x1', v1.x / 100 * w);
-            line.setAttribute('y1', v1.y / 100 * h);
-            line.setAttribute('x2', v2.x / 100 * w);
-            line.setAttribute('y2', v2.y / 100 * h);
-            line.setAttribute('stroke', 'rgba(99,102,241,0.4)');
-            line.setAttribute('stroke-width', '1');
-            line.setAttribute('stroke-dasharray', '4 3');
-            cpEdgeSvg.appendChild(line);
+            cpLineEls[i].setAttribute('x1', px);
+            cpLineEls[i].setAttribute('y1', py);
+            cpLineEls[i].setAttribute('x2', v2.x / 100 * w);
+            cpLineEls[i].setAttribute('y2', v2.y / 100 * h);
         }
 
-        // Add vertex handles
-        cpVertices.forEach(function(v, idx) {
-            var handle = document.createElement('div');
-            handle.className = 'cp-vertex';
-            handle.style.left = (v.x / 100 * w) + 'px';
-            handle.style.top = (v.y / 100 * h) + 'px';
-            cpArea.appendChild(handle);
-
-            var label = document.createElement('div');
-            label.className = 'cp-vertex-label';
-            label.style.left = (v.x / 100 * w) + 'px';
-            label.style.top = (v.y / 100 * h - 14) + 'px';
-            label.textContent = round1(v.x) + ', ' + round1(v.y);
-            cpArea.appendChild(label);
-
-            // Right-click to remove
-            handle.addEventListener('contextmenu', function(e) {
-                e.preventDefault();
-                if (cpVertices.length > 3) {
-                    cpVertices.splice(idx, 1);
-                    renderAll();
+        // Update panel number inputs (only when not focused, to avoid disrupting user typing)
+        if (!needsRebuild) {
+            var inputs = cpVertexListEl.querySelectorAll('input[type="number"]');
+            inputs.forEach(function(input) {
+                if (document.activeElement !== input) {
+                    var i = parseInt(input.dataset.idx);
+                    var axis = input.dataset.axis;
+                    input.value = round1(cpVertices[i][axis]);
                 }
             });
-
-            // Drag
-            handle.addEventListener('mousedown', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                startCpDrag(e, idx);
-            });
-            handle.addEventListener('touchstart', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                startCpDrag(e, idx);
-            }, { passive: false });
-        });
-
-        // Render vertex list in panel
-        cpVertexListEl.innerHTML = '';
-        cpVertices.forEach(function(v, idx) {
-            var row = document.createElement('div');
-            row.className = 'control-row';
-            row.style.marginBottom = '6px';
-            row.innerHTML = '<label style="width:32px;font-size:10px;">#' + (idx + 1) + '</label>' +
-                '<input type="number" min="0" max="100" value="' + round1(v.x) + '" style="width:48px;" data-idx="' + idx + '" data-axis="x">' +
-                '<span style="font-size:10px;color:var(--text-muted);">,</span>' +
-                '<input type="number" min="0" max="100" value="' + round1(v.y) + '" style="width:48px;" data-idx="' + idx + '" data-axis="y">';
-            cpVertexListEl.appendChild(row);
-        });
-        cpVertexListEl.querySelectorAll('input[type="number"]').forEach(function(input) {
-            input.addEventListener('input', function() {
-                var i = parseInt(this.dataset.idx);
-                var axis = this.dataset.axis;
-                cpVertices[i][axis] = clamp(parseFloat(this.value) || 0, 0, 100);
-                renderAll();
-            });
-        });
+        }
     }
+
+    var cpDragging = false;
 
     // Click on area to add vertex
     cpArea.addEventListener('click', function(e) {
+        if (cpDragging) return;
         if (e.target.classList.contains('cp-vertex')) return;
         var rect = cpArea.getBoundingClientRect();
         var x = (e.clientX - rect.left) / cpSize.w * 100;
@@ -1388,13 +1423,14 @@
     });
 
     function startCpDrag(e, idx) {
-        var rect = cpArea.getBoundingClientRect();
+        cpDragging = true;
 
         function onMove(ev) {
             var clientX, clientY;
             if (ev.touches) { clientX = ev.touches[0].clientX; clientY = ev.touches[0].clientY; }
             else { clientX = ev.clientX; clientY = ev.clientY; }
 
+            var rect = cpArea.getBoundingClientRect();
             var x = (clientX - rect.left) / cpSize.w * 100;
             var y = (clientY - rect.top) / cpSize.h * 100;
             cpVertices[idx].x = clamp(round1(x), 0, 100);
@@ -1407,6 +1443,7 @@
             document.removeEventListener('mouseup', onUp);
             document.removeEventListener('touchmove', onMove);
             document.removeEventListener('touchend', onUp);
+            setTimeout(function() { cpDragging = false; }, 0);
         }
 
         document.addEventListener('mousemove', onMove);

@@ -572,8 +572,8 @@ code block
 
                 // Extract fenced code blocks first (protect from inline parsing)
                 const codeBlocks = [];
-                src = src.replace(/^```(\w*)\n([\s\S]*?)^```/gm, (_, lang, code) => {
-                    codeBlocks.push({ lang, code: this.escapeHtml(code.replace(/\n$/, '')) });
+                src = src.replace(/^``` *(\w*)\n([\s\S]*?)^```$/gm, (_, lang, code) => {
+                    codeBlocks.push({ lang: lang.trim(), code: this.escapeHtml(code.replace(/\n$/, '')) });
                     return '\x00CODEBLOCK_' + (codeBlocks.length - 1) + '\x00';
                 });
 
@@ -599,7 +599,7 @@ code block
                 }
 
                 // Horizontal rule
-                if (/^(\*{3,}|-{3,}|_{3,})$/.test(block.trim())) {
+                if (/^([\s]*\*[\s]*){3,}$|^([\s]*-[\s]*){3,}$|^([\s]*_[\s]*){3,}$/.test(block.trim())) {
                     return '<hr>';
                 }
 
@@ -645,8 +645,9 @@ code block
                     });
                 }
 
-                // Default: paragraph
-                return `<p>${this.parseInline(block.replace(/\n/g, ' '))}</p>`;
+                // Default: paragraph (handle hard line breaks: two trailing spaces or backslash before newline)
+                const paraText = block.replace(/  \n/g, '\x00BR\x00').replace(/\\\n/g, '\x00BR\x00').replace(/\n/g, ' ');
+                return `<p>${this.parseInline(paraText).replace(/\x00BR\x00/g, '<br>')}</p>`;
             },
 
             /**
@@ -660,14 +661,14 @@ code block
                 text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
 
                 // Images: ![alt](src "title")
-                text = text.replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+&quot;([^&]*)&quot;)?\)/g,
+                text = text.replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+&quot;(.*?)&quot;)?\)/g,
                     (_, alt, src, title) => {
                         const t = title ? ` title="${title}"` : '';
                         return `<img src="${src}" alt="${alt}"${t}>`;
                     });
 
                 // Links: [text](url "title")
-                text = text.replace(/\[([^\]]+)\]\(([^)\s]+)(?:\s+&quot;([^&]*)&quot;)?\)/g,
+                text = text.replace(/\[([^\]]+)\]\(([^)\s]+)(?:\s+&quot;(.*?)&quot;)?\)/g,
                     (_, label, href, title) => {
                         const t = title ? ` title="${title}"` : '';
                         return `<a href="${href}"${t}>${label}</a>`;
@@ -698,29 +699,63 @@ code block
                 const lines = block.split('\n');
                 const isTask = lines.some(l => /^\s*[-*+]\s+\[[ xX]\]/.test(l));
 
-                let html = isTask ? '<ul class="task-list">' : `<${type}>`;
+                // Determine indent level per line
+                const getIndent = (line) => {
+                    const m = line.match(/^(\s*)/);
+                    return m ? m[1].length : 0;
+                };
 
-                for (const line of lines) {
-                    // Detect task list items
-                    const taskMatch = line.match(/^[\s]*[-*+]\s+\[([ xX])\]\s*(.*)$/);
-                    if (taskMatch) {
-                        const checked = taskMatch[1] !== ' ' ? ' checked' : '';
-                        html += `<li><input type="checkbox"${checked} disabled> ${this.parseInline(taskMatch[2])}</li>`;
-                        continue;
+                const detectType = (line) => /^\s*\d+\.\s/.test(line) ? 'ol' : 'ul';
+
+                const buildList = (startIdx, baseIndent) => {
+                    const listType = baseIndent === 0 ? type : detectType(lines[startIdx]);
+                    const rootTag = isTask && baseIndent === 0 ? 'ul class="task-list"' : listType;
+                    const closeTag = isTask && baseIndent === 0 ? 'ul' : listType;
+                    let html = `<${rootTag}>`;
+                    let i = startIdx;
+
+                    while (i < lines.length) {
+                        const line = lines[i];
+                        const indent = getIndent(line);
+
+                        if (indent < baseIndent) break;
+
+                        if (indent > baseIndent) {
+                            // Nested list — append inside the previous <li>
+                            const nested = buildList(i, indent);
+                            // Remove closing </li> and re-add after nested list
+                            html = html.replace(/<\/li>$/, '');
+                            html += nested.html + '</li>';
+                            i = nested.endIdx;
+                            continue;
+                        }
+
+                        // Task list items
+                        const taskMatch = line.match(/^\s*[-*+]\s+\[([ xX])\]\s*(.*)$/);
+                        if (taskMatch) {
+                            const checked = taskMatch[1] !== ' ' ? ' checked' : '';
+                            html += `<li><input type="checkbox"${checked} disabled> ${this.parseInline(taskMatch[2])}</li>`;
+                            i++;
+                            continue;
+                        }
+
+                        // Regular list items
+                        const ulMatch = line.match(/^\s*[-*+]\s+(.*)$/);
+                        const olMatch = line.match(/^\s*\d+\.\s+(.*)$/);
+                        const content = ulMatch ? ulMatch[1] : olMatch ? olMatch[1] : null;
+
+                        if (content !== null) {
+                            html += `<li>${this.parseInline(content)}</li>`;
+                        }
+                        i++;
                     }
 
-                    // Regular list items
-                    const ulMatch = line.match(/^[\s]*[-*+]\s+(.*)$/);
-                    const olMatch = line.match(/^[\s]*\d+\.\s+(.*)$/);
-                    const content = ulMatch ? ulMatch[1] : olMatch ? olMatch[1] : null;
+                    html += `</${closeTag}>`;
+                    return { html, endIdx: i };
+                };
 
-                    if (content !== null) {
-                        html += `<li>${this.parseInline(content)}</li>`;
-                    }
-                }
-
-                html += isTask ? '</ul>' : `</${type}>`;
-                return html;
+                const baseIndent = getIndent(lines[0] || '');
+                return buildList(0, baseIndent).html;
             },
 
             /**
@@ -739,6 +774,7 @@ code block
                 // Data rows
                 const rows = lines.slice(2).map(l => this.parseTableRow(l));
 
+                const colCount = headers.length;
                 let html = '<table><thead><tr>';
                 headers.forEach((h, i) => {
                     const align = aligns[i] ? ` style="text-align:${aligns[i]}"` : '';
@@ -747,10 +783,11 @@ code block
                 html += '</tr></thead><tbody>';
                 rows.forEach(row => {
                     html += '<tr>';
-                    row.forEach((cell, i) => {
+                    for (let i = 0; i < colCount; i++) {
+                        const cell = row[i] || '';
                         const align = aligns[i] ? ` style="text-align:${aligns[i]}"` : '';
                         html += `<td${align}>${this.parseInline(cell)}</td>`;
-                    });
+                    }
                     html += '</tr>';
                 });
                 html += '</tbody></table>';

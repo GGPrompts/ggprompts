@@ -564,6 +564,10 @@
             .timeline-area {
                 height: 70px;
             }
+
+            .code-bar {
+                grid-column: 1 !important;
+            }
         }
     </style>
 </head>
@@ -927,14 +931,24 @@
         return parts.length ? parts.join(' ') : 'none';
     }
 
+    function hasPropertyVariation(prop) {
+        if (state.keyframes.length < 2) return false;
+        var first = state.keyframes[0][prop];
+        return state.keyframes.some(function(kf) { return kf[prop] !== first; });
+    }
+
+    function hasTransformVariation() {
+        return state.keyframes.some(function(kf) { return kfToTransform(kf) !== 'none'; });
+    }
+
     function kfToCSS(kf) {
         var lines = [];
         var transform = kfToTransform(kf);
-        if (transform !== 'none') lines.push('transform: ' + transform);
-        if (kf.opacity !== 100) lines.push('opacity: ' + (kf.opacity / 100));
-        if (kf.color !== '#6366f1') lines.push('background-color: ' + kf.color);
-        if (kf.borderRadius !== 8) lines.push('border-radius: ' + kf.borderRadius + '%');
-        if (kf.boxShadow !== 'none') lines.push('box-shadow: ' + kf.boxShadow);
+        if (transform !== 'none' || hasTransformVariation()) lines.push('transform: ' + transform);
+        if (kf.opacity !== 100 || hasPropertyVariation('opacity')) lines.push('opacity: ' + (kf.opacity / 100));
+        if (hasPropertyVariation('color')) lines.push('background-color: ' + kf.color);
+        if (kf.borderRadius !== 8 || hasPropertyVariation('borderRadius')) lines.push('border-radius: ' + kf.borderRadius + '%');
+        if (kf.boxShadow !== 'none' || hasPropertyVariation('boxShadow')) lines.push('box-shadow: ' + kf.boxShadow);
         return lines;
     }
 
@@ -1060,7 +1074,6 @@
                 if (e.target.closest('.kf-dup')) {
                     var newPct = clamp(kf.pct + 5, 0, 100);
                     var dup = createKeyframe(newPct, kf);
-                    dup.id = nextKfId++;
                     dup.pct = newPct;
                     state.keyframes.push(dup);
                     state.activeKfId = dup.id;
@@ -1169,7 +1182,7 @@
         timelineCanvas.height = h * dpr;
         timelineCanvas.style.width = w + 'px';
         timelineCanvas.style.height = h + 'px';
-        timelineCtx.scale(dpr, dpr);
+        timelineCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
         var ctx = timelineCtx;
         var pad = 30;
@@ -1389,8 +1402,8 @@
         '#scrubber::-moz-range-thumb { width:14px; height:14px; border-radius:50%; background:#6366f1; border:2px solid #1a1a22; cursor:pointer; }';
     document.head.appendChild(scrubStyle);
 
-    // ── Timeline click ───────────────────────
-    timelineArea.addEventListener('click', function(e) {
+    // ── Timeline click & drag ─────────────────
+    function timelineScrubAt(e) {
         var rect = timelineArea.getBoundingClientRect();
         var pad = 30;
         var trackW = rect.width - pad * 2;
@@ -1418,6 +1431,17 @@
         renderTimeline();
         renderKfList();
         renderKfEditor();
+    }
+
+    timelineArea.addEventListener('mousedown', function(e) {
+        timelineScrubAt(e);
+        function onMove(ev) { timelineScrubAt(ev); }
+        function onUp() {
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+        }
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
     });
 
     // ── Playback ─────────────────────────────
@@ -1649,13 +1673,13 @@
                 return createKeyframe(kfData.pct, kfData);
             });
             state.activeKfId = state.keyframes[0].id;
-            if (preset.easing) animEasing.value = preset.easing;
-            if (preset.iterations) animIterations.value = preset.iterations;
-            if (preset.direction) animDirection.value = preset.direction;
-            if (preset.duration) {
-                animDuration.value = preset.duration;
-                animDurationNum.value = preset.duration;
-            }
+            animEasing.value = preset.easing || 'ease';
+            animIterations.value = preset.iterations || '1';
+            animDirection.value = preset.direction || 'normal';
+            animFillMode.value = preset.fillMode || 'forwards';
+            var dur = preset.duration || 1;
+            animDuration.value = dur;
+            animDurationNum.value = dur;
             bezierRow.style.display = animEasing.value === 'cubic-bezier' ? '' : 'none';
             scrubber.value = 0;
             playbackTime.textContent = '0%';

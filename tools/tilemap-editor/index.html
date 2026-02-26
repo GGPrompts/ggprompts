@@ -288,7 +288,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            overflow: hidden;
+            overflow: auto;
             position: relative;
         }
 
@@ -511,6 +511,10 @@
     <div class="left-panel">
         <div class="panel-header">
             <span>LAYERS</span>
+            <span>
+                <button class="btn" id="btnAddLayer" style="font-size:13px;padding:1px 6px;">+</button>
+                <button class="btn" id="btnDelLayer" style="font-size:13px;padding:1px 6px;">-</button>
+            </span>
         </div>
         <div class="layer-list" id="layerList"></div>
     </div>
@@ -612,6 +616,11 @@ const state = {
 };
 
 const MAX_UNDO = 60;
+let layerCacheDirty = true; // flag for render optimization
+let layerCacheCanvas = null;
+let layerCacheCtx = null;
+let tilesetIsCustom = false; // track whether tileset is user-uploaded
+let tilesetDataURI = null;   // store custom tileset as data URI
 
 // ── DOM refs ─────────────────────────────────────────────────────
 const canvas = document.getElementById('mapCanvas');
@@ -763,6 +772,8 @@ function init() {
 
 function loadBuiltinTileset() {
     const c = generateBuiltinTileset();
+    tilesetIsCustom = false;
+    tilesetDataURI = null;
     setTileset(c, 16, 16);
 }
 
@@ -773,6 +784,7 @@ function setTileset(sourceCanvas, tw, th) {
     state.tilesetCols = Math.floor(sourceCanvas.width / tw);
     state.tilesetRows = Math.floor(sourceCanvas.height / th);
     state.selectedTile = 1;
+    layerCacheDirty = true;
     buildPalette();
 }
 
@@ -793,8 +805,37 @@ function createNewMap(w, h, ts) {
     state.clipboard = null;
     state.panX = 0;
     state.panY = 0;
+    layerCacheDirty = true;
     buildLayerList();
     resizeCanvas();
+    render();
+}
+
+function addLayer() {
+    pushUndo();
+    const idx = state.layers.length;
+    const defaultColors = ['#4a9','#c84','#e44','#88f','#f8a','#8f8','#ff8'];
+    state.layers.push({
+        name: 'Layer ' + (idx + 1),
+        color: defaultColors[idx % defaultColors.length],
+        visible: true,
+        data: new Array(state.mapW * state.mapH).fill(0),
+    });
+    state.activeLayer = state.layers.length - 1;
+    layerCacheDirty = true;
+    buildLayerList();
+    render();
+}
+
+function deleteLayer() {
+    if (state.layers.length <= 1) return;
+    pushUndo();
+    state.layers.splice(state.activeLayer, 1);
+    if (state.activeLayer >= state.layers.length) {
+        state.activeLayer = state.layers.length - 1;
+    }
+    layerCacheDirty = true;
+    buildLayerList();
     render();
 }
 
@@ -814,6 +855,7 @@ function resizeMap(newW, newH) {
     state.mapW = newW;
     state.mapH = newH;
     state.selection = null;
+    layerCacheDirty = true;
     resizeCanvas();
     render();
 }
@@ -842,6 +884,7 @@ function undo() {
     if (!state.undoStack.length) return;
     state.redoStack.push(state.layers.map(l => ({ ...l, data: l.data.slice() })));
     state.layers = state.undoStack.pop();
+    layerCacheDirty = true;
     buildLayerList();
     render();
 }
@@ -850,6 +893,7 @@ function redo() {
     if (!state.redoStack.length) return;
     state.undoStack.push(state.layers.map(l => ({ ...l, data: l.data.slice() })));
     state.layers = state.redoStack.pop();
+    layerCacheDirty = true;
     buildLayerList();
     render();
 }
@@ -869,6 +913,7 @@ function buildLayerList() {
         el.addEventListener('click', (e) => {
             if (e.target.classList.contains('layer-vis')) {
                 layer.visible = !layer.visible;
+                layerCacheDirty = true;
                 buildLayerList();
                 render();
                 return;
@@ -924,81 +969,98 @@ function buildPalette() {
 }
 
 // ── Rendering ────────────────────────────────────────────────────
+// Offscreen cache for layer tile data (rebuilt only when tiles change)
+function rebuildLayerCache() {
+    const ts = state.tileSize;
+    const pw = state.mapW * ts;
+    const ph = state.mapH * ts;
+
+    if (!layerCacheCanvas || layerCacheCanvas.width !== pw || layerCacheCanvas.height !== ph) {
+        layerCacheCanvas = document.createElement('canvas');
+        layerCacheCanvas.width = pw;
+        layerCacheCanvas.height = ph;
+        layerCacheCtx = layerCacheCanvas.getContext('2d');
+        layerCacheCtx.imageSmoothingEnabled = false;
+    }
+
+    const g = layerCacheCtx;
+    g.clearRect(0, 0, pw, ph);
+
+    // Checkerboard at 1x
+    g.fillStyle = '#1a1a2e';
+    g.fillRect(0, 0, pw, ph);
+    g.fillStyle = '#151530';
+    for (let y = 0; y < state.mapH; y++) {
+        for (let x = 0; x < state.mapW; x++) {
+            if ((x + y) % 2 === 0) g.fillRect(x * ts, y * ts, ts, ts);
+        }
+    }
+
+    // Draw layers at 1x
+    for (let li = 0; li < state.layers.length; li++) {
+        const layer = state.layers[li];
+        if (!layer.visible) continue;
+        const alpha = li === state.layers.length - 1 && layer.name === 'Collision' ? 0.5 : 1;
+        g.globalAlpha = alpha;
+        for (let y = 0; y < state.mapH; y++) {
+            for (let x = 0; x < state.mapW; x++) {
+                const tile = layer.data[y * state.mapW + x];
+                if (tile === 0 || !state.tilesetImg) continue;
+                const sx = (tile % state.tilesetCols) * state.tilesetTileW;
+                const sy = Math.floor(tile / state.tilesetCols) * state.tilesetTileH;
+                g.drawImage(state.tilesetImg, sx, sy, state.tilesetTileW, state.tilesetTileH,
+                    x * ts, y * ts, ts, ts);
+            }
+        }
+        g.globalAlpha = 1;
+    }
+    layerCacheDirty = false;
+}
+
 function render() {
     const w = canvas.width;
     const h = canvas.height;
     const ts = state.tileSize * state.zoom;
 
+    // Rebuild offscreen layer cache if tiles changed
+    if (layerCacheDirty) rebuildLayerCache();
+
     ctx.clearRect(0, 0, w, h);
+    ctx.imageSmoothingEnabled = false;
 
-    // Fill background
-    ctx.fillStyle = '#1a1a2e';
-    ctx.fillRect(0, 0, w, h);
-
-    // Draw checkerboard
-    ctx.fillStyle = '#151530';
-    for (let y = 0; y < state.mapH; y++) {
-        for (let x = 0; x < state.mapW; x++) {
-            if ((x + y) % 2 === 0) ctx.fillRect(x * ts, y * ts, ts, ts);
-        }
-    }
-
-    // Draw layers
-    for (let li = 0; li < state.layers.length; li++) {
-        const layer = state.layers[li];
-        if (!layer.visible) continue;
-
-        const alpha = li === 2 ? 0.5 : 1; // collision layer is semi-transparent
-        ctx.globalAlpha = alpha;
-
-        for (let y = 0; y < state.mapH; y++) {
-            for (let x = 0; x < state.mapW; x++) {
-                const tile = layer.data[y * state.mapW + x];
-                if (tile === 0) continue;
-                if (!state.tilesetImg) continue;
-
-                const sx = (tile % state.tilesetCols) * state.tilesetTileW;
-                const sy = Math.floor(tile / state.tilesetCols) * state.tilesetTileH;
-                ctx.drawImage(state.tilesetImg, sx, sy, state.tilesetTileW, state.tilesetTileH,
-                    x * ts, y * ts, ts, ts);
-            }
-        }
-        ctx.globalAlpha = 1;
+    // Blit cached layers scaled by zoom (single drawImage)
+    if (layerCacheCanvas) {
+        ctx.drawImage(layerCacheCanvas, 0, 0, w, h);
     }
 
     // Grid
     if (state.showGrid) {
         ctx.strokeStyle = 'rgba(255,255,255,0.12)';
         ctx.lineWidth = 1;
+        ctx.beginPath();
         for (let x = 0; x <= state.mapW; x++) {
-            ctx.beginPath();
             ctx.moveTo(x * ts + 0.5, 0);
             ctx.lineTo(x * ts + 0.5, h);
-            ctx.stroke();
         }
         for (let y = 0; y <= state.mapH; y++) {
-            ctx.beginPath();
             ctx.moveTo(0, y * ts + 0.5);
             ctx.lineTo(w, y * ts + 0.5);
-            ctx.stroke();
         }
-    }
+        ctx.stroke();
 
-    // Active layer highlight on grid
-    if (state.showGrid && state.activeLayer >= 0) {
-        const lc = state.layers[state.activeLayer].color;
-        ctx.strokeStyle = lc + '30';
-        ctx.lineWidth = 1;
-        for (let x = 0; x <= state.mapW; x++) {
+        // Active layer tinted grid
+        if (state.activeLayer >= 0) {
+            const lc = state.layers[state.activeLayer].color;
+            ctx.strokeStyle = lc + '30';
             ctx.beginPath();
-            ctx.moveTo(x * ts + 0.5, 0);
-            ctx.lineTo(x * ts + 0.5, h);
-            ctx.stroke();
-        }
-        for (let y = 0; y <= state.mapH; y++) {
-            ctx.beginPath();
-            ctx.moveTo(0, y * ts + 0.5);
-            ctx.lineTo(w, y * ts + 0.5);
+            for (let x = 0; x <= state.mapW; x++) {
+                ctx.moveTo(x * ts + 0.5, 0);
+                ctx.lineTo(x * ts + 0.5, h);
+            }
+            for (let y = 0; y <= state.mapH; y++) {
+                ctx.moveTo(0, y * ts + 0.5);
+                ctx.lineTo(w, y * ts + 0.5);
+            }
             ctx.stroke();
         }
     }
@@ -1035,6 +1097,7 @@ function setTile(tx, ty, value) {
     if (tx < 0 || tx >= state.mapW || ty < 0 || ty >= state.mapH) return;
     const layer = state.layers[state.activeLayer];
     layer.data[ty * state.mapW + tx] = value;
+    layerCacheDirty = true;
 }
 
 function getTile(tx, ty) {
@@ -1047,21 +1110,35 @@ function floodFill(tx, ty, newVal) {
     const target = layer.data[ty * state.mapW + tx];
     if (target === newVal) return;
 
+    // Scanline flood fill for better performance on large maps
+    const w = state.mapW, h = state.mapH;
+    const data = layer.data;
     const stack = [[tx, ty]];
-    const visited = new Set();
 
     while (stack.length) {
-        const [cx, cy] = stack.pop();
-        const key = cy * state.mapW + cx;
-        if (cx < 0 || cx >= state.mapW || cy < 0 || cy >= state.mapH) continue;
-        if (visited.has(key)) continue;
-        if (layer.data[key] !== target) continue;
-
-        visited.add(key);
-        layer.data[key] = newVal;
-
-        stack.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
+        let [cx, cy] = stack.pop();
+        if (cy < 0 || cy >= h) continue;
+        // Move left to find span start
+        while (cx > 0 && data[cy * w + cx - 1] === target) cx--;
+        let spanAbove = false, spanBelow = false;
+        while (cx < w && data[cy * w + cx] === target) {
+            data[cy * w + cx] = newVal;
+            if (!spanAbove && cy > 0 && data[(cy - 1) * w + cx] === target) {
+                stack.push([cx, cy - 1]);
+                spanAbove = true;
+            } else if (spanAbove && cy > 0 && data[(cy - 1) * w + cx] !== target) {
+                spanAbove = false;
+            }
+            if (!spanBelow && cy < h - 1 && data[(cy + 1) * w + cx] === target) {
+                stack.push([cx, cy + 1]);
+                spanBelow = true;
+            } else if (spanBelow && cy < h - 1 && data[(cy + 1) * w + cx] !== target) {
+                spanBelow = false;
+            }
+            cx++;
+        }
     }
+    layerCacheDirty = true;
 }
 
 // ── Mouse Handling ───────────────────────────────────────────────
@@ -1201,6 +1278,18 @@ function setZoom(z) {
 
 // ── Export JSON ──────────────────────────────────────────────────
 function exportJSON() {
+    const tilesetInfo = {
+        tileWidth: state.tilesetTileW,
+        tileHeight: state.tilesetTileH,
+        columns: state.tilesetCols,
+        rows: state.tilesetRows,
+        source: tilesetIsCustom ? 'custom' : 'builtin',
+    };
+    // Embed custom tileset as data URI for round-trip fidelity
+    if (tilesetIsCustom && state.tilesetImg) {
+        tilesetInfo.imageDataURI = state.tilesetImg.toDataURL('image/png');
+    }
+
     const data = {
         version: 1,
         mapWidth: state.mapW,
@@ -1208,15 +1297,10 @@ function exportJSON() {
         tileSize: state.tileSize,
         layers: state.layers.map(l => ({
             name: l.name,
+            visible: l.visible,
             data: Array.from(l.data),
         })),
-        tileset: {
-            tileWidth: state.tilesetTileW,
-            tileHeight: state.tilesetTileH,
-            columns: state.tilesetCols,
-            rows: state.tilesetRows,
-            source: 'builtin',
-        }
+        tileset: tilesetInfo,
     };
 
     const json = JSON.stringify(data, null, 2);
@@ -1243,16 +1327,43 @@ function importJSON() {
                 state.mapW = data.mapWidth;
                 state.mapH = data.mapHeight;
                 state.tileSize = data.tileSize || 16;
+                const defaultColors = ['#4a9','#c84','#e44','#88f','#f8a','#8f8','#ff8'];
                 state.layers = data.layers.map((l, i) => ({
                     name: l.name,
-                    color: LAYER_DEFS[i] ? LAYER_DEFS[i].color : '#888',
-                    visible: true,
+                    color: LAYER_DEFS[i] ? LAYER_DEFS[i].color : defaultColors[i % defaultColors.length],
+                    visible: l.visible !== undefined ? l.visible : true,
                     data: l.data.slice(),
                 }));
                 state.activeLayer = 0;
                 state.undoStack = [];
                 state.redoStack = [];
                 state.selection = null;
+                layerCacheDirty = true;
+
+                // Restore tileset from JSON
+                if (data.tileset) {
+                    if (data.tileset.source === 'custom' && data.tileset.imageDataURI) {
+                        const img = new Image();
+                        img.onload = () => {
+                            const c = document.createElement('canvas');
+                            c.width = img.width;
+                            c.height = img.height;
+                            const g = c.getContext('2d');
+                            g.imageSmoothingEnabled = false;
+                            g.drawImage(img, 0, 0);
+                            tilesetIsCustom = true;
+                            tilesetDataURI = data.tileset.imageDataURI;
+                            setTileset(c, data.tileset.tileWidth || state.tileSize, data.tileset.tileHeight || state.tileSize);
+                            resizeCanvas();
+                            render();
+                        };
+                        img.src = data.tileset.imageDataURI;
+                    } else {
+                        // Rebuild built-in tileset with imported tile size
+                        loadBuiltinTileset();
+                    }
+                }
+
                 buildLayerList();
                 resizeCanvas();
                 render();
@@ -1278,7 +1389,7 @@ function exportPNG() {
         const layer = state.layers[li];
         if (!layer.visible) continue;
         // skip collision layer in PNG export
-        if (li === 2) continue;
+        if (layer.name === 'Collision') continue;
 
         for (let y = 0; y < state.mapH; y++) {
             for (let x = 0; x < state.mapW; x++) {
@@ -1334,6 +1445,7 @@ function pasteSelection() {
             layer.data[(s.y + y) * state.mapW + (s.x + x)] = c.data[y * c.w + x];
         }
     }
+    layerCacheDirty = true;
     render();
 }
 
@@ -1349,6 +1461,7 @@ function deleteSelection() {
             }
         }
     }
+    layerCacheDirty = true;
     render();
 }
 
@@ -1356,9 +1469,9 @@ function deleteSelection() {
 function loadCustomTileset(file) {
     const reader = new FileReader();
     reader.onload = (e) => {
+        const dataURI = e.target.result;
         const img = new Image();
         img.onload = () => {
-            // Assume tile size matches current tileSize, or prompt
             const tw = state.tileSize;
             const th = state.tileSize;
             const c = document.createElement('canvas');
@@ -1367,9 +1480,12 @@ function loadCustomTileset(file) {
             const g = c.getContext('2d');
             g.imageSmoothingEnabled = false;
             g.drawImage(img, 0, 0);
+            tilesetIsCustom = true;
+            tilesetDataURI = dataURI;
+            layerCacheDirty = true;
             setTileset(c, tw, th);
         };
-        img.src = e.target.result;
+        img.src = dataURI;
     };
     reader.readAsDataURL(file);
 }
@@ -1480,6 +1596,10 @@ function bindEvents() {
         loadBuiltinTileset();
     });
 
+    // Layer add/delete
+    document.getElementById('btnAddLayer').addEventListener('click', addLayer);
+    document.getElementById('btnDelLayer').addEventListener('click', deleteLayer);
+
     // Keyboard shortcuts
     window.addEventListener('keydown', (e) => {
         // Don't capture if a modal input is focused
@@ -1517,8 +1637,6 @@ function bindEvents() {
         });
     });
 
-    // Scrollable canvas area for pan
-    canvasArea.style.overflow = 'auto';
 }
 
 function selectTool(tool) {

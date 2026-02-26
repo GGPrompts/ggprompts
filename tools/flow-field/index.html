@@ -597,6 +597,15 @@ const PALETTES = {
   neon:   ['#0a0020','#7c5cff','#ff40ff','#00e5ff','#40ff90','#ffee00']
 };
 
+// Pre-compute RGB arrays for palette colors
+const PALETTES_RGB = {};
+for (const key in PALETTES) {
+  PALETTES_RGB[key] = PALETTES[key].map(hex => {
+    const n = parseInt(hex.slice(1), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  });
+}
+
 
 // ============================================================
 // Flow Field Engine
@@ -629,8 +638,11 @@ const PALETTES = {
     trailFade: 0.012,
     colorMode: 'rainbow',
     monoColor: '#00e5ff',
+    monoRgb: [0, 229, 255],
     gradStart: '#7c5cff',
     gradEnd: '#00e5ff',
+    gradStartRgb: [124, 92, 255],
+    gradEndRgb: [0, 229, 255],
     opacity: 0.6
   };
 
@@ -649,10 +661,12 @@ const PALETTES = {
 
   // ---- Particle ----
   function createParticle() {
+    const x = Math.random() * W;
+    const y = Math.random() * H;
     return {
-      x: Math.random() * W,
-      y: Math.random() * H,
-      px: 0, py: 0,
+      x, y,
+      px: x, py: y,
+      angle: 0,
       age: Math.floor(Math.random() * P.lifetime),
       maxAge: P.lifetime
     };
@@ -663,6 +677,7 @@ const PALETTES = {
     p.y = Math.random() * H;
     p.px = p.x;
     p.py = p.y;
+    p.angle = 0;
     p.age = 0;
     p.maxAge = P.lifetime;
   }
@@ -721,19 +736,19 @@ const PALETTES = {
       const hue = ((angle / Math.PI + 1) * 180) % 360;
       [r, g, b] = hslToRgb(hue, 85, 55);
     } else if (mode === 'monochrome') {
-      [r, g, b] = hexToRgb(P.monoColor);
+      [r, g, b] = P.monoRgb;
     } else if (mode === 'gradient') {
       const t = (p.x / W + p.y / H) / 2;
-      [r, g, b] = lerpColor(hexToRgb(P.gradStart), hexToRgb(P.gradEnd), t);
+      [r, g, b] = lerpColor(P.gradStartRgb, P.gradEndRgb, t);
     } else {
       // palette preset
-      const pal = PALETTES[mode];
+      const pal = PALETTES_RGB[mode];
       if (pal) {
         const t = ((angle / Math.PI + 1) / 2) * (pal.length - 1);
         const idx = Math.floor(t);
         const frac = t - idx;
-        const c1 = hexToRgb(pal[Math.min(idx, pal.length - 1)]);
-        const c2 = hexToRgb(pal[Math.min(idx + 1, pal.length - 1)]);
+        const c1 = pal[Math.min(idx, pal.length - 1)];
+        const c2 = pal[Math.min(idx + 1, pal.length - 1)];
         [r, g, b] = lerpColor(c1, c2, frac);
       } else {
         [r, g, b] = [255, 255, 255];
@@ -787,6 +802,7 @@ const PALETTES = {
   }
 
   function fadeCanvas() {
+    if (P.trailFade <= 0) return;
     ctx.fillStyle = `rgba(0, 0, 0, ${P.trailFade})`;
     ctx.fillRect(0, 0, W, H);
   }
@@ -803,6 +819,7 @@ const PALETTES = {
 
       const n = noise.noise3D(p.x * scale, p.y * scale, zOff);
       const angle = n * Math.PI * aMult;
+      p.angle = angle;
 
       p.x += Math.cos(angle) * spd;
       p.y += Math.sin(angle) * spd;
@@ -821,22 +838,16 @@ const PALETTES = {
     ctx.lineWidth = P.lineWidth;
     ctx.lineCap = 'round';
 
-    const scale = P.noiseScale;
-    const aMult = P.angleMult;
-
     for (let i = 0; i < particles.length; i++) {
       const p = particles[i];
       const dx = p.x - p.px;
       const dy = p.y - p.py;
       if (dx * dx + dy * dy > W * W * 0.25) continue; // skip teleported particles
 
-      const n = noise.noise3D(p.px * scale, p.py * scale, zOff);
-      const angle = n * Math.PI * aMult;
-
       ctx.beginPath();
       ctx.moveTo(p.px, p.py);
       ctx.lineTo(p.x, p.y);
-      ctx.strokeStyle = getParticleColor(p, angle);
+      ctx.strokeStyle = getParticleColor(p, p.angle);
       ctx.stroke();
     }
   }
@@ -913,14 +924,17 @@ const PALETTES = {
 
     document.getElementById('monoColor').addEventListener('input', (e) => {
       P.monoColor = e.target.value;
+      P.monoRgb = hexToRgb(P.monoColor);
       updatePalettePreview();
     });
     document.getElementById('gradStart').addEventListener('input', (e) => {
       P.gradStart = e.target.value;
+      P.gradStartRgb = hexToRgb(P.gradStart);
       updatePalettePreview();
     });
     document.getElementById('gradEnd').addEventListener('input', (e) => {
       P.gradEnd = e.target.value;
+      P.gradEndRgb = hexToRgb(P.gradEnd);
       updatePalettePreview();
     });
 
@@ -953,8 +967,12 @@ const PALETTES = {
     });
 
     // Resize handler
+    let resizeTimer;
     window.addEventListener('resize', () => {
       resize();
+      clearCanvas();
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => { initParticles(); }, 150);
     });
 
     // Keyboard shortcuts

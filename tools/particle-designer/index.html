@@ -612,26 +612,29 @@ function updateParticles(dt) {
   const p = settings.particle;
   const grav = p.gravity * (H / 600);
   const wind = p.wind * (W / 800);
-  for (let i = particles.length - 1; i >= 0; i--) {
+  const dragFactor = Math.pow(p.drag, dt * 60);
+  let alive = 0;
+  for (let i = 0; i < particles.length; i++) {
     const pt = particles[i];
     pt.age += dt;
-    if (pt.age >= pt.life) {
-      particles.splice(i, 1);
-      continue;
-    }
+    if (pt.age >= pt.life) continue;
     pt.vy += grav * dt;
     pt.vx += wind * dt;
-    pt.vx *= Math.pow(p.drag, dt * 60);
-    pt.vy *= Math.pow(p.drag, dt * 60);
+    pt.vx *= dragFactor;
+    pt.vy *= dragFactor;
     pt.x += pt.vx * dt;
     pt.y += pt.vy * dt;
     pt.rotation += pt.rotSpeed * dt;
+    if (alive !== i) particles[alive] = pt;
+    alive++;
   }
+  particles.length = alive;
 }
 
 function drawParticles() {
   const v = settings.visual;
-  ctx.globalCompositeOperation = v.blendMode === 'lighter' ? 'lighter' : 'source-over';
+  const blendMap = { lighter: 'lighter', normal: 'source-over', screen: 'screen', multiply: 'multiply' };
+  ctx.globalCompositeOperation = blendMap[v.blendMode] || 'source-over';
 
   for (let i = 0; i < particles.length; i++) {
     const pt = particles[i];
@@ -903,7 +906,7 @@ const presets = {
         { pos: 1, color: '#113300' }
       ],
       sizeStart: 4, sizeEnd: 4, sizeCurve: 1,
-      opacityStart: 0, opacityEnd: 0, opacityCurve: 1,
+      opacityStart: 0.8, opacityEnd: 0.1, opacityCurve: 1,
       blendMode: 'lighter', shape: 'circle'
     }
   },
@@ -961,7 +964,7 @@ function buildPanel() {
 
   // VISUAL section
   const visSec = makeSection('Visual', [
-    selectRow('blendMode', 'Blend Mode', ['lighter', 'normal'], settings.visual.blendMode, v => { settings.visual.blendMode = v; }),
+    selectRow('blendMode', 'Blend Mode', ['lighter', 'normal', 'screen', 'multiply'], settings.visual.blendMode, v => { settings.visual.blendMode = v; }),
     selectRow('shape', 'Shape', ['circle', 'square', 'star', 'line'], settings.visual.shape, v => { settings.visual.shape = v; }),
     slider('sizeStart', 'Size Start', 1, 60, settings.visual.sizeStart, 0.5, v => { settings.visual.sizeStart = v; }),
     slider('sizeEnd', 'Size End', 0, 60, settings.visual.sizeEnd, 0.5, v => { settings.visual.sizeEnd = v; }),
@@ -1263,7 +1266,13 @@ document.getElementById('import-apply').addEventListener('click', () => {
   try {
     const data = JSON.parse(text);
     if (data.emitter && data.particle && data.visual) {
-      settings = data;
+      // Deep-merge with defaults so partial imports don't leave missing keys
+      const base = JSON.parse(JSON.stringify(defaults));
+      Object.assign(base.emitter, data.emitter);
+      Object.assign(base.particle, data.particle);
+      Object.assign(base.visual, data.visual);
+      if (Array.isArray(data.visual.colorStops)) base.visual.colorStops = data.visual.colorStops;
+      settings = base;
       particles = [];
       emitAccum = 0;
       burstTimer = 0;

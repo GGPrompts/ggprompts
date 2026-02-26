@@ -716,6 +716,8 @@
         runMatch();
     };
 
+    const BACKTRACK_TIMEOUT_MS = 200;
+
     // -- Core match engine --
     function runMatch() {
         regexError.textContent = '';
@@ -748,10 +750,11 @@
         const t0 = performance.now();
         let totalMatches = 0;
         const allGroups = [];
+        let timedOut = false;
 
         state.testStrings.forEach((text, idx) => {
             const hlEl = document.getElementById(`hl-${idx}`);
-            if (!hlEl) return;
+            if (!hlEl || timedOut) return;
 
             if (!text) {
                 hlEl.innerHTML = '';
@@ -762,7 +765,7 @@
             let match;
             const isGlobal = state.flags.g;
 
-            // Safety: detect zero-length infinite loops
+            // Safety: detect zero-length infinite loops and catastrophic backtracking
             if (isGlobal) {
                 regex.lastIndex = 0;
                 let safetyCount = 0;
@@ -777,6 +780,10 @@
                     if (match[0].length === 0) {
                         regex.lastIndex++;
                     }
+                    if (performance.now() - t0 > BACKTRACK_TIMEOUT_MS) {
+                        timedOut = true;
+                        break;
+                    }
                 }
             } else {
                 match = regex.exec(text);
@@ -787,6 +794,9 @@
                         groups: [...match],
                         namedGroups: match.groups ? { ...match.groups } : null
                     });
+                }
+                if (performance.now() - t0 > BACKTRACK_TIMEOUT_MS) {
+                    timedOut = true;
                 }
             }
 
@@ -807,19 +817,24 @@
         matchCount.textContent = totalMatches;
         execTime.textContent = `${elapsed.toFixed(1)}ms`;
 
+        if (timedOut) {
+            regexError.textContent = 'Pattern took too long — possible catastrophic backtracking. Results may be incomplete.';
+        }
+
         renderGroups(allGroups);
         updateHash();
     }
 
     function buildHighlightHtml(text, matches) {
-        if (!matches.length) return escapeHtml(text);
+        if (!matches.length) return escapeHtml(text) + '\n';
 
-        // Sort matches by index
+        // Sort matches by index, skip any that overlap with a prior match
         const sorted = [...matches].sort((a, b) => a.index - b.index);
         let html = '';
         let cursor = 0;
 
         sorted.forEach((m, i) => {
+            if (m.index < cursor) return; // skip overlapping
             if (m.index > cursor) {
                 html += escapeHtml(text.slice(cursor, m.index));
             }
@@ -833,6 +848,8 @@
             html += escapeHtml(text.slice(cursor));
         }
 
+        // Trailing newline keeps highlight layer height in sync with textarea
+        html += '\n';
         return html;
     }
 
@@ -871,16 +888,14 @@
             html += `<div class="group-match-block" style="border-left-color: ${colorVar}">`;
             html += `<div class="group-match-label">Match ${ag.matchIndex + 1}: "${escapeHtml(ag.groups[0])}"</div>`;
 
-            // Named groups lookup
+            // Named groups lookup — build index-to-name map from regex source
             const namedReverse = {};
             if (ag.namedGroups) {
-                Object.keys(ag.namedGroups).forEach(name => {
-                    // Find which index this named group corresponds to
-                    for (let gi = 1; gi < ag.groups.length; gi++) {
-                        if (ag.groups[gi] === ag.namedGroups[name]) {
-                            namedReverse[gi] = name;
-                            break;
-                        }
+                // Parse named group indices from the pattern itself
+                const namedGroupIndices = getNamedGroupIndices(state.pattern);
+                Object.keys(namedGroupIndices).forEach(name => {
+                    if (name in ag.namedGroups) {
+                        namedReverse[namedGroupIndices[name]] = name;
                     }
                 });
             }
@@ -1017,6 +1032,42 @@
     }
 
     // -- Util --
+    // Parse named capture groups from a regex pattern source string.
+    // Returns { name: groupIndex } mapping (1-based indices).
+    function getNamedGroupIndices(patternSource) {
+        const map = {};
+        let groupIndex = 0;
+        for (let i = 0; i < patternSource.length; i++) {
+            const ch = patternSource[i];
+            if (ch === '\\') { i++; continue; }          // skip escaped char
+            if (ch === '[') {                              // skip character class
+                while (i < patternSource.length && patternSource[i] !== ']') {
+                    if (patternSource[i] === '\\') i++;
+                    i++;
+                }
+                continue;
+            }
+            if (ch === '(') {
+                if (patternSource[i + 1] === '?') {
+                    // Named group (?<name>...) or (?'name'...)
+                    if (patternSource[i + 2] === '<' && patternSource[i + 3] !== '=' && patternSource[i + 3] !== '!') {
+                        groupIndex++;
+                        const nameStart = i + 3;
+                        const nameEnd = patternSource.indexOf('>', nameStart);
+                        if (nameEnd !== -1) {
+                            map[patternSource.slice(nameStart, nameEnd)] = groupIndex;
+                            i = nameEnd;
+                        }
+                    }
+                    // Non-capturing (?:...), lookahead (?=...), etc. — not a capturing group
+                } else {
+                    groupIndex++;
+                }
+            }
+        }
+        return map;
+    }
+
     function escapeHtml(str) {
         return str
             .replace(/&/g, '&amp;')
