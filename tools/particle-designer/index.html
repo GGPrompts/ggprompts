@@ -195,8 +195,8 @@ html, body {
 }
 
 .ctrl-row label {
-  font-size: 11px;
-  color: var(--text-dim);
+  font-size: 12px;
+  color: var(--text);
   min-width: 70px;
   flex-shrink: 0;
 }
@@ -412,6 +412,38 @@ html, body {
 .modal textarea:focus { border-color: var(--border-focus); outline: none; }
 .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
 
+/* Fullscreen screensaver mode */
+#app.screensaver #header,
+#app.screensaver #panel {
+  display: none;
+}
+#app.screensaver {
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+}
+#app.screensaver #canvas-wrap {
+  grid-column: 1;
+  grid-row: 1;
+  cursor: none;
+}
+#app.screensaver #stats { display: none; }
+#app.screensaver #crosshair-info { display: none; }
+
+#screensaver-hint {
+  display: none;
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: rgba(255,255,255,0.3);
+  z-index: 50;
+  pointer-events: none;
+  transition: opacity 0.5s;
+}
+#app.screensaver ~ #screensaver-hint { display: block; }
+
 /* Responsive */
 @media (max-width: 768px) {
   :root { --panel-w: 100vw; --header-h: 40px; }
@@ -440,6 +472,9 @@ html, body {
     <div id="preset-bar"></div>
     <div class="header-sep"></div>
     <div class="header-actions">
+      <button class="btn btn-sm" id="btn-randomize" title="Randomize settings (R)">Randomize</button>
+      <button class="btn btn-sm" id="btn-fullscreen" title="Fullscreen screensaver (F)">Fullscreen</button>
+      <div class="header-sep"></div>
       <button class="btn btn-sm" id="btn-import" title="Import JSON">Import</button>
       <button class="btn btn-sm btn-accent" id="btn-export" title="Export JSON">Export</button>
     </div>
@@ -465,6 +500,8 @@ html, body {
     </div>
   </div>
 </div>
+
+<div id="screensaver-hint">ESC or click to exit &bull; Space to pause</div>
 
 <script>
 // ===== PARTICLE SYSTEM ENGINE =====
@@ -694,6 +731,7 @@ function drawStar(ctx, cx, cy, spikes, outerR, innerR) {
 }
 
 function drawEmitterCrosshair() {
+  if (screensaverMode) return;
   const ex = settings.emitter.x * W;
   const ey = settings.emitter.y * H;
   ctx.strokeStyle = 'rgba(255,140,50,0.4)';
@@ -756,6 +794,7 @@ function tick(now) {
 let draggingEmitter = false;
 
 canvas.addEventListener('pointerdown', (ev) => {
+  if (screensaverMode) return;
   draggingEmitter = true;
   moveEmitter(ev);
   canvas.setPointerCapture(ev.pointerId);
@@ -922,6 +961,21 @@ const presets = {
       ],
       sizeStart: 6, sizeEnd: 1, sizeCurve: 1,
       opacityStart: 1, opacityEnd: 0, opacityCurve: 1,
+      blendMode: 'lighter', shape: 'circle'
+    }
+  },
+  bubbles: {
+    emitter: { x: 0.5, y: 0.85, rate: 25, burst: false, burstCount: 50, burstInterval: 1, angle: -90, spread: 25, emitterRadius: 80 },
+    particle: { lifetimeMin: 3, lifetimeMax: 6, speedMin: 15, speedMax: 50, gravity: -40, wind: 8, drag: 0.98, rotationSpeed: 0 },
+    visual: {
+      colorStops: [
+        { pos: 0, color: '#eeffff' },
+        { pos: 0.3, color: '#88ddff' },
+        { pos: 0.6, color: '#bb99ff' },
+        { pos: 1, color: '#ffaadd' }
+      ],
+      sizeStart: 12, sizeEnd: 14, sizeCurve: 0.5,
+      opacityStart: 0.5, opacityEnd: 0, opacityCurve: 2,
       blendMode: 'lighter', shape: 'circle'
     }
   }
@@ -1294,16 +1348,186 @@ document.getElementById('import-modal').addEventListener('click', (ev) => {
   }
 });
 
+// ===== RANDOMIZE =====
+
+const palettes = [
+  // warm: fire/lava
+  ['#ffffff', '#ffee66', '#ff8800', '#cc2200', '#220000'],
+  // cool: ice/water
+  ['#ffffff', '#aaeeff', '#4488ff', '#2244aa', '#001133'],
+  // neon: cyberpunk
+  ['#ff00ff', '#ff44aa', '#8844ff', '#4400cc', '#110022'],
+  // nature: green/gold
+  ['#ffffaa', '#88ff44', '#22aa44', '#006633', '#001a0a'],
+  // sunset
+  ['#ffee88', '#ff8844', '#ff3366', '#881166', '#220022'],
+  // electric: cyan/white
+  ['#ffffff', '#88ffff', '#00ccff', '#0066cc', '#001133'],
+  // blood moon
+  ['#ffddaa', '#ff6644', '#cc1122', '#440011', '#0a0000'],
+  // galaxy
+  ['#eeddff', '#aa66ff', '#6622cc', '#220066', '#080016'],
+  // toxic
+  ['#eeff44', '#88ff00', '#44aa00', '#226600', '#0a1a00'],
+  // rose gold
+  ['#ffffff', '#ffcccc', '#ff8899', '#cc4466', '#331122'],
+];
+
+function randomizeSettings() {
+  const pal = palettes[Math.floor(Math.random() * palettes.length)];
+  const useBurst = Math.random() < 0.3;
+  const shapes = ['circle', 'square', 'star', 'line'];
+  const blends = ['lighter', 'normal', 'screen'];
+  const shape = shapes[Math.floor(Math.random() * shapes.length)];
+  const blend = blends[Math.floor(Math.random() * blends.length)];
+
+  // Randomize with coherent ranges
+  const gravDir = Math.random() < 0.4 ? -1 : 1;
+  const speedScale = 50 + Math.random() * 450;
+  const lifeBase = 0.3 + Math.random() * 3;
+
+  // Pick 2-5 color stops from the palette
+  const stopCount = 2 + Math.floor(Math.random() * (pal.length - 1));
+  const colorStops = [];
+  for (let i = 0; i < stopCount; i++) {
+    colorStops.push({
+      pos: i / (stopCount - 1),
+      color: pal[Math.floor(i / (stopCount - 1) * (pal.length - 1))]
+    });
+  }
+
+  settings = {
+    emitter: {
+      x: 0.2 + Math.random() * 0.6,
+      y: 0.2 + Math.random() * 0.6,
+      rate: useBurst ? 0 : 30 + Math.floor(Math.random() * 270),
+      burst: useBurst,
+      burstCount: 30 + Math.floor(Math.random() * 170),
+      burstInterval: 0.5 + Math.random() * 2.5,
+      angle: -180 + Math.floor(Math.random() * 360),
+      spread: 5 + Math.floor(Math.random() * 175),
+      emitterRadius: Math.floor(Math.random() * 120)
+    },
+    particle: {
+      lifetimeMin: Math.round(lifeBase * 10) / 10,
+      lifetimeMax: Math.round((lifeBase + 0.5 + Math.random() * 2) * 10) / 10,
+      speedMin: Math.floor(speedScale * 0.3),
+      speedMax: Math.floor(speedScale),
+      gravity: gravDir * Math.floor(Math.random() * 350),
+      wind: Math.floor((Math.random() - 0.5) * 100),
+      drag: Math.round((0.93 + Math.random() * 0.07) * 1000) / 1000,
+      rotationSpeed: Math.round(Math.random() * 6 * 10) / 10
+    },
+    visual: {
+      colorStops,
+      sizeStart: 2 + Math.round(Math.random() * 30),
+      sizeEnd: Math.round(Math.random() * 10),
+      sizeCurve: Math.round((0.3 + Math.random() * 2) * 10) / 10,
+      opacityStart: 0.6 + Math.random() * 0.4,
+      opacityEnd: 0,
+      opacityCurve: Math.round((0.5 + Math.random() * 2) * 10) / 10,
+      blendMode: blend,
+      shape: shape
+    }
+  };
+
+  particles = [];
+  emitAccum = 0;
+  burstTimer = 0;
+  clearActivePreset();
+  buildPanel();
+}
+
+document.getElementById('btn-randomize').addEventListener('click', randomizeSettings);
+
+// ===== FULLSCREEN SCREENSAVER =====
+
+let screensaverMode = false;
+let screensaverInterval = null;
+const SCREENSAVER_CYCLE = 8000; // ms between randomizations
+
+function enterScreensaver() {
+  screensaverMode = true;
+  const app = document.getElementById('app');
+  app.classList.add('screensaver');
+
+  // Request browser fullscreen
+  const el = document.documentElement;
+  if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+  else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+
+  // Fade in hint, then fade out after 3s
+  const hint = document.getElementById('screensaver-hint');
+  hint.style.opacity = '1';
+  setTimeout(() => { hint.style.opacity = '0'; }, 3000);
+
+  // Initial randomize + resize
+  randomizeSettings();
+  setTimeout(resizeCanvas, 50);
+
+  // Auto-randomize with smooth transition
+  screensaverInterval = setInterval(() => {
+    // Fade: briefly clear particles then randomize
+    randomizeSettings();
+  }, SCREENSAVER_CYCLE);
+}
+
+function exitScreensaver() {
+  if (!screensaverMode) return;
+  screensaverMode = false;
+  const app = document.getElementById('app');
+  app.classList.remove('screensaver');
+
+  if (document.fullscreenElement || document.webkitFullscreenElement) {
+    if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+    else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+  }
+
+  if (screensaverInterval) {
+    clearInterval(screensaverInterval);
+    screensaverInterval = null;
+  }
+
+  setTimeout(resizeCanvas, 50);
+}
+
+document.getElementById('btn-fullscreen').addEventListener('click', enterScreensaver);
+
+// Exit screensaver on fullscreen change (e.g. user presses Esc natively)
+document.addEventListener('fullscreenchange', () => {
+  if (!document.fullscreenElement && screensaverMode) exitScreensaver();
+});
+document.addEventListener('webkitfullscreenchange', () => {
+  if (!document.webkitFullscreenElement && screensaverMode) exitScreensaver();
+});
+
+// Exit on click in screensaver mode
+canvas.addEventListener('click', () => {
+  if (screensaverMode) exitScreensaver();
+});
+
 // ===== KEYBOARD =====
 
 document.addEventListener('keydown', (ev) => {
   if (ev.target.tagName === 'TEXTAREA' || ev.target.tagName === 'INPUT') return;
+
+  if (ev.code === 'Escape' && screensaverMode) {
+    exitScreensaver();
+    return;
+  }
   if (ev.code === 'Space') {
     ev.preventDefault();
     paused = !paused;
   }
   if (ev.code === 'KeyC') {
     particles = [];
+  }
+  if (ev.code === 'KeyR') {
+    randomizeSettings();
+  }
+  if (ev.code === 'KeyF') {
+    if (screensaverMode) exitScreensaver();
+    else enterScreensaver();
   }
 });
 
