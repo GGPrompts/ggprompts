@@ -1,0 +1,1333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>L-System / Fractal Tree Generator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Lora:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --font-display: 'Playfair Display', serif;
+  --font-body: 'Lora', serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --bg: #0e1208;
+  --bg-deep: #090d05;
+  --panel-bg: rgba(16, 22, 10, 0.96);
+  --panel-border: rgba(90, 130, 60, 0.3);
+  --accent: #6aad3a;
+  --accent-glow: rgba(106, 173, 58, 0.35);
+  --accent-dim: #4a7a2a;
+  --bark: #8b6914;
+  --bark-glow: rgba(139, 105, 20, 0.3);
+  --leaf: #3da53d;
+  --leaf-light: #8fd88f;
+  --text: #cdd8c0;
+  --text-dim: #7a8a6a;
+  --text-bright: #e8f0dc;
+  --input-bg: rgba(20, 30, 12, 0.9);
+  --input-border: rgba(90, 130, 60, 0.4);
+  --btn-bg: rgba(106, 173, 58, 0.15);
+  --btn-hover: rgba(106, 173, 58, 0.3);
+  --danger: #c44040;
+
+  --sidebar-w: 310px;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 30% 80%, rgba(60, 130, 30, 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 70% 20%, rgba(139, 105, 20, 0.04) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, rgba(106, 173, 58, 0.03) 0%, transparent 60%);
+}
+
+/* Layout */
+#app {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) 1fr;
+  height: 100vh;
+  width: 100vw;
+}
+
+/* Sidebar */
+#sidebar {
+  background: var(--panel-bg);
+  border-right: 1px solid var(--panel-border);
+  padding: 14px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent-dim) transparent;
+}
+
+#sidebar::-webkit-scrollbar { width: 6px; }
+#sidebar::-webkit-scrollbar-track { background: transparent; }
+#sidebar::-webkit-scrollbar-thumb { background: var(--accent-dim); border-radius: 3px; }
+
+.panel-title {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--text-bright);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.panel-title .icon {
+  font-size: 1.1rem;
+}
+
+/* Sections */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.section-header {
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  padding: 4px 0;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  user-select: none;
+}
+
+.section-header::after {
+  content: '\25BC';
+  font-size: 0.55rem;
+  transition: transform 0.2s;
+}
+
+.section-header.collapsed::after {
+  transform: rotate(-90deg);
+}
+
+.section-body {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+}
+
+.section-body.hidden {
+  max-height: 0 !important;
+  overflow: hidden;
+}
+
+/* Form controls */
+label {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+label.row {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+input[type="text"],
+input[type="number"],
+textarea,
+select {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: 4px;
+  color: var(--text-bright);
+  padding: 5px 8px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus,
+textarea:focus,
+select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 6px var(--accent-glow);
+}
+
+textarea {
+  resize: vertical;
+  min-height: 50px;
+  line-height: 1.4;
+}
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  background: var(--input-border);
+  border-radius: 2px;
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  box-shadow: 0 0 4px var(--accent-glow);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 0 4px var(--accent-glow);
+}
+
+input[type="color"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 32px;
+  height: 24px;
+  border: 1px solid var(--input-border);
+  border-radius: 4px;
+  background: none;
+  cursor: pointer;
+  padding: 1px;
+}
+
+input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
+
+input[type="checkbox"] {
+  accent-color: var(--accent);
+  width: 14px;
+  height: 14px;
+}
+
+.range-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.range-row input[type="range"] { flex: 1; }
+.range-val {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--accent);
+  min-width: 32px;
+  text-align: right;
+}
+
+/* Buttons */
+button {
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  background: var(--btn-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  color: var(--text);
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+button:hover {
+  background: var(--btn-hover);
+  border-color: var(--accent);
+  color: var(--text-bright);
+}
+
+button.primary {
+  background: rgba(106, 173, 58, 0.25);
+  border-color: var(--accent);
+  color: var(--text-bright);
+  font-weight: 500;
+}
+
+button.primary:hover {
+  background: rgba(106, 173, 58, 0.4);
+  box-shadow: 0 0 10px var(--accent-glow);
+}
+
+.btn-row {
+  display: flex;
+  gap: 6px;
+}
+
+.btn-row button { flex: 1; }
+
+/* Preset grid */
+.preset-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+
+.preset-grid button {
+  font-size: 0.7rem;
+  padding: 5px 4px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.preset-grid button.active {
+  background: rgba(106, 173, 58, 0.3);
+  border-color: var(--accent);
+  color: var(--text-bright);
+}
+
+/* Canvas area */
+#canvas-wrap {
+  position: relative;
+  overflow: hidden;
+  background: var(--bg-deep);
+}
+
+#canvas-wrap canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Info overlay */
+#info-overlay {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--text-dim);
+  background: rgba(9, 13, 5, 0.8);
+  padding: 4px 8px;
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+/* Mobile sidebar toggle */
+#sidebar-toggle {
+  display: none;
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 100;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  color: var(--accent);
+  font-size: 1.2rem;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+/* Rules display */
+.rule-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.rule-row input {
+  flex: 1;
+}
+
+.rule-row .rule-arrow {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.rule-row button {
+  padding: 3px 6px;
+  font-size: 0.7rem;
+  color: var(--danger);
+  border-color: rgba(196, 64, 64, 0.3);
+  flex-shrink: 0;
+}
+
+#add-rule-btn {
+  font-size: 0.72rem;
+  align-self: flex-start;
+}
+
+/* Responsive */
+@media (max-width: 800px) {
+  :root { --sidebar-w: 280px; }
+
+  #app {
+    grid-template-columns: 1fr;
+  }
+
+  #sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: var(--sidebar-w);
+    height: 100vh;
+    z-index: 50;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+  }
+
+  #sidebar.open {
+    transform: translateX(0);
+  }
+
+  #sidebar-toggle {
+    display: block;
+  }
+
+  .overlay-bg {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 40;
+    display: none;
+  }
+
+  .overlay-bg.show { display: block; }
+}
+
+@media (max-width: 480px) {
+  :root { --sidebar-w: 100vw; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <button id="sidebar-toggle">&#9776;</button>
+  <div class="overlay-bg" id="overlay-bg"></div>
+
+  <div id="sidebar">
+    <div class="panel-title"><span class="icon">&#127793;</span> L-System Generator</div>
+
+    <!-- Presets -->
+    <div class="section">
+      <div class="section-header" data-section="presets">Presets</div>
+      <div class="section-body" id="presets-body">
+        <div class="preset-grid" id="preset-grid"></div>
+      </div>
+    </div>
+
+    <!-- Grammar -->
+    <div class="section">
+      <div class="section-header" data-section="grammar">Grammar</div>
+      <div class="section-body" id="grammar-body">
+        <label>Axiom
+          <input type="text" id="axiom" value="F" spellcheck="false">
+        </label>
+        <div style="font-size:0.72rem; color:var(--text-dim); padding:2px 0;">Production Rules</div>
+        <div id="rules-container"></div>
+        <button id="add-rule-btn">+ Add Rule</button>
+        <label>Iterations
+          <div class="range-row">
+            <input type="range" id="iterations" min="1" max="10" value="4" step="1">
+            <span class="range-val" id="iterations-val">4</span>
+          </div>
+        </label>
+      </div>
+    </div>
+
+    <!-- Turtle -->
+    <div class="section">
+      <div class="section-header" data-section="turtle">Turtle Settings</div>
+      <div class="section-body" id="turtle-body">
+        <label>Angle (degrees)
+          <div class="range-row">
+            <input type="range" id="angle" min="1" max="180" value="25" step="0.5">
+            <span class="range-val" id="angle-val">25</span>
+          </div>
+        </label>
+        <label>Step Length
+          <div class="range-row">
+            <input type="range" id="step-length" min="1" max="40" value="10" step="0.5">
+            <span class="range-val" id="step-length-val">10</span>
+          </div>
+        </label>
+        <label>Line Width
+          <div class="range-row">
+            <input type="range" id="line-width" min="0.3" max="8" value="1.5" step="0.1">
+            <span class="range-val" id="line-width-val">1.5</span>
+          </div>
+        </label>
+        <label>Length Decay (per depth)
+          <div class="range-row">
+            <input type="range" id="length-decay" min="0.3" max="1" value="0.7" step="0.01">
+            <span class="range-val" id="length-decay-val">0.70</span>
+          </div>
+        </label>
+        <label>Width Decay (per depth)
+          <div class="range-row">
+            <input type="range" id="width-decay" min="0.3" max="1" value="0.7" step="0.01">
+            <span class="range-val" id="width-decay-val">0.70</span>
+          </div>
+        </label>
+      </div>
+    </div>
+
+    <!-- Appearance -->
+    <div class="section">
+      <div class="section-header" data-section="appearance">Appearance</div>
+      <div class="section-body" id="appearance-body">
+        <label>Color Mode
+          <select id="color-mode">
+            <option value="gradient">Gradient (depth)</option>
+            <option value="fixed">Fixed Color</option>
+            <option value="hue-cycle">Hue Cycle</option>
+            <option value="season">Seasonal</option>
+          </select>
+        </label>
+        <label class="row">Base Color <input type="color" id="color-base" value="#5a3a1a"></label>
+        <label class="row">Tip Color <input type="color" id="color-tip" value="#3da53d"></label>
+        <label>Background
+          <select id="bg-mode">
+            <option value="dark">Dark</option>
+            <option value="parchment">Parchment</option>
+            <option value="night">Night Sky</option>
+            <option value="transparent">Transparent</option>
+          </select>
+        </label>
+      </div>
+    </div>
+
+    <!-- Stochastic -->
+    <div class="section">
+      <div class="section-header collapsed" data-section="stochastic">Stochastic</div>
+      <div class="section-body hidden" id="stochastic-body">
+        <label class="row"><input type="checkbox" id="stochastic-enabled"> Enable Randomness</label>
+        <label>Angle Variation
+          <div class="range-row">
+            <input type="range" id="angle-var" min="0" max="30" value="5" step="0.5">
+            <span class="range-val" id="angle-var-val">5</span>
+          </div>
+        </label>
+        <label>Length Variation
+          <div class="range-row">
+            <input type="range" id="length-var" min="0" max="50" value="10" step="1">
+            <span class="range-val" id="length-var-val">10%</span>
+          </div>
+        </label>
+        <label>Seed
+          <div class="range-row">
+            <input type="number" id="random-seed" value="42" min="0" max="99999" style="width:70px">
+            <button id="random-seed-btn" style="font-size:0.7rem; padding:3px 8px;">Randomize</button>
+          </div>
+        </label>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="section" style="margin-top:auto; padding-top:8px; border-top:1px solid var(--panel-border);">
+      <div class="btn-row">
+        <button class="primary" id="render-btn">Render</button>
+        <button id="export-btn">Export PNG</button>
+      </div>
+      <div class="btn-row">
+        <button id="center-btn">Center View</button>
+        <button id="reset-btn">Reset All</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="canvas-wrap">
+    <canvas id="canvas"></canvas>
+    <div id="info-overlay"></div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  // ============================================================
+  // Presets
+  // ============================================================
+  const PRESETS = [
+    {
+      name: 'Binary Tree',
+      axiom: '0',
+      rules: { '1': '11', '0': '1[0]0' },
+      angle: 45, iterations: 6, stepLength: 6, lineWidth: 1.5,
+      lengthDecay: 0.85, widthDecay: 0.75,
+      colorMode: 'gradient', colorBase: '#5a3a1a', colorTip: '#3da53d'
+    },
+    {
+      name: 'Fern',
+      axiom: 'X',
+      rules: { 'X': 'F+[[X]-X]-F[-FX]+X', 'F': 'FF' },
+      angle: 25, iterations: 5, stepLength: 5, lineWidth: 1.2,
+      lengthDecay: 0.72, widthDecay: 0.68,
+      colorMode: 'gradient', colorBase: '#3a5a1a', colorTip: '#8fd88f'
+    },
+    {
+      name: 'Koch Snowflake',
+      axiom: 'F--F--F',
+      rules: { 'F': 'F+F--F+F' },
+      angle: 60, iterations: 4, stepLength: 4, lineWidth: 1.2,
+      lengthDecay: 1, widthDecay: 1,
+      colorMode: 'hue-cycle', colorBase: '#40a0ff', colorTip: '#ff60a0'
+    },
+    {
+      name: 'Sierpinski',
+      axiom: 'F-G-G',
+      rules: { 'F': 'F-G+F+G-F', 'G': 'GG' },
+      angle: 120, iterations: 6, stepLength: 6, lineWidth: 1,
+      lengthDecay: 1, widthDecay: 1,
+      colorMode: 'hue-cycle', colorBase: '#ff5050', colorTip: '#5050ff'
+    },
+    {
+      name: 'Dragon Curve',
+      axiom: 'FX',
+      rules: { 'X': 'X+YF+', 'Y': '-FX-Y' },
+      angle: 90, iterations: 10, stepLength: 6, lineWidth: 1,
+      lengthDecay: 1, widthDecay: 1,
+      colorMode: 'hue-cycle', colorBase: '#ff3030', colorTip: '#30ff30'
+    },
+    {
+      name: 'Hilbert Curve',
+      axiom: 'A',
+      rules: { 'A': '-BF+AFA+FB-', 'B': '+AF-BFB-FA+' },
+      angle: 90, iterations: 5, stepLength: 8, lineWidth: 1.2,
+      lengthDecay: 1, widthDecay: 1,
+      colorMode: 'hue-cycle', colorBase: '#ff8000', colorTip: '#0080ff'
+    },
+    {
+      name: 'Bushy Plant',
+      axiom: 'F',
+      rules: { 'F': 'FF+[+F-F-F]-[-F+F+F]' },
+      angle: 22.5, iterations: 4, stepLength: 8, lineWidth: 2,
+      lengthDecay: 0.65, widthDecay: 0.6,
+      colorMode: 'gradient', colorBase: '#6b4226', colorTip: '#4a9e3f'
+    },
+    {
+      name: 'Stochastic Tree',
+      axiom: 'X',
+      rules: { 'X': 'F[-X][+X]FX', 'F': 'FF' },
+      angle: 30, iterations: 5, stepLength: 5, lineWidth: 1.8,
+      lengthDecay: 0.7, widthDecay: 0.65,
+      colorMode: 'season', colorBase: '#5a3a1a', colorTip: '#e8a030',
+      stochastic: true, angleVar: 8, lengthVar: 15
+    },
+    {
+      name: 'Seaweed',
+      axiom: 'F',
+      rules: { 'F': 'FF-[-F+F+F]+[+F-F-F]' },
+      angle: 22, iterations: 4, stepLength: 6, lineWidth: 1.4,
+      lengthDecay: 0.7, widthDecay: 0.65,
+      colorMode: 'gradient', colorBase: '#1a4a3a', colorTip: '#30d090'
+    },
+    {
+      name: 'Leaf',
+      axiom: 'X',
+      rules: { 'F': 'FF', 'X': 'F[+X]F[-X]+X' },
+      angle: 20, iterations: 6, stepLength: 4, lineWidth: 1,
+      lengthDecay: 0.75, widthDecay: 0.7,
+      colorMode: 'gradient', colorBase: '#2a6a1a', colorTip: '#b0ff70'
+    },
+    {
+      name: 'Crystal',
+      axiom: 'F+F+F+F',
+      rules: { 'F': 'FF+F++F+F' },
+      angle: 90, iterations: 4, stepLength: 5, lineWidth: 1,
+      lengthDecay: 1, widthDecay: 1,
+      colorMode: 'hue-cycle', colorBase: '#60c0ff', colorTip: '#ff60ff'
+    },
+    {
+      name: 'Penrose',
+      axiom: '[7]++[7]++[7]++[7]++[7]',
+      rules: { '6': '8F++9F----7F[-8F----6F]++', '7': '+8F--9F[---6F--7F]+', '8': '-6F++7F[+++8F++9F]-', '9': '--8F++++6F[+9F++++7F]--7F' },
+      angle: 36, iterations: 4, stepLength: 12, lineWidth: 1,
+      lengthDecay: 1, widthDecay: 1,
+      colorMode: 'hue-cycle', colorBase: '#ffa040', colorTip: '#40a0ff',
+      drawChars: 'F'
+    },
+    {
+      name: 'Gosper Curve',
+      axiom: 'A',
+      rules: { 'A': 'A-B--B+A++AA+B-', 'B': '+A-BB--B-A++A+B' },
+      angle: 60, iterations: 4, stepLength: 6, lineWidth: 1.2,
+      lengthDecay: 1, widthDecay: 1,
+      colorMode: 'hue-cycle', colorBase: '#ff4080', colorTip: '#80ff40'
+    }
+  ];
+
+  // ============================================================
+  // DOM refs
+  // ============================================================
+  const $ = (s) => document.querySelector(s);
+  const canvas = $('#canvas');
+  const ctx = canvas.getContext('2d');
+  const sidebar = $('#sidebar');
+  const sidebarToggle = $('#sidebar-toggle');
+  const overlayBg = $('#overlay-bg');
+  const infoOverlay = $('#info-overlay');
+
+  const axiomInput = $('#axiom');
+  const rulesContainer = $('#rules-container');
+  const addRuleBtn = $('#add-rule-btn');
+  const iterSlider = $('#iterations');
+  const iterVal = $('#iterations-val');
+  const angleSlider = $('#angle');
+  const angleVal = $('#angle-val');
+  const stepSlider = $('#step-length');
+  const stepVal = $('#step-length-val');
+  const lwSlider = $('#line-width');
+  const lwVal = $('#line-width-val');
+  const ldSlider = $('#length-decay');
+  const ldVal = $('#length-decay-val');
+  const wdSlider = $('#width-decay');
+  const wdVal = $('#width-decay-val');
+  const colorMode = $('#color-mode');
+  const colorBase = $('#color-base');
+  const colorTip = $('#color-tip');
+  const bgMode = $('#bg-mode');
+  const stochasticCb = $('#stochastic-enabled');
+  const angleVarSlider = $('#angle-var');
+  const angleVarVal = $('#angle-var-val');
+  const lengthVarSlider = $('#length-var');
+  const lengthVarVal = $('#length-var-val');
+  const seedInput = $('#random-seed');
+  const seedBtn = $('#random-seed-btn');
+
+  // ============================================================
+  // State
+  // ============================================================
+  let currentPreset = -1;
+  let panX = 0, panY = 0, zoom = 1;
+  let isDragging = false, dragStartX = 0, dragStartY = 0;
+
+  // ============================================================
+  // Seeded PRNG (mulberry32)
+  // ============================================================
+  function mulberry32(seed) {
+    return function() {
+      seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = t + Math.imul(t ^ (t >>> 7), 61 | t) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  // ============================================================
+  // Rules UI
+  // ============================================================
+  function getRules() {
+    const rules = {};
+    rulesContainer.querySelectorAll('.rule-row').forEach(row => {
+      const inputs = row.querySelectorAll('input[type="text"]');
+      const key = inputs[0].value.trim();
+      const val = inputs[1].value;
+      if (key) rules[key] = val;
+    });
+    return rules;
+  }
+
+  function setRules(rulesObj) {
+    rulesContainer.innerHTML = '';
+    for (const [key, val] of Object.entries(rulesObj)) {
+      addRuleRow(key, val);
+    }
+  }
+
+  function addRuleRow(key = '', val = '') {
+    const row = document.createElement('div');
+    row.className = 'rule-row';
+    row.innerHTML = `<input type="text" value="${key}" style="width:30px;text-align:center;flex:0 0 30px" spellcheck="false" maxlength="2"><span class="rule-arrow">&rarr;</span><input type="text" value="${val}" spellcheck="false"><button title="Remove">&times;</button>`;
+    row.querySelector('button').addEventListener('click', () => {
+      row.remove();
+      scheduleRender();
+    });
+    row.querySelectorAll('input').forEach(inp => inp.addEventListener('change', scheduleRender));
+    rulesContainer.appendChild(row);
+  }
+
+  addRuleBtn.addEventListener('click', () => addRuleRow());
+
+  // ============================================================
+  // Section collapse
+  // ============================================================
+  document.querySelectorAll('.section-header').forEach(hdr => {
+    hdr.addEventListener('click', () => {
+      const body = hdr.nextElementSibling;
+      hdr.classList.toggle('collapsed');
+      body.classList.toggle('hidden');
+    });
+  });
+
+  // ============================================================
+  // Range sliders sync
+  // ============================================================
+  function syncRange(slider, valEl, fmt) {
+    const update = () => { valEl.textContent = fmt ? fmt(slider.value) : slider.value; };
+    slider.addEventListener('input', update);
+    update();
+    return update;
+  }
+
+  syncRange(iterSlider, iterVal);
+  syncRange(angleSlider, angleVal);
+  syncRange(stepSlider, stepVal);
+  syncRange(lwSlider, lwVal);
+  syncRange(ldSlider, ldVal, v => parseFloat(v).toFixed(2));
+  syncRange(wdSlider, wdVal, v => parseFloat(v).toFixed(2));
+  syncRange(angleVarSlider, angleVarVal);
+  syncRange(lengthVarSlider, lengthVarVal, v => v + '%');
+
+  // Auto-render on slider change
+  [iterSlider, angleSlider, stepSlider, lwSlider, ldSlider, wdSlider,
+   angleVarSlider, lengthVarSlider].forEach(s => s.addEventListener('input', scheduleRender));
+  [colorMode, colorBase, colorTip, bgMode, stochasticCb].forEach(el =>
+    el.addEventListener('change', scheduleRender));
+  [axiomInput, seedInput].forEach(el => el.addEventListener('change', scheduleRender));
+
+  // ============================================================
+  // Presets UI
+  // ============================================================
+  const presetGrid = $('#preset-grid');
+  PRESETS.forEach((p, i) => {
+    const btn = document.createElement('button');
+    btn.textContent = p.name;
+    btn.addEventListener('click', () => loadPreset(i));
+    presetGrid.appendChild(btn);
+  });
+
+  function loadPreset(idx) {
+    const p = PRESETS[idx];
+    currentPreset = idx;
+    axiomInput.value = p.axiom;
+    setRules(p.rules);
+    iterSlider.value = p.iterations; iterVal.textContent = p.iterations;
+    angleSlider.value = p.angle; angleVal.textContent = p.angle;
+    stepSlider.value = p.stepLength; stepVal.textContent = p.stepLength;
+    lwSlider.value = p.lineWidth; lwVal.textContent = p.lineWidth;
+    ldSlider.value = p.lengthDecay; ldVal.textContent = parseFloat(p.lengthDecay).toFixed(2);
+    wdSlider.value = p.widthDecay; wdVal.textContent = parseFloat(p.widthDecay).toFixed(2);
+    colorMode.value = p.colorMode || 'gradient';
+    colorBase.value = p.colorBase || '#5a3a1a';
+    colorTip.value = p.colorTip || '#3da53d';
+    stochasticCb.checked = !!p.stochastic;
+    if (p.angleVar !== undefined) { angleVarSlider.value = p.angleVar; angleVarVal.textContent = p.angleVar; }
+    if (p.lengthVar !== undefined) { lengthVarSlider.value = p.lengthVar; lengthVarVal.textContent = p.lengthVar + '%'; }
+
+    // Highlight active preset
+    presetGrid.querySelectorAll('button').forEach((b, j) => b.classList.toggle('active', j === idx));
+
+    resetView();
+    render();
+  }
+
+  // ============================================================
+  // L-System string generation
+  // ============================================================
+  function generateLSystem(axiom, rules, iterations) {
+    let current = axiom;
+    for (let i = 0; i < iterations; i++) {
+      let next = '';
+      for (const ch of current) {
+        next += (rules[ch] !== undefined) ? rules[ch] : ch;
+      }
+      current = next;
+      // Safety: cap at 2M characters
+      if (current.length > 2000000) {
+        current = current.substring(0, 2000000);
+        break;
+      }
+    }
+    return current;
+  }
+
+  // ============================================================
+  // Turtle graphics interpreter
+  // ============================================================
+  function interpretTurtle(str, config) {
+    const {
+      angle: angleDeg, stepLength, lineWidth, lengthDecay, widthDecay,
+      colorMode: cMode, colorBase: cBase, colorTip: cTip,
+      stochastic, angleVar, lengthVar, seed
+    } = config;
+
+    const angleRad = angleDeg * Math.PI / 180;
+    const rng = stochastic ? mulberry32(seed) : null;
+
+    // Determine which chars cause drawing
+    const drawChars = new Set(['F', 'G', 'A', 'B']);
+    // For presets that use digits as draw chars
+    for (const ch of str) {
+      if (ch >= '0' && ch <= '9') drawChars.add(ch);
+    }
+
+    // First pass: compute bounding box
+    let x = 0, y = 0, dir = -Math.PI / 2; // start pointing up
+    let stack = [];
+    let depth = 0;
+    let maxDepth = 0;
+    let minX = 0, maxX = 0, minY = 0, maxY = 0;
+
+    // Use deterministic rng clone for bounding pass
+    const rngBounds = stochastic ? mulberry32(seed) : null;
+
+    for (const ch of str) {
+      if (drawChars.has(ch)) {
+        const len = stepLength * Math.pow(lengthDecay, depth);
+        const varLen = stochastic ? len * (1 + (rngBounds() - 0.5) * 2 * (lengthVar / 100)) : len;
+        const varDir = stochastic ? dir + (rngBounds() - 0.5) * 2 * (angleVar * Math.PI / 180) : dir;
+        x += Math.cos(varDir) * varLen;
+        y += Math.sin(varDir) * varLen;
+        minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+        minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+      } else if (ch === '+') {
+        dir += angleRad;
+      } else if (ch === '-') {
+        dir -= angleRad;
+      } else if (ch === '[') {
+        stack.push({ x, y, dir, depth });
+        depth++;
+        maxDepth = Math.max(maxDepth, depth);
+      } else if (ch === ']') {
+        if (stack.length > 0) {
+          const s = stack.pop();
+          x = s.x; y = s.y; dir = s.dir; depth = s.depth;
+        }
+      }
+    }
+
+    // If maxDepth is 0 (no brackets), estimate from string length
+    if (maxDepth === 0) maxDepth = Math.max(1, Math.ceil(Math.log2(str.length + 1)));
+
+    const bounds = { minX, maxX, minY, maxY, maxDepth };
+
+    // Second pass: build segments
+    const segments = [];
+    x = 0; y = 0; dir = -Math.PI / 2;
+    stack = [];
+    depth = 0;
+    const rngDraw = stochastic ? mulberry32(seed) : null;
+    let segIdx = 0;
+    const totalSegs = str.split('').filter(c => drawChars.has(c)).length;
+
+    for (const ch of str) {
+      if (drawChars.has(ch)) {
+        const len = stepLength * Math.pow(lengthDecay, depth);
+        const lw = lineWidth * Math.pow(widthDecay, depth);
+        const varLen = stochastic ? len * (1 + (rngDraw() - 0.5) * 2 * (lengthVar / 100)) : len;
+        const varDir = stochastic ? dir + (rngDraw() - 0.5) * 2 * (angleVar * Math.PI / 180) : dir;
+        const nx = x + Math.cos(varDir) * varLen;
+        const ny = y + Math.sin(varDir) * varLen;
+
+        segments.push({
+          x1: x, y1: y, x2: nx, y2: ny,
+          depth, lw, idx: segIdx, total: totalSegs, maxDepth
+        });
+
+        x = nx; y = ny;
+        segIdx++;
+      } else if (ch === '+') {
+        dir += angleRad;
+      } else if (ch === '-') {
+        dir -= angleRad;
+      } else if (ch === '[') {
+        stack.push({ x, y, dir, depth });
+        depth++;
+      } else if (ch === ']') {
+        if (stack.length > 0) {
+          const s = stack.pop();
+          x = s.x; y = s.y; dir = s.dir; depth = s.depth;
+        }
+      }
+    }
+
+    return { segments, bounds };
+  }
+
+  // ============================================================
+  // Color computation
+  // ============================================================
+  function hexToRgb(hex) {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return [r, g, b];
+  }
+
+  function lerpColor(c1, c2, t) {
+    return [
+      Math.round(c1[0] + (c2[0] - c1[0]) * t),
+      Math.round(c1[1] + (c2[1] - c1[1]) * t),
+      Math.round(c1[2] + (c2[2] - c1[2]) * t)
+    ];
+  }
+
+  function hslToRgb(h, s, l) {
+    h /= 360; s /= 100; l /= 100;
+    let r, g, b;
+    if (s === 0) { r = g = b = l; }
+    else {
+      const hue2rgb = (p, q, t) => {
+        if (t < 0) t += 1; if (t > 1) t -= 1;
+        if (t < 1/6) return p + (q - p) * 6 * t;
+        if (t < 1/2) return q;
+        if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+        return p;
+      };
+      const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+      const p = 2 * l - q;
+      r = hue2rgb(p, q, h + 1/3);
+      g = hue2rgb(p, q, h);
+      b = hue2rgb(p, q, h - 1/3);
+    }
+    return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+  }
+
+  function getSegmentColor(seg, cMode, cBase, cTip) {
+    const baseRgb = hexToRgb(cBase);
+    const tipRgb = hexToRgb(cTip);
+    const md = Math.max(seg.maxDepth, 1);
+
+    switch (cMode) {
+      case 'gradient': {
+        const t = seg.depth / md;
+        const c = lerpColor(baseRgb, tipRgb, t);
+        return `rgb(${c[0]},${c[1]},${c[2]})`;
+      }
+      case 'fixed':
+        return cBase;
+      case 'hue-cycle': {
+        const t = seg.idx / Math.max(seg.total - 1, 1);
+        const hue = t * 360;
+        const c = hslToRgb(hue, 70, 55);
+        return `rgb(${c[0]},${c[1]},${c[2]})`;
+      }
+      case 'season': {
+        const t = seg.depth / md;
+        // Brown trunk -> orange -> yellow -> green tips
+        if (t < 0.3) {
+          const c = lerpColor([90, 58, 26], [139, 90, 20], t / 0.3);
+          return `rgb(${c[0]},${c[1]},${c[2]})`;
+        } else if (t < 0.6) {
+          const c = lerpColor([139, 90, 20], [200, 160, 40], (t - 0.3) / 0.3);
+          return `rgb(${c[0]},${c[1]},${c[2]})`;
+        } else {
+          const c = lerpColor([200, 160, 40], [60, 160, 60], (t - 0.6) / 0.4);
+          return `rgb(${c[0]},${c[1]},${c[2]})`;
+        }
+      }
+      default:
+        return cBase;
+    }
+  }
+
+  // ============================================================
+  // Canvas resize
+  // ============================================================
+  function resizeCanvas() {
+    const wrap = $('#canvas-wrap');
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = wrap.clientWidth * dpr;
+    canvas.height = wrap.clientHeight * dpr;
+    canvas.style.width = wrap.clientWidth + 'px';
+    canvas.style.height = wrap.clientHeight + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  // ============================================================
+  // Render
+  // ============================================================
+  let renderTimer = null;
+  function scheduleRender() {
+    if (renderTimer) clearTimeout(renderTimer);
+    renderTimer = setTimeout(render, 80);
+  }
+
+  function render() {
+    renderTimer = null;
+    resizeCanvas();
+    const w = canvas.width / (window.devicePixelRatio || 1);
+    const h = canvas.height / (window.devicePixelRatio || 1);
+
+    // Background
+    const bg = bgMode.value;
+    if (bg === 'dark') {
+      ctx.fillStyle = '#090d05';
+      ctx.fillRect(0, 0, w, h);
+    } else if (bg === 'parchment') {
+      ctx.fillStyle = '#f5edd6';
+      ctx.fillRect(0, 0, w, h);
+    } else if (bg === 'night') {
+      const grd = ctx.createLinearGradient(0, 0, 0, h);
+      grd.addColorStop(0, '#0a0820');
+      grd.addColorStop(1, '#1a1040');
+      ctx.fillStyle = grd;
+      ctx.fillRect(0, 0, w, h);
+      // Stars
+      const starRng = mulberry32(12345);
+      for (let i = 0; i < 80; i++) {
+        const sx = starRng() * w;
+        const sy = starRng() * h * 0.7;
+        const sr = starRng() * 1.5 + 0.3;
+        ctx.fillStyle = `rgba(255,255,240,${0.3 + starRng() * 0.5})`;
+        ctx.beginPath();
+        ctx.arc(sx, sy, sr, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else {
+      ctx.clearRect(0, 0, w, h);
+    }
+
+    // Generate L-system
+    const rules = getRules();
+    const axiom = axiomInput.value || 'F';
+    const iterations = parseInt(iterSlider.value);
+    const t0 = performance.now();
+    const lStr = generateLSystem(axiom, rules, iterations);
+    const t1 = performance.now();
+
+    // Interpret
+    const config = {
+      angle: parseFloat(angleSlider.value),
+      stepLength: parseFloat(stepSlider.value),
+      lineWidth: parseFloat(lwSlider.value),
+      lengthDecay: parseFloat(ldSlider.value),
+      widthDecay: parseFloat(wdSlider.value),
+      colorMode: colorMode.value,
+      colorBase: colorBase.value,
+      colorTip: colorTip.value,
+      stochastic: stochasticCb.checked,
+      angleVar: parseFloat(angleVarSlider.value),
+      lengthVar: parseFloat(lengthVarSlider.value),
+      seed: parseInt(seedInput.value) || 42
+    };
+
+    const { segments, bounds } = interpretTurtle(lStr, config);
+    const t2 = performance.now();
+
+    // Auto-fit if view is at default
+    if (panX === 0 && panY === 0 && zoom === 1) {
+      autoFitView(bounds, w, h);
+    }
+
+    // Draw segments
+    ctx.save();
+    ctx.translate(w / 2 + panX, h / 2 + panY);
+    ctx.scale(zoom, zoom);
+
+    // Translate so system is centered on origin based on bounds
+    const bCx = (bounds.minX + bounds.maxX) / 2;
+    const bCy = (bounds.minY + bounds.maxY) / 2;
+    ctx.translate(-bCx, -bCy);
+
+    ctx.lineCap = 'round';
+
+    for (const seg of segments) {
+      ctx.strokeStyle = getSegmentColor(seg, config.colorMode, config.colorBase, config.colorTip);
+      ctx.lineWidth = Math.max(0.3, seg.lw);
+      ctx.beginPath();
+      ctx.moveTo(seg.x1, seg.y1);
+      ctx.lineTo(seg.x2, seg.y2);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+
+    const t3 = performance.now();
+    infoOverlay.textContent = `${lStr.length.toLocaleString()} chars | ${segments.length.toLocaleString()} segments | gen ${(t1 - t0).toFixed(0)}ms | draw ${(t3 - t2).toFixed(0)}ms`;
+  }
+
+  function autoFitView(bounds, w, h) {
+    const bw = bounds.maxX - bounds.minX || 1;
+    const bh = bounds.maxY - bounds.minY || 1;
+    const padding = 0.85;
+    zoom = Math.min(w / bw, h / bh) * padding;
+    zoom = Math.max(0.01, Math.min(zoom, 20));
+    panX = 0;
+    panY = 0;
+  }
+
+  function resetView() {
+    panX = 0; panY = 0; zoom = 1;
+  }
+
+  // ============================================================
+  // Pan & zoom
+  // ============================================================
+  const canvasWrap = $('#canvas-wrap');
+
+  canvasWrap.addEventListener('mousedown', e => {
+    isDragging = true;
+    dragStartX = e.clientX - panX;
+    dragStartY = e.clientY - panY;
+    canvasWrap.style.cursor = 'grabbing';
+  });
+
+  window.addEventListener('mousemove', e => {
+    if (!isDragging) return;
+    panX = e.clientX - dragStartX;
+    panY = e.clientY - dragStartY;
+    render();
+  });
+
+  window.addEventListener('mouseup', () => {
+    isDragging = false;
+    canvasWrap.style.cursor = 'default';
+  });
+
+  canvasWrap.addEventListener('wheel', e => {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.1 : 0.9;
+    zoom *= factor;
+    zoom = Math.max(0.01, Math.min(zoom, 50));
+    render();
+  }, { passive: false });
+
+  // Touch support
+  let lastTouchDist = 0;
+  let lastTouchX = 0, lastTouchY = 0;
+
+  canvasWrap.addEventListener('touchstart', e => {
+    if (e.touches.length === 1) {
+      isDragging = true;
+      dragStartX = e.touches[0].clientX - panX;
+      dragStartY = e.touches[0].clientY - panY;
+    } else if (e.touches.length === 2) {
+      isDragging = false;
+      const dx = e.touches[1].clientX - e.touches[0].clientX;
+      const dy = e.touches[1].clientY - e.touches[0].clientY;
+      lastTouchDist = Math.sqrt(dx * dx + dy * dy);
+    }
+  }, { passive: true });
+
+  canvasWrap.addEventListener('touchmove', e => {
+    e.preventDefault();
+    if (e.touches.length === 1 && isDragging) {
+      panX = e.touches[0].clientX - dragStartX;
+      panY = e.touches[0].clientY - dragStartY;
+      render();
+    } else if (e.touches.length === 2) {
+      const dx = e.touches[1].clientX - e.touches[0].clientX;
+      const dy = e.touches[1].clientY - e.touches[0].clientY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (lastTouchDist > 0) {
+        zoom *= dist / lastTouchDist;
+        zoom = Math.max(0.01, Math.min(zoom, 50));
+        render();
+      }
+      lastTouchDist = dist;
+    }
+  }, { passive: false });
+
+  canvasWrap.addEventListener('touchend', () => {
+    isDragging = false;
+    lastTouchDist = 0;
+  });
+
+  // ============================================================
+  // Buttons
+  // ============================================================
+  $('#render-btn').addEventListener('click', () => {
+    resetView();
+    render();
+  });
+
+  $('#center-btn').addEventListener('click', () => {
+    resetView();
+    render();
+  });
+
+  $('#reset-btn').addEventListener('click', () => {
+    loadPreset(0);
+  });
+
+  $('#export-btn').addEventListener('click', () => {
+    // Render at current resolution to an offscreen canvas for export
+    const exportCanvas = document.createElement('canvas');
+    const dpr = window.devicePixelRatio || 1;
+    exportCanvas.width = canvas.width;
+    exportCanvas.height = canvas.height;
+    const ectx = exportCanvas.getContext('2d');
+    ectx.drawImage(canvas, 0, 0);
+
+    exportCanvas.toBlob(blob => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'l-system.png';
+      a.click();
+      URL.revokeObjectURL(url);
+    }, 'image/png');
+  });
+
+  seedBtn.addEventListener('click', () => {
+    seedInput.value = Math.floor(Math.random() * 100000);
+    scheduleRender();
+  });
+
+  // ============================================================
+  // Mobile sidebar toggle
+  // ============================================================
+  sidebarToggle.addEventListener('click', () => {
+    sidebar.classList.toggle('open');
+    overlayBg.classList.toggle('show');
+  });
+
+  overlayBg.addEventListener('click', () => {
+    sidebar.classList.remove('open');
+    overlayBg.classList.remove('show');
+  });
+
+  // ============================================================
+  // Resize handler
+  // ============================================================
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      resetView();
+      render();
+    }, 150);
+  });
+
+  // ============================================================
+  // Init
+  // ============================================================
+  loadPreset(1); // Start with Fern
+})();
+</script>
+</body>
+</html>
