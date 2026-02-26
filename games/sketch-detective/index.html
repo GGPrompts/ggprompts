@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sketch Detective</title>
+    <link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&family=Caveat:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --paper-white: #faf8f0;
+            --paper-line: rgba(173, 200, 230, 0.35);
+            --pencil-dark: #2c2c2c;
+            --pencil-gray: #666;
+            --eraser-pink: #f0a0a0;
+            --correct-green: #4caf50;
+            --wrong-red: #e74c3c;
+            --streak-gold: #f0a500;
+            --hint-blue: #3498db;
+            --timer-green: #4caf50;
+            --timer-yellow: #f39c12;
+            --timer-red: #e74c3c;
+            --font-hand: 'Patrick Hand', cursive;
+            --font-sketch: 'Caveat', cursive;
+            --shadow-soft: 0 2px 12px rgba(0,0,0,0.08);
+            --radius: 12px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: var(--font-hand);
+            background:
+                repeating-linear-gradient(
+                    transparent,
+                    transparent 27px,
+                    var(--paper-line) 27px,
+                    var(--paper-line) 28px
+                ),
+                linear-gradient(135deg, #faf8f0 0%, #f0ede3 100%);
+            background-attachment: fixed;
+            color: var(--pencil-dark);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* --- Screens --- */
+        .screen {
+            display: none;
+            width: 100%;
+            max-width: 640px;
+            padding: 20px;
+            flex-direction: column;
+            align-items: center;
+        }
+        .screen.active { display: flex; }
+
+        /* --- Header bar (visible during game) --- */
+        .game-header {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            padding: 8px 0;
+        }
+
+        .stat-box {
+            background: white;
+            border: 2px solid #e0ddd5;
+            border-radius: var(--radius);
+            padding: 6px 14px;
+            font-size: 1.1rem;
+            box-shadow: var(--shadow-soft);
+        }
+        .stat-box .label {
+            font-size: 0.75rem;
+            color: var(--pencil-gray);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .stat-box .value {
+            font-family: var(--font-sketch);
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        .streak-display {
+            color: var(--streak-gold);
+            font-family: var(--font-sketch);
+            font-weight: 700;
+            font-size: 1.4rem;
+            min-width: 40px;
+            text-align: center;
+            opacity: 0;
+            transition: opacity 0.3s, transform 0.3s;
+        }
+        .streak-display.active {
+            opacity: 1;
+            transform: scale(1.1);
+        }
+
+        /* --- Timer --- */
+        .timer-track {
+            width: 100%;
+            height: 8px;
+            background: #e8e5dd;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 12px;
+            position: relative;
+        }
+        .timer-bar {
+            height: 100%;
+            width: 100%;
+            background: var(--timer-green);
+            border-radius: 4px;
+            transition: width 0.15s linear, background 0.3s;
+        }
+        .timer-bar.warning { background: var(--timer-yellow); }
+        .timer-bar.danger { background: var(--timer-red); }
+        .timer-text {
+            position: absolute;
+            right: 8px;
+            top: -20px;
+            font-size: 0.85rem;
+            color: var(--pencil-gray);
+        }
+
+        /* --- Canvas area --- */
+        .canvas-wrapper {
+            width: 100%;
+            max-width: 500px;
+            aspect-ratio: 1;
+            background: white;
+            border: 3px solid #d4d0c8;
+            border-radius: var(--radius);
+            box-shadow:
+                var(--shadow-soft),
+                inset 0 0 30px rgba(0,0,0,0.02);
+            overflow: hidden;
+            margin-bottom: 16px;
+            position: relative;
+        }
+        .canvas-wrapper canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        /* Spiral binding dots on left */
+        .canvas-wrapper::before {
+            content: '';
+            position: absolute;
+            left: 2%;
+            top: 5%;
+            bottom: 5%;
+            width: 3px;
+            background: repeating-linear-gradient(
+                to bottom,
+                #bbb 0px, #bbb 6px,
+                transparent 6px, transparent 18px
+            );
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        /* --- Input area --- */
+        .input-row {
+            width: 100%;
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        #guess-input {
+            flex: 1;
+            font-family: var(--font-hand);
+            font-size: 1.3rem;
+            padding: 10px 16px;
+            border: 2px solid #d4d0c8;
+            border-radius: var(--radius);
+            background: white;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        #guess-input:focus {
+            border-color: var(--hint-blue);
+        }
+        #guess-input.shake {
+            animation: shake 0.4s ease;
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-8px); }
+            40% { transform: translateX(6px); }
+            60% { transform: translateX(-4px); }
+            80% { transform: translateX(2px); }
+        }
+
+        .btn {
+            font-family: var(--font-hand);
+            font-size: 1.1rem;
+            padding: 10px 20px;
+            border: 2px solid #d4d0c8;
+            border-radius: var(--radius);
+            background: white;
+            cursor: pointer;
+            transition: background 0.15s, transform 0.1s;
+            white-space: nowrap;
+        }
+        .btn:hover { background: #f5f3eb; transform: translateY(-1px); }
+        .btn:active { transform: translateY(0); }
+        .btn:disabled { opacity: 0.4; cursor: default; transform: none; }
+
+        .btn-primary {
+            background: var(--pencil-dark);
+            color: white;
+            border-color: var(--pencil-dark);
+        }
+        .btn-primary:hover { background: #444; }
+
+        .btn-hint { color: var(--hint-blue); border-color: var(--hint-blue); }
+        .btn-skip { color: var(--wrong-red); border-color: var(--wrong-red); }
+
+        .hint-text {
+            font-family: var(--font-sketch);
+            font-size: 1.3rem;
+            min-height: 1.8em;
+            text-align: center;
+            color: var(--hint-blue);
+            letter-spacing: 2px;
+        }
+        .hint-text.hint-level-2,
+        .hint-text.hint-level-3 {
+            font-size: 1.6rem;
+            letter-spacing: 4px;
+        }
+
+        .button-row {
+            display: flex;
+            gap: 8px;
+            width: 100%;
+        }
+        .button-row .btn { flex: 1; text-align: center; }
+
+        /* --- Menu screen --- */
+        .menu-title {
+            font-family: var(--font-sketch);
+            font-size: 3.5rem;
+            font-weight: 700;
+            margin: 40px 0 8px;
+            text-align: center;
+            line-height: 1.1;
+        }
+        .menu-subtitle {
+            font-size: 1.2rem;
+            color: var(--pencil-gray);
+            margin-bottom: 32px;
+            text-align: center;
+        }
+        .menu-icon {
+            font-size: 4rem;
+            margin-bottom: 8px;
+        }
+        .menu-info {
+            background: white;
+            border: 2px solid #e0ddd5;
+            border-radius: var(--radius);
+            padding: 20px;
+            width: 100%;
+            margin-bottom: 24px;
+            box-shadow: var(--shadow-soft);
+        }
+        .menu-info h3 {
+            font-family: var(--font-sketch);
+            font-size: 1.5rem;
+            margin-bottom: 8px;
+        }
+        .menu-info p {
+            color: var(--pencil-gray);
+            margin-bottom: 6px;
+            font-size: 1.05rem;
+        }
+        .menu-info ul {
+            margin: 8px 0 0 20px;
+            color: var(--pencil-gray);
+        }
+        .menu-info li { margin-bottom: 4px; }
+
+        .btn-start {
+            font-family: var(--font-sketch);
+            font-size: 1.8rem;
+            font-weight: 700;
+            padding: 14px 48px;
+            background: var(--pencil-dark);
+            color: white;
+            border: 3px solid var(--pencil-dark);
+            border-radius: var(--radius);
+            cursor: pointer;
+            transition: transform 0.15s, background 0.15s;
+        }
+        .btn-start:hover {
+            background: #444;
+            transform: scale(1.03);
+        }
+
+        /* --- Result screen --- */
+        .result-card {
+            background: white;
+            border: 3px solid #e0ddd5;
+            border-radius: var(--radius);
+            padding: 32px;
+            text-align: center;
+            width: 100%;
+            box-shadow: var(--shadow-soft);
+            margin-top: 20px;
+        }
+        .result-icon {
+            font-family: var(--font-sketch);
+            font-size: 2.2rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        .result-icon.correct { color: var(--correct-green); }
+        .result-icon.wrong { color: var(--wrong-red); }
+        .result-word {
+            font-size: 1.3rem;
+            color: var(--pencil-gray);
+            margin-bottom: 12px;
+        }
+        .result-points {
+            font-family: var(--font-sketch);
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--streak-gold);
+            margin-bottom: 8px;
+        }
+        .result-message {
+            font-size: 1.1rem;
+            color: var(--pencil-gray);
+            margin-bottom: 20px;
+            min-height: 1.4em;
+        }
+
+        /* --- Summary screen --- */
+        .summary-card {
+            background: white;
+            border: 3px solid #e0ddd5;
+            border-radius: var(--radius);
+            padding: 32px;
+            text-align: center;
+            width: 100%;
+            box-shadow: var(--shadow-soft);
+            margin-top: 20px;
+        }
+        .summary-title {
+            font-family: var(--font-sketch);
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 20px;
+        }
+        .summary-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .summary-stat {
+            padding: 12px;
+            border: 2px solid #e8e5dd;
+            border-radius: var(--radius);
+        }
+        .summary-stat .label {
+            font-size: 0.85rem;
+            color: var(--pencil-gray);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .summary-stat .value {
+            font-family: var(--font-sketch);
+            font-size: 2rem;
+            font-weight: 700;
+        }
+        .summary-stat .value.score-val { color: var(--streak-gold); }
+        .summary-stat .value.streak-val { color: var(--correct-green); }
+
+        /* --- Back link --- */
+        .back-link {
+            position: fixed;
+            top: 12px;
+            left: 12px;
+            font-family: var(--font-hand);
+            font-size: 1rem;
+            color: var(--pencil-gray);
+            text-decoration: none;
+            padding: 6px 12px;
+            background: rgba(255,255,255,0.85);
+            border-radius: var(--radius);
+            border: 1px solid #e0ddd5;
+            z-index: 100;
+        }
+        .back-link:hover { color: var(--pencil-dark); }
+
+        /* --- Responsive --- */
+        @media (max-width: 768px) {
+            .screen { padding: 12px; }
+            .menu-title { font-size: 2.5rem; margin-top: 60px; }
+            .canvas-wrapper { max-width: 100%; }
+            .game-header { flex-wrap: wrap; gap: 6px; }
+            .stat-box { padding: 4px 10px; }
+            .stat-box .value { font-size: 1.2rem; }
+            .summary-stats { grid-template-columns: 1fr 1fr; gap: 8px; }
+            .back-link { top: 8px; left: 8px; font-size: 0.9rem; }
+        }
+
+        @media (max-width: 400px) {
+            .button-row { flex-direction: column; }
+            .input-row { flex-direction: column; }
+            .menu-title { font-size: 2rem; }
+        }
+    </style>
+</head>
+<body>
+    <a href="../index.html" class="back-link">Back to Games</a>
+
+    <!-- ===== MENU ===== -->
+    <div id="screen-menu" class="screen active">
+        <div class="menu-icon">&#9999;&#65039;</div>
+        <h1 class="menu-title">Sketch Detective</h1>
+        <p class="menu-subtitle">Guess the drawing before time runs out!</p>
+
+        <div class="menu-info">
+            <h3>How to Play</h3>
+            <p>Watch as a mystery sketch is drawn stroke by stroke. Type your guess before the timer runs out!</p>
+            <ul>
+                <li>Faster guesses earn more points</li>
+                <li>Build a streak for bonus multipliers</li>
+                <li>Use hints if you're stuck (costs some points)</li>
+                <li>10 sketches per round</li>
+            </ul>
+            <p style="margin-top:12px;"><span id="drawing-count">110</span> drawings across 10 categories</p>
+        </div>
+
+        <button id="btn-start" class="btn-start">Start Round</button>
+    </div>
+
+    <!-- ===== GAME ===== -->
+    <div id="screen-game" class="screen">
+        <div class="game-header">
+            <div class="stat-box">
+                <div class="label">Score</div>
+                <div class="value" id="score-display">0</div>
+            </div>
+            <div id="streak-display" class="streak-display"></div>
+            <div class="stat-box">
+                <div class="label">Round</div>
+                <div class="value" id="progress-text">1 / 10</div>
+            </div>
+        </div>
+
+        <div class="timer-track">
+            <div id="timer-bar" class="timer-bar"></div>
+            <span id="timer-text" class="timer-text">30s</span>
+        </div>
+
+        <div class="canvas-wrapper">
+            <canvas id="sketch-canvas"></canvas>
+        </div>
+
+        <div class="input-row">
+            <input type="text" id="guess-input" placeholder="Type your guess..." autocomplete="off" spellcheck="false">
+        </div>
+
+        <div id="hint-text" class="hint-text"></div>
+
+        <div class="button-row">
+            <button id="btn-hint" class="btn btn-hint">Hint</button>
+            <button id="btn-skip" class="btn btn-skip">Skip</button>
+        </div>
+    </div>
+
+    <!-- ===== RESULT ===== -->
+    <div id="screen-result" class="screen">
+        <div class="result-card">
+            <div id="result-icon" class="result-icon"></div>
+            <div id="result-word" class="result-word"></div>
+            <div id="result-points" class="result-points"></div>
+            <div id="result-message" class="result-message"></div>
+            <button id="btn-next" class="btn btn-primary">Next Drawing</button>
+        </div>
+    </div>
+
+    <!-- ===== SUMMARY ===== -->
+    <div id="screen-summary" class="screen">
+        <div class="summary-card">
+            <h2 class="summary-title">Round Complete!</h2>
+            <div class="summary-stats">
+                <div class="summary-stat">
+                    <div class="label">Total Score</div>
+                    <div class="value score-val" id="summary-score">0</div>
+                </div>
+                <div class="summary-stat">
+                    <div class="label">Correct</div>
+                    <div class="value" id="summary-correct">0 / 10</div>
+                </div>
+                <div class="summary-stat">
+                    <div class="label">Best Streak</div>
+                    <div class="value streak-val" id="summary-streak">0</div>
+                </div>
+                <div class="summary-stat">
+                    <div class="label">Hints Used</div>
+                    <div class="value" id="summary-hints">0</div>
+                </div>
+            </div>
+            <button id="btn-play-again" class="btn btn-primary">Play Again</button>
+        </div>
+    </div>
+
+    <script src="drawings.js"></script>
+    <script src="renderer.js"></script>
+    <script src="engine.js"></script>
+    <script src="ui.js"></script>
+</body>
+</html>
