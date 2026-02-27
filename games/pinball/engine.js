@@ -256,7 +256,9 @@
         }
 
         resetBall();
-        gameState = 'playing';
+        gameState = 'plunger';
+        plungerCharging = true;
+        plungerPower = 0;
         showMessage('BALL 1');
         PinballAudio.init();
     }

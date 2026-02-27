@@ -40,8 +40,8 @@
         // Top wall
         table.walls.push({ type: 'segment', x1: 20, y1: 20, x2: TABLE_W - 5, y2: 20 });
         // Bottom drain walls (leave gap for drain)
-        table.walls.push({ type: 'segment', x1: 20, y1: TABLE_H - 5, x2: 140, y2: TABLE_H - 5 });
-        table.walls.push({ type: 'segment', x1: 250, y1: TABLE_H - 5, x2: TABLE_W - 5, y2: TABLE_H - 5 });
+        table.walls.push({ type: 'segment', x1: 20, y1: TABLE_H - 5, x2: 130, y2: TABLE_H - 5 });
+        table.walls.push({ type: 'segment', x1: 260, y1: TABLE_H - 5, x2: TABLE_W - 5, y2: TABLE_H - 5 });
 
         // Plunger lane inner wall (stops at top for ball to enter play)
         table.walls.push({ type: 'segment', x1: TABLE_W - 30, y1: 120, x2: TABLE_W - 30, y2: TABLE_H - 5 });
@@ -100,8 +100,8 @@
         table.bumpers.push({ x: 80, y: 400, radius: 15, points: 50, restitution: 1.3, hitTimer: 0, color: 'neonPink' });
 
         // ========== FLIPPERS ==========
-        table.flippers.push(new Flipper(140, 700, 70, 'left'));
-        table.flippers.push(new Flipper(250, 700, 70, 'right'));
+        table.flippers.push(new Flipper(130, 700, 55, 'left'));
+        table.flippers.push(new Flipper(260, 700, 55, 'right'));
 
         // ========== DROP TARGETS ==========
         // Bank of 4 drop targets on upper left
@@ -170,7 +170,7 @@
 
     // Check if ball is in drain zone
     function isDrained(ball, table) {
-        return ball.pos.y > table.height - 2 && ball.pos.x > 140 && ball.pos.x < 250;
+        return ball.pos.y > table.height - 2 && ball.pos.x > 130 && ball.pos.x < 260;
     }
 
     // Check if ball went through a rollover lane
