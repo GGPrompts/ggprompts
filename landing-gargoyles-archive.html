@@ -1,0 +1,533 @@
+<!--
+  ARCHIVED: Music-reactive gargoyle canvases from landing.html
+  Removed 2026-02-27 — felt out of place on the landing page.
+  To restore: paste CSS into <style>, HTML canvases before fog div,
+  JS into a <script> block, and reconnect the Visualizer frame callback.
+-->
+
+<!-- ═══ CSS ═══ -->
+<style>
+/* ---- Gargoyle Canvases ---- */
+.gargoyle {
+  position: fixed;
+  z-index: 50;
+  pointer-events: none;
+  width: 80px;
+  height: 100px;
+}
+.gargoyle--left { left: 8px; top: 50%; transform: translateY(-50%); }
+.gargoyle--right { right: 8px; top: 50%; transform: translateY(-50%); }
+
+/* In responsive section: */
+/* @media (max-width: 768px) { .gargoyle { display: none; } } */
+</style>
+
+<!-- ═══ HTML (placed before atmospheric fog div) ═══ -->
+<!-- Gargoyle: Left -->
+<canvas class="gargoyle gargoyle--left" id="gargoyle-left" width="160" height="200"></canvas>
+<!-- Gargoyle: Right -->
+<canvas class="gargoyle gargoyle--right" id="gargoyle-right" width="160" height="200"></canvas>
+
+<!-- ═══ JS ═══ -->
+<script>
+// ─── GARGOYLES (music-reactive stone gargoyles on wall brackets) ───
+(function() {
+  "use strict";
+
+  // ---- Canvas setup ----
+  var canvasL = document.getElementById('gargoyle-left');
+  var canvasR = document.getElementById('gargoyle-right');
+  var ctxL = canvasL.getContext('2d');
+  var ctxR = canvasR.getContext('2d');
+  var CW = 160, CH = 200; // canvas pixels (2x CSS for retina)
+
+  // ---- Stone texture (cached offscreen) ----
+  var stoneTexture = null;
+  (function createStoneTexture() {
+    var tc = document.createElement('canvas');
+    tc.width = CW; tc.height = CH;
+    var tctx = tc.getContext('2d');
+    var imgData = tctx.createImageData(CW, CH);
+    var d = imgData.data;
+    for (var i = 0; i < d.length; i += 4) {
+      var n = (Math.random() - 0.5) * 25 | 0;
+      d[i] = 58 + n; d[i+1] = 48 + n; d[i+2] = 60 + n; d[i+3] = 40;
+    }
+    tctx.putImageData(imgData, 0, 0);
+    stoneTexture = tc;
+  })();
+
+  // ---- Gargoyle state per side ----
+  function makeGargoyle(phase) {
+    return {
+      phase: phase,
+      blinkTimer: 4 + Math.random() * 4,
+      blinkState: 0,
+      twitchTimer: 10 + Math.random() * 10,
+      twitchAmount: 0,
+      eyeDriftX: 0,
+      eyeDriftY: 0,
+      headNod: 0,
+      // Music reactivity
+      energy: 0,
+      mouthOpen: 0,
+      browFurrow: 0,
+      eyeGlow: 0,
+      headBob: 0
+    };
+  }
+  var gargL = makeGargoyle(0);
+  var gargR = makeGargoyle(Math.PI * 0.7);
+
+  // ---- Drawing helpers ----
+  var STONE_DARK = '#2a2230';
+  var STONE_MID  = '#3a3040';
+  var STONE_LITE = '#4a4050';
+
+  function drawGargoyle(ctx, g, mirror) {
+    ctx.save();
+    ctx.clearRect(0, 0, CW, CH);
+
+    if (mirror) {
+      ctx.translate(CW, 0);
+      ctx.scale(-1, 1);
+    }
+
+    var nod = g.headNod + g.headBob;
+
+    // Head shape — wide, squat, bestial skull
+    ctx.save();
+    ctx.translate(0, nod);
+
+    // Stone base fill — broad flat cranium, heavy jaw, angular cheekbones
+    ctx.beginPath();
+    ctx.moveTo(25, 50);
+    ctx.lineTo(55, 38);
+    ctx.lineTo(105, 38);
+    ctx.lineTo(135, 50);
+    ctx.quadraticCurveTo(142, 65, 138, 85);
+    ctx.lineTo(130, 100);
+    ctx.quadraticCurveTo(132, 125, 120, 145);
+    ctx.lineTo(105, 160);
+    ctx.quadraticCurveTo(80, 168, 55, 160);
+    ctx.lineTo(40, 145);
+    ctx.quadraticCurveTo(28, 125, 30, 100);
+    ctx.lineTo(22, 85);
+    ctx.quadraticCurveTo(18, 65, 25, 50);
+    ctx.closePath();
+
+    // Stone gradient fill
+    var grad = ctx.createLinearGradient(20, 35, 140, 170);
+    grad.addColorStop(0, STONE_LITE);
+    grad.addColorStop(0.35, STONE_MID);
+    grad.addColorStop(1, STONE_DARK);
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Stone texture overlay
+    ctx.globalAlpha = 0.4;
+    ctx.drawImage(stoneTexture, 0, 0);
+    ctx.globalAlpha = 1;
+
+    // Cracks in the stone
+    ctx.strokeStyle = 'rgba(20, 15, 25, 0.3)';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(70, 38); ctx.lineTo(65, 55); ctx.lineTo(68, 65);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(115, 42); ctx.lineTo(120, 60); ctx.lineTo(118, 72);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(48, 140); ctx.lineTo(55, 150); ctx.lineTo(52, 160);
+    ctx.stroke();
+
+    // Brow ridge — massive overhanging ledge
+    var browDrop = g.browFurrow;
+    ctx.beginPath();
+    ctx.moveTo(20, 58 + browDrop);
+    ctx.quadraticCurveTo(45, 40 + browDrop, 80, 46 + browDrop);
+    ctx.quadraticCurveTo(115, 40 + browDrop, 140, 58 + browDrop);
+    ctx.lineWidth = 9;
+    ctx.strokeStyle = STONE_DARK;
+    ctx.stroke();
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = STONE_LITE;
+    ctx.stroke();
+    // Secondary ridge line for depth
+    ctx.beginPath();
+    ctx.moveTo(30, 54 + browDrop);
+    ctx.quadraticCurveTo(80, 42 + browDrop, 130, 54 + browDrop);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(80, 70, 90, 0.4)';
+    ctx.stroke();
+
+    // Horns — thicker, curved ram-style
+    ctx.lineCap = 'round';
+    // Left horn
+    ctx.beginPath();
+    ctx.moveTo(35, 50);
+    ctx.quadraticCurveTo(15, 30, 8, 10);
+    ctx.quadraticCurveTo(5, 4, 12, 8);
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = STONE_DARK;
+    ctx.stroke();
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = STONE_MID;
+    ctx.stroke();
+    // Horn ridges
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(80, 70, 90, 0.5)';
+    ctx.beginPath();
+    ctx.moveTo(28, 40); ctx.lineTo(24, 36);
+    ctx.moveTo(22, 30); ctx.lineTo(18, 26);
+    ctx.moveTo(16, 20); ctx.lineTo(12, 16);
+    ctx.stroke();
+    // Right horn
+    ctx.beginPath();
+    ctx.moveTo(125, 50);
+    ctx.quadraticCurveTo(145, 30, 152, 10);
+    ctx.quadraticCurveTo(155, 4, 148, 8);
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = STONE_DARK;
+    ctx.stroke();
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = STONE_MID;
+    ctx.stroke();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(80, 70, 90, 0.5)';
+    ctx.beginPath();
+    ctx.moveTo(132, 40); ctx.lineTo(136, 36);
+    ctx.moveTo(138, 30); ctx.lineTo(142, 26);
+    ctx.moveTo(144, 20); ctx.lineTo(148, 16);
+    ctx.stroke();
+
+    // Pointed ears
+    ctx.beginPath();
+    ctx.moveTo(22, 70);
+    ctx.lineTo(8, 48);
+    ctx.lineTo(28, 60);
+    ctx.closePath();
+    ctx.fillStyle = STONE_MID;
+    ctx.fill();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = STONE_DARK;
+    ctx.stroke();
+    // Right ear
+    ctx.beginPath();
+    ctx.moveTo(138, 70);
+    ctx.lineTo(152, 48);
+    ctx.lineTo(132, 60);
+    ctx.closePath();
+    ctx.fillStyle = STONE_MID;
+    ctx.fill();
+    ctx.strokeStyle = STONE_DARK;
+    ctx.stroke();
+
+    // Eye sockets — deep angular hollows
+    var eyeY = 74 + browDrop * 0.5;
+    // Left eye socket
+    ctx.beginPath();
+    ctx.moveTo(48, eyeY);
+    ctx.lineTo(60, eyeY - 10);
+    ctx.lineTo(74, eyeY - 2);
+    ctx.lineTo(62, eyeY + 9);
+    ctx.closePath();
+    ctx.fillStyle = '#0e0818';
+    ctx.fill();
+    // Right eye socket
+    ctx.beginPath();
+    ctx.moveTo(86, eyeY - 2);
+    ctx.lineTo(100, eyeY - 10);
+    ctx.lineTo(112, eyeY);
+    ctx.lineTo(98, eyeY + 9);
+    ctx.closePath();
+    ctx.fillStyle = '#0e0818';
+    ctx.fill();
+
+    // Eye pupils with glow — slitted
+    var pupilAlpha = 0.6 + g.eyeGlow * 0.4;
+    var pupilR = 4 + g.eyeGlow * 2.5;
+    var driftX = g.eyeDriftX;
+    var driftY = g.eyeDriftY;
+    var blinkScale = 1 - g.blinkState;
+
+    // Left pupil
+    ctx.save();
+    ctx.translate(61 + driftX, eyeY + driftY);
+    ctx.scale(1, blinkScale);
+    var pGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, pupilR + 4);
+    pGrad.addColorStop(0, 'rgba(255, 180, 40, ' + pupilAlpha + ')');
+    pGrad.addColorStop(0.4, 'rgba(220, 120, 20, ' + (pupilAlpha * 0.8) + ')');
+    pGrad.addColorStop(1, 'rgba(150, 60, 10, 0)');
+    ctx.beginPath();
+    ctx.arc(0, 0, pupilR + 4, 0, Math.PI * 2);
+    ctx.fillStyle = pGrad;
+    ctx.fill();
+    // Vertical slit pupil
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 2, pupilR, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255, 160, 30, ' + pupilAlpha + ')';
+    ctx.fill();
+    ctx.restore();
+
+    // Right pupil
+    ctx.save();
+    ctx.translate(99 + driftX, eyeY + driftY);
+    ctx.scale(1, blinkScale);
+    ctx.beginPath();
+    ctx.arc(0, 0, pupilR + 4, 0, Math.PI * 2);
+    ctx.fillStyle = pGrad;
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 2, pupilR, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255, 160, 30, ' + pupilAlpha + ')';
+    ctx.fill();
+    ctx.restore();
+
+    // Eyelid overlay for blink
+    if (g.blinkState > 0.05) {
+      var lidH = g.blinkState * 12;
+      ctx.fillStyle = STONE_MID;
+      ctx.beginPath();
+      ctx.moveTo(48, eyeY - 8 + lidH);
+      ctx.lineTo(74, eyeY - 8 + lidH);
+      ctx.lineTo(62, eyeY + lidH * 0.8);
+      ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(86, eyeY - 8 + lidH);
+      ctx.lineTo(112, eyeY - 8 + lidH);
+      ctx.lineTo(98, eyeY + lidH * 0.8);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // Snout — wide flattened bat-like nose
+    ctx.beginPath();
+    ctx.moveTo(65, 95);
+    ctx.quadraticCurveTo(68, 108, 72, 112);
+    ctx.lineTo(88, 112);
+    ctx.quadraticCurveTo(92, 108, 95, 95);
+    ctx.quadraticCurveTo(80, 92, 65, 95);
+    ctx.closePath();
+    ctx.fillStyle = STONE_DARK;
+    ctx.fill();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = STONE_LITE;
+    ctx.stroke();
+
+    // Nostrils
+    ctx.beginPath();
+    ctx.ellipse(73, 108, 4, 3, -0.3, 0, Math.PI * 2);
+    ctx.fillStyle = '#0e0818';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(87, 108, 4, 3, 0.3, 0, Math.PI * 2);
+    ctx.fillStyle = '#0e0818';
+    ctx.fill();
+    // Nose bridge wrinkle
+    ctx.beginPath();
+    ctx.moveTo(75, 96); ctx.lineTo(80, 93); ctx.lineTo(85, 96);
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(20, 15, 25, 0.4)';
+    ctx.stroke();
+
+    // Mouth — wide snarling maw with fangs
+    var mouthOpen = g.mouthOpen;
+    var mouthY = 128 + g.twitchAmount;
+
+    // Upper lip
+    ctx.beginPath();
+    ctx.moveTo(42, mouthY);
+    ctx.lineTo(55, mouthY - 2);
+    ctx.quadraticCurveTo(80, mouthY + 3 + mouthOpen * 6, 105, mouthY - 2);
+    ctx.lineTo(118, mouthY);
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#1a1220';
+    ctx.stroke();
+
+    // Mouth interior when open
+    if (mouthOpen > 0.1) {
+      ctx.beginPath();
+      ctx.moveTo(46, mouthY + 1);
+      ctx.quadraticCurveTo(80, mouthY + 4 + mouthOpen * 12, 114, mouthY + 1);
+      ctx.quadraticCurveTo(80, mouthY + 8 + mouthOpen * 16, 46, mouthY + 1);
+      ctx.closePath();
+      ctx.fillStyle = '#0a0510';
+      ctx.fill();
+
+      // Upper fangs
+      ctx.fillStyle = STONE_LITE;
+      ctx.beginPath();
+      ctx.moveTo(54, mouthY); ctx.lineTo(57, mouthY + 5 + mouthOpen * 6); ctx.lineTo(60, mouthY);
+      ctx.closePath(); ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(66, mouthY + 1); ctx.lineTo(68, mouthY + 3 + mouthOpen * 4); ctx.lineTo(70, mouthY + 1);
+      ctx.closePath(); ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(90, mouthY + 1); ctx.lineTo(92, mouthY + 3 + mouthOpen * 4); ctx.lineTo(94, mouthY + 1);
+      ctx.closePath(); ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(100, mouthY); ctx.lineTo(103, mouthY + 5 + mouthOpen * 6); ctx.lineTo(106, mouthY);
+      ctx.closePath(); ctx.fill();
+    }
+
+    // Closed-mouth fangs
+    if (mouthOpen <= 0.1) {
+      ctx.fillStyle = STONE_LITE;
+      ctx.beginPath();
+      ctx.moveTo(54, mouthY - 1); ctx.lineTo(57, mouthY + 4); ctx.lineTo(60, mouthY - 1);
+      ctx.closePath(); ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(100, mouthY - 1); ctx.lineTo(103, mouthY + 4); ctx.lineTo(106, mouthY - 1);
+      ctx.closePath(); ctx.fill();
+    }
+
+    // Cheekbone ridges
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(90, 80, 100, 0.35)';
+    ctx.beginPath();
+    ctx.moveTo(30, 95); ctx.quadraticCurveTo(40, 100, 46, 115);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(130, 95); ctx.quadraticCurveTo(120, 100, 114, 115);
+    ctx.stroke();
+
+    // Edge highlights
+    ctx.beginPath();
+    ctx.moveTo(25, 50); ctx.lineTo(55, 38); ctx.lineTo(105, 38); ctx.lineTo(135, 50);
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(120, 110, 130, 0.25)';
+    ctx.stroke();
+
+    ctx.restore(); // undo nod translation
+
+    // ---- Wall connector bracket ----
+    var bracketY = CH * 0.5;
+
+    var bpGrad = ctx.createLinearGradient(0, bracketY - 16, 0, bracketY + 16);
+    bpGrad.addColorStop(0, STONE_LITE);
+    bpGrad.addColorStop(0.5, STONE_MID);
+    bpGrad.addColorStop(1, STONE_DARK);
+    ctx.fillStyle = bpGrad;
+    ctx.beginPath();
+    ctx.moveTo(0, bracketY - 16); ctx.lineTo(12, bracketY - 14);
+    ctx.lineTo(12, bracketY + 14); ctx.lineTo(0, bracketY + 16);
+    ctx.closePath(); ctx.fill();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(120, 110, 130, 0.25)';
+    ctx.stroke();
+
+    var armGrad = ctx.createLinearGradient(0, bracketY - 3, 0, bracketY + 3);
+    armGrad.addColorStop(0, STONE_LITE);
+    armGrad.addColorStop(0.5, STONE_MID);
+    armGrad.addColorStop(1, '#222030');
+    ctx.fillStyle = armGrad;
+    ctx.fillRect(10, bracketY - 3, 22, 6);
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+    ctx.lineWidth = 0.5;
+    ctx.strokeRect(10, bracketY - 3, 22, 6);
+
+    ctx.beginPath();
+    ctx.arc(32, bracketY, 7, 0, Math.PI * 2);
+    ctx.lineWidth = 3; ctx.strokeStyle = STONE_MID; ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(32, bracketY, 7, 0, Math.PI * 2);
+    ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(90, 80, 100, 0.5)'; ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(10, bracketY + 4); ctx.lineTo(32, bracketY + 4);
+    ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.stroke();
+
+    ctx.restore(); // undo mirror
+  }
+
+  // ---- Animation loop ----
+  var lastTime = 0;
+
+  function updateGargoyle(g, dt, time) {
+    g.eyeDriftX = Math.sin(time * 0.8 + g.phase) * 4;
+    g.eyeDriftY = Math.sin(time * 0.5 + g.phase + 1.5) * 2;
+
+    g.blinkTimer -= dt;
+    if (g.blinkTimer <= 0) {
+      g.blinkState = 1;
+      g.blinkTimer = 4 + Math.random() * 4;
+    }
+    if (g.blinkState > 0) {
+      g.blinkState -= dt * 7;
+      if (g.blinkState < 0) g.blinkState = 0;
+    }
+
+    g.headNod = Math.sin(time * 0.6 + g.phase * 2) * 1.5;
+
+    g.twitchTimer -= dt;
+    if (g.twitchTimer <= 0) {
+      g.twitchAmount = 2;
+      g.twitchTimer = 10 + Math.random() * 10;
+    }
+    if (g.twitchAmount > 0) {
+      g.twitchAmount *= Math.exp(-4 * dt);
+      if (g.twitchAmount < 0.05) g.twitchAmount = 0;
+    }
+
+    g.mouthOpen *= Math.exp(-6 * dt);
+    g.browFurrow *= Math.exp(-4 * dt);
+    g.eyeGlow *= Math.exp(-3 * dt);
+    g.headBob *= Math.exp(-8 * dt);
+  }
+
+  var animTime = 0;
+  function animate(timestamp) {
+    requestAnimationFrame(animate);
+    var now = timestamp / 1000;
+    var dt = lastTime ? now - lastTime : 1/60;
+    lastTime = now;
+    if (dt > 0.1) dt = 1/60;
+    animTime += dt;
+
+    updateGargoyle(gargL, dt, animTime);
+    updateGargoyle(gargR, dt, animTime);
+
+    drawGargoyle(ctxL, gargL, false);
+    drawGargoyle(ctxR, gargR, true);
+  }
+  requestAnimationFrame(animate);
+
+  // ---- Music reactivity (called from Visualizer frame callback) ----
+  // NOTE: This callback also handled candle reactivity in the original.
+  // The candle reactivity code was separated out when gargoyles were removed.
+  window._gargoyleOnFrame = function(frameData) {
+    var cursor = frameData.cursor;
+    var analysis = frameData.analysis;
+    if (!cursor || !analysis) return;
+
+    var energy = analysis.energy[cursor.timelineIndex] || 0;
+    var smoothEnergy = energy; // simplified; original used a smoothed value
+
+    var gargoyles = [gargL, gargR];
+    for (var k = 0; k < gargoyles.length; k++) {
+      var g = gargoyles[k];
+      g.energy = smoothEnergy;
+      g.eyeGlow = Math.max(g.eyeGlow, smoothEnergy * 1.2);
+      if (energy > 0.5) {
+        g.mouthOpen = Math.max(g.mouthOpen, energy * 0.8);
+      }
+      var currentBeat = Math.floor(cursor.totalFracRow / (analysis.rpb || 4));
+      if (currentBeat !== g._lastBeat) {
+        g._lastBeat = currentBeat;
+        if (energy > 0.3) {
+          g.headBob = -3 * energy;
+        }
+      }
+      if (energy > 0.7) {
+        g.browFurrow = Math.max(g.browFurrow, (energy - 0.7) * 6);
+      }
+    }
+  };
+})();
+
+// In the Visualizer init section, reconnect with:
+// if (window._gargoyleOnFrame) Visualizer.addFrameCallback(window._gargoyleOnFrame);
+</script>
