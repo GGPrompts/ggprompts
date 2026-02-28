@@ -1626,6 +1626,79 @@
     var jumpTarget = null; // floor id we're jumping to (skip intermediate door anims)
     var locAnimated = false;
 
+    // ── Elevator Sound Effects (Web Audio API) ──
+    var audioCtx = null;
+    var audioUnlocked = false;
+    var sfxVolume = 0.18; // subtle
+
+    function ensureAudio() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+    }
+
+    // Classic two-tone elevator ding (G5 → E5)
+    function playDing() {
+        if (!audioUnlocked) return;
+        ensureAudio();
+        var now = audioCtx.currentTime;
+
+        // First tone — G5 (784 Hz)
+        var osc1 = audioCtx.createOscillator();
+        var gain1 = audioCtx.createGain();
+        osc1.type = 'sine';
+        osc1.frequency.value = 784;
+        gain1.gain.setValueAtTime(sfxVolume, now);
+        gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+        osc1.connect(gain1);
+        gain1.connect(audioCtx.destination);
+        osc1.start(now);
+        osc1.stop(now + 0.6);
+
+        // Second tone — E5 (659 Hz), slightly delayed
+        var osc2 = audioCtx.createOscillator();
+        var gain2 = audioCtx.createGain();
+        osc2.type = 'sine';
+        osc2.frequency.value = 659;
+        gain2.gain.setValueAtTime(0.001, now);
+        gain2.gain.setValueAtTime(sfxVolume * 0.85, now + 0.12);
+        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.75);
+        osc2.connect(gain2);
+        gain2.connect(audioCtx.destination);
+        osc2.start(now + 0.12);
+        osc2.stop(now + 0.75);
+    }
+
+    // Soft button click
+    function playClick() {
+        if (!audioUnlocked) return;
+        ensureAudio();
+        var now = audioCtx.currentTime;
+        var osc = audioCtx.createOscillator();
+        var gain = audioCtx.createGain();
+        osc.type = 'square';
+        osc.frequency.value = 1800;
+        osc.frequency.exponentialRampToValueAtTime(600, now + 0.03);
+        gain.gain.setValueAtTime(sfxVolume * 0.35, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.06);
+    }
+
+    // Unlock audio on first user interaction
+    function unlockAudio() {
+        if (audioUnlocked) return;
+        audioUnlocked = true;
+        ensureAudio();
+    }
+    document.addEventListener('click', unlockAudio, { once: true });
+    document.addEventListener('touchstart', unlockAudio, { once: true });
+
     // Scroll to lobby (bottom of page) instantly on load — no smooth scroll flash
     var htmlEl = document.documentElement;
     htmlEl.style.scrollBehavior = 'auto';
@@ -1703,6 +1776,9 @@
             }
             indicator.textContent = floorLabels[bestFloor];
 
+            // Elevator ding on floor arrival
+            playDing();
+
             // Flash animation
             indicator.classList.add('flash');
             setTimeout(function() { indicator.classList.remove('flash'); }, 300);
@@ -1724,6 +1800,7 @@
     // Button clicks
     buttons.forEach(function(btn) {
         btn.addEventListener('click', function() {
+            playClick();
             var targetId = btn.dataset.target;
             var target = document.getElementById(targetId);
             if (target) {
