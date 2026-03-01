@@ -27,15 +27,15 @@ Arguments: `$ARGUMENTS`
    - Extract source URLs (`href="http..."`)
    - Build a dedup set of covered topics and links
 
-## Phase 1 — Research (4 parallel sonnet subagents)
+## Phase 1 — Research (5 parallel sonnet subagents)
 
-Launch 4 **sonnet** subagents in parallel, each using WebSearch:
+Launch 5 **sonnet** subagents in parallel, each using WebSearch:
 
 ### Agent 1: AI Industry News
 Search for the latest from Claude/Anthropic, OpenAI, Google AI/DeepMind, Meta AI, xAI, Mistral, and general AI industry news. Focus on product launches, policy changes, funding rounds, partnerships.
 
 ### Agent 2: Open Source & Developer Tools
-Search for new AI developer tools, open-source model releases, MCP servers, framework updates, GitHub trending AI projects, and notable library releases.
+Search for new AI developer tools, open-source model releases, MCP servers, framework updates, and notable library releases.
 
 ### Agent 3: AI Research & Papers
 Search for AI research breakthroughs, new benchmarks, notable papers (arXiv), safety research, and technical achievements.
@@ -43,11 +43,20 @@ Search for AI research breakthroughs, new benchmarks, notable papers (arXiv), sa
 ### Agent 4: Community, Culture & Media
 Search for AI community discussions, notable AI YouTube videos, podcast highlights, opinion pieces, regulatory developments, and cultural impact stories.
 
-**Each agent returns:** 5-8 ranked story summaries with:
+### Agent 5: GitHub Trending
+Search for today's top trending GitHub repositories — not just AI/ML, but across all languages and topics. Use WebSearch to find GitHub trending pages, aggregator sites (e.g., trendshift.io, ossinsight.io), and dev community posts about trending repos. Return the top 5-8 repos with: repo name, author, language, stars/growth, and a 1-sentence description. Include the GitHub URL for each.
+
+**Agents 1-4 return:** 5-8 ranked story summaries with:
 - Headline
 - 2-3 sentence summary
 - Source URL(s)
 - Significance rating (1-5)
+
+**Agent 5 returns:** 5-8 trending repos with:
+- Repo name and author
+- Language and star count/growth
+- 1-sentence description
+- GitHub URL
 
 ## Phase 1.5 — Deduplicate
 
@@ -73,7 +82,8 @@ This is where Claude exercises editorial judgment. Instead of rigid required sec
    - `.alert-breaking` — Only if genuinely breaking news
    - `.cols-2`, `.cols-3`, `.cols-2-1` — Column layouts as appropriate
 4. **Plan page structure** — masthead, then sections in order of importance.
-5. **Only constants:** masthead with date, at least one lead story, source attribution on every story, footer with archive link.
+5. **GitHub Trending table** — Always include a `.data-table` near the end of the edition showing 5-8 trending repos with columns: Repo, Language, Stars/Growth, Description. Each repo name links to its GitHub URL.
+6. **Only constants:** masthead with date, at least one lead story, source attribution on every story, GitHub Trending table, footer with archive link.
 
 Output a structured editorial plan before building.
 
