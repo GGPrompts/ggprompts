@@ -2,7 +2,7 @@
 
 Master mapping of all 195 style guides and their usage across tech guides and stories.
 
-**Used:** 64 styles · **Available:** 131 styles
+**Used:** 65 styles · **Available:** 130 styles
 
 | Style | Tech Guide | Story |
 |-------|-----------|-------|
@@ -70,7 +70,7 @@ Master mapping of all 195 style guides and their usage across tech guides and st
 | deep-sea-bioluminescence | | |
 | denim | | The Rivet |
 | desert-sahara | | |
-| dieselpunk | | |
+| dieselpunk | Termux | |
 | dos-bios | curl & wget | |
 | editorial | | |
 | egyptian-pharaonic | | |
@@ -178,7 +178,7 @@ Master mapping of all 195 style guides and their usage across tech guides and st
 | sushi-bar | | |
 | swiss | | |
 | swiss-international | Python & pip | |
-| synthwave | | |
+| synthwave | Termux | |
 | talavera | | |
 | terminal-2031 | | |
 | terrazzo-atelier | | |
