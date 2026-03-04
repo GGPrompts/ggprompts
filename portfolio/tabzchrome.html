@@ -1,0 +1,1180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TabzChrome - Full Linux Terminals in Chrome Sidebar</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --bg-surface: #101018;
+      --bg-card: #14141e;
+      --bg-card-hover: #1a1a28;
+      --bg-terminal: #0c0c14;
+      --border: #2a2a3a;
+      --border-active: #ffcc0044;
+      --text: #e0e0e8;
+      --text-muted: #8888a0;
+      --text-dim: #555570;
+      --accent: #ffcc00;
+      --accent-dim: #ffcc0033;
+      --accent-glow: #ffcc0066;
+      --green: #00ff88;
+      --red: #ff4455;
+      --blue: #4488ff;
+      --purple: #8844ff;
+      --cyan: #00ccff;
+      --font-mono: 'JetBrains Mono', monospace;
+      --font-sans: 'Inter', system-ui, sans-serif;
+      --radius: 12px;
+      --radius-sm: 8px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      line-height: 1.6;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Ambient background glow */
+    body::before {
+      content: '';
+      position: fixed;
+      top: -200px;
+      right: -200px;
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, var(--accent-dim) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+    body::after {
+      content: '';
+      position: fixed;
+      bottom: -300px;
+      left: -200px;
+      width: 800px;
+      height: 800px;
+      background: radial-gradient(circle, #4488ff15 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Navigation */
+    .nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(12px);
+      background: rgba(10, 10, 15, 0.85);
+    }
+    .nav-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .nav-back {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: color 0.2s;
+    }
+    .nav-back:hover { color: var(--accent); }
+    .nav-links { display: flex; gap: 20px; }
+    .nav-links a {
+      color: var(--text-dim);
+      text-decoration: none;
+      font-size: 13px;
+      font-family: var(--font-mono);
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--text); }
+
+    /* Hero */
+    .hero {
+      position: relative;
+      z-index: 1;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 80px 24px 60px;
+    }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--accent-dim);
+      border: 1px solid var(--accent-glow);
+      border-radius: 20px;
+      padding: 6px 16px;
+      font-size: 12px;
+      font-family: var(--font-mono);
+      color: var(--accent);
+      margin-bottom: 24px;
+      animation: badgePulse 3s ease-in-out infinite;
+    }
+    @keyframes badgePulse {
+      0%, 100% { box-shadow: 0 0 0 0 var(--accent-dim); }
+      50% { box-shadow: 0 0 20px 4px var(--accent-dim); }
+    }
+    .hero-badge .star { font-size: 14px; }
+    .hero h1 {
+      font-family: var(--font-mono);
+      font-size: clamp(48px, 7vw, 80px);
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.05;
+      margin-bottom: 8px;
+    }
+    .hero h1 span { color: var(--accent); }
+    .hero-tagline {
+      font-size: clamp(18px, 2.5vw, 24px);
+      color: var(--text-muted);
+      margin-bottom: 32px;
+      max-width: 600px;
+    }
+    .hero-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+    .meta-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .meta-chip .val { color: var(--text); }
+    .meta-chip.stars .val { color: var(--accent); font-weight: 700; }
+    .hero-links {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 24px;
+      border-radius: var(--radius-sm);
+      font-family: var(--font-mono);
+      font-size: 14px;
+      text-decoration: none;
+      transition: all 0.2s;
+      cursor: pointer;
+      border: none;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #000;
+      font-weight: 700;
+    }
+    .btn-primary:hover {
+      background: #ffe066;
+      box-shadow: 0 0 24px var(--accent-dim);
+      transform: translateY(-1px);
+    }
+    .btn-secondary {
+      background: var(--bg-card);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover {
+      border-color: var(--accent-glow);
+      background: var(--bg-card-hover);
+    }
+
+    /* Mock Terminal / Sidebar Demo */
+    .terminal-showcase {
+      position: relative;
+      z-index: 1;
+      max-width: 1200px;
+      margin: 0 auto 60px;
+      padding: 0 24px;
+    }
+    .sidebar-demo {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: 0;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: var(--bg-surface);
+      box-shadow: 0 20px 80px rgba(0,0,0,0.5), 0 0 60px var(--accent-dim);
+    }
+    .browser-mock {
+      display: flex;
+      flex-direction: column;
+      min-height: 420px;
+    }
+    .browser-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      background: #1a1a24;
+      border-bottom: 1px solid var(--border);
+    }
+    .browser-dots {
+      display: flex;
+      gap: 6px;
+    }
+    .browser-dots span {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+    .browser-dots span:nth-child(1) { background: var(--red); }
+    .browser-dots span:nth-child(2) { background: var(--accent); }
+    .browser-dots span:nth-child(3) { background: var(--green); }
+    .browser-url {
+      flex: 1;
+      background: var(--bg-terminal);
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+    }
+    .browser-content {
+      flex: 1;
+      padding: 32px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #0e0e16;
+      color: var(--text-dim);
+      font-family: var(--font-mono);
+      font-size: 13px;
+      text-align: center;
+      gap: 8px;
+    }
+    .browser-content .page-icon { font-size: 40px; opacity: 0.4; margin-bottom: 8px; }
+
+    /* Sidebar Terminal */
+    .sidebar-panel {
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-terminal);
+    }
+    .sidebar-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      background: linear-gradient(135deg, #1a1a24, #16162a);
+      border-bottom: 1px solid var(--border);
+    }
+    .sidebar-title {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .sidebar-controls {
+      display: flex;
+      gap: 4px;
+    }
+    .sidebar-controls span {
+      width: 20px;
+      height: 20px;
+      border-radius: 4px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      color: var(--text-dim);
+    }
+
+    /* Terminal tabs */
+    .terminal-tabs {
+      display: flex;
+      background: #0a0a12;
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+    }
+    .terminal-tab {
+      padding: 7px 12px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-dim);
+      border-right: 1px solid #1a1a24;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      user-select: none;
+    }
+    .terminal-tab.active {
+      color: var(--text);
+      background: var(--bg-terminal);
+      border-bottom: 2px solid var(--accent);
+    }
+    .terminal-tab:hover:not(.active) {
+      background: #111119;
+      color: var(--text-muted);
+    }
+    .tab-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+    }
+    .tab-dot.green { background: var(--green); }
+    .tab-dot.blue { background: var(--blue); }
+    .tab-dot.purple { background: var(--purple); }
+    .tab-dot.cyan { background: var(--cyan); }
+
+    /* Terminal output */
+    .terminal-body {
+      flex: 1;
+      padding: 12px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.7;
+      overflow: hidden;
+    }
+    .terminal-body .line {
+      opacity: 0;
+      animation: lineAppear 0.3s forwards;
+    }
+    .terminal-body .prompt { color: var(--green); }
+    .terminal-body .cmd { color: var(--text); }
+    .terminal-body .output { color: var(--text-muted); }
+    .terminal-body .accent { color: var(--accent); }
+    .terminal-body .info { color: var(--blue); }
+    .terminal-body .dim { color: var(--text-dim); }
+    .cursor-blink {
+      display: inline-block;
+      width: 7px;
+      height: 14px;
+      background: var(--accent);
+      animation: blink 1s step-end infinite;
+      vertical-align: text-bottom;
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+    @keyframes lineAppear {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Main content */
+    .content {
+      position: relative;
+      z-index: 1;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px 80px;
+    }
+
+    /* Section headings */
+    .section { margin-bottom: 64px; }
+    .section-label {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 3px;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+    .section h2 {
+      font-family: var(--font-sans);
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 24px;
+    }
+
+    /* Overview */
+    .overview-text {
+      font-size: 17px;
+      color: var(--text-muted);
+      max-width: 800px;
+      line-height: 1.8;
+    }
+    .overview-text strong { color: var(--text); }
+    .overview-text em { color: var(--accent); font-style: normal; }
+
+    /* Stats grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+      margin-bottom: 40px;
+    }
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 20px;
+      text-align: center;
+      transition: all 0.25s;
+    }
+    .stat-card:hover {
+      border-color: var(--accent-glow);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    }
+    .stat-number {
+      font-family: var(--font-mono);
+      font-size: 36px;
+      font-weight: 700;
+      color: var(--accent);
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+    .stat-number.green { color: var(--green); }
+    .stat-number.blue { color: var(--blue); }
+    .stat-number.purple { color: var(--purple); }
+    .stat-number.cyan { color: var(--cyan); }
+    .stat-label {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    /* Tech Stack */
+    .stack-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+    }
+    .stack-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 20px;
+      transition: all 0.25s;
+    }
+    .stack-card:hover {
+      border-color: var(--accent-glow);
+      transform: translateY(-2px);
+    }
+    .stack-card h3 {
+      font-family: var(--font-mono);
+      font-size: 14px;
+      color: var(--accent);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .stack-card ul {
+      list-style: none;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+    .stack-card li {
+      padding: 3px 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .stack-card li::before {
+      content: '';
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: var(--text-dim);
+      flex-shrink: 0;
+    }
+
+    /* Language bars */
+    .lang-bars {
+      display: flex;
+      height: 10px;
+      border-radius: 5px;
+      overflow: hidden;
+      margin-bottom: 12px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+    }
+    .lang-bar { height: 100%; transition: width 1s ease; }
+    .lang-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      font-size: 12px;
+      font-family: var(--font-mono);
+      color: var(--text-muted);
+    }
+    .lang-legend span {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .lang-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    /* Architecture */
+    .arch-diagram {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px;
+      overflow-x: auto;
+    }
+    .arch-flow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      flex-wrap: wrap;
+      min-width: 600px;
+    }
+    .arch-node {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 16px 20px;
+      text-align: center;
+      min-width: 120px;
+      transition: all 0.25s;
+    }
+    .arch-node:hover {
+      border-color: var(--accent-glow);
+      box-shadow: 0 0 20px var(--accent-dim);
+      transform: translateY(-2px);
+    }
+    .arch-node .icon { font-size: 24px; margin-bottom: 6px; }
+    .arch-node .label {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text);
+      font-weight: 600;
+    }
+    .arch-node .sublabel {
+      font-size: 10px;
+      color: var(--text-dim);
+      margin-top: 2px;
+    }
+    .arch-arrow {
+      color: var(--accent);
+      font-family: var(--font-mono);
+      font-size: 20px;
+      padding: 0 12px;
+      opacity: 0.5;
+    }
+
+    /* Features */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 16px;
+    }
+    .feature-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 24px;
+      transition: all 0.25s;
+      position: relative;
+      overflow: hidden;
+    }
+    .feature-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .feature-card:hover::before { opacity: 1; }
+    .feature-card:hover {
+      border-color: var(--accent-glow);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    }
+    .feature-icon {
+      font-size: 28px;
+      margin-bottom: 12px;
+    }
+    .feature-card h3 {
+      font-family: var(--font-mono);
+      font-size: 15px;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+    .feature-card p {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    /* Lessons / Reflection */
+    .lessons-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      border-radius: var(--radius-sm);
+      padding: 28px 32px;
+    }
+    .lessons-box p {
+      font-size: 16px;
+      color: var(--text-muted);
+      line-height: 1.8;
+    }
+    .lessons-box p strong { color: var(--text); }
+    .lessons-box p em { color: var(--accent); font-style: normal; }
+
+    /* YouTube embed */
+    .video-section {
+      margin-top: 40px;
+    }
+    .video-wrapper {
+      position: relative;
+      padding-bottom: 56.25%;
+      height: 0;
+      border-radius: var(--radius);
+      overflow: hidden;
+      border: 1px solid var(--border);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+    }
+    .video-wrapper iframe {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+
+    /* Footer */
+    .footer {
+      border-top: 1px solid var(--border);
+      padding: 32px 24px;
+      text-align: center;
+    }
+    .footer-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+    .footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .hero { padding: 48px 16px 40px; }
+      .hero h1 { font-size: 36px; }
+      .sidebar-demo { grid-template-columns: 1fr; }
+      .sidebar-panel { border-left: none; border-top: 1px solid var(--border); }
+      .browser-mock { min-height: 200px; }
+      .arch-flow { min-width: auto; flex-direction: column; gap: 8px; }
+      .arch-arrow { transform: rotate(90deg); padding: 4px 0; }
+      .content { padding: 0 16px 48px; }
+      .features-grid { grid-template-columns: 1fr; }
+      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+      .nav-links { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="index.html" class="nav-back">&larr; portfolio/</a>
+      <div class="nav-links">
+        <a href="#overview">Overview</a>
+        <a href="#stats">Stats</a>
+        <a href="#stack">Stack</a>
+        <a href="#architecture">Architecture</a>
+        <a href="#features">Features</a>
+        <a href="#lessons">Lessons</a>
+      </div>
+    </div>
+  </nav>
+
+  <header class="hero">
+    <div class="hero-badge">
+      <span class="star">&#9733;</span> 127 stars on GitHub &mdash; FLAGSHIP PROJECT
+    </div>
+    <h1>Tabz<span>Chrome</span></h1>
+    <p class="hero-tagline">Full Linux terminals in your Chrome sidebar. Not emulated &mdash; real bash shells via WebSocket.</p>
+    <div class="hero-meta">
+      <span class="meta-chip stars"><span class="val">&#9733; 127</span> stars</span>
+      <span class="meta-chip"><span class="val">10</span> forks</span>
+      <span class="meta-chip">Created <span class="val">Nov 17, 2025</span></span>
+      <span class="meta-chip">Size <span class="val">18.9 MB</span></span>
+      <span class="meta-chip">License <span class="val">MIT</span></span>
+    </div>
+    <div class="hero-links">
+      <a href="https://youtu.be/uY-YbAW7yg4" target="_blank" class="btn btn-primary">&#9654; Watch Demo</a>
+      <a href="https://github.com/GGPrompts/TabzChrome" target="_blank" class="btn btn-secondary">View on GitHub</a>
+    </div>
+  </header>
+
+  <!-- Interactive Sidebar Demo -->
+  <section class="terminal-showcase">
+    <div class="sidebar-demo">
+      <div class="browser-mock">
+        <div class="browser-toolbar">
+          <div class="browser-dots"><span></span><span></span><span></span></div>
+          <div class="browser-url">github.com/GGPrompts/TabzChrome</div>
+        </div>
+        <div class="browser-content">
+          <div class="page-icon">&#128187;</div>
+          <div>Your normal browser content here</div>
+          <div style="color: var(--text-dim); font-size: 11px;">TabzChrome lives in the sidebar &rarr;</div>
+        </div>
+      </div>
+      <div class="sidebar-panel">
+        <div class="sidebar-header">
+          <div class="sidebar-title">&#9889; TabzChrome</div>
+          <div class="sidebar-controls">
+            <span>+</span>
+            <span>&#8943;</span>
+          </div>
+        </div>
+        <div class="terminal-tabs">
+          <div class="terminal-tab active" data-tab="bash"><span class="tab-dot green"></span>bash</div>
+          <div class="terminal-tab" data-tab="claude"><span class="tab-dot purple"></span>claude</div>
+          <div class="terminal-tab" data-tab="htop"><span class="tab-dot cyan"></span>htop</div>
+        </div>
+        <div class="terminal-body" id="terminal-output">
+          <!-- Lines injected by JS -->
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="content">
+    <!-- Overview -->
+    <section class="section" id="overview">
+      <div class="section-label">// overview</div>
+      <h2>Project Overview</h2>
+      <div class="overview-text">
+        <p>TabzChrome brings <strong>real Linux terminals</strong> into the Chrome browser sidebar. This is not a shell emulator &mdash; it connects to <em>actual bash processes</em> on your machine via WebSocket, with <em>tmux-backed persistence</em> that survives sidebar close and even browser restarts.</p>
+        <br>
+        <p>Beyond terminals, TabzChrome includes <strong>85 MCP browser control tools</strong> for screenshots, clicks, form filling, network interception, and device emulation. It integrates deeply with <strong>Claude Code</strong> for AI-powered terminal workflows, and ships with a <strong>plugin marketplace</strong> for agents, skills, and hooks.</p>
+        <br>
+        <p>With 127 stars and 10 forks, this is the project that proved developers want <em>terminals integrated into their browsing workflow</em>.</p>
+      </div>
+    </section>
+
+    <!-- Stats -->
+    <section class="section" id="stats">
+      <div class="section-label">// stats</div>
+      <h2>By the Numbers</h2>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-number">127</div>
+          <div class="stat-label">GitHub Stars</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number green">85</div>
+          <div class="stat-label">MCP Tools</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number blue">10</div>
+          <div class="stat-label">Forks</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number purple">18.9</div>
+          <div class="stat-label">MB Codebase</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number cyan">8129</div>
+          <div class="stat-label">Dashboard Port</div>
+        </div>
+      </div>
+
+      <div class="lang-bars" id="lang-bars">
+        <div class="lang-bar" style="width:75%;background:#3178c6"></div>
+        <div class="lang-bar" style="width:15%;background:#f7df1e"></div>
+        <div class="lang-bar" style="width:4%;background:#e34f26"></div>
+        <div class="lang-bar" style="width:4%;background:#89e051"></div>
+        <div class="lang-bar" style="width:2%;background:#563d7c"></div>
+      </div>
+      <div class="lang-legend">
+        <span><span class="lang-dot" style="background:#3178c6"></span> TypeScript 75%</span>
+        <span><span class="lang-dot" style="background:#f7df1e"></span> JavaScript 15%</span>
+        <span><span class="lang-dot" style="background:#e34f26"></span> HTML 4%</span>
+        <span><span class="lang-dot" style="background:#89e051"></span> Shell 4%</span>
+        <span><span class="lang-dot" style="background:#563d7c"></span> CSS 2%</span>
+      </div>
+    </section>
+
+    <!-- Tech Stack -->
+    <section class="section" id="stack">
+      <div class="section-label">// tech stack</div>
+      <h2>Tech Stack</h2>
+      <div class="stack-grid">
+        <div class="stack-card">
+          <h3>&#128268; Extension</h3>
+          <ul>
+            <li>Chrome Manifest V3</li>
+            <li>React (sidebar UI)</li>
+            <li>xterm.js (terminal rendering)</li>
+            <li>Service Worker (background)</li>
+          </ul>
+        </div>
+        <div class="stack-card">
+          <h3>&#128268; Backend</h3>
+          <ul>
+            <li>Node.js + Express</li>
+            <li>WebSocket (terminal streams)</li>
+            <li>node-pty (PTY allocation)</li>
+            <li>tmux (session persistence)</li>
+          </ul>
+        </div>
+        <div class="stack-card">
+          <h3>&#128268; MCP Layer</h3>
+          <ul>
+            <li>85 browser control tools</li>
+            <li>Chrome DevTools Protocol</li>
+            <li>REST API for automation</li>
+            <li>Plugin marketplace system</li>
+          </ul>
+        </div>
+        <div class="stack-card">
+          <h3>&#128268; Integration</h3>
+          <ul>
+            <li>Claude Code status detection</li>
+            <li>/discover-profiles command</li>
+            <li>Local dashboard (port 8129)</li>
+            <li>Profile system w/ categories</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Architecture -->
+    <section class="section" id="architecture">
+      <div class="section-label">// architecture</div>
+      <h2>Architecture</h2>
+      <div class="arch-diagram">
+        <div class="arch-flow">
+          <div class="arch-node">
+            <div class="icon">&#127760;</div>
+            <div class="label">Chrome Sidebar</div>
+            <div class="sublabel">React + xterm.js</div>
+          </div>
+          <div class="arch-arrow">&rarr;</div>
+          <div class="arch-node">
+            <div class="icon">&#9889;</div>
+            <div class="label">WebSocket</div>
+            <div class="sublabel">Bidirectional</div>
+          </div>
+          <div class="arch-arrow">&rarr;</div>
+          <div class="arch-node">
+            <div class="icon">&#128421;</div>
+            <div class="label">Node Server</div>
+            <div class="sublabel">Express + node-pty</div>
+          </div>
+          <div class="arch-arrow">&rarr;</div>
+          <div class="arch-node">
+            <div class="icon">&#128427;</div>
+            <div class="label">tmux</div>
+            <div class="sublabel">Session persistence</div>
+          </div>
+          <div class="arch-arrow">&rarr;</div>
+          <div class="arch-node">
+            <div class="icon">&#128187;</div>
+            <div class="label">Linux Shell</div>
+            <div class="sublabel">bash / zsh</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Features -->
+    <section class="section" id="features">
+      <div class="section-label">// key features</div>
+      <h2>Key Features</h2>
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon">&#128427;</div>
+          <h3>Real Bash Terminals</h3>
+          <p>Not a shell emulator. Actual Linux bash processes connected via WebSocket through node-pty. Full PTY support with colors, cursor movement, and interactive programs.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">&#128736;</div>
+          <h3>85 MCP Browser Tools</h3>
+          <p>Screenshots, clicks, form filling, network interception, cookie management, device emulation. Full browser control from the terminal or AI agents.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">&#128260;</div>
+          <h3>tmux Persistence</h3>
+          <p>Terminal sessions survive sidebar close, tab navigation, and browser restarts. Your running processes stay alive, backed by tmux session management.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">&#127912;</div>
+          <h3>3D Focus Mode</h3>
+          <p>Pop any terminal into an immersive 3D perspective view. Full-screen focus for when you need to concentrate on a single terminal session.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">&#129302;</div>
+          <h3>Claude Code Integration</h3>
+          <p>Deep integration with Claude Code: status detection, /discover-profiles command, and AI-powered terminal workflows. The terminal becomes an AI interface.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">&#128230;</div>
+          <h3>Plugin Marketplace</h3>
+          <p>Extensible architecture with agents, skills, and hooks. Install community plugins or build your own to customize the terminal experience.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">&#127912;</div>
+          <h3>Profiles & Categories</h3>
+          <p>Organize terminals with named profiles, color-coded categories, and custom configurations. Quick-switch between different development contexts.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">&#128187;</div>
+          <h3>Terminal Popouts</h3>
+          <p>Detach any terminal into a standalone browser window. Arrange multiple terminals across screens while keeping them connected to the same backend.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Demo Video -->
+    <section class="section" id="demo">
+      <div class="section-label">// demo</div>
+      <h2>See It in Action</h2>
+      <div class="video-wrapper">
+        <iframe src="https://www.youtube.com/embed/uY-YbAW7yg4" title="TabzChrome Demo" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe>
+      </div>
+    </section>
+
+    <!-- Lessons -->
+    <section class="section" id="lessons">
+      <div class="section-label">// lessons learned</div>
+      <h2>Reflections</h2>
+      <div class="lessons-box">
+        <p>Building TabzChrome taught deep lessons about <strong>Chrome extension architecture</strong> and the constraints of <strong>Manifest V3</strong> &mdash; service worker lifecycle, content script isolation, and sidebar API limitations. The <strong>WebSocket terminal bridge</strong> pattern (browser &rarr; WS &rarr; node-pty &rarr; tmux) became a reusable architecture I carried forward.</p>
+        <br>
+        <p>The biggest takeaway: <em>developers want terminals integrated into their browsing workflow</em>. The 127 stars came from a real pain point &mdash; context switching between browser and terminal kills flow state. Putting a real shell in the sidebar, persistent across sessions, turned out to be the single most impactful developer tool I have built.</p>
+      </div>
+    </section>
+  </div>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <a href="index.html">&larr; Back to Portfolio</a> &nbsp;&middot;&nbsp; TabzChrome &copy; 2025 &nbsp;&middot;&nbsp; MIT License
+    </div>
+  </footer>
+
+  <script>
+    // Terminal typing animation
+    const terminalLines = [
+      { type: 'prompt', text: '~ $ ' , cmd: 'tabzchrome --status'},
+      { type: 'output', text: '' },
+      { type: 'accent', text: '  TabzChrome v2.4.1' },
+      { type: 'output', text: '  Server:     running (port 8129)' },
+      { type: 'output', text: '  Sessions:   3 active tmux sessions' },
+      { type: 'info',   text: '  MCP Tools:  85 registered' },
+      { type: 'output', text: '  Plugins:    7 loaded' },
+      { type: 'output', text: '' },
+      { type: 'prompt', text: '~ $ ', cmd: 'ls ~/projects' },
+      { type: 'output', text: '' },
+      { type: 'accent', text: '  TabzChrome/   Tabz/   ThumbCommand/' },
+      { type: 'dim',    text: '  htmlstyleguides/   TUIClassics/' },
+      { type: 'output', text: '' },
+      { type: 'prompt', text: '~ $ ', cmd: '', cursor: true },
+    ];
+
+    const terminalBody = document.getElementById('terminal-output');
+    let lineIndex = 0;
+    const typingSpeed = 30;
+    const lineDelay = 120;
+
+    function typeText(el, text, callback) {
+      let i = 0;
+      if (!text) { callback(); return; }
+      function tick() {
+        el.textContent += text[i];
+        i++;
+        if (i < text.length) setTimeout(tick, typingSpeed);
+        else callback();
+      }
+      tick();
+    }
+
+    function renderLine() {
+      if (lineIndex >= terminalLines.length) return;
+      const data = terminalLines[lineIndex];
+      const div = document.createElement('div');
+      div.className = 'line';
+      div.style.animationDelay = '0s';
+
+      if (data.type === 'prompt') {
+        const promptSpan = document.createElement('span');
+        promptSpan.className = 'prompt';
+        promptSpan.textContent = data.text;
+        div.appendChild(promptSpan);
+
+        const cmdSpan = document.createElement('span');
+        cmdSpan.className = 'cmd';
+        div.appendChild(cmdSpan);
+
+        terminalBody.appendChild(div);
+        lineIndex++;
+
+        if (data.cmd) {
+          typeText(cmdSpan, data.cmd, () => {
+            setTimeout(renderLine, lineDelay);
+          });
+        } else if (data.cursor) {
+          const cursor = document.createElement('span');
+          cursor.className = 'cursor-blink';
+          div.appendChild(cursor);
+        }
+      } else {
+        div.innerHTML = '<span class="' + data.type + '">' + data.text + '</span>';
+        terminalBody.appendChild(div);
+        lineIndex++;
+        setTimeout(renderLine, lineDelay);
+      }
+
+      terminalBody.scrollTop = terminalBody.scrollHeight;
+    }
+
+    // Tab switching in sidebar demo
+    const tabs = document.querySelectorAll('.terminal-tab');
+    const terminalOutputs = {
+      bash: terminalLines,
+      claude: [
+        { type: 'accent', text: '  Claude Code v1.0.41' },
+        { type: 'output', text: '  Model: claude-opus-4-6' },
+        { type: 'info',   text: '  Status: Connected via TabzChrome' },
+        { type: 'output', text: '' },
+        { type: 'prompt', text: '> ', cmd: '', cursor: true },
+      ],
+      htop: [
+        { type: 'accent', text: '  CPU [||||||||........] 42.3%' },
+        { type: 'info',   text: '  MEM [||||||..........] 31.7%' },
+        { type: 'output', text: '  Tasks: 247, 1 running' },
+        { type: 'output', text: '  Load: 1.24 0.88 0.76' },
+        { type: 'output', text: '' },
+        { type: 'dim',    text: '  PID  USER    CPU%  MEM%  CMD' },
+        { type: 'output', text: '  1842 marci   12.3  4.1   node server' },
+        { type: 'output', text: '  1901 marci    8.7  2.3   tmux' },
+        { type: 'output', text: '  2034 marci    3.1  1.8   chrome' },
+      ],
+    };
+
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        tabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        const tabName = tab.dataset.tab;
+        terminalBody.innerHTML = '';
+        lineIndex = 0;
+
+        const lines = terminalOutputs[tabName];
+        if (tabName === 'bash') {
+          renderLine();
+        } else {
+          lines.forEach((data, i) => {
+            const div = document.createElement('div');
+            div.className = 'line';
+            div.style.animationDelay = (i * 0.05) + 's';
+            if (data.cursor) {
+              const promptSpan = document.createElement('span');
+              promptSpan.className = 'prompt';
+              promptSpan.textContent = data.text;
+              div.appendChild(promptSpan);
+              const cursor = document.createElement('span');
+              cursor.className = 'cursor-blink';
+              div.appendChild(cursor);
+            } else {
+              div.innerHTML = '<span class="' + data.type + '">' + data.text + '</span>';
+            }
+            terminalBody.appendChild(div);
+          });
+        }
+      });
+    });
+
+    // Start animation on scroll into view
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          setTimeout(renderLine, 500);
+          observer.disconnect();
+        }
+      });
+    }, { threshold: 0.3 });
+    observer.observe(document.querySelector('.sidebar-demo'));
+
+    // Animate stats on scroll
+    const statObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.querySelectorAll('.stat-number').forEach((el, i) => {
+            const target = parseFloat(el.textContent);
+            el.textContent = '0';
+            let current = 0;
+            const step = target / 40;
+            const isFloat = target % 1 !== 0;
+            setTimeout(() => {
+              const interval = setInterval(() => {
+                current += step;
+                if (current >= target) {
+                  el.textContent = isFloat ? target.toFixed(1) : Math.round(target);
+                  clearInterval(interval);
+                } else {
+                  el.textContent = isFloat ? current.toFixed(1) : Math.round(current);
+                }
+              }, 25);
+            }, i * 100);
+          });
+          statObserver.disconnect();
+        }
+      });
+    }, { threshold: 0.3 });
+    statObserver.observe(document.querySelector('.stats-grid'));
+
+    // Smooth scroll for nav links
+    document.querySelectorAll('.nav-links a').forEach(link => {
+      link.addEventListener('click', e => {
+        e.preventDefault();
+        const target = document.querySelector(link.getAttribute('href'));
+        if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
+  </script>
+</body>
+</html>
