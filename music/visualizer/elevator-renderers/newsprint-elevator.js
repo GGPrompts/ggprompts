@@ -7,7 +7,7 @@
     var W = 0, H = 0, time = 0;
 
     var PAPER = '#1a1812';
-    var TEXT = '#c8c0a8';
+    var TEXT = '#ddd5b8';
     var RULE = '#3a3528';
     var RED = '#cc4433';
     var GOLD = '#d4af37';
@@ -38,7 +38,7 @@
                 y: i * lineH,
                 text: headlines[Math.floor(Math.random() * headlines.length)],
                 speed: 20 + Math.random() * 15,
-                alpha: 0.08 + Math.random() * 0.14,
+                alpha: 0.12 + Math.random() * 0.16,
                 size: 10 + Math.floor(Math.random() * 4),
                 isHeadline: Math.random() < 0.15
             });
