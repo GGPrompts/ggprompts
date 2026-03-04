@@ -1,25 +1,25 @@
 # Agent Instructions
 
-This repo contains many self-contained HTML pages and small assets. Use **bd** (beads) when it adds real value, not as a hard requirement.
+This repo contains many self-contained HTML pages and small assets. Use **ggbd** (beads) when it adds real value, not as a hard requirement.
 
-## When To Use bd
+## When To Use ggbd
 
-Use bd for:
+Use ggbd for:
 - Multi-step work that spans sessions
 - Changes that touch shared/global assets (site-wide CSS, shared JS, indexes like `music/audio-tracker/songs/index.json`)
 - Bugs/features with follow-ups, QA notes, or dependencies
 
-Skip bd for:
+Skip ggbd for:
 - Single, contained pages or one-off assets that are unlikely to need follow-up
 
 ## Quick Reference
 
 ```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --status in_progress  # Claim work
-bd close <id>         # Complete work
-bd sync               # Sync with git
+ggbd ready              # Find available work
+ggbd show <id>          # View issue details
+ggbd update <id> --status in_progress  # Claim work
+ggbd close <id>         # Complete work
+# Supabase auto-syncs (no manual sync needed)
 ```
 
 ## Landing The Plane (When Shipping)
@@ -28,13 +28,13 @@ Only do this workflow when you (the user) ask to land changes (commit/push), or 
 
 Workflow:
 
-1. File bd issues for follow-ups (only if needed)
+1. File ggbd issues for follow-ups (only if needed)
 2. Run relevant quality gates (tests/linters/build) if applicable
-3. Update/close bd issue(s) if used
+3. Update/close ggbd issue(s) if used
 4. Publish:
    ```bash
    git pull --rebase
-   bd sync   # only if bd was used this session
+   # Supabase auto-syncs (no manual sync needed)
    git push
    git status  # should show "up to date with origin"
    ```
