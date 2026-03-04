@@ -1,15 +1,16 @@
 /**
  * Newsprint Elevator Renderer
- * Scrolling headlines, column rules, and ink dots — a newspaper printing press.
+ * Dark-mode newspaper — scrolling headlines, column rules, and ink dots on aged dark paper.
  */
 (function() {
     "use strict";
     var W = 0, H = 0, time = 0;
 
-    var INK = '#111111';
-    var NEWSPRINT = '#f4f1eb';
-    var RULE_LIGHT = '#d0ccc4';
-    var RED = '#cc1100';
+    var PAPER = '#1a1812';
+    var TEXT = '#c8c0a8';
+    var RULE = '#3a3528';
+    var RED = '#cc4433';
+    var GOLD = '#d4af37';
 
     var headlines = [
         'BREAKING: AI ADVANCES CONTINUE',
@@ -37,7 +38,7 @@
                 y: i * lineH,
                 text: headlines[Math.floor(Math.random() * headlines.length)],
                 speed: 20 + Math.random() * 15,
-                alpha: 0.06 + Math.random() * 0.12,
+                alpha: 0.08 + Math.random() * 0.14,
                 size: 10 + Math.floor(Math.random() * 4),
                 isHeadline: Math.random() < 0.15
             });
@@ -57,7 +58,7 @@
                 x: Math.random() * W,
                 y: Math.random() * H,
                 r: 0.5 + Math.random() * 2,
-                alpha: 0.03 + Math.random() * 0.08,
+                alpha: 0.04 + Math.random() * 0.1,
                 drift: (Math.random() - 0.5) * 5
             });
         }
@@ -73,23 +74,23 @@
         render: function(ctx, w, h, dt, elapsed) {
             W = w; H = h; time = elapsed;
 
-            // Newsprint background
-            ctx.fillStyle = NEWSPRINT;
+            // Dark paper background
+            ctx.fillStyle = PAPER;
             ctx.fillRect(0, 0, W, H);
 
             // Subtle paper grain
             ctx.globalAlpha = 0.03;
             for (var gy = 0; gy < H; gy += 3) {
-                ctx.fillStyle = Math.random() > 0.5 ? INK : RULE_LIGHT;
+                ctx.fillStyle = Math.random() > 0.5 ? TEXT : RULE;
                 ctx.fillRect(0, gy, W, 1);
             }
             ctx.globalAlpha = 1;
 
             // Column rules
-            ctx.strokeStyle = RULE_LIGHT;
+            ctx.strokeStyle = RULE;
             ctx.lineWidth = 1;
             for (var ci = 0; ci < columnX.length; ci++) {
-                ctx.globalAlpha = 0.3;
+                ctx.globalAlpha = 0.4;
                 ctx.beginPath();
                 ctx.moveTo(columnX[ci], 0);
                 ctx.lineTo(columnX[ci], H);
@@ -114,7 +115,7 @@
                     ctx.globalAlpha = line.alpha * 1.5;
                 } else {
                     ctx.font = line.size + 'px Georgia, serif';
-                    ctx.fillStyle = INK;
+                    ctx.fillStyle = TEXT;
                 }
                 ctx.fillText(line.text, 8 + Math.sin(time * 0.3 + i) * 2, line.y);
             }
@@ -127,7 +128,7 @@
                 dot.x += dot.drift * dt;
                 if (dot.y < -5) { dot.y = H + 5; dot.x = Math.random() * W; }
                 ctx.globalAlpha = dot.alpha;
-                ctx.fillStyle = INK;
+                ctx.fillStyle = GOLD;
                 ctx.beginPath();
                 ctx.arc(dot.x, dot.y, dot.r, 0, Math.PI * 2);
                 ctx.fill();
@@ -135,7 +136,7 @@
             ctx.globalAlpha = 1;
 
             // Oxford rule at top
-            ctx.fillStyle = INK;
+            ctx.fillStyle = GOLD;
             ctx.globalAlpha = 0.15;
             ctx.fillRect(0, 0, W, 3);
             ctx.fillRect(0, 5, W, 1);
@@ -145,10 +146,10 @@
             ctx.fillRect(0, H - 6, W, 1);
             ctx.globalAlpha = 1;
 
-            // Vignette
+            // Vignette — darken edges
             var vGrad = ctx.createRadialGradient(W / 2, H / 2, W * 0.25, W / 2, H / 2, W * 0.7);
-            vGrad.addColorStop(0, 'rgba(244,241,235,0)');
-            vGrad.addColorStop(1, 'rgba(200,195,185,0.4)');
+            vGrad.addColorStop(0, 'rgba(26,24,18,0)');
+            vGrad.addColorStop(1, 'rgba(10,10,8,0.5)');
             ctx.fillStyle = vGrad;
             ctx.fillRect(0, 0, W, H);
         }
