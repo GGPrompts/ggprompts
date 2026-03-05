@@ -2,8 +2,7 @@
 
 Master mapping of all 195 style guides and their usage across tech guides and stories.
 
-**Used:** 68 styles · **Available:** 127 styles
-**Used:** 66 styles · **Available:** 129 styles
+**Used:** 69 styles · **Available:** 126 styles
 
 | Style | Tech Guide | Story |
 |-------|-----------|-------|
@@ -68,7 +67,7 @@ Master mapping of all 195 style guides and their usage across tech guides and st
 | darkroom | | The Decisive Moment |
 | day-of-the-dead | | |
 | de-stijl | HTML & CSS, Programming Languages | |
-| deep-sea-bioluminescence | | |
+| deep-sea-bioluminescence | GraphQL | |
 | denim | | The Rivet |
 | desert-sahara | | |
 | dieselpunk | Termux | |
