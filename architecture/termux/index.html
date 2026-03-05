@@ -1,0 +1,1476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Termux Architecture Map — Architecture Guide</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* === CodexTerminal 2031 Palette === */
+            --void-0: #060a12;
+            --void-1: #0d1421;
+            --void-2: #111c2d;
+            --plate: #18263a;
+            --plate-strong: #22324a;
+            --line: #2f4564;
+            --line-soft: rgba(123, 156, 193, 0.2);
+
+            --signal: #39ffb6;
+            --signal-soft: #9affde;
+            --warn: #ffb24f;
+            --alert: #ff5f78;
+            --focus: #56a7ff;
+            --insight: #7ce6ff;
+
+            --ink: #e7f0ff;
+            --ink-muted: #a9b8cd;
+            --ink-dim: #7b8fa9;
+
+            /* === Spacing === */
+            --space-0: 2px;
+            --space-half: 4px;
+            --space-1: 8px;
+            --space-1p5: 12px;
+            --space-2: 16px;
+            --space-3: 24px;
+            --space-4: 32px;
+            --space-5: 40px;
+            --space-6: 48px;
+            --space-8: 64px;
+
+            /* === Typography === */
+            --font-display: "Chakra Petch", sans-serif;
+            --font-body: "IBM Plex Sans", sans-serif;
+            --font-mono: "JetBrains Mono", monospace;
+
+            /* === Border Radius === */
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 18px;
+
+            /* === Borders === */
+            --border-subtle: rgba(123, 156, 193, 0.12);
+            --border-default: rgba(123, 156, 193, 0.2);
+            --border-strong: rgba(123, 156, 193, 0.35);
+
+            /* === Shadows === */
+            --shadow-soft: 0 20px 48px rgba(0, 0, 0, 0.35);
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+            --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+
+            /* === Transitions === */
+            --dur-fast: 140ms;
+            --dur-base: 280ms;
+            --ease-std: cubic-bezier(0.2, 0.7, 0.2, 1);
+
+            /* === Layer Colors (for diagrams/cards) === */
+            --layer-app: #22324a;
+            --layer-terminal: #18263a;
+            --layer-jni: #1a3040;
+            --layer-pkg: #1a2840;
+            --layer-plugin: #2a1f3a;
+            --layer-proot: #1a3530;
+            --layer-fs: #2a2a1a;
+            --layer-input: #2a1a2a;
+        }
+
+        /* === Reset === */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { font-size: 17px; scroll-behavior: smooth; scroll-padding-top: 52px; }
+
+        body {
+            font-family: var(--font-body);
+            font-size: 1rem;
+            line-height: 1.6;
+            color: var(--ink);
+            background:
+                radial-gradient(900px 550px at 8% -5%, rgba(86, 167, 255, 0.10), transparent 60%),
+                radial-gradient(760px 500px at 92% 0%, rgba(57, 255, 182, 0.07), transparent 64%),
+                linear-gradient(180deg, var(--void-1), var(--void-0));
+            background-attachment: fixed;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        body::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            background-image:
+                linear-gradient(rgba(124, 156, 193, 0.06) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(124, 156, 193, 0.06) 1px, transparent 1px);
+            background-size: 72px 72px;
+            opacity: 0.22;
+            z-index: 0;
+        }
+
+        /* === Back Link === */
+        .back-link {
+            position: relative;
+            z-index: 1;
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-1);
+            padding: var(--space-2) var(--space-4);
+            color: var(--ink-dim);
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-family: var(--font-mono);
+            letter-spacing: 0.02em;
+            transition: color var(--dur-fast) var(--ease-std);
+        }
+        .back-link::before { content: '\2190'; }
+        .back-link:hover { color: var(--signal); }
+
+        /* === Hero === */
+        .hero {
+            position: relative;
+            z-index: 1;
+            background: linear-gradient(135deg, var(--void-2) 0%, var(--void-0) 50%, var(--plate) 100%);
+            padding: var(--space-8) var(--space-4) var(--space-6);
+            border-bottom: 1px solid var(--border-default);
+            overflow: hidden;
+        }
+        .hero::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 600px 400px at 20% 50%, rgba(57, 255, 182, 0.06), transparent),
+                radial-gradient(ellipse 500px 300px at 80% 30%, rgba(86, 167, 255, 0.04), transparent);
+            pointer-events: none;
+        }
+        .hero-inner {
+            max-width: 1120px;
+            margin: 0 auto;
+            position: relative;
+        }
+        .hero h1 {
+            font-family: var(--font-display);
+            font-size: 2.4rem;
+            font-weight: 700;
+            line-height: 1.15;
+            margin-bottom: var(--space-2);
+            color: var(--ink);
+        }
+        .hero .tagline {
+            font-size: 1.15rem;
+            color: var(--ink-muted);
+            max-width: 640px;
+            line-height: 1.5;
+        }
+        .hero .meta {
+            margin-top: var(--space-3);
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-2);
+        }
+        .meta-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-half);
+            padding: var(--space-half) var(--space-1p5);
+            background: rgba(57, 255, 182, 0.08);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-sm);
+            font-size: 0.78rem;
+            font-family: var(--font-mono);
+            color: var(--ink-muted);
+            letter-spacing: 0.02em;
+        }
+        .meta-badge .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        /* === Sticky Jump Nav === */
+        .jump-nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: var(--void-0);
+            border-bottom: 1px solid var(--border-default);
+            display: flex;
+            gap: 0;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            white-space: nowrap;
+            padding: 0 var(--space-2);
+        }
+        .jump-nav a {
+            display: inline-block;
+            padding: var(--space-1p5) var(--space-2);
+            color: var(--ink-dim);
+            text-decoration: none;
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+            border-bottom: 2px solid transparent;
+            transition: all var(--dur-fast) var(--ease-std);
+            font-family: var(--font-mono);
+        }
+        .jump-nav a:hover {
+            color: var(--signal);
+            border-bottom-color: var(--signal);
+        }
+
+        /* === Container === */
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1120px;
+            margin: 0 auto;
+            padding: var(--space-6) var(--space-4);
+        }
+
+        /* === Section === */
+        .section { margin-bottom: var(--space-8); scroll-margin-top: 52px; }
+        .section-header { display: flex; align-items: baseline; gap: var(--space-2); margin-bottom: var(--space-4); padding-bottom: var(--space-2); border-bottom: 1px solid var(--border-default); }
+        .section-number { font-family: var(--font-mono); font-size: 0.85rem; color: var(--signal); font-weight: 500; }
+        .section-title { font-family: var(--font-display); font-size: 1.6rem; font-weight: 700; }
+        .section-description { color: var(--ink-muted); margin-bottom: var(--space-4); max-width: 720px; line-height: 1.65; }
+
+        /* === Subsection === */
+        .subsection { margin-bottom: var(--space-5); }
+        .subsection-title { font-family: var(--font-display); font-size: 1.2rem; font-weight: 600; margin-bottom: var(--space-2); color: var(--ink); }
+        .subsection p { color: var(--ink-muted); margin-bottom: var(--space-2); line-height: 1.65; }
+
+        /* === Diagram Container === */
+        .diagram-container { background: var(--void-2); border: 1px solid var(--border-default); border-radius: var(--radius-lg); padding: var(--space-4); margin: var(--space-3) 0; overflow-x: auto; position: relative; }
+        .diagram-container .mermaid { display: flex; justify-content: center; }
+        .diagram-label { font-family: var(--font-mono); font-size: 0.75rem; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: var(--space-2); }
+        .diagram-container .mermaid svg { max-width: 100%; height: auto; }
+
+        /* === Info Cards === */
+        .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--space-3); margin: var(--space-3) 0; }
+        .info-card { background: var(--plate); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: var(--space-3); transition: all var(--dur-base) var(--ease-std); }
+        .info-card:hover { border-color: var(--border-strong); transform: translateY(-1px); box-shadow: var(--shadow-md); }
+        .info-card h4 { font-family: var(--font-display); font-size: 1rem; font-weight: 600; margin-bottom: var(--space-1); color: var(--ink); }
+        .info-card p { font-size: 0.88rem; color: var(--ink-muted); line-height: 1.55; }
+        .info-card .card-meta { margin-top: var(--space-2); font-family: var(--font-mono); font-size: 0.75rem; color: var(--ink-dim); }
+
+        /* === Layer Badge === */
+        .layer-badge { display: inline-block; padding: 2px var(--space-1); border-radius: var(--radius-sm); font-size: 0.72rem; font-weight: 600; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.05em; }
+        .layer-app { background: rgba(57,255,182,0.12); color: var(--signal); border: 1px solid rgba(57,255,182,0.3); }
+        .layer-terminal { background: rgba(86,167,255,0.12); color: var(--focus); border: 1px solid rgba(86,167,255,0.3); }
+        .layer-jni { background: rgba(255,178,79,0.12); color: var(--warn); border: 1px solid rgba(255,178,79,0.3); }
+        .layer-pkg { background: rgba(124,230,255,0.12); color: var(--insight); border: 1px solid rgba(124,230,255,0.3); }
+        .layer-plugin { background: rgba(168,111,163,0.15); color: #c8a0c5; border: 1px solid rgba(168,111,163,0.3); }
+
+        /* === Tables === */
+        .data-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; margin: var(--space-3) 0; }
+        .data-table th { text-align: left; padding: var(--space-1p5) var(--space-2); background: var(--plate); border-bottom: 2px solid var(--border-strong); font-family: var(--font-mono); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-dim); font-weight: 500; }
+        .data-table td { padding: var(--space-1p5) var(--space-2); border-bottom: 1px solid var(--border-subtle); vertical-align: top; color: var(--ink-muted); }
+        .data-table td strong { color: var(--ink); }
+        .data-table tr:hover td { background: var(--plate); }
+
+        /* === Callout === */
+        .callout { background: var(--plate); border-left: 3px solid var(--signal); border-radius: 0 var(--radius-md) var(--radius-md) 0; padding: var(--space-3); margin: var(--space-3) 0; }
+        .callout.callout-warn { border-left-color: var(--warn); }
+        .callout.callout-alert { border-left-color: var(--alert); }
+        .callout .callout-title { font-family: var(--font-mono); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--signal); margin-bottom: var(--space-1); font-weight: 500; }
+        .callout.callout-warn .callout-title { color: var(--warn); }
+        .callout.callout-alert .callout-title { color: var(--alert); }
+        .callout p { font-size: 0.9rem; color: var(--ink-muted); line-height: 1.55; }
+
+        /* === Stat Row === */
+        .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--space-3); margin: var(--space-4) 0; }
+        .stat-item { text-align: center; padding: var(--space-3); background: var(--void-2); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); }
+        .stat-value { font-family: var(--font-display); font-size: 1.8rem; font-weight: 700; color: var(--signal); }
+        .stat-label { font-size: 0.78rem; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.06em; margin-top: var(--space-half); }
+
+        /* === Acronym List === */
+        .acronym-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 0; }
+        .acronym-item { display: flex; gap: var(--space-2); padding: var(--space-1) var(--space-2); border-bottom: 1px solid var(--border-subtle); font-size: 0.85rem; }
+        .acronym-item:hover { background: var(--plate); }
+        .acronym-key { font-family: var(--font-mono); font-weight: 500; color: var(--signal); min-width: 80px; }
+        .acronym-val { color: var(--ink-muted); }
+
+        /* === Fullscreen Overlay === */
+        .diagram-expand-btn { position: absolute; top: var(--space-1); right: var(--space-1); background: var(--plate); border: 1px solid var(--border-default); border-radius: var(--radius-sm); color: var(--ink-dim); padding: 6px 8px; cursor: pointer; font-size: 0.7rem; font-family: var(--font-mono); letter-spacing: 0.04em; text-transform: uppercase; display: flex; align-items: center; gap: 4px; transition: all var(--dur-fast) var(--ease-std); z-index: 2; }
+        .diagram-expand-btn:hover { color: var(--signal); border-color: var(--signal); background: var(--plate-strong); }
+        .diagram-expand-btn svg { width: 14px; height: 14px; }
+        .fs-overlay { position: fixed; inset: 0; z-index: 9999; background: var(--void-0); display: none; flex-direction: column; opacity: 0; transition: opacity 0.2s ease; }
+        .fs-overlay.active { opacity: 1; }
+        .fs-toolbar { display: flex; align-items: center; justify-content: space-between; padding: var(--space-1) var(--space-3); background: var(--void-1); border-bottom: 1px solid var(--border-default); flex-shrink: 0; }
+        .fs-toolbar-title { font-family: var(--font-mono); font-size: 0.78rem; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.06em; }
+        .fs-controls { display: flex; gap: var(--space-1); align-items: center; }
+        .fs-btn { background: var(--plate); border: 1px solid var(--border-default); border-radius: var(--radius-sm); color: var(--ink-muted); padding: 6px 12px; cursor: pointer; font-family: var(--font-mono); font-size: 0.78rem; transition: all var(--dur-fast) var(--ease-std); }
+        .fs-btn:hover { color: var(--signal); border-color: var(--signal); }
+        .fs-zoom-label { font-family: var(--font-mono); font-size: 0.75rem; color: var(--ink-dim); min-width: 48px; text-align: center; }
+        .fs-close { background: none; border: 1px solid var(--border-default); border-radius: var(--radius-sm); color: var(--ink-muted); padding: 6px 12px; cursor: pointer; font-family: var(--font-mono); font-size: 0.78rem; transition: all var(--dur-fast) var(--ease-std); }
+        .fs-close:hover { color: var(--alert); border-color: var(--alert); }
+        .fs-viewport { flex: 1; overflow: hidden; cursor: grab; position: relative; }
+        .fs-viewport:active { cursor: grabbing; }
+        .fs-content { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
+        .fs-content svg { max-width: none !important; height: auto !important; }
+        .fs-hint { position: absolute; bottom: var(--space-2); left: 50%; transform: translateX(-50%); font-family: var(--font-mono); font-size: 0.7rem; color: var(--ink-dim); background: var(--void-1); padding: 4px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); pointer-events: none; opacity: 0.7; }
+
+        /* === Footer === */
+        .site-footer {
+            position: relative;
+            z-index: 1;
+            border-top: 1px solid var(--border-default);
+            padding: var(--space-4) var(--space-4);
+            text-align: center;
+            color: var(--ink-dim);
+            font-size: 0.82rem;
+        }
+        .site-footer a {
+            color: var(--signal);
+            text-decoration: none;
+        }
+
+        /* === Responsive === */
+        @media (max-width: 768px) {
+            html { font-size: 16px; }
+            .hero h1 { font-size: 1.8rem; }
+            .section-title { font-size: 1.3rem; }
+            .card-grid { grid-template-columns: 1fr; }
+            .stat-row { grid-template-columns: repeat(2, 1fr); }
+            .acronym-grid { grid-template-columns: 1fr; }
+            .diagram-container { padding: var(--space-2); margin-left: calc(-1 * var(--space-2)); margin-right: calc(-1 * var(--space-2)); border-radius: 0; border-left: 0; border-right: 0; }
+        }
+    </style>
+</head>
+<body>
+    <a href="../index.html" class="back-link">Architecture Maps</a>
+
+    <!-- Hero -->
+    <header class="hero">
+        <div class="hero-inner">
+            <h1>Termux</h1>
+            <p class="tagline">Architecture map of the Android terminal emulator &mdash; native execution, pseudo-terminal management, package ecosystem, and plugin IPC compiled from public sources.</p>
+            <div class="meta">
+                <span class="meta-badge"><span class="dot" style="background:var(--signal)"></span> Open Source</span>
+                <span class="meta-badge">Language: Java + C + Shell</span>
+                <span class="meta-badge">Platform: Android 7.0+</span>
+                <span class="meta-badge">Updated: Mar 2026</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Jump Nav -->
+    <nav class="jump-nav">
+        <a href="#overview">Overview</a>
+        <a href="#modules">Modules</a>
+        <a href="#terminal">Terminal</a>
+        <a href="#execution">Execution</a>
+        <a href="#filesystem">Filesystem</a>
+        <a href="#packages">Packages</a>
+        <a href="#build">Build System</a>
+        <a href="#proot">PRoot</a>
+        <a href="#plugins">Plugins</a>
+        <a href="#sessions">Sessions</a>
+        <a href="#input">Input</a>
+        <a href="#glossary">Glossary</a>
+    </nav>
+
+    <div class="container">
+
+        <!-- 01 OVERVIEW -->
+        <section id="overview" class="section">
+            <div class="section-header">
+                <span class="section-number">01</span>
+                <h2 class="section-title">Architecture Overview</h2>
+            </div>
+
+            <p class="section-description">Termux is a terminal emulator and Linux environment for Android that runs natively without root or emulation. Programs are cross-compiled against Android's Bionic libc and installed via apt/dpkg into an app-private prefix directory.</p>
+
+            <div class="stat-row">
+                <div class="stat-item">
+                    <div class="stat-value">4</div>
+                    <div class="stat-label">Gradle Modules</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">6</div>
+                    <div class="stat-label">Plugin Apps</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">31</div>
+                    <div class="stat-label">Build Steps</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">~20</div>
+                    <div class="stat-label">PRoot Distros</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">4</div>
+                    <div class="stat-label">CPU Archs</div>
+                </div>
+            </div>
+
+            <div class="diagram-container">
+                <div class="diagram-label">High-Level Architecture Stack</div>
+                <pre class="mermaid">
+graph TD
+    subgraph User["User Layer"]
+        UI["TerminalView<br/>(Android View)"]
+        INPUT["Touch + Keyboard<br/>Input Handling"]
+    end
+
+    subgraph App["Application Layer"]
+        ACT["TermuxActivity"]
+        SVC["TermuxService<br/>(foreground service)"]
+        SHELL["TermuxShellManager"]
+    end
+
+    subgraph Core["Terminal Engine"]
+        SESS["TerminalSession"]
+        EMU["TerminalEmulator"]
+        BUF["TerminalBuffer"]
+    end
+
+    subgraph Native["Native / OS Layer"]
+        JNI["JNI — termux.c<br/>(PTY management)"]
+        PTY["Pseudo-Terminal<br/>/dev/ptmx"]
+        EXEC["termux-exec<br/>LD_PRELOAD"]
+    end
+
+    UI --> ACT
+    INPUT --> ACT
+    ACT --> SVC
+    SVC --> SHELL
+    SHELL --> SESS
+    SESS --> EMU
+    EMU --> BUF
+    SESS --> JNI
+    JNI --> PTY
+    PTY --> EXEC
+
+    style UI fill:#22324a,stroke:#56a7ff,color:#e7f0ff
+    style INPUT fill:#22324a,stroke:#56a7ff,color:#e7f0ff
+    style ACT fill:#18263a,stroke:#39ffb6,color:#e7f0ff
+    style SVC fill:#18263a,stroke:#39ffb6,color:#e7f0ff
+    style SHELL fill:#18263a,stroke:#39ffb6,color:#e7f0ff
+    style SESS fill:#111c2d,stroke:#7ce6ff,color:#e7f0ff
+    style EMU fill:#111c2d,stroke:#7ce6ff,color:#e7f0ff
+    style BUF fill:#111c2d,stroke:#7ce6ff,color:#e7f0ff
+    style JNI fill:#0d1421,stroke:#ffb24f,color:#e7f0ff
+    style PTY fill:#0d1421,stroke:#ffb24f,color:#e7f0ff
+    style EXEC fill:#0d1421,stroke:#ffb24f,color:#e7f0ff
+                </pre>
+            </div>
+        </section>
+
+        <!-- 02 GRADLE MODULES -->
+        <section id="modules" class="section">
+            <div class="section-header">
+                <span class="section-number">02</span>
+                <h2 class="section-title">App Module Architecture</h2>
+            </div>
+
+            <p class="section-description">The termux-app repository is a multi-module Gradle project. Four modules form a strict dependency chain, with termux-shared published via JitPack for plugin consumption.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Gradle Module Dependency Chain</div>
+                <pre class="mermaid">
+graph LR
+    APP["app/<br/>Main APK"]
+    SHARED["termux-shared/<br/>Constants, IPC, Utils"]
+    VIEW["terminal-view/<br/>Android View"]
+    EMU["terminal-emulator/<br/>Pure Java Engine"]
+
+    APP --> SHARED
+    SHARED --> VIEW
+    VIEW --> EMU
+
+    PLUGINS["Plugin APKs<br/>(via JitPack)"]
+    PLUGINS -.-> SHARED
+
+    style APP fill:#18263a,stroke:#39ffb6,color:#e7f0ff
+    style SHARED fill:#22324a,stroke:#7ce6ff,color:#e7f0ff
+    style VIEW fill:#22324a,stroke:#56a7ff,color:#e7f0ff
+    style EMU fill:#111c2d,stroke:#ffb24f,color:#e7f0ff
+    style PLUGINS fill:#2a1f3a,stroke:#c8a0c5,color:#e7f0ff
+                </pre>
+            </div>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>app/</h4>
+                    <p>Main Android application module. Contains TermuxActivity, TermuxService, RunCommandService, and TermuxShellManager. This is the APK entry point.</p>
+                    <div class="card-meta"><span class="layer-badge layer-app">Application</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>terminal-emulator/</h4>
+                    <p>Pure Java terminal emulation engine with no Android dependencies. Contains TerminalEmulator, TerminalSession, TerminalBuffer, and JNI C code for PTY management.</p>
+                    <div class="card-meta"><span class="layer-badge layer-jni">Engine</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>terminal-view/</h4>
+                    <p>Android View subclass (TerminalView) that renders terminal emulator output. Handles touch gestures, text selection, and display.</p>
+                    <div class="card-meta"><span class="layer-badge layer-terminal">View</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>termux-shared/</h4>
+                    <p>Shared constants (TermuxConstants with all hardcoded paths), socket management, IPC helpers, and file utilities. Published via JitPack for plugins.</p>
+                    <div class="card-meta"><span class="layer-badge layer-pkg">Shared</span></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 03 TERMINAL EMULATION -->
+        <section id="terminal" class="section">
+            <div class="section-header">
+                <span class="section-number">03</span>
+                <h2 class="section-title">Terminal Emulation &amp; PTY</h2>
+            </div>
+
+            <p class="section-description">The terminal emulation stack operates across three layers: a JNI C layer for pseudo-terminal management, a Java TerminalSession with multi-threaded I/O, and an Android View for rendering.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Terminal Data Flow</div>
+                <pre class="mermaid">
+graph LR
+    subgraph Input["User Input"]
+        KB["Keyboard /<br/>Touch Events"]
+    end
+
+    subgraph View["TerminalView"]
+        TV["Render Buffer<br/>to Screen"]
+    end
+
+    subgraph Session["TerminalSession"]
+        IN_T["Input Thread"]
+        EMU_T["Emulation Thread"]
+    end
+
+    subgraph PTY["Pseudo-Terminal"]
+        MASTER["PTY Master FD"]
+        SLAVE["PTY Slave FD"]
+    end
+
+    subgraph Shell["Shell Process"]
+        PROC["bash / zsh /<br/>any program"]
+    end
+
+    KB --> TV
+    TV -->|"write to master"| MASTER
+    MASTER <-->|"kernel PTY pair"| SLAVE
+    SLAVE --> PROC
+    PROC --> SLAVE
+    MASTER -->|"read output"| IN_T
+    IN_T --> EMU_T
+    EMU_T -->|"parse escapes"| TV
+
+    style KB fill:#22324a,stroke:#56a7ff,color:#e7f0ff
+    style TV fill:#22324a,stroke:#56a7ff,color:#e7f0ff
+    style IN_T fill:#18263a,stroke:#7ce6ff,color:#e7f0ff
+    style EMU_T fill:#18263a,stroke:#7ce6ff,color:#e7f0ff
+    style MASTER fill:#0d1421,stroke:#ffb24f,color:#e7f0ff
+    style SLAVE fill:#0d1421,stroke:#ffb24f,color:#e7f0ff
+    style PROC fill:#111c2d,stroke:#39ffb6,color:#e7f0ff
+                </pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">JNI Layer (termux.c)</h3>
+                <p>The C code opens <code>/dev/ptmx</code> with <code>O_RDWR | O_CLOEXEC</code>, configures the slave device (UTF-8 enabled, flow control disabled), sets initial window size via <code>TIOCSWINSZ</code>, then forks a child process that redirects all I/O to the slave PTY.</p>
+                <p>Exposes 5 JNI functions: <strong>createSubprocess</strong>, <strong>setPtyWindowSize</strong>, <strong>setPtyUTF8Mode</strong>, <strong>waitFor</strong>, and <strong>close</strong>.</p>
+            </div>
+
+            <div class="callout">
+                <div class="callout-title">Multi-Threaded I/O</div>
+                <p>TerminalSession uses separate threads: an input thread reads from the shell output stream and queues data, an emulation thread processes queued data through the TerminalEmulator (parsing escape sequences), and the main UI thread handles display via TerminalSessionClient callbacks.</p>
+            </div>
+        </section>
+
+        <!-- 04 EXECUTION MODEL -->
+        <section id="execution" class="section">
+            <div class="section-header">
+                <span class="section-number">04</span>
+                <h2 class="section-title">Process Execution Model</h2>
+            </div>
+
+            <p class="section-description">Termux runs programs natively on Android &mdash; no emulation or containerization. Programs are compiled with Android NDK and linked against Bionic libc. Two distinct execution modes handle foreground and background tasks.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Execution Modes &amp; Path Translation</div>
+                <pre class="mermaid">
+graph TD
+    subgraph Foreground["Foreground Sessions"]
+        FG_CMD["User Command"]
+        FG_JNI["JNI execvp()"]
+        FG_PTY["PTY Pair"]
+    end
+
+    subgraph Background["Background Tasks"]
+        BG_CMD["Plugin / Intent"]
+        BG_JAVA["Runtime.exec()"]
+        BG_PIPE["Pipe I/O"]
+    end
+
+    subgraph Intercept["Path Translation"]
+        PRELOAD["termux-exec<br/>LD_PRELOAD library"]
+        REWRITE["Rewrites /bin/sh<br/>to $PREFIX/bin/sh"]
+    end
+
+    FG_CMD --> FG_JNI
+    FG_JNI --> FG_PTY
+    FG_PTY --> PRELOAD
+
+    BG_CMD --> BG_JAVA
+    BG_JAVA --> BG_PIPE
+    BG_PIPE --> PRELOAD
+
+    PRELOAD --> REWRITE
+
+    style FG_CMD fill:#18263a,stroke:#39ffb6,color:#e7f0ff
+    style FG_JNI fill:#18263a,stroke:#39ffb6,color:#e7f0ff
+    style FG_PTY fill:#18263a,stroke:#39ffb6,color:#e7f0ff
+    style BG_CMD fill:#2a1f3a,stroke:#c8a0c5,color:#e7f0ff
+    style BG_JAVA fill:#2a1f3a,stroke:#c8a0c5,color:#e7f0ff
+    style BG_PIPE fill:#2a1f3a,stroke:#c8a0c5,color:#e7f0ff
+    style PRELOAD fill:#111c2d,stroke:#ffb24f,color:#e7f0ff
+    style REWRITE fill:#111c2d,stroke:#ffb24f,color:#e7f0ff
+                </pre>
+            </div>
+
+            <div class="callout callout-warn">
+                <div class="callout-title">Key Constraints</div>
+                <p>External storage (<code>/sdcard</code>) is mounted with <code>noexec</code> &mdash; scripts must be passed to an interpreter. Android 10+ enforces W^X (Write XOR Execute) policy. SELinux restricts access to many <code>/system/bin</code> executables.</p>
+            </div>
+
+            <div class="callout">
+                <div class="callout-title">Why LD_PRELOAD?</div>
+                <p>Android has no <code>/bin/</code> or <code>/usr/bin/</code> directories. Rather than patching every script's shebang line, <code>termux-exec</code> globally intercepts the <code>exec()</code> family of functions to rewrite paths like <code>/bin/sh</code> to <code>$PREFIX/bin/sh</code>. Loaded automatically via <code>$LD_PRELOAD</code> for all child processes.</p>
+            </div>
+        </section>
+
+        <!-- 05 FILESYSTEM -->
+        <section id="filesystem" class="section">
+            <div class="section-header">
+                <span class="section-number">05</span>
+                <h2 class="section-title">File System Layout</h2>
+            </div>
+
+            <p class="section-description">All Termux files live within the Android app sandbox at <code>/data/data/com.termux/</code>. The layout maps to Linux FHS as closely as possible, with all standard directories merged under <code>$PREFIX</code>.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Directory Tree Mapping</div>
+                <pre class="mermaid">
+graph TD
+    subgraph Sandbox["Android Sandbox: /data/data/com.termux/"]
+        ROOT["files/<br/>$TERMUX__ROOTFS"]
+        USR["files/usr/<br/>$PREFIX"]
+        HOME["files/home/<br/>$HOME"]
+    end
+
+    subgraph Prefix["$PREFIX Directories"]
+        BIN["usr/bin/<br/>/bin + /usr/bin + /sbin"]
+        LIB["usr/lib/<br/>/lib + /usr/lib"]
+        ETC["usr/etc/<br/>/etc"]
+        TMP["usr/tmp/<br/>$TMPDIR"]
+        VAR["usr/var/<br/>/var"]
+        SHARE["usr/share/<br/>/usr/share"]
+    end
+
+    subgraph Config["User Config: ~/.termux/"]
+        PROPS["termux.properties"]
+        COLORS["colors.properties"]
+        FONT["font.ttf"]
+    end
+
+    ROOT --> USR
+    ROOT --> HOME
+    USR --> BIN
+    USR --> LIB
+    USR --> ETC
+    USR --> TMP
+    HOME --> Config
+
+    style ROOT fill:#18263a,stroke:#39ffb6,color:#e7f0ff
+    style USR fill:#22324a,stroke:#7ce6ff,color:#e7f0ff
+    style HOME fill:#22324a,stroke:#7ce6ff,color:#e7f0ff
+    style BIN fill:#111c2d,stroke:#56a7ff,color:#e7f0ff
+    style LIB fill:#111c2d,stroke:#56a7ff,color:#e7f0ff
+    style ETC fill:#111c2d,stroke:#56a7ff,color:#e7f0ff
+    style TMP fill:#111c2d,stroke:#56a7ff,color:#e7f0ff
+    style VAR fill:#111c2d,stroke:#56a7ff,color:#e7f0ff
+    style SHARE fill:#111c2d,stroke:#56a7ff,color:#e7f0ff
+    style PROPS fill:#2a1f3a,stroke:#c8a0c5,color:#e7f0ff
+    style COLORS fill:#2a1f3a,stroke:#c8a0c5,color:#e7f0ff
+    style FONT fill:#2a1f3a,stroke:#c8a0c5,color:#e7f0ff
+                </pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Path Length Constraints</h3>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Resource</th>
+                            <th>Max Length</th>
+                            <th>Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Rootfs path</strong></td>
+                            <td>86 chars</td>
+                            <td>Linux syscall limit</td>
+                        </tr>
+                        <tr>
+                            <td><strong>PREFIX path</strong></td>
+                            <td>90 chars</td>
+                            <td>Linux syscall limit</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Unix domain sockets</strong></td>
+                            <td>108 chars</td>
+                            <td>Kernel sockaddr_un limit</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Shebang lines</strong></td>
+                            <td>340 chars</td>
+                            <td>With termux-exec</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Package names</strong></td>
+                            <td>21 chars</td>
+                            <td>Convention for path budget</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Storage Symlinks</h3>
+                <p>Created by <code>termux-setup-storage</code>, these symlinks map Android directories into <code>~/storage/</code>: shared (external root), downloads, dcim, pictures, music, and movies.</p>
+            </div>
+        </section>
+
+        <!-- 06 PACKAGES -->
+        <section id="packages" class="section">
+            <div class="section-header">
+                <span class="section-number">06</span>
+                <h2 class="section-title">Bootstrap &amp; Package Ecosystem</h2>
+            </div>
+
+            <p class="section-description">On first launch, Termux extracts a bootstrap ZIP containing the minimal rootfs (bash, apt, dpkg, coreutils). Packages use standard dpkg/apt tooling but are cross-compiled for Termux paths and Bionic libc.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Bootstrap &amp; Package Install Flow</div>
+                <pre class="mermaid">
+graph TD
+    subgraph Bootstrap["First Launch Bootstrap"]
+        VALIDATE["Validate Filesystem<br/>+ Primary User"]
+        EXTRACT["Extract ZIP to<br/>$PREFIX-staging"]
+        SYMLINKS["Process<br/>SYMLINKS.txt"]
+        ATOMIC["Atomic Rename<br/>staging -> $PREFIX"]
+        PERMS["Set Executable<br/>Permissions"]
+    end
+
+    subgraph PkgMgmt["Package Management"]
+        PKG["pkg install<br/>(wrapper)"]
+        APT["apt / dpkg"]
+        REPO["HTTPS Repository<br/>(mirrored globally)"]
+    end
+
+    VALIDATE --> EXTRACT
+    EXTRACT --> SYMLINKS
+    SYMLINKS --> ATOMIC
+    ATOMIC --> PERMS
+    PERMS --> PKG
+    PKG --> APT
+    APT --> REPO
+
+    style VALIDATE fill:#18263a,stroke:#39ffb6,color:#e7f0ff
+    style EXTRACT fill:#18263a,stroke:#39ffb6,color:#e7f0ff
+    style SYMLINKS fill:#18263a,stroke:#39ffb6,color:#e7f0ff
+    style ATOMIC fill:#18263a,stroke:#39ffb6,color:#e7f0ff
+    style PERMS fill:#18263a,stroke:#39ffb6,color:#e7f0ff
+    style PKG fill:#22324a,stroke:#7ce6ff,color:#e7f0ff
+    style APT fill:#22324a,stroke:#7ce6ff,color:#e7f0ff
+    style REPO fill:#111c2d,stroke:#56a7ff,color:#e7f0ff
+                </pre>
+            </div>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>main</h4>
+                    <p>Primary package repository (<code>packages/</code>) containing core tools, languages, libraries, and utilities.</p>
+                    <div class="card-meta"><span class="layer-badge layer-pkg">Repository</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>root-packages</h4>
+                    <p>Packages that require root access to function (<code>root-packages/</code>).</p>
+                    <div class="card-meta"><span class="layer-badge layer-jni">Repository</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>x11-packages</h4>
+                    <p>X11 / GUI packages for graphical applications (<code>x11-packages/</code>).</p>
+                    <div class="card-meta"><span class="layer-badge layer-terminal">Repository</span></div>
+                </div>
+            </div>
+
+            <div class="callout callout-alert">
+                <div class="callout-title">Why Standard Debian Packages Don't Work</div>
+                <p>Termux is not FHS-compliant. All paths are relocated to <code>$PREFIX</code> during compilation. Binaries are linked against Bionic libc (not glibc), and the flat <code>$PREFIX/bin</code> merges <code>/bin</code>, <code>/sbin</code>, <code>/usr/bin</code>, and <code>/usr/sbin</code>.</p>
+            </div>
+        </section>
+
+        <!-- 07 BUILD SYSTEM -->
+        <section id="build" class="section">
+            <div class="section-header">
+                <span class="section-number">07</span>
+                <h2 class="section-title">Build Infrastructure</h2>
+            </div>
+
+            <p class="section-description">The <code>termux-packages</code> repository contains a 31-step cross-compilation pipeline. Each package defines a <code>build.sh</code> script with source URL, checksum, dependencies, and optional build hooks.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Build Pipeline (Key Steps)</div>
+                <pre class="mermaid">
+graph TD
+    subgraph Setup["Setup Phase"]
+        S1["Setup Variables"]
+        S2["Get Dependencies"]
+        S3["Download Source"]
+        S4["Setup Toolchain<br/>(NDK cross-compiler)"]
+    end
+
+    subgraph Build["Build Phase"]
+        S5["Patch Package<br/>(apply *.patch files)"]
+        S6["Configure<br/>(autotools/CMake/Meson)"]
+        S7["Compile"]
+        S8["Install to Prefix"]
+    end
+
+    subgraph Package["Package Phase"]
+        S9["Strip Binaries /<br/>Create Subpackages"]
+        S10["Generate .deb"]
+    end
+
+    S1 --> S2
+    S2 --> S3
+    S3 --> S4
+    S4 --> S5
+    S5 --> S6
+    S6 --> S7
+    S7 --> S8
+    S8 --> S9
+    S9 --> S10
+
+    style S1 fill:#18263a,stroke:#39ffb6,color:#e7f0ff
+    style S2 fill:#18263a,stroke:#39ffb6,color:#e7f0ff
+    style S3 fill:#18263a,stroke:#39ffb6,color:#e7f0ff
+    style S4 fill:#18263a,stroke:#39ffb6,color:#e7f0ff
+    style S5 fill:#22324a,stroke:#7ce6ff,color:#e7f0ff
+    style S6 fill:#22324a,stroke:#7ce6ff,color:#e7f0ff
+    style S7 fill:#22324a,stroke:#7ce6ff,color:#e7f0ff
+    style S8 fill:#22324a,stroke:#7ce6ff,color:#e7f0ff
+    style S9 fill:#111c2d,stroke:#ffb24f,color:#e7f0ff
+    style S10 fill:#111c2d,stroke:#ffb24f,color:#e7f0ff
+                </pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Supported Architectures</h3>
+                <div class="card-grid">
+                    <div class="info-card">
+                        <h4>aarch64</h4>
+                        <p>Default build target. ARM 64-bit &mdash; most modern Android devices.</p>
+                    </div>
+                    <div class="info-card">
+                        <h4>arm</h4>
+                        <p>ARM 32-bit for older devices.</p>
+                    </div>
+                    <div class="info-card">
+                        <h4>x86_64</h4>
+                        <p>Intel/AMD 64-bit for Chromebooks and x86 Android devices.</p>
+                    </div>
+                    <div class="info-card">
+                        <h4>i686</h4>
+                        <p>Intel/AMD 32-bit legacy support.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Build System Auto-Detection</h3>
+                <p>The build system recognizes autotools (<code>configure</code>), CMake (<code>CMakeLists.txt</code>), and Meson (<code>meson.build</code>). Helper functions exist for Rust, Go, and Node.js builds. The recommended environment is the Docker image <code>ghcr.io/termux/package-builder</code> launched via <code>./scripts/run-docker.sh</code>.</p>
+            </div>
+        </section>
+
+        <!-- 08 PROOT -->
+        <section id="proot" class="section">
+            <div class="section-header">
+                <span class="section-number">08</span>
+                <h2 class="section-title">PRoot &amp; proot-distro</h2>
+            </div>
+
+            <p class="section-description">PRoot is a user-space <code>chroot</code> that uses <code>ptrace()</code> to intercept system calls and rewrite file paths. No root required. proot-distro manages full Linux distribution installations on top of it.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">PRoot Syscall Interception</div>
+                <pre class="mermaid">
+graph TD
+    subgraph Guest["Guest Distro (e.g. Ubuntu)"]
+        GPROC["Process calls<br/>open('/etc/apt/...')"]
+    end
+
+    subgraph PRoot["PRoot (ptrace)"]
+        INTERCEPT["Intercept Syscall"]
+        REWRITE["Rewrite Path<br/>/etc -> /data/.../rootfs/etc"]
+        FAKEROOT["Fake UID/GID<br/>(-0 flag)"]
+    end
+
+    subgraph Host["Android / Termux"]
+        KERNEL["Linux Kernel"]
+        FS["Actual Filesystem"]
+    end
+
+    GPROC --> INTERCEPT
+    INTERCEPT --> REWRITE
+    INTERCEPT --> FAKEROOT
+    REWRITE --> KERNEL
+    KERNEL --> FS
+
+    style GPROC fill:#1a3530,stroke:#39ffb6,color:#e7f0ff
+    style INTERCEPT fill:#22324a,stroke:#ffb24f,color:#e7f0ff
+    style REWRITE fill:#22324a,stroke:#ffb24f,color:#e7f0ff
+    style FAKEROOT fill:#22324a,stroke:#ffb24f,color:#e7f0ff
+    style KERNEL fill:#0d1421,stroke:#56a7ff,color:#e7f0ff
+    style FS fill:#0d1421,stroke:#56a7ff,color:#e7f0ff
+                </pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">proot-distro Operations</h3>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Command</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>install</strong></td>
+                            <td>Download and extract distro rootfs tarball</td>
+                        </tr>
+                        <tr>
+                            <td><strong>login</strong></td>
+                            <td>Enter the distro environment via PRoot</td>
+                        </tr>
+                        <tr>
+                            <td><strong>backup / restore</strong></td>
+                            <td>Archive and restore distro installations</td>
+                        </tr>
+                        <tr>
+                            <td><strong>remove / reset</strong></td>
+                            <td>Delete or factory-reset a distro</td>
+                        </tr>
+                        <tr>
+                            <td><strong>rename</strong></td>
+                            <td>Rename an installed distro</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="callout callout-warn">
+                <div class="callout-title">Limitation</div>
+                <p>PRoot cannot perform real privilege escalation. Kernel and hardware operations requiring actual root will fail. The <code>-0</code> flag only fakes the UID to appear as root inside the chroot environment.</p>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Supported Distributions (~20)</h3>
+                <p>Alpine, Arch Linux, Debian, Ubuntu, Fedora, Void Linux, OpenSUSE, Rocky Linux, AlmaLinux, Deepin, and more. Architecture support varies by distro (aarch64, arm, i686, x86_64, riscv64).</p>
+            </div>
+        </section>
+
+        <!-- 09 PLUGINS -->
+        <section id="plugins" class="section">
+            <div class="section-header">
+                <span class="section-number">09</span>
+                <h2 class="section-title">Plugin System &amp; IPC</h2>
+            </div>
+
+            <p class="section-description">Termux plugins are separate Android APKs sharing the same <code>sharedUserId</code> (<code>com.termux</code>), giving them direct filesystem access. Inter-process communication uses Unix domain sockets and Android Intents.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Termux:API Command Flow</div>
+                <pre class="mermaid">
+graph LR
+    subgraph CLI["Terminal"]
+        CMD["termux-battery-status<br/>(shell script)"]
+        BIN["termux-api<br/>(native binary)"]
+    end
+
+    subgraph IPC["IPC Layer"]
+        SOCK["Unix Domain<br/>Sockets (in/out)"]
+        INTENT["Android Intent<br/>+ socket addresses"]
+    end
+
+    subgraph API["Termux:API App"]
+        RECV["TermuxApiReceiver<br/>(BroadcastReceiver)"]
+        HANDLER["API Handler<br/>(e.g. BatteryStatusAPI)"]
+        RETURN["ResultReturner<br/>(JSON output)"]
+    end
+
+    CMD --> BIN
+    BIN --> SOCK
+    SOCK --> INTENT
+    INTENT --> RECV
+    RECV --> HANDLER
+    HANDLER --> RETURN
+    RETURN -->|"via output socket"| SOCK
+
+    style CMD fill:#18263a,stroke:#39ffb6,color:#e7f0ff
+    style BIN fill:#18263a,stroke:#39ffb6,color:#e7f0ff
+    style SOCK fill:#22324a,stroke:#ffb24f,color:#e7f0ff
+    style INTENT fill:#22324a,stroke:#ffb24f,color:#e7f0ff
+    style RECV fill:#2a1f3a,stroke:#c8a0c5,color:#e7f0ff
+    style HANDLER fill:#2a1f3a,stroke:#c8a0c5,color:#e7f0ff
+    style RETURN fill:#2a1f3a,stroke:#c8a0c5,color:#e7f0ff
+                </pre>
+            </div>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>Termux:API</h4>
+                    <p>Bridge to 30+ Android system APIs: battery, camera, sensors, clipboard, notifications, SMS, location, and more.</p>
+                    <div class="card-meta"><span class="layer-badge layer-plugin">com.termux.api</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Termux:Boot</h4>
+                    <p>Runs scripts from <code>~/.termux/boot/</code> at device boot for persistent daemons and services.</p>
+                    <div class="card-meta"><span class="layer-badge layer-plugin">com.termux.boot</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Termux:Float</h4>
+                    <p>Floating terminal window overlay for multitasking with other Android apps.</p>
+                    <div class="card-meta"><span class="layer-badge layer-plugin">com.termux.window</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Termux:Styling</h4>
+                    <p>Color scheme and font selector with Powerline-ready font options.</p>
+                    <div class="card-meta"><span class="layer-badge layer-plugin">com.termux.styling</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Termux:Widget</h4>
+                    <p>Home screen shortcuts and widgets for scripts in <code>~/.shortcuts/</code>.</p>
+                    <div class="card-meta"><span class="layer-badge layer-plugin">com.termux.widget</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Termux:Tasker</h4>
+                    <p>Integration with Tasker/Locale for automation workflows.</p>
+                    <div class="card-meta"><span class="layer-badge layer-plugin">com.termux.tasker</span></div>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">External App Integration</h3>
+                <p>Non-plugin apps can send <code>RUN_COMMAND</code> intents to <code>RunCommandService</code>, which validates permissions (requires <code>PROP_ALLOW_EXTERNAL_APPS=true</code> in <code>termux.properties</code>) and forwards commands to TermuxService. Content providers expose files via <code>content://com.termux.files/</code> and <code>content://com.termux.documents/</code>.</p>
+            </div>
+        </section>
+
+        <!-- 10 SESSIONS -->
+        <section id="sessions" class="section">
+            <div class="section-header">
+                <span class="section-number">10</span>
+                <h2 class="section-title">Session &amp; Service Management</h2>
+            </div>
+
+            <p class="section-description">TermuxService is a foreground Android Service that persists independently of the UI, managing interactive terminal sessions and background tasks. Sessions survive activity destruction.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Session Lifecycle</div>
+                <pre class="mermaid">
+graph TD
+    subgraph Activity["TermuxActivity"]
+        BIND["ServiceConnection"]
+        DRAWER["Session Drawer<br/>(multiple tabs)"]
+        CLIENTS["ViewClient +<br/>SessionClient"]
+    end
+
+    subgraph Service["TermuxService (foreground)"]
+        SESSIONS["TermuxSession List<br/>(interactive terminals)"]
+        TASKS["AppShell List<br/>(background tasks)"]
+        LOCKS["Wake Lock +<br/>WiFi Lock"]
+        NOTIF["Foreground Notification<br/>(session/task counts)"]
+    end
+
+    subgraph Create["Session Creation"]
+        EXCMD["ExecutionCommand"]
+        SHELLMGR["TermuxShellManager"]
+        JNI["JNI createSubprocess"]
+    end
+
+    BIND --> Service
+    DRAWER --> SESSIONS
+    CLIENTS --> SESSIONS
+    EXCMD --> SHELLMGR
+    SHELLMGR --> SESSIONS
+    SHELLMGR --> TASKS
+    SHELLMGR --> JNI
+
+    style BIND fill:#22324a,stroke:#56a7ff,color:#e7f0ff
+    style DRAWER fill:#22324a,stroke:#56a7ff,color:#e7f0ff
+    style CLIENTS fill:#22324a,stroke:#56a7ff,color:#e7f0ff
+    style SESSIONS fill:#18263a,stroke:#39ffb6,color:#e7f0ff
+    style TASKS fill:#18263a,stroke:#39ffb6,color:#e7f0ff
+    style LOCKS fill:#18263a,stroke:#39ffb6,color:#e7f0ff
+    style NOTIF fill:#18263a,stroke:#39ffb6,color:#e7f0ff
+    style EXCMD fill:#111c2d,stroke:#7ce6ff,color:#e7f0ff
+    style SHELLMGR fill:#111c2d,stroke:#7ce6ff,color:#e7f0ff
+    style JNI fill:#111c2d,stroke:#ffb24f,color:#e7f0ff
+                </pre>
+            </div>
+
+            <div class="callout callout-warn">
+                <div class="callout-title">Android 10+ Restriction</div>
+                <p>Background TermuxService cannot start foreground terminal sessions until the user taps the Termux notification. Mitigated since Termux v0.100 by requesting "Draw Over Apps" permission.</p>
+            </div>
+        </section>
+
+        <!-- 11 INPUT -->
+        <section id="input" class="section">
+            <div class="section-header">
+                <span class="section-number">11</span>
+                <h2 class="section-title">Input Handling</h2>
+            </div>
+
+            <p class="section-description">Termux bridges Android's touch-first input model to a keyboard-driven terminal environment through hardware key events, volume key shortcuts, a configurable extra keys row, and a text input view with autocorrect.</p>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>Hardware Keyboard</h4>
+                    <p>Standard Android key event handling via <code>TerminalView.onKeyDown()/onKeyUp()</code>. Full Ctrl, Alt, Esc, arrow keys, and function key support.</p>
+                </div>
+                <div class="info-card">
+                    <h4>Volume Key Shortcuts</h4>
+                    <p><strong>Volume Down</strong> acts as Ctrl (e.g., Vol Down + L = Ctrl+L). <strong>Volume Up + Q/K</strong> toggles the extra keys row.</p>
+                </div>
+                <div class="info-card">
+                    <h4>Extra Keys Row</h4>
+                    <p>Configurable via <code>termux.properties</code> as JSON arrays. Supports multi-row layouts, macro keys, and popup keys (long-press alternatives).</p>
+                </div>
+                <div class="info-card">
+                    <h4>Text Input View</h4>
+                    <p>Native Android text input with autocorrect, prediction, and swipe typing that pastes completed text into the terminal.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 12 GLOSSARY -->
+        <section id="glossary" class="section">
+            <div class="section-header">
+                <span class="section-number">12</span>
+                <h2 class="section-title">Glossary</h2>
+            </div>
+
+            <div class="acronym-grid">
+                <div class="acronym-item"><span class="acronym-key">APK</span><span class="acronym-val">Android Package Kit</span></div>
+                <div class="acronym-item"><span class="acronym-key">Bionic</span><span class="acronym-val">Android's C standard library (libc)</span></div>
+                <div class="acronym-item"><span class="acronym-key">CPRS</span><span class="acronym-val">Cross-compilation prefix relocation</span></div>
+                <div class="acronym-item"><span class="acronym-key">dpkg</span><span class="acronym-val">Debian package manager</span></div>
+                <div class="acronym-item"><span class="acronym-key">FHS</span><span class="acronym-val">Filesystem Hierarchy Standard</span></div>
+                <div class="acronym-item"><span class="acronym-key">FD</span><span class="acronym-val">File Descriptor</span></div>
+                <div class="acronym-item"><span class="acronym-key">IPC</span><span class="acronym-val">Inter-Process Communication</span></div>
+                <div class="acronym-item"><span class="acronym-key">JNI</span><span class="acronym-val">Java Native Interface</span></div>
+                <div class="acronym-item"><span class="acronym-key">LD_PRELOAD</span><span class="acronym-val">Dynamic linker library injection</span></div>
+                <div class="acronym-item"><span class="acronym-key">NDK</span><span class="acronym-val">Native Development Kit (Android)</span></div>
+                <div class="acronym-item"><span class="acronym-key">PRoot</span><span class="acronym-val">Portable Root (ptrace-based chroot)</span></div>
+                <div class="acronym-item"><span class="acronym-key">PTY</span><span class="acronym-val">Pseudo-Terminal</span></div>
+                <div class="acronym-item"><span class="acronym-key">SELinux</span><span class="acronym-val">Security-Enhanced Linux</span></div>
+                <div class="acronym-item"><span class="acronym-key">W^X</span><span class="acronym-val">Write XOR Execute (memory policy)</span></div>
+                <div class="acronym-item"><span class="acronym-key">$PREFIX</span><span class="acronym-val">/data/data/com.termux/files/usr</span></div>
+                <div class="acronym-item"><span class="acronym-key">$HOME</span><span class="acronym-val">/data/data/com.termux/files/home</span></div>
+            </div>
+        </section>
+
+    </div>
+
+    <!-- Footer -->
+    <footer class="site-footer">
+        <p>Compiled from publicly available sources: Termux GitHub organization, wiki.termux.com, termux-packages documentation</p>
+        <p style="margin-top:var(--space-1)"><a href="../index.html">Back to Architecture Maps</a></p>
+    </footer>
+
+    <!-- Fullscreen overlay -->
+    <div class="fs-overlay" id="fsOverlay">
+        <div class="fs-toolbar">
+            <span class="fs-toolbar-title" id="fsTitle">Diagram</span>
+            <div class="fs-controls">
+                <button class="fs-btn" id="fsZoomOut" title="Zoom out">-</button>
+                <span class="fs-zoom-label" id="fsZoomLabel">100%</span>
+                <button class="fs-btn" id="fsZoomIn" title="Zoom in">+</button>
+                <button class="fs-btn" id="fsFit" title="Fit to screen">Fit</button>
+                <button class="fs-close" id="fsClose" title="Close (Esc)">Close</button>
+            </div>
+        </div>
+        <div class="fs-viewport" id="fsViewport">
+            <div class="fs-content" id="fsContent"></div>
+            <div class="fs-hint">Scroll to zoom &middot; Drag to pan &middot; Esc to close</div>
+        </div>
+    </div>
+
+    <!-- Mermaid.js -->
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'dark',
+            themeVariables: {
+                darkMode: true,
+                background: '#111c2d',
+                primaryColor: '#18263a',
+                primaryTextColor: '#e7f0ff',
+                primaryBorderColor: '#39ffb6',
+                secondaryColor: '#22324a',
+                secondaryTextColor: '#a9b8cd',
+                secondaryBorderColor: '#56a7ff',
+                tertiaryColor: '#0d1421',
+                tertiaryTextColor: '#e7f0ff',
+                lineColor: '#56a7ff',
+                textColor: '#e7f0ff',
+                mainBkg: '#18263a',
+                nodeBorder: '#39ffb6',
+                clusterBkg: '#0d1421',
+                clusterBorder: '#2f4564',
+                titleColor: '#e7f0ff',
+                edgeLabelBackground: '#111c2d',
+                nodeTextColor: '#e7f0ff',
+                actorTextColor: '#e7f0ff',
+                actorBkg: '#18263a',
+                actorBorder: '#39ffb6',
+                labelBoxBkgColor: '#111c2d',
+                labelBoxBorderColor: '#2f4564',
+                labelTextColor: '#e7f0ff',
+                loopTextColor: '#a9b8cd',
+                noteBkgColor: '#22324a',
+                noteTextColor: '#e7f0ff',
+                noteBorderColor: '#39ffb6',
+                fontFamily: "'IBM Plex Sans', sans-serif",
+                fontSize: '14px',
+                sectionBkgColor: '#18263a',
+                altSectionBkgColor: '#111c2d',
+                sectionBkgColor2: '#0d1421',
+                taskBkgColor: '#22324a',
+                taskTextColor: '#e7f0ff',
+                taskBorderColor: '#39ffb6',
+                activeTaskBkgColor: '#18263a',
+                activeTaskBorderColor: '#39ffb6',
+                doneTaskBkgColor: '#111c2d',
+                gridColor: '#2f4564',
+                todayLineColor: '#ffb24f',
+                cScale0: '#22324a',
+                cScale1: '#18263a',
+                cScale2: '#39ffb6',
+                cScale3: '#56a7ff',
+                cScaleLabel0: '#e7f0ff',
+                cScaleLabel1: '#e7f0ff',
+                cScaleLabel2: '#e7f0ff',
+                cScaleLabel3: '#e7f0ff'
+            },
+            flowchart: {
+                htmlLabels: true,
+                curve: 'basis',
+                padding: 16,
+                nodeSpacing: 30,
+                rankSpacing: 50,
+                useMaxWidth: false
+            },
+            block: {
+                padding: 8
+            }
+        });
+
+        // Wait for mermaid to render, then add expand buttons
+        mermaid.run().then(() => {
+            const expandIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`;
+
+            document.querySelectorAll('.diagram-container').forEach(container => {
+                const btn = document.createElement('button');
+                btn.className = 'diagram-expand-btn';
+                btn.innerHTML = expandIcon + ' Expand';
+                btn.addEventListener('click', () => openFullscreen(container));
+                container.appendChild(btn);
+            });
+        });
+
+        // Fullscreen state
+        const overlay = document.getElementById('fsOverlay');
+        const viewport = document.getElementById('fsViewport');
+        const content = document.getElementById('fsContent');
+        const zoomLabel = document.getElementById('fsZoomLabel');
+        const titleEl = document.getElementById('fsTitle');
+        let zoom = 1;
+        let panX = 0, panY = 0;
+        let isDragging = false;
+        let dragStartX, dragStartY, panStartX, panStartY;
+
+        function openFullscreen(container) {
+            const label = container.querySelector('.diagram-label');
+            titleEl.textContent = label ? label.textContent : 'Diagram';
+
+            const svg = container.querySelector('svg');
+            if (!svg) return;
+
+            content.innerHTML = '';
+            content.appendChild(svg.cloneNode(true));
+
+            zoom = 1;
+            panX = 0;
+            panY = 0;
+            content.style.transform = 'translate(0px, 0px) scale(1)';
+
+            overlay.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    overlay.classList.add('active');
+                    fitToViewport();
+                });
+            });
+        }
+
+        function closeFullscreen() {
+            overlay.classList.remove('active');
+            setTimeout(() => {
+                overlay.style.display = 'none';
+                content.innerHTML = '';
+            }, 200);
+            document.body.style.overflow = '';
+        }
+
+        function fitToViewport() {
+            const svg = content.querySelector('svg');
+            if (!svg) return;
+
+            const vw = viewport.clientWidth;
+            const vh = viewport.clientHeight;
+            const padding = 48;
+
+            const rect = svg.getBoundingClientRect();
+            const currentZoom = zoom || 1;
+            const svgW = rect.width / currentZoom;
+            const svgH = rect.height / currentZoom;
+
+            const w = svgW > 0 ? svgW : (svg.viewBox?.baseVal?.width || 800);
+            const h = svgH > 0 ? svgH : (svg.viewBox?.baseVal?.height || 400);
+
+            const scaleX = (vw - padding * 2) / w;
+            const scaleY = (vh - padding * 2) / h;
+            zoom = Math.min(scaleX, scaleY, 2);
+            zoom = Math.max(zoom, 0.1);
+
+            panX = (vw - w * zoom) / 2;
+            panY = (vh - h * zoom) / 2;
+
+            updateTransform();
+        }
+
+        function updateTransform() {
+            content.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+            zoomLabel.textContent = Math.round(zoom * 100) + '%';
+        }
+
+        // Zoom controls
+        document.getElementById('fsZoomIn').addEventListener('click', () => {
+            const vw = viewport.clientWidth / 2;
+            const vh = viewport.clientHeight / 2;
+            zoomAt(vw, vh, 1.3);
+        });
+        document.getElementById('fsZoomOut').addEventListener('click', () => {
+            const vw = viewport.clientWidth / 2;
+            const vh = viewport.clientHeight / 2;
+            zoomAt(vw, vh, 1 / 1.3);
+        });
+        document.getElementById('fsFit').addEventListener('click', fitToViewport);
+        document.getElementById('fsClose').addEventListener('click', closeFullscreen);
+
+        // Scroll to zoom
+        viewport.addEventListener('wheel', e => {
+            e.preventDefault();
+            const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+            const rect = viewport.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+            zoomAt(mx, my, factor);
+        }, { passive: false });
+
+        function zoomAt(mx, my, factor) {
+            const newZoom = Math.min(Math.max(zoom * factor, 0.05), 8);
+            const ratio = newZoom / zoom;
+            panX = mx - ratio * (mx - panX);
+            panY = my - ratio * (my - panY);
+            zoom = newZoom;
+            updateTransform();
+        }
+
+        // Drag to pan
+        viewport.addEventListener('mousedown', e => {
+            isDragging = true;
+            dragStartX = e.clientX;
+            dragStartY = e.clientY;
+            panStartX = panX;
+            panStartY = panY;
+        });
+        window.addEventListener('mousemove', e => {
+            if (!isDragging) return;
+            panX = panStartX + (e.clientX - dragStartX);
+            panY = panStartY + (e.clientY - dragStartY);
+            updateTransform();
+        });
+        window.addEventListener('mouseup', () => { isDragging = false; });
+
+        // Touch support
+        let lastTouchDist = 0;
+        viewport.addEventListener('touchstart', e => {
+            if (e.touches.length === 1) {
+                isDragging = true;
+                dragStartX = e.touches[0].clientX;
+                dragStartY = e.touches[0].clientY;
+                panStartX = panX;
+                panStartY = panY;
+            } else if (e.touches.length === 2) {
+                isDragging = false;
+                lastTouchDist = Math.hypot(
+                    e.touches[1].clientX - e.touches[0].clientX,
+                    e.touches[1].clientY - e.touches[0].clientY
+                );
+            }
+        }, { passive: true });
+        viewport.addEventListener('touchmove', e => {
+            e.preventDefault();
+            if (e.touches.length === 1 && isDragging) {
+                panX = panStartX + (e.touches[0].clientX - dragStartX);
+                panY = panStartY + (e.touches[0].clientY - dragStartY);
+                updateTransform();
+            } else if (e.touches.length === 2) {
+                const dist = Math.hypot(
+                    e.touches[1].clientX - e.touches[0].clientX,
+                    e.touches[1].clientY - e.touches[0].clientY
+                );
+                if (lastTouchDist > 0) {
+                    const mid = {
+                        x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+                        y: (e.touches[0].clientY + e.touches[1].clientY) / 2
+                    };
+                    const rect = viewport.getBoundingClientRect();
+                    zoomAt(mid.x - rect.left, mid.y - rect.top, dist / lastTouchDist);
+                }
+                lastTouchDist = dist;
+            }
+        }, { passive: false });
+        viewport.addEventListener('touchend', () => { isDragging = false; lastTouchDist = 0; });
+
+        // Escape to close
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') closeFullscreen();
+        });
+    </script>
+</body>
+</html>

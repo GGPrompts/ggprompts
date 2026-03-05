@@ -1,0 +1,1860 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PostgreSQL Architecture Map — Architecture Guide</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geologica:wght@300;400;500;600;700;800&family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* === Typography (Geological Mineral) === */
+            --font-display: 'Geologica', sans-serif;
+            --font-body: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'IBM Plex Mono', 'Courier New', monospace;
+
+            /* === Spacing (4px base) === */
+            --space-xs: 4px;
+            --space-sm: 8px;
+            --space-md: 16px;
+            --space-lg: 24px;
+            --space-xl: 32px;
+            --space-2xl: 48px;
+            --space-3xl: 64px;
+
+            /* === Mineral Palette === */
+            --amethyst: #7B4F9E;
+            --amethyst-light: #9B6FBE;
+            --amethyst-glow: rgba(123, 79, 158, 0.4);
+            --citrine: #E6A817;
+            --citrine-glow: rgba(230, 168, 23, 0.35);
+            --rose-quartz: #D4839E;
+            --rose-quartz-light: #E8A4B8;
+            --tourmaline: #2A9D8F;
+            --tourmaline-deep: #1E7268;
+            --obsidian: #1A1A2E;
+            --obsidian-light: #252540;
+            --labradorite: #3D5A80;
+            --labradorite-flash: #5B8FB9;
+            --malachite: #2D6A4F;
+            --jasper-red: #A63D40;
+            --agate-cream: #F0E6D3;
+            --agate-band: #C9B8A0;
+            --selenite: #F5F0E8;
+
+            /* === Strata Backgrounds === */
+            --bg-deep-crust: #0D0D1A;
+            --bg-mantle: #141428;
+            --bg-bedrock: #1C1C35;
+            --bg-shale: #252542;
+            --bg-sandstone: #2E2E4F;
+            --bg-limestone: #38385D;
+            --bg-surface: #42426A;
+
+            /* === Mapped to Architecture Pattern === */
+            --bg-base: var(--bg-deep-crust);
+            --bg-elevated: var(--bg-mantle);
+            --bg-card: var(--bg-bedrock);
+            --bg-card-hover: var(--bg-shale);
+            --bg-muted: #0A0A16;
+
+            /* === Text Colors === */
+            --text-primary: #E8E4F0;
+            --text-secondary: #B0A8C0;
+            --text-tertiary: #7A7490;
+            --text-link: var(--labradorite-flash);
+            --text-link-hover: #7DC4E8;
+
+            /* === Borders === */
+            --border-subtle: rgba(123, 79, 158, 0.12);
+            --border-default: rgba(123, 79, 158, 0.25);
+            --border-strong: rgba(123, 79, 158, 0.4);
+
+            /* === Border Radius === */
+            --radius-sm: 4px;
+            --radius-md: 6px;
+            --radius: 8px;
+            --radius-lg: 12px;
+
+            /* === Shadows === */
+            --shadow-sm: 0 1px 3px rgba(13, 13, 26, 0.5);
+            --shadow-md: 0 4px 12px rgba(13, 13, 26, 0.6);
+            --shadow-lg: 0 8px 30px rgba(13, 13, 26, 0.7);
+
+            /* === Transitions === */
+            --transition-fast: 0.15s ease;
+            --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* === Reset === */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { font-size: 17px; scroll-behavior: smooth; scroll-padding-top: 52px; }
+
+        body {
+            font-family: var(--font-body);
+            font-size: 1rem;
+            line-height: 1.6;
+            color: var(--text-primary);
+            background: var(--bg-base);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* === Back Link === */
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-sm);
+            padding: var(--space-md) var(--space-xl);
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.85rem;
+            letter-spacing: 0.02em;
+            transition: color var(--transition-fast);
+        }
+        .back-link::before { content: '\2190'; }
+        .back-link:hover { color: var(--text-link); }
+
+        /* === Hero === */
+        .hero {
+            background: linear-gradient(135deg, var(--bg-deep-crust) 0%, var(--obsidian) 30%, #2A1F4E 60%, var(--bg-bedrock) 100%);
+            padding: var(--space-3xl) var(--space-xl) var(--space-2xl);
+            border-bottom: 1px solid var(--border-default);
+            position: relative;
+            overflow: hidden;
+        }
+        .hero::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 600px 400px at 20% 50%, var(--amethyst-glow), transparent),
+                radial-gradient(ellipse 500px 300px at 80% 30%, var(--citrine-glow), transparent);
+            pointer-events: none;
+            opacity: 0.3;
+        }
+        .hero-inner {
+            max-width: 1120px;
+            margin: 0 auto;
+            position: relative;
+        }
+        .hero h1 {
+            font-family: var(--font-display);
+            font-size: 2.4rem;
+            font-weight: 700;
+            line-height: 1.15;
+            margin-bottom: var(--space-md);
+            background: linear-gradient(135deg, var(--selenite) 0%, var(--amethyst-light) 50%, var(--citrine) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .hero .tagline {
+            font-size: 1.15rem;
+            color: var(--text-secondary);
+            max-width: 640px;
+            line-height: 1.5;
+        }
+        .hero .meta {
+            margin-top: var(--space-lg);
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-md);
+        }
+        .meta-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-xs);
+            padding: var(--space-xs) var(--space-sm);
+            background: rgba(123, 79, 158, 0.12);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-sm);
+            font-size: 0.78rem;
+            font-family: var(--font-mono);
+            color: var(--text-secondary);
+            letter-spacing: 0.02em;
+        }
+        .meta-badge .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        /* === Sticky Jump Nav === */
+        .jump-nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: var(--bg-muted);
+            border-bottom: 1px solid var(--border-default);
+            display: flex;
+            gap: 0;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            white-space: nowrap;
+            padding: 0 var(--space-md);
+        }
+        .jump-nav a {
+            display: inline-block;
+            padding: var(--space-sm) var(--space-md);
+            color: var(--text-tertiary);
+            text-decoration: none;
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+            border-bottom: 2px solid transparent;
+            transition: all var(--transition-fast);
+        }
+        .jump-nav a:hover {
+            color: var(--amethyst-light);
+            border-bottom-color: var(--amethyst-light);
+        }
+
+        /* === Container === */
+        .container {
+            max-width: 1120px;
+            margin: 0 auto;
+            padding: var(--space-2xl) var(--space-xl);
+        }
+
+        /* === Section === */
+        .section {
+            margin-bottom: var(--space-3xl);
+            scroll-margin-top: 52px;
+        }
+        .section-header {
+            display: flex;
+            align-items: baseline;
+            gap: var(--space-md);
+            margin-bottom: var(--space-xl);
+            padding-bottom: var(--space-md);
+            border-bottom: 1px solid var(--border-default);
+        }
+        .section-number {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--amethyst-light);
+            font-weight: 500;
+        }
+        .section-title {
+            font-family: var(--font-display);
+            font-size: 1.6rem;
+            font-weight: 700;
+        }
+        .section-description {
+            color: var(--text-secondary);
+            margin-bottom: var(--space-xl);
+            max-width: 720px;
+            line-height: 1.65;
+        }
+
+        /* === Subsection === */
+        .subsection {
+            margin-bottom: var(--space-xl);
+        }
+        .subsection-title {
+            font-family: var(--font-display);
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: var(--space-md);
+            color: var(--text-primary);
+        }
+        .subsection p {
+            color: var(--text-secondary);
+            margin-bottom: var(--space-md);
+            line-height: 1.65;
+        }
+
+        /* === Diagram Container === */
+        .diagram-container {
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-lg);
+            padding: var(--space-xl);
+            margin: var(--space-lg) 0;
+            overflow-x: auto;
+            position: relative;
+        }
+        .diagram-container .mermaid {
+            display: flex;
+            justify-content: center;
+        }
+        .diagram-label {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: var(--space-md);
+        }
+
+        /* === Mermaid Overrides === */
+        .diagram-container .mermaid svg {
+            max-width: 100%;
+            height: auto;
+        }
+
+        /* === Info Cards === */
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: var(--space-lg);
+            margin: var(--space-lg) 0;
+        }
+        .info-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius);
+            padding: var(--space-lg);
+            transition: all var(--transition);
+        }
+        .info-card:hover {
+            border-color: var(--border-strong);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+        .info-card h4 {
+            font-family: var(--font-display);
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: var(--space-sm);
+            color: var(--citrine);
+        }
+        .info-card p {
+            font-size: 0.88rem;
+            color: var(--text-secondary);
+            line-height: 1.55;
+        }
+        .info-card .card-meta {
+            margin-top: var(--space-md);
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+        }
+
+        /* === Component Badge === */
+        .component-badge {
+            display: inline-block;
+            padding: 2px var(--space-sm);
+            border-radius: var(--radius-sm);
+            font-size: 0.72rem;
+            font-weight: 600;
+            font-family: var(--font-mono);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .badge-process { background: rgba(123, 79, 158, 0.15); color: var(--amethyst-light); border: 1px solid rgba(123, 79, 158, 0.3); }
+        .badge-memory { background: rgba(42, 157, 143, 0.15); color: var(--tourmaline); border: 1px solid rgba(42, 157, 143, 0.3); }
+        .badge-storage { background: rgba(230, 168, 23, 0.15); color: var(--citrine); border: 1px solid rgba(230, 168, 23, 0.3); }
+        .badge-query { background: rgba(91, 143, 185, 0.15); color: var(--labradorite-flash); border: 1px solid rgba(91, 143, 185, 0.3); }
+        .badge-index { background: rgba(212, 131, 158, 0.15); color: var(--rose-quartz); border: 1px solid rgba(212, 131, 158, 0.3); }
+        .badge-repl { background: rgba(45, 106, 79, 0.15); color: var(--malachite); border: 1px solid rgba(45, 106, 79, 0.3); }
+
+        /* === Tables === */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.88rem;
+            margin: var(--space-lg) 0;
+        }
+        .data-table th {
+            text-align: left;
+            padding: var(--space-sm) var(--space-md);
+            background: var(--bg-card);
+            border-bottom: 2px solid var(--border-strong);
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-tertiary);
+            font-weight: 500;
+        }
+        .data-table td {
+            padding: var(--space-sm) var(--space-md);
+            border-bottom: 1px solid var(--border-subtle);
+            vertical-align: top;
+        }
+        .data-table tr:hover td {
+            background: var(--bg-card-hover);
+        }
+
+        /* === Callout === */
+        .callout {
+            background: var(--bg-card);
+            border-left: 3px solid var(--amethyst);
+            border-radius: 0 var(--radius) var(--radius) 0;
+            padding: var(--space-lg);
+            margin: var(--space-lg) 0;
+        }
+        .callout.callout-citrine { border-left-color: var(--citrine); }
+        .callout.callout-jasper { border-left-color: var(--jasper-red); }
+        .callout .callout-title {
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--amethyst-light);
+            margin-bottom: var(--space-sm);
+            font-weight: 500;
+        }
+        .callout.callout-citrine .callout-title { color: var(--citrine); }
+        .callout.callout-jasper .callout-title { color: var(--jasper-red); }
+        .callout p {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            line-height: 1.55;
+        }
+
+        /* === Stat Row === */
+        .stat-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: var(--space-lg);
+            margin: var(--space-xl) 0;
+        }
+        .stat-item {
+            text-align: center;
+            padding: var(--space-lg);
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius);
+        }
+        .stat-value {
+            font-family: var(--font-display);
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--citrine);
+        }
+        .stat-label {
+            font-size: 0.78rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-top: var(--space-xs);
+        }
+
+        /* === Acronym List === */
+        .acronym-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 0;
+        }
+        .acronym-item {
+            display: flex;
+            gap: var(--space-md);
+            padding: var(--space-sm) var(--space-md);
+            border-bottom: 1px solid var(--border-subtle);
+            font-size: 0.85rem;
+        }
+        .acronym-item:hover { background: var(--bg-card); }
+        .acronym-key {
+            font-family: var(--font-mono);
+            font-weight: 500;
+            color: var(--amethyst-light);
+            min-width: 70px;
+        }
+        .acronym-val { color: var(--text-secondary); }
+
+        /* === Fullscreen Overlay === */
+        .diagram-expand-btn {
+            position: absolute;
+            top: var(--space-sm);
+            right: var(--space-sm);
+            background: var(--bg-card);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-sm);
+            color: var(--text-tertiary);
+            padding: 6px 8px;
+            cursor: pointer;
+            font-size: 0.7rem;
+            font-family: var(--font-mono);
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            transition: all var(--transition-fast);
+            z-index: 2;
+        }
+        .diagram-expand-btn:hover {
+            color: var(--text-link);
+            border-color: var(--text-link);
+            background: var(--bg-card-hover);
+        }
+        .diagram-expand-btn svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        .fs-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            background: var(--bg-base);
+            display: none;
+            flex-direction: column;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+        .fs-overlay.active { opacity: 1; }
+
+        .fs-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: var(--space-sm) var(--space-lg);
+            background: var(--bg-muted);
+            border-bottom: 1px solid var(--border-default);
+            flex-shrink: 0;
+        }
+        .fs-toolbar-title {
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+        .fs-controls {
+            display: flex;
+            gap: var(--space-sm);
+            align-items: center;
+        }
+        .fs-btn {
+            background: var(--bg-card);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-sm);
+            color: var(--text-secondary);
+            padding: 6px 12px;
+            cursor: pointer;
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            transition: all var(--transition-fast);
+        }
+        .fs-btn:hover {
+            color: var(--text-link);
+            border-color: var(--text-link);
+        }
+        .fs-zoom-label {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+            min-width: 48px;
+            text-align: center;
+        }
+        .fs-close {
+            background: none;
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-sm);
+            color: var(--text-secondary);
+            padding: 6px 12px;
+            cursor: pointer;
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            transition: all var(--transition-fast);
+        }
+        .fs-close:hover {
+            color: var(--jasper-red);
+            border-color: var(--jasper-red);
+        }
+
+        .fs-viewport {
+            flex: 1;
+            overflow: hidden;
+            cursor: grab;
+            position: relative;
+        }
+        .fs-viewport:active { cursor: grabbing; }
+        .fs-content {
+            position: absolute;
+            top: 0;
+            left: 0;
+            transform-origin: 0 0;
+        }
+        .fs-content svg {
+            max-width: none !important;
+            height: auto !important;
+        }
+
+        .fs-hint {
+            position: absolute;
+            bottom: var(--space-md);
+            left: 50%;
+            transform: translateX(-50%);
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            color: var(--text-tertiary);
+            background: var(--bg-muted);
+            padding: 4px 12px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border-subtle);
+            pointer-events: none;
+            opacity: 0.7;
+        }
+
+        /* === Footer === */
+        .site-footer {
+            border-top: 1px solid var(--border-default);
+            padding: var(--space-xl) var(--space-xl);
+            text-align: center;
+            color: var(--text-tertiary);
+            font-size: 0.82rem;
+        }
+        .site-footer a {
+            color: var(--text-link);
+            text-decoration: none;
+        }
+
+        /* === Responsive === */
+        @media (max-width: 768px) {
+            html { font-size: 16px; }
+            .hero h1 { font-size: 1.8rem; }
+            .hero { padding: var(--space-2xl) var(--space-md) var(--space-xl); }
+            .section-title { font-size: 1.3rem; }
+            .card-grid { grid-template-columns: 1fr; }
+            .stat-row { grid-template-columns: repeat(2, 1fr); }
+            .acronym-grid { grid-template-columns: 1fr; }
+            .container { padding: var(--space-xl) var(--space-md); }
+            .diagram-container { padding: var(--space-md); margin-left: calc(-1 * var(--space-md)); margin-right: calc(-1 * var(--space-md)); border-radius: 0; border-left: 0; border-right: 0; }
+        }
+    </style>
+</head>
+<body>
+    <a href="../index.html" class="back-link">Architecture Maps</a>
+
+    <!-- Hero -->
+    <header class="hero">
+        <div class="hero-inner">
+            <h1>PostgreSQL Internals</h1>
+            <p class="tagline">Interactive architecture map of PostgreSQL's internal subsystems &mdash; process model, memory management, query pipeline, MVCC, WAL, replication, and extensibility.</p>
+            <div class="meta">
+                <span class="meta-badge"><span class="dot" style="background:var(--tourmaline)"></span> Open Source</span>
+                <span class="meta-badge">Since 1996</span>
+                <span class="meta-badge">Multi-Process Architecture</span>
+                <span class="meta-badge">MVCC + WAL</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Jump Nav -->
+    <nav class="jump-nav">
+        <a href="#overview">Overview</a>
+        <a href="#processes">Processes</a>
+        <a href="#memory">Memory</a>
+        <a href="#query">Query Pipeline</a>
+        <a href="#mvcc">MVCC</a>
+        <a href="#wal">WAL</a>
+        <a href="#indexes">Indexes</a>
+        <a href="#vacuum">Vacuum</a>
+        <a href="#replication">Replication</a>
+        <a href="#extensions">Extensions</a>
+        <a href="#acronyms">Acronyms</a>
+    </nav>
+
+    <div class="container">
+
+        <!-- 01 - OVERVIEW -->
+        <section id="overview" class="section">
+            <div class="section-header">
+                <span class="section-number">01</span>
+                <h2 class="section-title">Architecture Overview</h2>
+            </div>
+
+            <p class="section-description">PostgreSQL is a multi-process, object-relational database that uses MVCC for concurrency and Write-Ahead Logging for durability. The postmaster supervises all child processes, allocates shared memory at startup, and forks one backend per client connection.</p>
+
+            <div class="stat-row">
+                <div class="stat-item">
+                    <div class="stat-value">8 KB</div>
+                    <div class="stat-label">Page Size</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">16 MB</div>
+                    <div class="stat-label">WAL Segment</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">100</div>
+                    <div class="stat-label">Default Max Connections</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">128 MB</div>
+                    <div class="stat-label">Default Shared Buffers</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">6</div>
+                    <div class="stat-label">Index Types</div>
+                </div>
+            </div>
+
+            <div class="diagram-container">
+                <div class="diagram-label">PostgreSQL High-Level Architecture</div>
+                <pre class="mermaid">
+graph TB
+    subgraph Clients["Client Applications"]
+        C1["psql / App 1"]
+        C2["App 2"]
+        C3["App N"]
+    end
+
+    PM["Postmaster<br/>Supervisor Daemon"]
+
+    subgraph Backends["Backend Processes"]
+        B1["Backend 1"]
+        B2["Backend 2"]
+        B3["Backend N"]
+    end
+
+    subgraph BG["Background Processes"]
+        CK["Checkpointer"]
+        BW["BG Writer"]
+        WW["WAL Writer"]
+        AV["Autovacuum"]
+        SC["Stats Collector"]
+    end
+
+    subgraph SM["Shared Memory"]
+        SB["Shared Buffer Pool"]
+        WB["WAL Buffers"]
+        CL["CLOG"]
+        LK["Lock Tables"]
+    end
+
+    subgraph Storage["Disk Storage"]
+        DF["Data Files<br/>(base/)"]
+        WF["WAL Files<br/>(pg_wal/)"]
+        XA["CLOG<br/>(pg_xact/)"]
+    end
+
+    C1 & C2 & C3 --> PM
+    PM --> B1 & B2 & B3
+    B1 & B2 & B3 --> SM
+    BG --> SM
+    SM --> Storage
+
+    style PM fill:#7B4F9E,stroke:#9B6FBE,color:#F5F0E8
+    style SB fill:#1E7268,stroke:#2A9D8F,color:#E8E4F0
+    style WB fill:#1E7268,stroke:#2A9D8F,color:#E8E4F0
+    style CL fill:#1E7268,stroke:#2A9D8F,color:#E8E4F0
+    style LK fill:#1E7268,stroke:#2A9D8F,color:#E8E4F0
+    style DF fill:#2E2E4F,stroke:#E6A817,color:#E8E4F0
+    style WF fill:#2E2E4F,stroke:#E6A817,color:#E8E4F0
+    style XA fill:#2E2E4F,stroke:#E6A817,color:#E8E4F0
+    style B1 fill:#252540,stroke:#5B8FB9,color:#E8E4F0
+    style B2 fill:#252540,stroke:#5B8FB9,color:#E8E4F0
+    style B3 fill:#252540,stroke:#5B8FB9,color:#E8E4F0
+    style CK fill:#252540,stroke:#9B6FBE,color:#E8E4F0
+    style BW fill:#252540,stroke:#9B6FBE,color:#E8E4F0
+    style WW fill:#252540,stroke:#9B6FBE,color:#E8E4F0
+    style AV fill:#252540,stroke:#9B6FBE,color:#E8E4F0
+    style SC fill:#252540,stroke:#9B6FBE,color:#E8E4F0
+    style C1 fill:#1C1C35,stroke:#B0A8C0,color:#E8E4F0
+    style C2 fill:#1C1C35,stroke:#B0A8C0,color:#E8E4F0
+    style C3 fill:#1C1C35,stroke:#B0A8C0,color:#E8E4F0
+                </pre>
+            </div>
+        </section>
+
+        <!-- 02 - PROCESS ARCHITECTURE -->
+        <section id="processes" class="section">
+            <div class="section-header">
+                <span class="section-number">02</span>
+                <h2 class="section-title">Process Architecture</h2>
+            </div>
+
+            <p class="section-description">PostgreSQL uses a multi-process model (not threads). The postmaster listens on port 5432, forks one backend per client connection, and supervises background maintenance processes. When a child crashes, the postmaster terminates all children and initiates crash recovery.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Postmaster Process Tree</div>
+                <pre class="mermaid">
+graph TD
+    PM["Postmaster<br/>PID 1 &middot; ServerLoop"]
+
+    subgraph Maintenance["Background Maintenance"]
+        CK["Checkpointer<br/>Flushes dirty pages"]
+        BW["BG Writer<br/>Proactive page flush"]
+        WW["WAL Writer<br/>Flushes WAL buffers"]
+        AV["Autovacuum Launcher<br/>Spawns workers"]
+        SC["Stats Collector<br/>Activity statistics"]
+        AR["Archiver<br/>WAL archiving"]
+        IO["IO Workers<br/>Async page reads"]
+    end
+
+    subgraph Repl["Replication"]
+        WS["WAL Sender<br/>Streams WAL to standby"]
+        WR["WAL Receiver<br/>(on standby only)"]
+        SU["Startup Process<br/>WAL replay"]
+    end
+
+    subgraph Workers["Backend Workers"]
+        B1["Client Backend"]
+        B2["Client Backend"]
+        PQ["Parallel Query<br/>Worker"]
+        BW2["Background<br/>Worker (ext)"]
+    end
+
+    PM --> Maintenance
+    PM --> Repl
+    PM --> Workers
+
+    style PM fill:#7B4F9E,stroke:#9B6FBE,color:#F5F0E8
+    style CK fill:#1C1C35,stroke:#E6A817,color:#E8E4F0
+    style BW fill:#1C1C35,stroke:#E6A817,color:#E8E4F0
+    style WW fill:#1C1C35,stroke:#E6A817,color:#E8E4F0
+    style AV fill:#1C1C35,stroke:#E6A817,color:#E8E4F0
+    style SC fill:#1C1C35,stroke:#E6A817,color:#E8E4F0
+    style AR fill:#1C1C35,stroke:#E6A817,color:#E8E4F0
+    style IO fill:#1C1C35,stroke:#E6A817,color:#E8E4F0
+    style WS fill:#1C1C35,stroke:#2A9D8F,color:#E8E4F0
+    style WR fill:#1C1C35,stroke:#2A9D8F,color:#E8E4F0
+    style SU fill:#1C1C35,stroke:#2A9D8F,color:#E8E4F0
+    style B1 fill:#1C1C35,stroke:#5B8FB9,color:#E8E4F0
+    style B2 fill:#1C1C35,stroke:#5B8FB9,color:#E8E4F0
+    style PQ fill:#1C1C35,stroke:#5B8FB9,color:#E8E4F0
+    style BW2 fill:#1C1C35,stroke:#D4839E,color:#E8E4F0
+                </pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Shutdown Coordination</h3>
+                <p>The postmaster supports three shutdown modes, each triggered by a different signal. Smart shutdown waits for clients to disconnect; fast shutdown terminates backends immediately and checkpoints; immediate shutdown exits ungracefully and requires crash recovery on restart.</p>
+
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Mode</th>
+                            <th>Signal</th>
+                            <th>Behavior</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Smart</td>
+                            <td><code>SIGTERM</code></td>
+                            <td>Wait for all clients to disconnect, then checkpoint and exit</td>
+                        </tr>
+                        <tr>
+                            <td>Fast</td>
+                            <td><code>SIGINT</code></td>
+                            <td>Terminate backends immediately, perform final checkpoint</td>
+                        </tr>
+                        <tr>
+                            <td>Immediate</td>
+                            <td><code>SIGQUIT</code></td>
+                            <td>Ungraceful exit; crash recovery required on restart</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Inter-Process Communication</h3>
+                <p>Processes communicate through shared memory (buffer pool, lock tables, PGPROC array, CLOG) for data and Unix signals for control flow. The <code>max_connections</code> parameter (default 100) limits backend processes, and <code>max_worker_processes</code> (default 8) limits custom background workers.</p>
+            </div>
+        </section>
+
+        <!-- 03 - SHARED MEMORY & BUFFER MANAGER -->
+        <section id="memory" class="section">
+            <div class="section-header">
+                <span class="section-number">03</span>
+                <h2 class="section-title">Shared Memory &amp; Buffer Manager</h2>
+            </div>
+
+            <p class="section-description">At startup, the postmaster allocates a large shared memory segment containing the buffer pool, WAL buffers, CLOG cache, lock tables, and process tracking arrays. Each backend inherits access to this shared region.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Shared Memory Layout</div>
+                <pre class="mermaid">
+graph LR
+    subgraph SharedMem["Shared Memory Region"]
+        SB["Shared Buffer Pool<br/>shared_buffers (128 MB)"]
+        WB["WAL Buffers<br/>wal_buffers (~3%)"]
+        CL["CLOG Buffers<br/>Transaction states"]
+        PP["PGPROC Array<br/>Per-backend tracking"]
+        LT["Lock Tables<br/>Heavy/Light/Spin"]
+    end
+
+    subgraph Local["Per-Backend Memory"]
+        WM["work_mem (4 MB)<br/>Sorts, hashes"]
+        MM["maintenance_work_mem<br/>(64 MB) VACUUM, INDEX"]
+        TB["temp_buffers (8 MB)<br/>Temp table cache"]
+    end
+
+    B["Backend Process"] --> SharedMem
+    B --> Local
+
+    style SB fill:#1E7268,stroke:#2A9D8F,color:#E8E4F0
+    style WB fill:#1E7268,stroke:#2A9D8F,color:#E8E4F0
+    style CL fill:#1E7268,stroke:#2A9D8F,color:#E8E4F0
+    style PP fill:#1E7268,stroke:#2A9D8F,color:#E8E4F0
+    style LT fill:#1E7268,stroke:#2A9D8F,color:#E8E4F0
+    style WM fill:#252540,stroke:#D4839E,color:#E8E4F0
+    style MM fill:#252540,stroke:#D4839E,color:#E8E4F0
+    style TB fill:#252540,stroke:#D4839E,color:#E8E4F0
+    style B fill:#7B4F9E,stroke:#9B6FBE,color:#F5F0E8
+                </pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Buffer Pool Internals</h3>
+                <p>All data is stored in 8 KB pages. The buffer pool maintains three parallel structures: buffer blocks (actual page data), buffer descriptors (64-byte metadata per slot tracking dirty/valid/pinned state), and a partitioned hash table mapping (tablespace, relation, fork, block) to slot index for O(1) lookup.</p>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Clock-Sweep Eviction</h3>
+                <p>When a free buffer slot is needed, a clock hand sweeps through descriptors. If a page's usage count is greater than zero, it is decremented and skipped. If usage count is zero and the page is unpinned, it is selected as the eviction victim. Each page access increments usage count up to a cap of 5, approximating LRU without linked-list overhead.</p>
+
+                <div class="callout callout-citrine">
+                    <div class="callout-title">Ring Buffer Strategy</div>
+                    <p>For large sequential scans, VACUUM, and bulk writes, PostgreSQL uses a small ring buffer (256 KB - 16 MB) instead of the main pool. This prevents large operations from evicting useful cached pages ("buffer pollution").</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 04 - QUERY PROCESSING PIPELINE -->
+        <section id="query" class="section">
+            <div class="section-header">
+                <span class="section-number">04</span>
+                <h2 class="section-title">Query Processing Pipeline</h2>
+            </div>
+
+            <p class="section-description">Every SQL statement flows through five stages: Parser, Analyzer, Rewriter, Planner, and Executor. PostgreSQL's source code describes this as "the most complicated subsystem."</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Query Pipeline Stages</div>
+                <pre class="mermaid">
+graph LR
+    SQL["SQL Text"] --> P["Parser<br/>Flex + Bison"]
+    P --> A["Analyzer<br/>Semantic validation"]
+    A --> R["Rewriter<br/>View expansion"]
+    R --> PL["Planner<br/>Cost-based optimizer"]
+    PL --> E["Executor<br/>Volcano / pull model"]
+    E --> RES["Result Tuples"]
+
+    CAT["System Catalogs<br/>pg_class, pg_proc"]
+    STATS["Statistics<br/>pg_statistic"]
+
+    CAT -.-> A
+    CAT -.-> R
+    STATS -.-> PL
+
+    style SQL fill:#252540,stroke:#B0A8C0,color:#E8E4F0
+    style P fill:#1C1C35,stroke:#7B4F9E,color:#E8E4F0
+    style A fill:#1C1C35,stroke:#5B8FB9,color:#E8E4F0
+    style R fill:#1C1C35,stroke:#2A9D8F,color:#E8E4F0
+    style PL fill:#1C1C35,stroke:#E6A817,color:#E8E4F0
+    style E fill:#1C1C35,stroke:#D4839E,color:#E8E4F0
+    style RES fill:#252540,stroke:#B0A8C0,color:#E8E4F0
+    style CAT fill:#2E2E4F,stroke:#5B8FB9,color:#E8E4F0
+    style STATS fill:#2E2E4F,stroke:#E6A817,color:#E8E4F0
+                </pre>
+            </div>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>Parser</h4>
+                    <p>Uses Flex for tokenization and Bison for grammar rules (~15,000 lines in gram.y). Produces a raw parse tree of Node structures. Only checks syntax -- does not verify that tables exist.</p>
+                    <div class="card-meta">src/backend/parser/</div>
+                </div>
+                <div class="info-card">
+                    <h4>Analyzer</h4>
+                    <p>Performs semantic analysis: looks up tables, columns, functions in system catalogs. Resolves names to OIDs, infers data types, inserts implicit casts. Produces a Query struct.</p>
+                    <div class="card-meta">analyze.c</div>
+                </div>
+                <div class="info-card">
+                    <h4>Rewriter</h4>
+                    <p>Applies rule-based transformations from pg_rewrite. Expands views into their underlying queries. Can produce multiple query trees from one input (INSTEAD rules).</p>
+                    <div class="card-meta">rewriteHandler.c</div>
+                </div>
+                <div class="info-card">
+                    <h4>Planner / Optimizer</h4>
+                    <p>Cost-based optimizer evaluating scan types (SeqScan, IndexScan, BitmapScan), join algorithms (Nested Loop, Hash, Merge), and uses GEQO for 12+ joins. Outputs a PlannedStmt.</p>
+                    <div class="card-meta">src/backend/optimizer/</div>
+                </div>
+                <div class="info-card">
+                    <h4>Executor</h4>
+                    <p>Implements the pull-based Volcano model: each plan node has ExecInit, ExecProcNode (returns one tuple), and ExecEnd. The top node pulls tuples recursively from children.</p>
+                    <div class="card-meta">src/backend/executor/</div>
+                </div>
+                <div class="info-card">
+                    <h4>ProcessUtility</h4>
+                    <p>DDL statements (CREATE, ALTER, DROP) bypass the planner/executor entirely and go through ProcessUtility, a separate dispatch function for utility commands.</p>
+                    <div class="card-meta">utility.c</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 05 - MVCC -->
+        <section id="mvcc" class="section">
+            <div class="section-header">
+                <span class="section-number">05</span>
+                <h2 class="section-title">MVCC &amp; Transaction Isolation</h2>
+            </div>
+
+            <p class="section-description">PostgreSQL implements Snapshot Isolation via MVCC. Multiple physical versions of each row coexist. Readers never block writers. Each tuple carries header fields tracking which transaction created and deleted it.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">MVCC Tuple Lifecycle</div>
+                <pre class="mermaid">
+graph LR
+    subgraph INSERT["INSERT (XID 100)"]
+        T1["Tuple v1<br/>t_xmin=100<br/>t_xmax=0"]
+    end
+
+    subgraph UPDATE["UPDATE (XID 200)"]
+        T2["Tuple v1<br/>t_xmin=100<br/>t_xmax=200"]
+        T3["Tuple v2<br/>t_xmin=200<br/>t_xmax=0"]
+        T2 -->|"t_ctid"| T3
+    end
+
+    subgraph DELETE["DELETE (XID 300)"]
+        T4["Tuple v2<br/>t_xmin=200<br/>t_xmax=300"]
+    end
+
+    T1 -->|"UPDATE"| T2
+    T3 -->|"DELETE"| T4
+
+    style T1 fill:#1E7268,stroke:#2A9D8F,color:#E8E4F0
+    style T2 fill:#2E2E4F,stroke:#A63D40,color:#E8E4F0
+    style T3 fill:#1E7268,stroke:#2A9D8F,color:#E8E4F0
+    style T4 fill:#2E2E4F,stroke:#A63D40,color:#E8E4F0
+                </pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Tuple Header Fields</h3>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Field</th>
+                            <th>Purpose</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>t_xmin</code></td>
+                            <td>Transaction ID that inserted this tuple version</td>
+                        </tr>
+                        <tr>
+                            <td><code>t_xmax</code></td>
+                            <td>Transaction ID that deleted/updated this version (0 if still live)</td>
+                        </tr>
+                        <tr>
+                            <td><code>t_cid</code></td>
+                            <td>Command ID within the transaction (distinguishes multiple operations)</td>
+                        </tr>
+                        <tr>
+                            <td><code>t_ctid</code></td>
+                            <td>Pointer to the next version (self-referencing if latest)</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Isolation Levels</h3>
+                <div class="card-grid">
+                    <div class="info-card">
+                        <h4>Read Committed</h4>
+                        <p>Default level. Takes a new snapshot per statement. Allows non-repeatable reads between statements in the same transaction.</p>
+                        <div class="card-meta">New snapshot per statement</div>
+                    </div>
+                    <div class="info-card">
+                        <h4>Repeatable Read</h4>
+                        <p>Takes one snapshot at transaction start. Prevents dirty reads and non-repeatable reads. Detects serialization anomalies at commit time.</p>
+                        <div class="card-meta">Snapshot at TX start</div>
+                    </div>
+                    <div class="info-card">
+                        <h4>Serializable (SSI)</h4>
+                        <p>True serializability via SSI (added in PG 9.1). Tracks rw-conflict dependencies and aborts transactions with dangerous orderings to prevent write skew.</p>
+                        <div class="card-meta">rw-conflict tracking</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="callout">
+                <div class="callout-title">Visibility Check</div>
+                <p>A tuple is visible if its t_xmin committed before the snapshot was taken AND its t_xmax is either 0, belongs to an aborted transaction, or committed after the snapshot. The CLOG (pg_xact/) tracks transaction states with 2 bits per XID. Hint bits on tuple headers cache commit/abort status to avoid repeated CLOG lookups.</p>
+            </div>
+        </section>
+
+        <!-- 06 - WAL -->
+        <section id="wal" class="section">
+            <div class="section-header">
+                <span class="section-number">06</span>
+                <h2 class="section-title">Write-Ahead Logging (WAL)</h2>
+            </div>
+
+            <p class="section-description">The WAL guarantees durability: no dirty page is flushed to disk until the corresponding WAL record is on stable storage. WAL is stored in pg_wal/ as 16 MB segment files, each record identified by a 64-bit Log Sequence Number (LSN).</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">WAL Write Path &amp; Crash Recovery</div>
+                <pre class="mermaid">
+graph TD
+    TX["Transaction<br/>INSERT / UPDATE / DELETE"]
+    XI["XLogInsert()<br/>Append to WAL buffers"]
+    XF["XLogFlush()<br/>Flush to pg_wal/"]
+    CM["COMMIT<br/>Durable on disk"]
+
+    subgraph Recovery["Crash Recovery"]
+        SX["StartupXLOG()<br/>Read pg_control"]
+        RP["Find Redo Point<br/>(last checkpoint LSN)"]
+        RL["Replay WAL Records<br/>(idempotent)"]
+        DN["Consistent State<br/>Normal ops begin"]
+    end
+
+    TX --> XI
+    XI --> XF
+    XF --> CM
+
+    SX --> RP
+    RP --> RL
+    RL --> DN
+
+    style TX fill:#7B4F9E,stroke:#9B6FBE,color:#F5F0E8
+    style XI fill:#1C1C35,stroke:#E6A817,color:#E8E4F0
+    style XF fill:#1C1C35,stroke:#E6A817,color:#E8E4F0
+    style CM fill:#1E7268,stroke:#2A9D8F,color:#E8E4F0
+    style SX fill:#1C1C35,stroke:#A63D40,color:#E8E4F0
+    style RP fill:#1C1C35,stroke:#A63D40,color:#E8E4F0
+    style RL fill:#1C1C35,stroke:#A63D40,color:#E8E4F0
+    style DN fill:#1E7268,stroke:#2A9D8F,color:#E8E4F0
+                </pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Checkpoint Mechanism</h3>
+                <p>A checkpoint flushes all dirty buffers from shared memory to disk and writes a checkpoint record to WAL. The redo point is the LSN where crash recovery would begin. Controlled by <code>checkpoint_timeout</code> (default 5 min) and <code>max_wal_size</code> (default 1 GB). The checkpointer spreads I/O using <code>checkpoint_completion_target</code> (default 0.9).</p>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Full-Page Writes</h3>
+                <p>After each checkpoint, the first modification to any page writes the entire 8 KB image to WAL (not just the delta). This protects against torn pages during OS crashes. Subsequent modifications before the next checkpoint only write deltas. Controlled by <code>full_page_writes</code> (default on -- should never be disabled).</p>
+            </div>
+
+            <div class="callout callout-jasper">
+                <div class="callout-title">WAL Levels</div>
+                <p><strong>minimal</strong> -- only crash recovery. <strong>replica</strong> (default since PG 10) -- adds archiving and replication data. <strong>logical</strong> -- adds logical decoding information for logical replication.</p>
+            </div>
+        </section>
+
+        <!-- 07 - INDEX TYPES -->
+        <section id="indexes" class="section">
+            <div class="section-header">
+                <span class="section-number">07</span>
+                <h2 class="section-title">Index Types</h2>
+            </div>
+
+            <p class="section-description">PostgreSQL supports six built-in index access methods, each with different data structures and query capabilities. The B-tree is the default and handles the vast majority of use cases.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Index Type Decision Map</div>
+                <pre class="mermaid">
+graph TD
+    Q["What query pattern?"]
+    Q -->|"=, <, >, BETWEEN"| BT["B-tree<br/>(Lehman-Yao)"]
+    Q -->|"= only"| HA["Hash Index"]
+    Q -->|"Geometric, KNN"| GI["GiST<br/>(Generalized Search)"]
+    Q -->|"Contains, FTS"| GIN["GIN<br/>(Inverted Index)"]
+    Q -->|"Quadtree, Trie"| SP["SP-GiST<br/>(Space-Partitioned)"]
+    Q -->|"Time-series range"| BR["BRIN<br/>(Block Range)"]
+
+    style Q fill:#7B4F9E,stroke:#9B6FBE,color:#F5F0E8
+    style BT fill:#1C1C35,stroke:#E6A817,color:#E8E4F0
+    style HA fill:#1C1C35,stroke:#5B8FB9,color:#E8E4F0
+    style GI fill:#1C1C35,stroke:#2A9D8F,color:#E8E4F0
+    style GIN fill:#1C1C35,stroke:#D4839E,color:#E8E4F0
+    style SP fill:#1C1C35,stroke:#A63D40,color:#E8E4F0
+    style BR fill:#1C1C35,stroke:#2D6A4F,color:#E8E4F0
+                </pre>
+            </div>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>B-tree</h4>
+                    <p>Lehman-Yao concurrent B-tree with right-link pointers. O(log n) lookups. Supports range queries, sorting, index-only scans, and deduplication (PG 13+).</p>
+                    <div class="card-meta"><span class="component-badge badge-index">Default</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Hash</h4>
+                    <p>Bucket-based index for equality-only comparisons. WAL-logged since PG 10. Faster than B-tree for pure equality on high-cardinality columns but cannot sort or do range queries.</p>
+                    <div class="card-meta"><span class="component-badge badge-query">= only</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>GiST</h4>
+                    <p>Balanced tree framework supporting arbitrary data types via operator classes. "Lossy" indexes with false positives filtered by the executor. Used for geometry, FTS, range types, KNN.</p>
+                    <div class="card-meta"><span class="component-badge badge-memory">Extensible</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>SP-GiST</h4>
+                    <p>Framework for non-balanced, space-partitioning structures: quadtrees, k-d trees, radix tries. Best for data with natural clustering but uneven distribution (IPs, phone numbers).</p>
+                    <div class="card-meta"><span class="component-badge badge-repl">Space-Partitioned</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>GIN</h4>
+                    <p>Inverted index mapping element values to row sets. Entry tree (B-tree of keys) + posting lists/trees. Ideal for tsvector, arrays, JSONB containment, trigram similarity.</p>
+                    <div class="card-meta"><span class="component-badge badge-process">Inverted</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>BRIN</h4>
+                    <p>Stores min/max summaries for ranges of physical pages. 1000x smaller than B-tree on correlated columns. Only effective when values correlate with physical row order.</p>
+                    <div class="card-meta"><span class="component-badge badge-storage">Compact</span></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 08 - VACUUM & AUTOVACUUM -->
+        <section id="vacuum" class="section">
+            <div class="section-header">
+                <span class="section-number">08</span>
+                <h2 class="section-title">Vacuum &amp; Autovacuum</h2>
+            </div>
+
+            <p class="section-description">MVCC never removes old tuple versions in-place. Dead tuples accumulate from DELETEs and UPDATEs and must be reclaimed by VACUUM. Without it, tables bloat and eventually suffer catastrophic XID wraparound.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Regular VACUUM Three-Phase Process</div>
+                <pre class="mermaid">
+graph LR
+    subgraph Phase1["Phase 1: Heap Scan"]
+        HS["Scan heap pages"]
+        VM["Check Visibility Map<br/>Skip all-visible pages"]
+        DT["Collect dead TIDs<br/>into array"]
+    end
+
+    subgraph Phase2["Phase 2: Index Vacuum"]
+        IS["Scan each index"]
+        RE["Remove entries<br/>pointing to dead TIDs"]
+    end
+
+    subgraph Phase3["Phase 3: Heap Vacuum"]
+        FS["Mark dead slots<br/>in Free Space Map"]
+        UV["Update Visibility Map<br/>Set all-visible bits"]
+    end
+
+    Phase1 --> Phase2
+    Phase2 --> Phase3
+
+    style HS fill:#1C1C35,stroke:#7B4F9E,color:#E8E4F0
+    style VM fill:#1C1C35,stroke:#7B4F9E,color:#E8E4F0
+    style DT fill:#1C1C35,stroke:#7B4F9E,color:#E8E4F0
+    style IS fill:#1C1C35,stroke:#E6A817,color:#E8E4F0
+    style RE fill:#1C1C35,stroke:#E6A817,color:#E8E4F0
+    style FS fill:#1C1C35,stroke:#2A9D8F,color:#E8E4F0
+    style UV fill:#1C1C35,stroke:#2A9D8F,color:#E8E4F0
+                </pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Autovacuum Thresholds</h3>
+                <p>The autovacuum launcher wakes every <code>autovacuum_naptime</code> (default 1 min) and checks pg_stat_all_tables for tables exceeding the dead tuple threshold: <code>dead_tuples > threshold + scale_factor * live_tuples</code> (defaults: 50 + 20%). Up to <code>autovacuum_max_workers</code> (default 3) workers run concurrently, throttled by cost-based delay to limit production impact.</p>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">XID Wraparound Prevention</h3>
+                <p>XIDs are 32-bit (~4 billion). Without freezing, after ~2 billion transactions old XIDs would appear "in the future" and tuples would vanish. VACUUM freezes tuples by replacing t_xmin with FrozenTransactionId (XID 2). Key thresholds:</p>
+
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Parameter</th>
+                            <th>Default</th>
+                            <th>Purpose</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>vacuum_freeze_min_age</code></td>
+                            <td>50M txns</td>
+                            <td>Minimum tuple age before freezing</td>
+                        </tr>
+                        <tr>
+                            <td><code>vacuum_freeze_table_age</code></td>
+                            <td>150M txns</td>
+                            <td>Triggers aggressive full-table vacuum scan</td>
+                        </tr>
+                        <tr>
+                            <td><code>autovacuum_freeze_max_age</code></td>
+                            <td>200M txns</td>
+                            <td>Forces anti-wraparound vacuum regardless of dead tuples</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="callout callout-jasper">
+                <div class="callout-title">VACUUM FULL</div>
+                <p>Rewrites the entire table into a new file, compacting and eliminating all dead space. Requires an ACCESS EXCLUSIVE lock (blocks all reads and writes). Reclaims disk space to the OS, unlike regular VACUUM which only marks space for internal reuse. Use sparingly.</p>
+            </div>
+        </section>
+
+        <!-- 09 - REPLICATION -->
+        <section id="replication" class="section">
+            <div class="section-header">
+                <span class="section-number">09</span>
+                <h2 class="section-title">Replication</h2>
+            </div>
+
+            <p class="section-description">PostgreSQL supports two replication paradigms: physical (byte-level WAL streaming for exact cluster copies) and logical (row-level change streaming for selective table replication across versions).</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Physical Streaming Replication</div>
+                <pre class="mermaid">
+graph LR
+    subgraph Primary["Primary Server"]
+        BE["Backend<br/>Writes data"]
+        WAL1["pg_wal/<br/>WAL segments"]
+        WS["WAL Sender"]
+    end
+
+    subgraph Standby["Standby Server"]
+        WR["WAL Receiver"]
+        WAL2["pg_wal/<br/>WAL segments"]
+        SU["Startup Process<br/>Replay WAL"]
+        RO["Read-Only<br/>Queries (Hot Standby)"]
+    end
+
+    BE --> WAL1
+    WAL1 --> WS
+    WS -->|"XLogData messages"| WR
+    WR --> WAL2
+    WAL2 --> SU
+    SU --> RO
+
+    style BE fill:#7B4F9E,stroke:#9B6FBE,color:#F5F0E8
+    style WS fill:#1C1C35,stroke:#2A9D8F,color:#E8E4F0
+    style WR fill:#1C1C35,stroke:#2A9D8F,color:#E8E4F0
+    style WAL1 fill:#2E2E4F,stroke:#E6A817,color:#E8E4F0
+    style WAL2 fill:#2E2E4F,stroke:#E6A817,color:#E8E4F0
+    style SU fill:#1C1C35,stroke:#A63D40,color:#E8E4F0
+    style RO fill:#1C1C35,stroke:#5B8FB9,color:#E8E4F0
+                </pre>
+            </div>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Logical Replication Data Flow</div>
+                <pre class="mermaid">
+graph LR
+    subgraph Pub["Publisher"]
+        WS2["WAL Sender"]
+        LD["Logical Decoder<br/>pgoutput plugin"]
+        RB["Reorder Buffer<br/>Reassemble TXs"]
+    end
+
+    subgraph Sub["Subscriber"]
+        AW["Apply Worker<br/>Map + apply changes"]
+        TS["Table Sync Worker<br/>Initial COPY"]
+    end
+
+    WS2 --> LD
+    LD --> RB
+    RB -->|"Streaming protocol"| AW
+    TS -->|"Initial sync"| AW
+
+    style WS2 fill:#1C1C35,stroke:#2A9D8F,color:#E8E4F0
+    style LD fill:#1C1C35,stroke:#7B4F9E,color:#E8E4F0
+    style RB fill:#1C1C35,stroke:#E6A817,color:#E8E4F0
+    style AW fill:#1C1C35,stroke:#5B8FB9,color:#E8E4F0
+    style TS fill:#1C1C35,stroke:#D4839E,color:#E8E4F0
+                </pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Physical vs. Logical Comparison</h3>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Aspect</th>
+                            <th>Physical</th>
+                            <th>Logical</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Scope</td>
+                            <td>Entire cluster (byte-for-byte copy)</td>
+                            <td>Selected tables / columns</td>
+                        </tr>
+                        <tr>
+                            <td>Cross-version</td>
+                            <td>Same major version only</td>
+                            <td>Cross-version supported</td>
+                        </tr>
+                        <tr>
+                            <td>Subscriber writes</td>
+                            <td>Read-only standby</td>
+                            <td>Writable subscriber</td>
+                        </tr>
+                        <tr>
+                            <td>WAL level</td>
+                            <td>replica</td>
+                            <td>logical</td>
+                        </tr>
+                        <tr>
+                            <td>Setup</td>
+                            <td>Simpler (pg_basebackup)</td>
+                            <td>Publication + subscription</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="callout">
+                <div class="callout-title">Replication Slots</div>
+                <p>Slots prevent WAL recycling for disconnected consumers. Physical slots track LSN position; logical slots also track the oldest XID needed for catalog lookups. Failover slots (PG 17+) can be synced to standbys for seamless promotion.</p>
+            </div>
+        </section>
+
+        <!-- 10 - EXTENSION SYSTEM -->
+        <section id="extensions" class="section">
+            <div class="section-header">
+                <span class="section-number">10</span>
+                <h2 class="section-title">Extension System &amp; Hooks</h2>
+            </div>
+
+            <p class="section-description">PostgreSQL's extension system allows adding new data types, functions, operators, index methods, and languages without modifying core code. The hook architecture provides ~30 interception points for monitoring, security, and query transformation.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Hook Architecture &amp; Stacking</div>
+                <pre class="mermaid">
+graph TD
+    subgraph Hooks["Hook Categories"]
+        QH["Query Hooks<br/>post_parse_analyze<br/>planner_hook<br/>join_search_hook"]
+        EH["Executor Hooks<br/>ExecutorStart/Run/<br/>Finish/End"]
+        SH["Security Hooks<br/>ClientAuthentication<br/>object_access_hook"]
+        IH["Init Hooks<br/>shmem_startup<br/>emit_log_hook"]
+    end
+
+    subgraph Stack["Hook Stacking"]
+        E1["Extension A<br/>_PG_init()"]
+        E2["Extension B<br/>_PG_init()"]
+        NULL["NULL (default)"]
+    end
+
+    E2 -->|"saved prev"| E1
+    E1 -->|"saved prev"| NULL
+
+    style QH fill:#1C1C35,stroke:#7B4F9E,color:#E8E4F0
+    style EH fill:#1C1C35,stroke:#E6A817,color:#E8E4F0
+    style SH fill:#1C1C35,stroke:#A63D40,color:#E8E4F0
+    style IH fill:#1C1C35,stroke:#2A9D8F,color:#E8E4F0
+    style E1 fill:#252540,stroke:#5B8FB9,color:#E8E4F0
+    style E2 fill:#252540,stroke:#D4839E,color:#E8E4F0
+    style NULL fill:#252540,stroke:#B0A8C0,color:#E8E4F0
+                </pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Notable Extensions Using Hooks</h3>
+                <div class="card-grid">
+                    <div class="info-card">
+                        <h4>pg_stat_statements</h4>
+                        <p>Uses all four executor hooks to track query elapsed time, call counts, and I/O statistics across all backends.</p>
+                        <div class="card-meta"><span class="component-badge badge-query">Executor hooks</span></div>
+                    </div>
+                    <div class="info-card">
+                        <h4>TimescaleDB</h4>
+                        <p>Uses planner_hook for hypertable chunk rewriting, post_parse_analyze_hook for query transformation, and ProcessUtility_hook for DDL interception.</p>
+                        <div class="card-meta"><span class="component-badge badge-process">Planner + DDL</span></div>
+                    </div>
+                    <div class="info-card">
+                        <h4>pgAudit</h4>
+                        <p>Uses executor and utility hooks for comprehensive audit logging of all database operations including DDL and DML.</p>
+                        <div class="card-meta"><span class="component-badge badge-storage">Security audit</span></div>
+                    </div>
+                    <div class="info-card">
+                        <h4>auto_explain</h4>
+                        <p>Uses executor hooks to automatically log query execution plans for statements exceeding a configurable duration threshold.</p>
+                        <div class="card-meta"><span class="component-badge badge-memory">Diagnostics</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Other Extension Mechanisms</h3>
+                <p>Beyond hooks, PostgreSQL offers custom access methods (CREATE ACCESS METHOD), custom data types with operator classes, Foreign Data Wrappers for external data sources, custom background workers, custom WAL resource managers (PG 15+), and pluggable storage engines via the Table Access Method API (PG 12+).</p>
+            </div>
+        </section>
+
+        <!-- 11 - ACRONYMS -->
+        <section id="acronyms" class="section">
+            <div class="section-header">
+                <span class="section-number">11</span>
+                <h2 class="section-title">Glossary &amp; Acronyms</h2>
+            </div>
+
+            <div class="acronym-grid">
+                <div class="acronym-item">
+                    <span class="acronym-key">MVCC</span>
+                    <span class="acronym-val">Multi-Version Concurrency Control</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">WAL</span>
+                    <span class="acronym-val">Write-Ahead Logging</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">LSN</span>
+                    <span class="acronym-val">Log Sequence Number</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">XID</span>
+                    <span class="acronym-val">Transaction ID</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">CLOG</span>
+                    <span class="acronym-val">Commit Log (pg_xact/)</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">SSI</span>
+                    <span class="acronym-val">Serializable Snapshot Isolation</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">OID</span>
+                    <span class="acronym-val">Object Identifier</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">TID</span>
+                    <span class="acronym-val">Tuple Identifier</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">GEQO</span>
+                    <span class="acronym-val">Genetic Query Optimizer</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">GiST</span>
+                    <span class="acronym-val">Generalized Search Tree</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">GIN</span>
+                    <span class="acronym-val">Generalized Inverted Index</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">BRIN</span>
+                    <span class="acronym-val">Block Range Index</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">SP-GiST</span>
+                    <span class="acronym-val">Space-Partitioned Generalized Search Tree</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">FPW</span>
+                    <span class="acronym-val">Full-Page Writes</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">VM</span>
+                    <span class="acronym-val">Visibility Map</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">FSM</span>
+                    <span class="acronym-val">Free Space Map</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">PITR</span>
+                    <span class="acronym-val">Point-In-Time Recovery</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">FDW</span>
+                    <span class="acronym-val">Foreign Data Wrapper</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">IK</span>
+                    <span class="acronym-val">Inverse Kinematics</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">KNN</span>
+                    <span class="acronym-val">K-Nearest Neighbors</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">LWLock</span>
+                    <span class="acronym-val">Lightweight Lock</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">PGPROC</span>
+                    <span class="acronym-val">Process Information Array</span>
+                </div>
+            </div>
+        </section>
+
+    </div>
+
+    <footer class="site-footer">
+        <p>Compiled from PostgreSQL official documentation, "The Internals of PostgreSQL" by Hironobu Suzuki, and source code comments</p>
+        <p style="margin-top:var(--space-sm)"><a href="../index.html">Back to Architecture Maps</a></p>
+    </footer>
+
+    <!-- Fullscreen overlay -->
+    <div class="fs-overlay" id="fsOverlay">
+        <div class="fs-toolbar">
+            <span class="fs-toolbar-title" id="fsTitle">Diagram</span>
+            <div class="fs-controls">
+                <button class="fs-btn" id="fsZoomOut" title="Zoom out">-</button>
+                <span class="fs-zoom-label" id="fsZoomLabel">100%</span>
+                <button class="fs-btn" id="fsZoomIn" title="Zoom in">+</button>
+                <button class="fs-btn" id="fsFit" title="Fit to screen">Fit</button>
+                <button class="fs-close" id="fsClose" title="Close (Esc)">Close</button>
+            </div>
+        </div>
+        <div class="fs-viewport" id="fsViewport">
+            <div class="fs-content" id="fsContent"></div>
+            <div class="fs-hint">Scroll to zoom &middot; Drag to pan &middot; Esc to close</div>
+        </div>
+    </div>
+
+    <!-- Mermaid.js -->
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'dark',
+            themeVariables: {
+                darkMode: true,
+                background: '#141428',
+                primaryColor: '#1C1C35',
+                primaryTextColor: '#E8E4F0',
+                primaryBorderColor: '#7B4F9E',
+                secondaryColor: '#252540',
+                secondaryTextColor: '#B0A8C0',
+                secondaryBorderColor: '#5B8FB9',
+                tertiaryColor: '#0D0D1A',
+                tertiaryTextColor: '#E8E4F0',
+                lineColor: '#5B8FB9',
+                textColor: '#E8E4F0',
+                mainBkg: '#1C1C35',
+                nodeBorder: '#7B4F9E',
+                clusterBkg: '#0D0D1A',
+                clusterBorder: '#252540',
+                titleColor: '#E8E4F0',
+                edgeLabelBackground: '#141428',
+                nodeTextColor: '#E8E4F0',
+                actorTextColor: '#E8E4F0',
+                actorBkg: '#1C1C35',
+                actorBorder: '#7B4F9E',
+                labelBoxBkgColor: '#141428',
+                labelBoxBorderColor: '#252540',
+                labelTextColor: '#E8E4F0',
+                loopTextColor: '#B0A8C0',
+                noteBkgColor: '#252540',
+                noteTextColor: '#E8E4F0',
+                noteBorderColor: '#7B4F9E',
+                fontFamily: "'IBM Plex Sans', sans-serif",
+                fontSize: '14px',
+                sectionBkgColor: '#1C1C35',
+                altSectionBkgColor: '#141428',
+                sectionBkgColor2: '#0D0D1A',
+                taskBkgColor: '#252540',
+                taskTextColor: '#E8E4F0',
+                taskBorderColor: '#7B4F9E',
+                activeTaskBkgColor: '#7B4F9E',
+                activeTaskBorderColor: '#9B6FBE',
+                doneTaskBkgColor: '#1C1C35',
+                gridColor: '#252540',
+                todayLineColor: '#E6A817',
+                cScale0: '#252540',
+                cScale1: '#7B4F9E',
+                cScale2: '#9B6FBE',
+                cScale3: '#5B8FB9',
+                cScaleLabel0: '#E8E4F0',
+                cScaleLabel1: '#E8E4F0',
+                cScaleLabel2: '#E8E4F0',
+                cScaleLabel3: '#E8E4F0'
+            },
+            flowchart: {
+                htmlLabels: true,
+                curve: 'basis',
+                padding: 16,
+                nodeSpacing: 30,
+                rankSpacing: 50,
+                useMaxWidth: false
+            },
+            block: {
+                padding: 8
+            }
+        });
+
+        // Wait for mermaid to render, then add expand buttons
+        mermaid.run().then(() => {
+            const expandIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`;
+
+            document.querySelectorAll('.diagram-container').forEach(container => {
+                const btn = document.createElement('button');
+                btn.className = 'diagram-expand-btn';
+                btn.innerHTML = expandIcon + ' Expand';
+                btn.addEventListener('click', () => openFullscreen(container));
+                container.appendChild(btn);
+            });
+        });
+
+        // Fullscreen state
+        const overlay = document.getElementById('fsOverlay');
+        const viewport = document.getElementById('fsViewport');
+        const content = document.getElementById('fsContent');
+        const zoomLabel = document.getElementById('fsZoomLabel');
+        const titleEl = document.getElementById('fsTitle');
+        let zoom = 1;
+        let panX = 0, panY = 0;
+        let isDragging = false;
+        let dragStartX, dragStartY, panStartX, panStartY;
+
+        function openFullscreen(container) {
+            const label = container.querySelector('.diagram-label');
+            titleEl.textContent = label ? label.textContent : 'Diagram';
+
+            const svg = container.querySelector('svg');
+            if (!svg) return;
+
+            content.innerHTML = '';
+            content.appendChild(svg.cloneNode(true));
+
+            zoom = 1;
+            panX = 0;
+            panY = 0;
+            content.style.transform = 'translate(0px, 0px) scale(1)';
+
+            overlay.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    overlay.classList.add('active');
+                    fitToViewport();
+                });
+            });
+        }
+
+        function closeFullscreen() {
+            overlay.classList.remove('active');
+            setTimeout(() => {
+                overlay.style.display = 'none';
+                content.innerHTML = '';
+            }, 200);
+            document.body.style.overflow = '';
+        }
+
+        function fitToViewport() {
+            const svg = content.querySelector('svg');
+            if (!svg) return;
+
+            const vw = viewport.clientWidth;
+            const vh = viewport.clientHeight;
+            const padding = 48;
+
+            const rect = svg.getBoundingClientRect();
+            const currentZoom = zoom || 1;
+            const svgW = rect.width / currentZoom;
+            const svgH = rect.height / currentZoom;
+
+            const w = svgW > 0 ? svgW : (svg.viewBox?.baseVal?.width || 800);
+            const h = svgH > 0 ? svgH : (svg.viewBox?.baseVal?.height || 400);
+
+            const scaleX = (vw - padding * 2) / w;
+            const scaleY = (vh - padding * 2) / h;
+            zoom = Math.min(scaleX, scaleY, 2);
+            zoom = Math.max(zoom, 0.1);
+
+            panX = (vw - w * zoom) / 2;
+            panY = (vh - h * zoom) / 2;
+
+            updateTransform();
+        }
+
+        function updateTransform() {
+            content.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+            zoomLabel.textContent = Math.round(zoom * 100) + '%';
+        }
+
+        // Zoom controls
+        document.getElementById('fsZoomIn').addEventListener('click', () => {
+            const vw = viewport.clientWidth / 2;
+            const vh = viewport.clientHeight / 2;
+            zoomAt(vw, vh, 1.3);
+        });
+        document.getElementById('fsZoomOut').addEventListener('click', () => {
+            const vw = viewport.clientWidth / 2;
+            const vh = viewport.clientHeight / 2;
+            zoomAt(vw, vh, 1 / 1.3);
+        });
+        document.getElementById('fsFit').addEventListener('click', fitToViewport);
+        document.getElementById('fsClose').addEventListener('click', closeFullscreen);
+
+        // Scroll to zoom
+        viewport.addEventListener('wheel', e => {
+            e.preventDefault();
+            const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+            const rect = viewport.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+            zoomAt(mx, my, factor);
+        }, { passive: false });
+
+        function zoomAt(mx, my, factor) {
+            const newZoom = Math.min(Math.max(zoom * factor, 0.05), 8);
+            const ratio = newZoom / zoom;
+            panX = mx - ratio * (mx - panX);
+            panY = my - ratio * (my - panY);
+            zoom = newZoom;
+            updateTransform();
+        }
+
+        // Drag to pan
+        viewport.addEventListener('mousedown', e => {
+            isDragging = true;
+            dragStartX = e.clientX;
+            dragStartY = e.clientY;
+            panStartX = panX;
+            panStartY = panY;
+        });
+        window.addEventListener('mousemove', e => {
+            if (!isDragging) return;
+            panX = panStartX + (e.clientX - dragStartX);
+            panY = panStartY + (e.clientY - dragStartY);
+            updateTransform();
+        });
+        window.addEventListener('mouseup', () => { isDragging = false; });
+
+        // Touch support
+        let lastTouchDist = 0;
+        viewport.addEventListener('touchstart', e => {
+            if (e.touches.length === 1) {
+                isDragging = true;
+                dragStartX = e.touches[0].clientX;
+                dragStartY = e.touches[0].clientY;
+                panStartX = panX;
+                panStartY = panY;
+            } else if (e.touches.length === 2) {
+                isDragging = false;
+                lastTouchDist = Math.hypot(
+                    e.touches[1].clientX - e.touches[0].clientX,
+                    e.touches[1].clientY - e.touches[0].clientY
+                );
+            }
+        }, { passive: true });
+        viewport.addEventListener('touchmove', e => {
+            e.preventDefault();
+            if (e.touches.length === 1 && isDragging) {
+                panX = panStartX + (e.touches[0].clientX - dragStartX);
+                panY = panStartY + (e.touches[0].clientY - dragStartY);
+                updateTransform();
+            } else if (e.touches.length === 2) {
+                const dist = Math.hypot(
+                    e.touches[1].clientX - e.touches[0].clientX,
+                    e.touches[1].clientY - e.touches[0].clientY
+                );
+                if (lastTouchDist > 0) {
+                    const mid = {
+                        x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+                        y: (e.touches[0].clientY + e.touches[1].clientY) / 2
+                    };
+                    const rect = viewport.getBoundingClientRect();
+                    zoomAt(mid.x - rect.left, mid.y - rect.top, dist / lastTouchDist);
+                }
+                lastTouchDist = dist;
+            }
+        }, { passive: false });
+        viewport.addEventListener('touchend', () => { isDragging = false; lastTouchDist = 0; });
+
+        // Escape to close
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') closeFullscreen();
+        });
+    </script>
+</body>
+</html>

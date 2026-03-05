@@ -1,0 +1,1783 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SQLite Architecture Map — Architecture Guide</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;700&family=Noto+Serif+JP:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* === Typography (Origami) === */
+            --font-display: 'Noto Serif JP', 'Georgia', serif;
+            --font-body: 'Inter', 'Helvetica Neue', sans-serif;
+            --font-mono: 'Noto Sans JP', monospace;
+            --font-jp: 'Noto Sans JP', sans-serif;
+
+            /* === Spacing (8px base grid) === */
+            --space-0p5: 4px;
+            --space-1: 8px;
+            --space-1p5: 12px;
+            --space-2: 16px;
+            --space-3: 24px;
+            --space-4: 32px;
+            --space-5: 40px;
+            --space-6: 48px;
+            --space-8: 64px;
+
+            /* === Origami Paper Palette === */
+            --paper-white: #FAFAF8;
+            --paper-cream: #F5F2EC;
+            --paper-warm: #EDE9E0;
+            --paper-ivory: #F8F6F0;
+            --washi: #F0EBE1;
+            --washi-dark: #E5DFD3;
+
+            /* === Origami Colors === */
+            --ori-red: #C23B3B;
+            --ori-red-light: #E8A0A0;
+            --ori-blue: #3B6FC2;
+            --ori-blue-light: #A0BDE8;
+            --ori-green: #3B8C5A;
+            --ori-green-light: #A0D4B3;
+            --ori-gold: #C9A84C;
+            --ori-gold-light: #E8D9A0;
+            --ori-purple: #6B4C91;
+            --ori-purple-light: #C4B0DC;
+            --ori-orange: #D4793B;
+            --ori-orange-light: #E8C0A0;
+
+            /* === Background Layers === */
+            --bg-base: #F0EBE1;
+            --bg-elevated: #FAFAF8;
+            --bg-surface: #F5F2EC;
+            --bg-surface-hover: #EDE9E0;
+            --bg-muted: #E5DFD3;
+
+            /* === Text Colors === */
+            --text-primary: #1C1B18;
+            --text-secondary: #5A5750;
+            --text-tertiary: #8A8680;
+            --text-inverse: #FAFAF8;
+            --text-link: #3B6FC2;
+            --text-link-hover: #2A5299;
+
+            /* === Crease & Shadow Tones === */
+            --crease-light: #D8D3C8;
+            --crease-mid: #B8B0A0;
+            --crease-dark: #8A8070;
+            --fold-shadow: rgba(60, 50, 35, 0.12);
+            --fold-shadow-deep: rgba(60, 50, 35, 0.22);
+
+            /* === Accent Colors === */
+            --red-alert: #C23B3B;
+            --gold-star: #C9A84C;
+            --gold-light: #E8D9A0;
+            --green-success: #3B8C5A;
+            --cyan-info: #3B6FC2;
+
+            /* === Layer Colors (for diagrams/cards) === */
+            --layer-tokenizer: #3B6FC2;
+            --layer-parser: #6B4C91;
+            --layer-codegen: #D4793B;
+            --layer-vdbe: #C23B3B;
+            --layer-btree: #3B8C5A;
+            --layer-pager: #C9A84C;
+            --layer-vfs: #8A8070;
+            --layer-testing: #3B6FC2;
+
+            /* === Borders === */
+            --border-subtle: rgba(138, 128, 112, 0.15);
+            --border-default: rgba(138, 128, 112, 0.25);
+            --border-strong: rgba(138, 128, 112, 0.45);
+            --border-focus: var(--ori-gold);
+
+            /* === Border Radius === */
+            --radius-sm: 4px;
+            --radius-md: 6px;
+            --radius: 8px;
+            --radius-lg: 12px;
+
+            /* === Shadows (paper fold style) === */
+            --shadow-sm: 0 1px 3px rgba(60, 50, 35, 0.08);
+            --shadow-md: 0 4px 12px rgba(60, 50, 35, 0.1);
+            --shadow-lg: 0 8px 30px rgba(60, 50, 35, 0.14);
+
+            /* === Transitions === */
+            --transition-fast: 0.15s ease;
+            --transition: 0.35s cubic-bezier(0.25, 0.1, 0.25, 1);
+        }
+
+        /* === Reset === */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { font-size: 17px; scroll-behavior: smooth; scroll-padding-top: 52px; }
+
+        body {
+            font-family: var(--font-body);
+            font-size: 1rem;
+            line-height: 1.7;
+            color: var(--text-primary);
+            background: var(--bg-base);
+            -webkit-font-smoothing: antialiased;
+            letter-spacing: 0.01em;
+        }
+
+        /* Subtle washi paper texture */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            opacity: 0.03;
+            background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+            z-index: 0;
+        }
+
+        /* === Back Link === */
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-1);
+            padding: var(--space-2) var(--space-4);
+            color: var(--text-tertiary);
+            text-decoration: none;
+            font-size: 0.85rem;
+            letter-spacing: 0.02em;
+            transition: color var(--transition-fast);
+            position: relative;
+            z-index: 1;
+        }
+        .back-link::before { content: '\2190'; }
+        .back-link:hover { color: var(--text-link); }
+
+        /* === Hero === */
+        .hero {
+            background: linear-gradient(135deg, var(--paper-cream) 0%, var(--washi) 50%, var(--paper-warm) 100%);
+            padding: var(--space-8) var(--space-4) var(--space-6);
+            border-bottom: 2px solid var(--crease-mid);
+            position: relative;
+            overflow: hidden;
+        }
+        .hero::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 600px 400px at 20% 50%, rgba(59, 111, 194, 0.06), transparent),
+                radial-gradient(ellipse 500px 300px at 80% 30%, rgba(201, 168, 76, 0.06), transparent);
+            pointer-events: none;
+        }
+        /* Diagonal fold line */
+        .hero::after {
+            content: '';
+            position: absolute;
+            top: -20%;
+            right: -10%;
+            width: 50%;
+            height: 140%;
+            background: linear-gradient(135deg, transparent 48%, rgba(60, 50, 35, 0.04) 49%, rgba(60, 50, 35, 0.06) 50%, transparent 51%);
+            pointer-events: none;
+        }
+        .hero-inner {
+            max-width: 1120px;
+            margin: 0 auto;
+            position: relative;
+        }
+        .hero h1 {
+            font-family: var(--font-display);
+            font-size: 2.4rem;
+            font-weight: 500;
+            line-height: 1.15;
+            margin-bottom: var(--space-2);
+            color: var(--text-primary);
+        }
+        .hero .tagline {
+            font-size: 1.15rem;
+            color: var(--text-secondary);
+            max-width: 640px;
+            line-height: 1.5;
+        }
+        .hero .meta {
+            margin-top: var(--space-3);
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-2);
+        }
+        .meta-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-0p5);
+            padding: var(--space-0p5) var(--space-1p5);
+            background: rgba(59, 111, 194, 0.08);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-sm);
+            font-size: 0.78rem;
+            font-family: var(--font-mono);
+            color: var(--text-secondary);
+            letter-spacing: 0.02em;
+        }
+        .meta-badge .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        /* === Sticky Jump Nav === */
+        .jump-nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: var(--bg-muted);
+            border-bottom: 2px solid var(--crease-light);
+            display: flex;
+            gap: 0;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            white-space: nowrap;
+            padding: 0 var(--space-2);
+        }
+        .jump-nav a {
+            display: inline-block;
+            padding: var(--space-1p5) var(--space-2);
+            color: var(--text-tertiary);
+            text-decoration: none;
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+            border-bottom: 2px solid transparent;
+            transition: all var(--transition-fast);
+        }
+        .jump-nav a:hover {
+            color: var(--text-link);
+            border-bottom-color: var(--text-link);
+        }
+
+        /* === Container === */
+        .container {
+            max-width: 1120px;
+            margin: 0 auto;
+            padding: var(--space-6) var(--space-4);
+            position: relative;
+            z-index: 1;
+        }
+
+        /* === Section === */
+        .section {
+            margin-bottom: var(--space-8);
+            scroll-margin-top: 52px;
+        }
+        .section-header {
+            display: flex;
+            align-items: baseline;
+            gap: var(--space-2);
+            margin-bottom: var(--space-4);
+            padding-bottom: var(--space-2);
+            border-bottom: 2px solid var(--crease-light);
+        }
+        .section-number {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--ori-blue);
+            font-weight: 500;
+        }
+        .section-title {
+            font-family: var(--font-display);
+            font-size: 1.6rem;
+            font-weight: 500;
+        }
+        .section-description {
+            color: var(--text-secondary);
+            margin-bottom: var(--space-4);
+            max-width: 720px;
+            line-height: 1.65;
+        }
+
+        /* === Subsection === */
+        .subsection {
+            margin-bottom: var(--space-5);
+        }
+        .subsection-title {
+            font-family: var(--font-display);
+            font-size: 1.2rem;
+            font-weight: 500;
+            margin-bottom: var(--space-2);
+            color: var(--text-primary);
+        }
+        .subsection p {
+            color: var(--text-secondary);
+            margin-bottom: var(--space-2);
+            line-height: 1.65;
+        }
+
+        /* === Diagram Container === */
+        .diagram-container {
+            background: var(--bg-elevated);
+            border: 1px solid var(--crease-light);
+            border-radius: var(--radius-lg);
+            padding: var(--space-4);
+            margin: var(--space-3) 0;
+            overflow-x: auto;
+            box-shadow: var(--shadow-md);
+            position: relative;
+        }
+        .diagram-container .mermaid {
+            display: flex;
+            justify-content: center;
+        }
+        .diagram-label {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: var(--space-2);
+        }
+
+        /* === Mermaid Overrides === */
+        .diagram-container .mermaid svg {
+            max-width: 100%;
+            height: auto;
+        }
+
+        /* === Info Cards === */
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: var(--space-3);
+            margin: var(--space-3) 0;
+        }
+        .info-card {
+            background: var(--bg-elevated);
+            border: 1px solid var(--crease-light);
+            border-radius: var(--radius);
+            padding: var(--space-3);
+            transition: all var(--transition);
+            box-shadow: var(--shadow-sm);
+        }
+        .info-card:hover {
+            border-color: var(--crease-mid);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+        .info-card h4 {
+            font-family: var(--font-display);
+            font-size: 1rem;
+            font-weight: 500;
+            margin-bottom: var(--space-1);
+        }
+        .info-card p {
+            font-size: 0.88rem;
+            color: var(--text-secondary);
+            line-height: 1.55;
+        }
+        .info-card .card-meta {
+            margin-top: var(--space-2);
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+        }
+
+        /* === Layer Badge === */
+        .layer-badge {
+            display: inline-block;
+            padding: 2px var(--space-1);
+            border-radius: var(--radius-sm);
+            font-size: 0.72rem;
+            font-weight: 600;
+            font-family: var(--font-mono);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .layer-tokenizer { background: rgba(59,111,194,0.12); color: var(--layer-tokenizer); border: 1px solid rgba(59,111,194,0.3); }
+        .layer-parser { background: rgba(107,76,145,0.12); color: var(--layer-parser); border: 1px solid rgba(107,76,145,0.3); }
+        .layer-codegen { background: rgba(212,121,59,0.12); color: var(--layer-codegen); border: 1px solid rgba(212,121,59,0.3); }
+        .layer-vdbe { background: rgba(194,59,59,0.12); color: var(--layer-vdbe); border: 1px solid rgba(194,59,59,0.3); }
+        .layer-btree { background: rgba(59,140,90,0.12); color: var(--layer-btree); border: 1px solid rgba(59,140,90,0.3); }
+        .layer-pager { background: rgba(201,168,76,0.12); color: var(--layer-pager); border: 1px solid rgba(201,168,76,0.3); }
+        .layer-vfs { background: rgba(138,128,112,0.12); color: var(--layer-vfs); border: 1px solid rgba(138,128,112,0.3); }
+        .layer-testing { background: rgba(59,111,194,0.12); color: var(--layer-testing); border: 1px solid rgba(59,111,194,0.3); }
+
+        /* === Tables === */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.88rem;
+            margin: var(--space-3) 0;
+        }
+        .data-table th {
+            text-align: left;
+            padding: var(--space-1p5) var(--space-2);
+            background: var(--bg-surface);
+            border-bottom: 2px solid var(--crease-mid);
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-tertiary);
+            font-weight: 500;
+        }
+        .data-table td {
+            padding: var(--space-1p5) var(--space-2);
+            border-bottom: 1px solid var(--border-subtle);
+            vertical-align: top;
+        }
+        .data-table tr:hover td {
+            background: var(--bg-surface-hover);
+        }
+
+        /* === Callout === */
+        .callout {
+            background: var(--bg-elevated);
+            border-left: 3px solid var(--ori-blue);
+            border-radius: 0 var(--radius) var(--radius) 0;
+            padding: var(--space-3);
+            margin: var(--space-3) 0;
+            box-shadow: var(--shadow-sm);
+        }
+        .callout.callout-gold { border-left-color: var(--ori-gold); }
+        .callout.callout-red { border-left-color: var(--ori-red); }
+        .callout .callout-title {
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--ori-blue);
+            margin-bottom: var(--space-1);
+            font-weight: 500;
+        }
+        .callout.callout-gold .callout-title { color: var(--ori-gold); }
+        .callout.callout-red .callout-title { color: var(--ori-red); }
+        .callout p {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            line-height: 1.55;
+        }
+
+        /* === Stat Row === */
+        .stat-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: var(--space-3);
+            margin: var(--space-4) 0;
+        }
+        .stat-item {
+            text-align: center;
+            padding: var(--space-3);
+            background: var(--bg-elevated);
+            border: 1px solid var(--crease-light);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-sm);
+        }
+        .stat-value {
+            font-family: var(--font-display);
+            font-size: 1.8rem;
+            font-weight: 500;
+            color: var(--ori-blue);
+        }
+        .stat-label {
+            font-size: 0.78rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-top: var(--space-0p5);
+        }
+
+        /* === Acronym List === */
+        .acronym-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 0;
+        }
+        .acronym-item {
+            display: flex;
+            gap: var(--space-2);
+            padding: var(--space-1) var(--space-2);
+            border-bottom: 1px solid var(--border-subtle);
+            font-size: 0.85rem;
+        }
+        .acronym-item:hover { background: var(--bg-surface); }
+        .acronym-key {
+            font-family: var(--font-mono);
+            font-weight: 500;
+            color: var(--ori-blue);
+            min-width: 80px;
+        }
+        .acronym-val { color: var(--text-secondary); }
+
+        /* === Fullscreen Overlay === */
+        .diagram-expand-btn {
+            position: absolute;
+            top: var(--space-1);
+            right: var(--space-1);
+            background: var(--bg-surface);
+            border: 1px solid var(--crease-light);
+            border-radius: var(--radius-sm);
+            color: var(--text-tertiary);
+            padding: 6px 8px;
+            cursor: pointer;
+            font-size: 0.7rem;
+            font-family: var(--font-mono);
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            transition: all var(--transition-fast);
+            z-index: 2;
+        }
+        .diagram-expand-btn:hover {
+            color: var(--text-link);
+            border-color: var(--text-link);
+            background: var(--bg-surface-hover);
+        }
+        .diagram-expand-btn svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        .fs-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            background: var(--paper-cream);
+            display: none;
+            flex-direction: column;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+        .fs-overlay.active { opacity: 1; }
+
+        .fs-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: var(--space-1) var(--space-3);
+            background: var(--bg-muted);
+            border-bottom: 2px solid var(--crease-light);
+            flex-shrink: 0;
+        }
+        .fs-toolbar-title {
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+        .fs-controls {
+            display: flex;
+            gap: var(--space-1);
+            align-items: center;
+        }
+        .fs-btn {
+            background: var(--bg-surface);
+            border: 1px solid var(--crease-light);
+            border-radius: var(--radius-sm);
+            color: var(--text-secondary);
+            padding: 6px 12px;
+            cursor: pointer;
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            transition: all var(--transition-fast);
+        }
+        .fs-btn:hover {
+            color: var(--text-link);
+            border-color: var(--text-link);
+        }
+        .fs-zoom-label {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+            min-width: 48px;
+            text-align: center;
+        }
+        .fs-close {
+            background: none;
+            border: 1px solid var(--crease-light);
+            border-radius: var(--radius-sm);
+            color: var(--text-secondary);
+            padding: 6px 12px;
+            cursor: pointer;
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            transition: all var(--transition-fast);
+        }
+        .fs-close:hover {
+            color: var(--ori-red);
+            border-color: var(--ori-red);
+        }
+
+        .fs-viewport {
+            flex: 1;
+            overflow: hidden;
+            cursor: grab;
+            position: relative;
+        }
+        .fs-viewport:active { cursor: grabbing; }
+        .fs-content {
+            position: absolute;
+            top: 0;
+            left: 0;
+            transform-origin: 0 0;
+        }
+        .fs-content svg {
+            max-width: none !important;
+            height: auto !important;
+        }
+
+        .fs-hint {
+            position: absolute;
+            bottom: var(--space-2);
+            left: 50%;
+            transform: translateX(-50%);
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            color: var(--text-tertiary);
+            background: var(--bg-muted);
+            padding: 4px 12px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border-subtle);
+            pointer-events: none;
+            opacity: 0.7;
+        }
+
+        /* === Footer === */
+        .site-footer {
+            border-top: 2px solid var(--crease-light);
+            padding: var(--space-4) var(--space-4);
+            text-align: center;
+            color: var(--text-tertiary);
+            font-size: 0.82rem;
+        }
+        .site-footer a {
+            color: var(--text-link);
+            text-decoration: none;
+        }
+
+        /* === Responsive === */
+        @media (max-width: 768px) {
+            html { font-size: 16px; }
+            .hero h1 { font-size: 1.8rem; }
+            .section-title { font-size: 1.3rem; }
+            .card-grid { grid-template-columns: 1fr; }
+            .stat-row { grid-template-columns: repeat(2, 1fr); }
+            .acronym-grid { grid-template-columns: 1fr; }
+            .diagram-container { padding: var(--space-2); margin-left: calc(-1 * var(--space-2)); margin-right: calc(-1 * var(--space-2)); border-radius: 0; border-left: 0; border-right: 0; }
+        }
+    </style>
+</head>
+<body>
+    <a href="../index.html" class="back-link">Architecture Maps</a>
+
+    <!-- Hero -->
+    <header class="hero">
+        <div class="hero-inner">
+            <h1>SQLite Architecture</h1>
+            <p class="tagline">Interactive architecture map of the world's most deployed database engine &mdash; a serverless, zero-configuration, self-contained SQL database that replaces <code>fopen()</code>, not PostgreSQL.</p>
+            <div class="meta">
+                <span class="meta-badge"><span class="dot" style="background:var(--green-success)"></span> Public Domain</span>
+                <span class="meta-badge">~238K Lines (Amalgamation)</span>
+                <span class="meta-badge">590:1 Test-to-Code Ratio</span>
+                <span class="meta-badge">File Format Stable Since 2004</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Jump Nav -->
+    <nav class="jump-nav">
+        <a href="#overview">Overview</a>
+        <a href="#pipeline">Pipeline</a>
+        <a href="#frontend">Frontend</a>
+        <a href="#vdbe">VDBE</a>
+        <a href="#btree">B-Tree</a>
+        <a href="#pager">Pager</a>
+        <a href="#vfs">VFS</a>
+        <a href="#fileformat">File Format</a>
+        <a href="#locking">Locking</a>
+        <a href="#journal">Journal Modes</a>
+        <a href="#extensions">Extensions</a>
+        <a href="#testing">Testing</a>
+    </nav>
+
+    <div class="container">
+
+        <!-- 01 - OVERVIEW -->
+        <section id="overview" class="section">
+            <div class="section-header">
+                <span class="section-number">01</span>
+                <h2 class="section-title">Design Philosophy</h2>
+            </div>
+
+            <p class="section-description">SQLite was born from a practical frustration: Richard Hipp was building battleship software for the US Navy and kept having the Informix database server crash. Rather than fix the server, he asked: "Why can't I pull data directly off the disk drive?" The result is a serverless, zero-configuration, self-contained database engine that runs in-process.</p>
+
+            <div class="stat-row">
+                <div class="stat-item">
+                    <div class="stat-value">1T+</div>
+                    <div class="stat-label">Active Databases</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">238K</div>
+                    <div class="stat-label">Lines of C</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">92M</div>
+                    <div class="stat-label">Lines of Tests</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">2050</div>
+                    <div class="stat-label">Compat Guarantee</div>
+                </div>
+            </div>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>Replace fopen(), Not PostgreSQL</h4>
+                    <p>SQLite competes with custom file formats, not client/server databases. Reading data from SQLite is faster than reading individual files from the filesystem.</p>
+                </div>
+                <div class="info-card">
+                    <h4>Single-File Database</h4>
+                    <p>The entire database &mdash; schema, tables, indexes, metadata &mdash; lives in one cross-platform binary file. No directory structures, no server processes.</p>
+                </div>
+                <div class="info-card">
+                    <h4>Self-Reliance</h4>
+                    <p>Hipp built his own parser generator (Lemon), VCS (Fossil), printf(), and malloc wrappers. No external dependencies beyond the C compiler.</p>
+                </div>
+                <div class="info-card">
+                    <h4>The Amalgamation</h4>
+                    <p>111+ C source files concatenated into a single <code>sqlite3.c</code> file (~8.4 MB). Compilers produce 5-10% faster code from one translation unit.</p>
+                </div>
+            </div>
+
+            <div class="callout callout-gold">
+                <div class="callout-title">Design Principle</div>
+                <p>"Your enemy is complexity." Hipp developed SQLite independently of academic database theory, discovering convergences with PostgreSQL's architecture organically. He learned B-trees directly from Knuth's <em>Art of Computer Programming</em>.</p>
+            </div>
+        </section>
+
+        <!-- 02 - PIPELINE -->
+        <section id="pipeline" class="section">
+            <div class="section-header">
+                <span class="section-number">02</span>
+                <h2 class="section-title">Processing Pipeline</h2>
+            </div>
+
+            <p class="section-description">SQL processing flows through a clean pipeline of seven layers. Each layer communicates only with its immediate neighbors. The top three implement <code>sqlite3_prepare_v2()</code> (compilation), while the bottom four implement <code>sqlite3_step()</code> (execution).</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">SQL Processing Pipeline</div>
+                <pre class="mermaid">
+graph TD
+    SQL["SQL Text Input"]
+    TOK["Tokenizer<br/><small>tokenize.c</small>"]
+    PAR["Parser<br/><small>parse.y + Lemon</small>"]
+    CG["Code Generator<br/><small>select.c, where.c, ...</small>"]
+    VM["VDBE Bytecode VM<br/><small>vdbe.c</small>"]
+    BT["B-Tree Engine<br/><small>btree.c</small>"]
+    PG["Page Cache / Pager<br/><small>pager.c, wal.c</small>"]
+    VFS["OS Interface / VFS<br/><small>os_unix.c, os_win.c</small>"]
+    DISK["Disk Storage"]
+
+    SQL --> TOK
+    TOK --> PAR
+    PAR --> CG
+    CG --> VM
+    VM --> BT
+    BT --> PG
+    PG --> VFS
+    VFS --> DISK
+
+    style SQL fill:#F5F2EC,stroke:#B8B0A0,color:#1C1B18
+    style TOK fill:#3B6FC2,stroke:#2A5299,color:#FAFAF8
+    style PAR fill:#6B4C91,stroke:#553A75,color:#FAFAF8
+    style CG fill:#D4793B,stroke:#B8632C,color:#FAFAF8
+    style VM fill:#C23B3B,stroke:#A02E2E,color:#FAFAF8
+    style BT fill:#3B8C5A,stroke:#2D6B44,color:#FAFAF8
+    style PG fill:#C9A84C,stroke:#A88A3A,color:#1C1B18
+    style VFS fill:#8A8070,stroke:#6B6358,color:#FAFAF8
+    style DISK fill:#E5DFD3,stroke:#B8B0A0,color:#1C1B18
+                </pre>
+            </div>
+
+            <div class="callout">
+                <div class="callout-title">Compilation vs Execution</div>
+                <p><strong>sqlite3_prepare_v2()</strong> drives the top three layers (Tokenizer, Parser, Code Generator) to compile SQL text into a <code>sqlite3_stmt</code> containing VDBE bytecode. <strong>sqlite3_step()</strong> then executes that bytecode through the bottom four layers, one result row at a time.</p>
+            </div>
+        </section>
+
+        <!-- 03 - FRONTEND -->
+        <section id="frontend" class="section">
+            <div class="section-header">
+                <span class="section-number">03</span>
+                <h2 class="section-title">SQL Frontend</h2>
+            </div>
+
+            <p class="section-description">The frontend transforms SQL text into VDBE bytecode through three stages: tokenization, parsing, and code generation. The code generator is by far the most complex component.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Frontend Architecture</div>
+                <pre class="mermaid">
+graph LR
+    subgraph Tokenizer
+        T1["Hand-coded Lexer"]
+        T2["Tokens"]
+        T1 --> T2
+    end
+
+    subgraph Parser
+        P1["Lemon LALR-1"]
+        P2["Parse Tree"]
+        P1 --> P2
+    end
+
+    subgraph CodeGen["Code Generator"]
+        CG1["Query Planner<br/><small>where.c</small>"]
+        CG2["Statement Handlers<br/><small>select/insert/update/delete</small>"]
+        CG3["Expression Engine<br/><small>expr.c</small>"]
+        CG4["sqlite3_stmt<br/>Bytecode"]
+        CG1 --> CG4
+        CG2 --> CG4
+        CG3 --> CG4
+    end
+
+    T2 --> P1
+    P2 --> CG1
+    P2 --> CG2
+    P2 --> CG3
+
+    style T1 fill:#3B6FC2,stroke:#2A5299,color:#FAFAF8
+    style T2 fill:#A0BDE8,stroke:#3B6FC2,color:#1C1B18
+    style P1 fill:#6B4C91,stroke:#553A75,color:#FAFAF8
+    style P2 fill:#C4B0DC,stroke:#6B4C91,color:#1C1B18
+    style CG1 fill:#D4793B,stroke:#B8632C,color:#FAFAF8
+    style CG2 fill:#D4793B,stroke:#B8632C,color:#FAFAF8
+    style CG3 fill:#D4793B,stroke:#B8632C,color:#FAFAF8
+    style CG4 fill:#E8C0A0,stroke:#D4793B,color:#1C1B18
+                </pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Key Design Choices</h3>
+                <div class="card-grid">
+                    <div class="info-card">
+                        <h4>Tokenizer Calls Parser</h4>
+                        <p>Unlike most designs, the tokenizer calls the parser (not vice versa). This inversion makes it naturally thread-safe and faster.</p>
+                        <div class="card-meta"><span class="layer-badge layer-tokenizer">tokenize.c</span></div>
+                    </div>
+                    <div class="info-card">
+                        <h4>Lemon Parser Generator</h4>
+                        <p>Hipp's custom LALR(1) parser generator. Reentrant, thread-safe, includes non-terminal destructors to prevent memory leaks.</p>
+                        <div class="card-meta"><span class="layer-badge layer-parser">parse.y</span></div>
+                    </div>
+                    <div class="info-card">
+                        <h4>Query Planner</h4>
+                        <p>Evaluates millions of possible algorithm combinations in <code>where.c</code> to find the optimal execution plan for each query.</p>
+                        <div class="card-meta"><span class="layer-badge layer-codegen">where.c / wherecode.c</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Code Generator Source Files</h3>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>File</th>
+                            <th>Purpose</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><code>select.c</code></td><td>SELECT statement code generation</td></tr>
+                        <tr><td><code>insert.c</code></td><td>INSERT statement code generation</td></tr>
+                        <tr><td><code>update.c</code></td><td>UPDATE statement code generation</td></tr>
+                        <tr><td><code>delete.c</code></td><td>DELETE statement code generation</td></tr>
+                        <tr><td><code>where.c</code></td><td>WHERE clause optimization and query planner</td></tr>
+                        <tr><td><code>expr.c</code></td><td>Expression evaluation code generation</td></tr>
+                        <tr><td><code>build.c</code></td><td>CREATE / DROP statements</td></tr>
+                        <tr><td><code>auth.c</code></td><td>Authorization callbacks via sqlite3_set_authorizer()</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- 04 - VDBE -->
+        <section id="vdbe" class="section">
+            <div class="section-header">
+                <span class="section-number">04</span>
+                <h2 class="section-title">Virtual Database Engine (VDBE)</h2>
+            </div>
+
+            <p class="section-description">The VDBE is a register-based bytecode virtual machine (changed from stack-based in SQLite 3.0). Each instruction has an opcode plus up to five operands (P1-P5). It can be traced with <code>PRAGMA vdbe_trace=ON</code>.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">VDBE Execution Model</div>
+                <pre class="mermaid">
+graph TD
+    subgraph Input
+        STMT["sqlite3_stmt<br/>Bytecode Program"]
+    end
+
+    subgraph VDBE["VDBE Core"]
+        DECODE["Opcode Decoder"]
+        REG["Register File<br/><small>strings, ints, floats, BLOBs</small>"]
+        CURSOR["Cursor Manager<br/><small>OpenRead / OpenWrite</small>"]
+        FUNC["SQL Functions<br/><small>func.c, date.c</small>"]
+    end
+
+    subgraph Output
+        ROW["Result Row"]
+        TXN["Transaction Control<br/><small>Commit / Rollback</small>"]
+    end
+
+    STMT --> DECODE
+    DECODE --> REG
+    DECODE --> CURSOR
+    DECODE --> FUNC
+    REG --> ROW
+    CURSOR --> TXN
+
+    style STMT fill:#E8C0A0,stroke:#D4793B,color:#1C1B18
+    style DECODE fill:#C23B3B,stroke:#A02E2E,color:#FAFAF8
+    style REG fill:#C23B3B,stroke:#A02E2E,color:#FAFAF8
+    style CURSOR fill:#C23B3B,stroke:#A02E2E,color:#FAFAF8
+    style FUNC fill:#C23B3B,stroke:#A02E2E,color:#FAFAF8
+    style ROW fill:#A0D4B3,stroke:#3B8C5A,color:#1C1B18
+    style TXN fill:#E8D9A0,stroke:#C9A84C,color:#1C1B18
+                </pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Key Opcodes</h3>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Opcode</th>
+                            <th>Category</th>
+                            <th>Purpose</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><code>OpenRead / OpenWrite</code></td><td>Cursor</td><td>Open a cursor on a B-tree for reading or writing</td></tr>
+                        <tr><td><code>Column</code></td><td>Data</td><td>Extract a column value from the current row</td></tr>
+                        <tr><td><code>Rewind / Next</code></td><td>Iteration</td><td>Position cursor at start; advance to next row</td></tr>
+                        <tr><td><code>MakeRecord</code></td><td>Construction</td><td>Build a database record from register values</td></tr>
+                        <tr><td><code>PutIntKey</code></td><td>Storage</td><td>Store a record in the B-tree keyed by integer</td></tr>
+                        <tr><td><code>Transaction / Commit</code></td><td>Control</td><td>Begin and commit a database transaction</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="callout callout-gold">
+                <div class="callout-title">Two-Pass Pattern</div>
+                <p>UPDATE and DELETE use a two-pass approach: the first pass identifies target rows (storing keys in a temporary list), the second pass modifies them. This is necessary because modifying a B-tree during traversal would invalidate cursor positions.</p>
+            </div>
+        </section>
+
+        <!-- 05 - B-TREE -->
+        <section id="btree" class="section">
+            <div class="section-header">
+                <span class="section-number">05</span>
+                <h2 class="section-title">B-Tree Layer</h2>
+            </div>
+
+            <p class="section-description">All data lives on disk in B-tree structures. SQLite uses two B-tree variants: table B-trees (keyed by 64-bit rowid, data in leaves) and index B-trees (arbitrary keys, no data). One B-tree per table, one per index, all in the same file.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">B-Tree Variants</div>
+                <pre class="mermaid">
+graph TD
+    subgraph TableBTree["Table B-Tree (rowid keyed)"]
+        TI1["Interior Node<br/><small>rowid + child pointers</small>"]
+        TL1["Leaf: rowid=1<br/>Row Data"]
+        TL2["Leaf: rowid=2<br/>Row Data"]
+        TL3["Leaf: rowid=3<br/>Row Data"]
+        TI1 --> TL1
+        TI1 --> TL2
+        TI1 --> TL3
+    end
+
+    subgraph IndexBTree["Index B-Tree (key only)"]
+        II1["Interior Node<br/><small>keys + child pointers</small>"]
+        IL1["Leaf: key=alice"]
+        IL2["Leaf: key=bob"]
+        IL3["Leaf: key=carol"]
+        II1 --> IL1
+        II1 --> IL2
+        II1 --> IL3
+    end
+
+    style TI1 fill:#3B8C5A,stroke:#2D6B44,color:#FAFAF8
+    style TL1 fill:#A0D4B3,stroke:#3B8C5A,color:#1C1B18
+    style TL2 fill:#A0D4B3,stroke:#3B8C5A,color:#1C1B18
+    style TL3 fill:#A0D4B3,stroke:#3B8C5A,color:#1C1B18
+    style II1 fill:#C9A84C,stroke:#A88A3A,color:#1C1B18
+    style IL1 fill:#E8D9A0,stroke:#C9A84C,color:#1C1B18
+    style IL2 fill:#E8D9A0,stroke:#C9A84C,color:#1C1B18
+    style IL3 fill:#E8D9A0,stroke:#C9A84C,color:#1C1B18
+                </pre>
+            </div>
+
+            <div class="callout">
+                <div class="callout-title">Schema Storage</div>
+                <p>The schema itself is stored in <code>sqlite_schema</code> (page 1), a table B-tree containing the CREATE statements for all tables, indexes, views, and triggers. This bootstraps the entire database structure from a single root page.</p>
+            </div>
+        </section>
+
+        <!-- 06 - PAGER -->
+        <section id="pager" class="section">
+            <div class="section-header">
+                <span class="section-number">06</span>
+                <h2 class="section-title">Page Cache &amp; Pager</h2>
+            </div>
+
+            <p class="section-description">The pager views the database as an array of uniform-sized pages (default 4096 bytes, configurable 512&ndash;65536). It handles reading, writing, and caching pages in memory, and manages atomic commit and rollback &mdash; this is where ACID guarantees are enforced.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Pager Data Flow</div>
+                <pre class="mermaid">
+graph LR
+    subgraph BTreeLayer["B-Tree Requests"]
+        REQ["Page Read/Write<br/>Requests"]
+    end
+
+    subgraph PagerCore["Pager (pager.c)"]
+        CACHE["Page Cache<br/><small>pcache.c</small>"]
+        LOCK["Lock Manager"]
+        JOURNAL["Journal Writer"]
+    end
+
+    subgraph Storage["Disk Files"]
+        DB["Database File<br/><small>.db</small>"]
+        WAL["WAL File<br/><small>-wal</small>"]
+        JRNL["Journal File<br/><small>-journal</small>"]
+    end
+
+    REQ --> CACHE
+    CACHE --> DB
+    CACHE --> LOCK
+    JOURNAL --> WAL
+    JOURNAL --> JRNL
+    LOCK --> DB
+
+    style REQ fill:#3B8C5A,stroke:#2D6B44,color:#FAFAF8
+    style CACHE fill:#C9A84C,stroke:#A88A3A,color:#1C1B18
+    style LOCK fill:#C9A84C,stroke:#A88A3A,color:#1C1B18
+    style JOURNAL fill:#C9A84C,stroke:#A88A3A,color:#1C1B18
+    style DB fill:#E5DFD3,stroke:#B8B0A0,color:#1C1B18
+    style WAL fill:#E5DFD3,stroke:#B8B0A0,color:#1C1B18
+    style JRNL fill:#E5DFD3,stroke:#B8B0A0,color:#1C1B18
+                </pre>
+            </div>
+
+            <div class="stat-row">
+                <div class="stat-item">
+                    <div class="stat-value">4 KB</div>
+                    <div class="stat-label">Default Page Size</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">~281 TB</div>
+                    <div class="stat-label">Max Database Size</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">2<sup>32</sup></div>
+                    <div class="stat-label">Max Pages</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 07 - VFS -->
+        <section id="vfs" class="section">
+            <div class="section-header">
+                <span class="section-number">07</span>
+                <h2 class="section-title">Virtual File System (VFS)</h2>
+            </div>
+
+            <p class="section-description">The VFS abstraction layer isolates all platform-specific I/O behind three objects. Porting SQLite to a new OS means writing a new VFS implementation. Custom VFS enables SQLite on embedded devices without filesystems, in-memory databases, and encrypted databases.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">VFS Object Hierarchy</div>
+                <pre class="mermaid">
+graph TD
+    subgraph VFSLayer["VFS Abstraction"]
+        VFSOBJ["sqlite3_vfs<br/><small>open, delete, exists, randomness</small>"]
+        FILEOBJ["sqlite3_file<br/><small>open file handle</small>"]
+        IOOBJ["sqlite3_io_methods<br/><small>xRead, xWrite, xSync, xLock</small>"]
+        VFSOBJ --> FILEOBJ
+        FILEOBJ --> IOOBJ
+    end
+
+    subgraph Implementations
+        UNIX["unix<br/><small>POSIX advisory locks</small>"]
+        WIN["win32<br/><small>LockFile / LockFileEx</small>"]
+        SHIM["VFS Shim<br/><small>vfstrace, quota, multiplex</small>"]
+    end
+
+    IOOBJ --> UNIX
+    IOOBJ --> WIN
+    IOOBJ --> SHIM
+
+    style VFSOBJ fill:#8A8070,stroke:#6B6358,color:#FAFAF8
+    style FILEOBJ fill:#8A8070,stroke:#6B6358,color:#FAFAF8
+    style IOOBJ fill:#8A8070,stroke:#6B6358,color:#FAFAF8
+    style UNIX fill:#A0BDE8,stroke:#3B6FC2,color:#1C1B18
+    style WIN fill:#A0BDE8,stroke:#3B6FC2,color:#1C1B18
+    style SHIM fill:#C4B0DC,stroke:#6B4C91,color:#1C1B18
+                </pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">VFS Shim Pattern</h3>
+                <p>VFS shims are thin wrappers that intercept calls and delegate to an underlying VFS. This allows layered functionality without modifying the core.</p>
+                <div class="card-grid">
+                    <div class="info-card">
+                        <h4>vfstrace</h4>
+                        <p>Logs all VFS calls for debugging and performance analysis.</p>
+                    </div>
+                    <div class="info-card">
+                        <h4>quota</h4>
+                        <p>Enforces file size limits. Used by Firefox to manage IndexedDB storage.</p>
+                    </div>
+                    <div class="info-card">
+                        <h4>multiplex</h4>
+                        <p>Splits large databases across multiple files to work around filesystem size limits.</p>
+                    </div>
+                    <div class="info-card">
+                        <h4>appendvfs</h4>
+                        <p>Appends a database to an executable, enabling self-contained data-bundled applications.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 08 - FILE FORMAT -->
+        <section id="fileformat" class="section">
+            <div class="section-header">
+                <span class="section-number">08</span>
+                <h2 class="section-title">Single-File Database Format</h2>
+            </div>
+
+            <p class="section-description">The entire database is one binary file with a 100-byte header starting with the magic string <code>"SQLite format 3\000"</code>. The file format has been stable since 2004 (version 3.0.0) and is guaranteed compatible through at least 2050.</p>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Header Fields</h3>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Offset</th>
+                            <th>Size</th>
+                            <th>Field</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>0</td><td>16</td><td>Magic string: <code>"SQLite format 3\000"</code></td></tr>
+                        <tr><td>16</td><td>2</td><td>Page size (bytes)</td></tr>
+                        <tr><td>18-19</td><td>2</td><td>File format version (1=rollback, 2=WAL)</td></tr>
+                        <tr><td>24</td><td>4</td><td>File change counter</td></tr>
+                        <tr><td>28</td><td>4</td><td>Database size in pages</td></tr>
+                        <tr><td>40</td><td>4</td><td>Schema cookie (incremented on schema change)</td></tr>
+                        <tr><td>56</td><td>4</td><td>Text encoding (1=UTF-8, 2=UTF-16LE, 3=UTF-16BE)</td></tr>
+                        <tr><td>96</td><td>4</td><td>SQLite version that created the DB</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Page Types in a Database File</div>
+                <pre class="mermaid">
+graph LR
+    subgraph PageTypes["Database File Pages"]
+        P1["Page 1<br/><small>Header + sqlite_schema</small>"]
+        TBL["0x0D Table Leaf<br/><small>rowid + data</small>"]
+        TBI["0x05 Table Interior<br/><small>rowid + children</small>"]
+        IDL["0x0A Index Leaf<br/><small>keys only</small>"]
+        IDI["0x02 Index Interior<br/><small>keys + children</small>"]
+        OVF["Overflow Pages<br/><small>large cell data</small>"]
+        FREE["Freelist Pages<br/><small>unused tracking</small>"]
+    end
+
+    style P1 fill:#C23B3B,stroke:#A02E2E,color:#FAFAF8
+    style TBL fill:#3B8C5A,stroke:#2D6B44,color:#FAFAF8
+    style TBI fill:#A0D4B3,stroke:#3B8C5A,color:#1C1B18
+    style IDL fill:#C9A84C,stroke:#A88A3A,color:#1C1B18
+    style IDI fill:#E8D9A0,stroke:#C9A84C,color:#1C1B18
+    style OVF fill:#D4793B,stroke:#B8632C,color:#FAFAF8
+    style FREE fill:#E5DFD3,stroke:#B8B0A0,color:#1C1B18
+                </pre>
+            </div>
+
+            <div class="callout">
+                <div class="callout-title">Record Format</div>
+                <p>Records use variable-length integers (varints, 1-9 bytes) and serial type codes: 0=NULL, 1-6=integers (1-8 bytes), 7=IEEE 754 float, 8-9=constants 0/1. For BLOBs: (N-12)/2 bytes where N&ge;12 and even. For text: (N-13)/2 bytes where N&ge;13 and odd.</p>
+            </div>
+        </section>
+
+        <!-- 09 - LOCKING -->
+        <section id="locking" class="section">
+            <div class="section-header">
+                <span class="section-number">09</span>
+                <h2 class="section-title">Locking &amp; Concurrency</h2>
+            </div>
+
+            <p class="section-description">SQLite uses a five-state file locking protocol for multi-process concurrency. Lock conflicts return <code>SQLITE_BUSY</code> immediately with no blocking waits.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Five-State Locking Protocol</div>
+                <pre class="mermaid">
+graph LR
+    UL["UNLOCKED<br/><small>Default state</small>"]
+    SH["SHARED<br/><small>Multiple readers</small>"]
+    RS["RESERVED<br/><small>One writer planning</small>"]
+    PN["PENDING<br/><small>Writer waiting</small>"]
+    EX["EXCLUSIVE<br/><small>Writer active</small>"]
+
+    UL --> SH
+    SH --> RS
+    RS --> PN
+    PN --> EX
+
+    style UL fill:#E5DFD3,stroke:#B8B0A0,color:#1C1B18
+    style SH fill:#3B8C5A,stroke:#2D6B44,color:#FAFAF8
+    style RS fill:#C9A84C,stroke:#A88A3A,color:#1C1B18
+    style PN fill:#D4793B,stroke:#B8632C,color:#FAFAF8
+    style EX fill:#C23B3B,stroke:#A02E2E,color:#FAFAF8
+                </pre>
+            </div>
+
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>State</th>
+                        <th>Who Holds It</th>
+                        <th>What It Means</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td><strong>UNLOCKED</strong></td><td>Nobody</td><td>Default state; no reads or writes</td></tr>
+                    <tr><td><strong>SHARED</strong></td><td>Multiple readers</td><td>Can read; prevents writers from committing</td></tr>
+                    <tr><td><strong>RESERVED</strong></td><td>One writer (planning)</td><td>Intends to write; other SHARED locks still allowed</td></tr>
+                    <tr><td><strong>PENDING</strong></td><td>One writer (waiting)</td><td>No new shared locks allowed; existing readers finish</td></tr>
+                    <tr><td><strong>EXCLUSIVE</strong></td><td>One writer (active)</td><td>Actually writing to disk; no other locks of any kind</td></tr>
+                </tbody>
+            </table>
+
+            <div class="callout callout-gold">
+                <div class="callout-title">Preventing Writer Starvation</div>
+                <p>The PENDING state prevents writer starvation. Without it, a continuous stream of readers acquiring SHARED locks could starve a waiting writer indefinitely. PENDING blocks new readers while letting existing ones finish.</p>
+            </div>
+        </section>
+
+        <!-- 10 - JOURNAL MODES -->
+        <section id="journal" class="section">
+            <div class="section-header">
+                <span class="section-number">10</span>
+                <h2 class="section-title">Journal Modes</h2>
+            </div>
+
+            <p class="section-description">SQLite offers two journal modes for crash recovery and atomic commit. The rollback journal (default) copies original pages before modifying them, while WAL mode appends changes to a separate log file.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Rollback Journal vs Write-Ahead Log</div>
+                <pre class="mermaid">
+graph TD
+    subgraph Rollback["Rollback Journal (default)"]
+        RW1["Original page copied<br/>to journal file"]
+        RW2["Changes written<br/>to database file"]
+        RW3["Commit = delete<br/>journal file"]
+        RW1 --> RW2 --> RW3
+    end
+
+    subgraph WALMode["Write-Ahead Log (WAL)"]
+        WW1["Original pages<br/>preserved in DB"]
+        WW2["Changes appended<br/>to WAL file"]
+        WW3["Commit = append<br/>commit record"]
+        WW1 --> WW2 --> WW3
+    end
+
+    style RW1 fill:#D4793B,stroke:#B8632C,color:#FAFAF8
+    style RW2 fill:#D4793B,stroke:#B8632C,color:#FAFAF8
+    style RW3 fill:#D4793B,stroke:#B8632C,color:#FAFAF8
+    style WW1 fill:#3B6FC2,stroke:#2A5299,color:#FAFAF8
+    style WW2 fill:#3B6FC2,stroke:#2A5299,color:#FAFAF8
+    style WW3 fill:#3B6FC2,stroke:#2A5299,color:#FAFAF8
+                </pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">WAL Mode Advantages</h3>
+                <div class="card-grid">
+                    <div class="info-card">
+                        <h4>Concurrent Readers + Writer</h4>
+                        <p>Readers never block writers, and writers never block readers. Each reader gets a consistent snapshot via "end marks."</p>
+                    </div>
+                    <div class="info-card">
+                        <h4>Write-Once I/O</h4>
+                        <p>Data is written only once (to WAL), not twice as in rollback mode. All writes are sequential appends.</p>
+                    </div>
+                    <div class="info-card">
+                        <h4>Fewer fsync() Calls</h4>
+                        <p>Sequential WAL appends require fewer costly disk synchronization calls compared to random-access journal writes.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">WAL Components</h3>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>File</th>
+                            <th>Purpose</th>
+                            <th>Details</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><code>-wal</code></td><td>WAL file</td><td>Sequential log of modified pages in "frames"</td></tr>
+                        <tr><td><code>-shm</code></td><td>WAL-index</td><td>Memory-mapped shared-memory file for fast lookups; rarely exceeds 32 KB</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="callout callout-red">
+                <div class="callout-title">WAL Limitations</div>
+                <p>All processes must be on the same host (shared memory requirement). WAL does not work over network filesystems. Mostly-read workloads are ~1-2% slower than rollback journal. Large transactions (&gt;100 MB) can be slower.</p>
+            </div>
+        </section>
+
+        <!-- 11 - EXTENSIONS -->
+        <section id="extensions" class="section">
+            <div class="section-header">
+                <span class="section-number">11</span>
+                <h2 class="section-title">Extension Architecture</h2>
+            </div>
+
+            <p class="section-description">SQLite supports run-time loadable extensions via shared libraries. Extensions are disabled by default for security and must be explicitly enabled. All notable extensions are compiled into the amalgamation but gated behind <code>-DSQLITE_ENABLE_*</code> flags.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Extension Loading Mechanism</div>
+                <pre class="mermaid">
+graph TD
+    subgraph Loading["Extension Loading"]
+        API["sqlite3_load_extension()"]
+        SQL["SELECT load_extension()"]
+        AUTO["sqlite3_auto_extension()"]
+    end
+
+    subgraph Platform["Platform Abstraction"]
+        DL["Unix: dlopen / dlsym"]
+        WIN["Windows: LoadLibrary"]
+        VFS2["VFS: xDlOpen / xDlSym"]
+    end
+
+    subgraph Extensions["Built-in Extensions"]
+        FTS["FTS5<br/><small>Full-Text Search</small>"]
+        RTREE["R-Tree<br/><small>Spatial Index</small>"]
+        JSON["JSON1<br/><small>JSON Functions</small>"]
+        RBU["RBU<br/><small>Bulk Update</small>"]
+    end
+
+    API --> VFS2
+    SQL --> VFS2
+    AUTO --> VFS2
+    VFS2 --> DL
+    VFS2 --> WIN
+
+    style API fill:#3B6FC2,stroke:#2A5299,color:#FAFAF8
+    style SQL fill:#3B6FC2,stroke:#2A5299,color:#FAFAF8
+    style AUTO fill:#3B6FC2,stroke:#2A5299,color:#FAFAF8
+    style DL fill:#8A8070,stroke:#6B6358,color:#FAFAF8
+    style WIN fill:#8A8070,stroke:#6B6358,color:#FAFAF8
+    style VFS2 fill:#8A8070,stroke:#6B6358,color:#FAFAF8
+    style FTS fill:#6B4C91,stroke:#553A75,color:#FAFAF8
+    style RTREE fill:#3B8C5A,stroke:#2D6B44,color:#FAFAF8
+    style JSON fill:#D4793B,stroke:#B8632C,color:#FAFAF8
+    style RBU fill:#C9A84C,stroke:#A88A3A,color:#1C1B18
+                </pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Notable Built-in Extensions</h3>
+                <div class="card-grid">
+                    <div class="info-card">
+                        <h4>FTS5 (Full-Text Search)</h4>
+                        <p>Segmented inverted index architecture with pluggable tokenizers (unicode61, ascii, porter, trigram). Built-in BM25 ranking. Supports phrase matching, proximity queries, and boolean operators.</p>
+                        <div class="card-meta"><span class="layer-badge layer-parser">Virtual Table</span></div>
+                    </div>
+                    <div class="info-card">
+                        <h4>R-Tree (Spatial Index)</h4>
+                        <p>R*-Tree spatial indexing for 1-5 dimensional range queries. Used in geospatial, CAD, and time-interval applications. Stores coordinates as 32-bit floats.</p>
+                        <div class="card-meta"><span class="layer-badge layer-btree">Virtual Table</span></div>
+                    </div>
+                    <div class="info-card">
+                        <h4>JSON1</h4>
+                        <p>SQL functions for JSON data: json_extract(), json_insert(), json_set(), json_remove(). Table-valued functions json_each() and json_tree() for iteration. Internal JSONB binary format.</p>
+                        <div class="card-meta"><span class="layer-badge layer-codegen">Functions</span></div>
+                    </div>
+                    <div class="info-card">
+                        <h4>SESSION &amp; RBU</h4>
+                        <p>SESSION tracks changesets between database snapshots. RBU (Resumable Bulk Update) enables efficient offline bulk modifications that can be paused and resumed.</p>
+                        <div class="card-meta"><span class="layer-badge layer-pager">Utilities</span></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 12 - TESTING -->
+        <section id="testing" class="section">
+            <div class="section-header">
+                <span class="section-number">12</span>
+                <h2 class="section-title">Testing Methodology</h2>
+            </div>
+
+            <p class="section-description">SQLite has one of the most rigorous testing regimes of any software project: 155.8K lines of source code vs ~92 million lines of test code &mdash; a 590:1 test-to-code ratio. The project achieves 100% MC/DC branch coverage, adopted from aviation industry standard DO-178B.</p>
+
+            <div class="stat-row">
+                <div class="stat-item">
+                    <div class="stat-value">590:1</div>
+                    <div class="stat-label">Test-to-Code Ratio</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">100%</div>
+                    <div class="stat-label">MC/DC Coverage</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">500M</div>
+                    <div class="stat-label">Fuzz Cases / Day</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">6,754</div>
+                    <div class="stat-label">Assert Statements</div>
+                </div>
+            </div>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Four Independent Test Harnesses</div>
+                <pre class="mermaid">
+graph TD
+    subgraph Harnesses["Test Harnesses"]
+        TCL["TCL Tests<br/><small>51,445 cases</small><br/><small>Public domain</small>"]
+        TH3["TH3<br/><small>~2.4M parameterized</small><br/><small>Proprietary</small>"]
+        SQLT["SQL Logic Test<br/><small>7.2M queries</small><br/><small>Cross-DB</small>"]
+        FUZZ["dbsqlfuzz<br/><small>~500M cases/day</small><br/><small>Structure-aware</small>"]
+    end
+
+    subgraph Techniques["Anomaly Testing"]
+        OOM["OOM Testing<br/><small>malloc failure injection</small>"]
+        IOE["I/O Error Testing<br/><small>custom VFS failures</small>"]
+        CRASH["Crash Testing<br/><small>power loss simulation</small>"]
+        MUT["Mutation Testing<br/><small>assembly branch flipping</small>"]
+    end
+
+    style TCL fill:#3B6FC2,stroke:#2A5299,color:#FAFAF8
+    style TH3 fill:#6B4C91,stroke:#553A75,color:#FAFAF8
+    style SQLT fill:#3B8C5A,stroke:#2D6B44,color:#FAFAF8
+    style FUZZ fill:#C23B3B,stroke:#A02E2E,color:#FAFAF8
+    style OOM fill:#D4793B,stroke:#B8632C,color:#FAFAF8
+    style IOE fill:#D4793B,stroke:#B8632C,color:#FAFAF8
+    style CRASH fill:#D4793B,stroke:#B8632C,color:#FAFAF8
+    style MUT fill:#D4793B,stroke:#B8632C,color:#FAFAF8
+                </pre>
+            </div>
+
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Harness</th>
+                        <th>Type</th>
+                        <th>Cases</th>
+                        <th>Purpose</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td><strong>TCL Tests</strong></td><td>Public domain</td><td>51,445</td><td>Primary development tests (1,390 files, 23.2 MB)</td></tr>
+                    <tr><td><strong>TH3</strong></td><td>Proprietary C</td><td>~2.4M</td><td>100% MC/DC branch coverage; embedded platform testing</td></tr>
+                    <tr><td><strong>SQL Logic Test</strong></td><td>Cross-DB</td><td>7.2M queries</td><td>Compares results against PostgreSQL, MySQL, SQL Server, Oracle</td></tr>
+                    <tr><td><strong>dbsqlfuzz</strong></td><td>Proprietary fuzzer</td><td>~500M/day</td><td>Mutates SQL and database files simultaneously (16 cores)</td></tr>
+                </tbody>
+            </table>
+
+            <div class="callout callout-gold">
+                <div class="callout-title">Aviation-Grade Quality</div>
+                <p>"Once we got to 100% MC/DC coverage, we stopped getting bug reports from Android." &mdash; Richard Hipp. The release process includes a ~200-item manual checklist and minimum 3 days of testing across multiple platforms (big/little endian, 32/64-bit, ARM/Intel).</p>
+            </div>
+        </section>
+
+    </div>
+
+    <!-- Footer -->
+    <footer class="site-footer">
+        <p>Compiled from sqlite.org architecture documentation, Richard Hipp talks, and public source code analysis</p>
+        <p style="margin-top:var(--space-1)"><a href="../index.html">Back to Architecture Maps</a></p>
+    </footer>
+
+    <!-- Fullscreen overlay -->
+    <div class="fs-overlay" id="fsOverlay">
+        <div class="fs-toolbar">
+            <span class="fs-toolbar-title" id="fsTitle">Diagram</span>
+            <div class="fs-controls">
+                <button class="fs-btn" id="fsZoomOut" title="Zoom out">-</button>
+                <span class="fs-zoom-label" id="fsZoomLabel">100%</span>
+                <button class="fs-btn" id="fsZoomIn" title="Zoom in">+</button>
+                <button class="fs-btn" id="fsFit" title="Fit to screen">Fit</button>
+                <button class="fs-close" id="fsClose" title="Close (Esc)">Close</button>
+            </div>
+        </div>
+        <div class="fs-viewport" id="fsViewport">
+            <div class="fs-content" id="fsContent"></div>
+            <div class="fs-hint">Scroll to zoom &middot; Drag to pan &middot; Esc to close</div>
+        </div>
+    </div>
+
+    <!-- Mermaid.js -->
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'base',
+            themeVariables: {
+                darkMode: false,
+                background: '#FAFAF8',
+                primaryColor: '#F5F2EC',
+                primaryTextColor: '#1C1B18',
+                primaryBorderColor: '#3B6FC2',
+                secondaryColor: '#EDE9E0',
+                secondaryTextColor: '#5A5750',
+                secondaryBorderColor: '#B8B0A0',
+                tertiaryColor: '#F0EBE1',
+                tertiaryTextColor: '#1C1B18',
+                lineColor: '#8A8070',
+                textColor: '#1C1B18',
+                mainBkg: '#F5F2EC',
+                nodeBorder: '#B8B0A0',
+                clusterBkg: '#F8F6F0',
+                clusterBorder: '#D8D3C8',
+                titleColor: '#1C1B18',
+                edgeLabelBackground: '#F5F2EC',
+                nodeTextColor: '#1C1B18',
+                actorTextColor: '#1C1B18',
+                actorBkg: '#F5F2EC',
+                actorBorder: '#3B6FC2',
+                labelBoxBkgColor: '#FAFAF8',
+                labelBoxBorderColor: '#D8D3C8',
+                labelTextColor: '#1C1B18',
+                loopTextColor: '#5A5750',
+                noteBkgColor: '#E8D9A0',
+                noteTextColor: '#1C1B18',
+                noteBorderColor: '#C9A84C',
+                fontFamily: "'Inter', 'Helvetica Neue', sans-serif",
+                fontSize: '14px',
+                sectionBkgColor: '#F5F2EC',
+                altSectionBkgColor: '#EDE9E0',
+                sectionBkgColor2: '#F0EBE1',
+                taskBkgColor: '#3B6FC2',
+                taskTextColor: '#FAFAF8',
+                taskBorderColor: '#2A5299',
+                activeTaskBkgColor: '#C23B3B',
+                activeTaskBorderColor: '#A02E2E',
+                doneTaskBkgColor: '#3B8C5A',
+                gridColor: '#D8D3C8',
+                todayLineColor: '#C9A84C'
+            },
+            flowchart: {
+                htmlLabels: true,
+                curve: 'basis',
+                padding: 16,
+                nodeSpacing: 30,
+                rankSpacing: 50,
+                useMaxWidth: false
+            },
+            block: {
+                padding: 8
+            }
+        });
+
+        // Wait for mermaid to render, then add expand buttons
+        mermaid.run().then(() => {
+            const expandIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`;
+
+            document.querySelectorAll('.diagram-container').forEach(container => {
+                const btn = document.createElement('button');
+                btn.className = 'diagram-expand-btn';
+                btn.innerHTML = expandIcon + ' Expand';
+                btn.addEventListener('click', () => openFullscreen(container));
+                container.appendChild(btn);
+            });
+        });
+
+        // Fullscreen state
+        const overlay = document.getElementById('fsOverlay');
+        const viewport = document.getElementById('fsViewport');
+        const content = document.getElementById('fsContent');
+        const zoomLabel = document.getElementById('fsZoomLabel');
+        const titleEl = document.getElementById('fsTitle');
+        let zoom = 1;
+        let panX = 0, panY = 0;
+        let isDragging = false;
+        let dragStartX, dragStartY, panStartX, panStartY;
+
+        function openFullscreen(container) {
+            const label = container.querySelector('.diagram-label');
+            titleEl.textContent = label ? label.textContent : 'Diagram';
+
+            const svg = container.querySelector('svg');
+            if (!svg) return;
+
+            content.innerHTML = '';
+            content.appendChild(svg.cloneNode(true));
+
+            // Reset transform
+            zoom = 1;
+            panX = 0;
+            panY = 0;
+            content.style.transform = 'translate(0px, 0px) scale(1)';
+
+            overlay.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+
+            // Double rAF: first to lay out SVG at scale(1), second to measure & fit
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    overlay.classList.add('active');
+                    fitToViewport();
+                });
+            });
+        }
+
+        function closeFullscreen() {
+            overlay.classList.remove('active');
+            setTimeout(() => {
+                overlay.style.display = 'none';
+                content.innerHTML = '';
+            }, 200);
+            document.body.style.overflow = '';
+        }
+
+        function fitToViewport() {
+            const svg = content.querySelector('svg');
+            if (!svg) return;
+
+            const vw = viewport.clientWidth;
+            const vh = viewport.clientHeight;
+            const padding = 48;
+
+            const rect = svg.getBoundingClientRect();
+            const currentZoom = zoom || 1;
+            const svgW = rect.width / currentZoom;
+            const svgH = rect.height / currentZoom;
+
+            const w = svgW > 0 ? svgW : (svg.viewBox?.baseVal?.width || 800);
+            const h = svgH > 0 ? svgH : (svg.viewBox?.baseVal?.height || 400);
+
+            const scaleX = (vw - padding * 2) / w;
+            const scaleY = (vh - padding * 2) / h;
+            zoom = Math.min(scaleX, scaleY, 2);
+            zoom = Math.max(zoom, 0.1);
+
+            panX = (vw - w * zoom) / 2;
+            panY = (vh - h * zoom) / 2;
+
+            updateTransform();
+        }
+
+        function updateTransform() {
+            content.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+            zoomLabel.textContent = Math.round(zoom * 100) + '%';
+        }
+
+        // Zoom controls
+        document.getElementById('fsZoomIn').addEventListener('click', () => {
+            const vw = viewport.clientWidth / 2;
+            const vh = viewport.clientHeight / 2;
+            zoomAt(vw, vh, 1.3);
+        });
+        document.getElementById('fsZoomOut').addEventListener('click', () => {
+            const vw = viewport.clientWidth / 2;
+            const vh = viewport.clientHeight / 2;
+            zoomAt(vw, vh, 1 / 1.3);
+        });
+        document.getElementById('fsFit').addEventListener('click', fitToViewport);
+        document.getElementById('fsClose').addEventListener('click', closeFullscreen);
+
+        // Scroll to zoom (centered on cursor)
+        viewport.addEventListener('wheel', e => {
+            e.preventDefault();
+            const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+            const rect = viewport.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+            zoomAt(mx, my, factor);
+        }, { passive: false });
+
+        function zoomAt(mx, my, factor) {
+            const newZoom = Math.min(Math.max(zoom * factor, 0.05), 8);
+            const ratio = newZoom / zoom;
+            panX = mx - ratio * (mx - panX);
+            panY = my - ratio * (my - panY);
+            zoom = newZoom;
+            updateTransform();
+        }
+
+        // Drag to pan
+        viewport.addEventListener('mousedown', e => {
+            isDragging = true;
+            dragStartX = e.clientX;
+            dragStartY = e.clientY;
+            panStartX = panX;
+            panStartY = panY;
+        });
+        window.addEventListener('mousemove', e => {
+            if (!isDragging) return;
+            panX = panStartX + (e.clientX - dragStartX);
+            panY = panStartY + (e.clientY - dragStartY);
+            updateTransform();
+        });
+        window.addEventListener('mouseup', () => { isDragging = false; });
+
+        // Touch support for mobile pan/pinch
+        let lastTouchDist = 0;
+        viewport.addEventListener('touchstart', e => {
+            if (e.touches.length === 1) {
+                isDragging = true;
+                dragStartX = e.touches[0].clientX;
+                dragStartY = e.touches[0].clientY;
+                panStartX = panX;
+                panStartY = panY;
+            } else if (e.touches.length === 2) {
+                isDragging = false;
+                lastTouchDist = Math.hypot(
+                    e.touches[1].clientX - e.touches[0].clientX,
+                    e.touches[1].clientY - e.touches[0].clientY
+                );
+            }
+        }, { passive: true });
+        viewport.addEventListener('touchmove', e => {
+            e.preventDefault();
+            if (e.touches.length === 1 && isDragging) {
+                panX = panStartX + (e.touches[0].clientX - dragStartX);
+                panY = panStartY + (e.touches[0].clientY - dragStartY);
+                updateTransform();
+            } else if (e.touches.length === 2) {
+                const dist = Math.hypot(
+                    e.touches[1].clientX - e.touches[0].clientX,
+                    e.touches[1].clientY - e.touches[0].clientY
+                );
+                if (lastTouchDist > 0) {
+                    const mid = {
+                        x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+                        y: (e.touches[0].clientY + e.touches[1].clientY) / 2
+                    };
+                    const rect = viewport.getBoundingClientRect();
+                    zoomAt(mid.x - rect.left, mid.y - rect.top, dist / lastTouchDist);
+                }
+                lastTouchDist = dist;
+            }
+        }, { passive: false });
+        viewport.addEventListener('touchend', () => { isDragging = false; lastTouchDist = 0; });
+
+        // Escape to close
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') closeFullscreen();
+        });
+    </script>
+</body>
+</html>

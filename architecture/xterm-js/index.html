@@ -1,0 +1,1860 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>xterm.js Architecture Map -- Architecture Guide</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* ============================================
+           xterm.js Architecture Map
+           Styled after ASCII ART design system
+           ANSI palette, monospace fonts, BBS aesthetic
+           ============================================ */
+
+        :root {
+            /* ANSI 16-COLOR PALETTE (CGA/VGA standard) */
+            --ansi-black: #0C0C0C;
+            --ansi-red: #C50F1F;
+            --ansi-green: #13A10E;
+            --ansi-yellow: #C19C00;
+            --ansi-blue: #0037DA;
+            --ansi-magenta: #881798;
+            --ansi-cyan: #3A96DD;
+            --ansi-white: #CCCCCC;
+            --ansi-bright-black: #767676;
+            --ansi-bright-red: #E74856;
+            --ansi-bright-green: #16C60C;
+            --ansi-bright-yellow: #F9F1A5;
+            --ansi-bright-blue: #3B78FF;
+            --ansi-bright-magenta: #B4009E;
+            --ansi-bright-cyan: #61D6D6;
+            --ansi-bright-white: #F2F2F2;
+
+            /* SEMANTIC COLORS */
+            --bg: #0C0C0C;
+            --bg-surface: #1A1A1A;
+            --bg-elevated: #242424;
+            --bg-highlight: #2E2E2E;
+            --bg-muted: #111111;
+            --text: #CCCCCC;
+            --text-bright: #F2F2F2;
+            --text-dim: #767676;
+            --primary: #3A96DD;
+            --primary-bright: #61D6D6;
+            --accent: #16C60C;
+            --accent-dim: #13A10E;
+            --warning: #C19C00;
+            --warning-bright: #F9F1A5;
+            --danger: #C50F1F;
+            --danger-bright: #E74856;
+            --info: #3B78FF;
+            --highlight-bg: #3A96DD;
+            --highlight-text: #0C0C0C;
+
+            /* TYPOGRAPHY */
+            --font-display: 'JetBrains Mono', monospace;
+            --font-body: 'Fira Code', monospace;
+            --font-mono: 'IBM Plex Mono', monospace;
+
+            /* SPACING SCALE */
+            --space-xs: 4px;
+            --space-sm: 8px;
+            --space-md: 16px;
+            --space-lg: 24px;
+            --space-xl: 32px;
+            --space-2xl: 48px;
+            --space-3xl: 64px;
+
+            /* BORDERS */
+            --border-subtle: rgba(118, 118, 118, 0.2);
+            --border-default: rgba(118, 118, 118, 0.35);
+            --border-strong: rgba(204, 204, 204, 0.4);
+
+            /* RADIUS -- minimal for BBS aesthetic */
+            --radius-sm: 2px;
+            --radius: 3px;
+            --radius-lg: 4px;
+
+            /* SHADOWS */
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5);
+            --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.6);
+            --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.7);
+
+            /* TRANSITIONS */
+            --transition-fast: 0.1s ease;
+            --transition: 0.2s ease;
+        }
+
+        /* === Reset === */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { font-size: 15px; scroll-behavior: smooth; scroll-padding-top: 44px; }
+
+        body {
+            font-family: var(--font-body);
+            font-size: 1rem;
+            line-height: 1.7;
+            color: var(--text);
+            background: var(--bg);
+            -webkit-font-smoothing: antialiased;
+            overflow-x: hidden;
+        }
+
+        /* === Back Link === */
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-sm);
+            padding: var(--space-md) var(--space-xl);
+            color: var(--text-dim);
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-family: var(--font-mono);
+            letter-spacing: 0.05em;
+            transition: color var(--transition-fast);
+        }
+        .back-link::before { content: '<< '; font-family: var(--font-body); }
+        .back-link:hover { color: var(--primary-bright); }
+
+        /* === Hero === */
+        .hero {
+            background: var(--bg);
+            padding: var(--space-3xl) var(--space-xl) var(--space-2xl);
+            border-bottom: 1px solid var(--border-default);
+            position: relative;
+            overflow: hidden;
+        }
+        .hero::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background:
+                repeating-linear-gradient(
+                    0deg,
+                    transparent,
+                    transparent 2px,
+                    rgba(58, 150, 221, 0.02) 2px,
+                    rgba(58, 150, 221, 0.02) 4px
+                );
+            pointer-events: none;
+        }
+        .hero-inner {
+            max-width: 960px;
+            margin: 0 auto;
+            position: relative;
+        }
+        .hero-ascii {
+            font-family: var(--font-display);
+            font-size: 12px;
+            line-height: 1.2;
+            color: var(--primary-bright);
+            white-space: pre;
+            margin-bottom: var(--space-lg);
+            overflow-x: auto;
+        }
+        .hero .tagline {
+            font-size: 0.95rem;
+            color: var(--text-dim);
+            max-width: 640px;
+            line-height: 1.6;
+            letter-spacing: 0.02em;
+        }
+        .hero .meta {
+            margin-top: var(--space-lg);
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-sm);
+        }
+        .meta-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-xs);
+            padding: var(--space-xs) var(--space-sm);
+            background: rgba(58, 150, 221, 0.1);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-sm);
+            font-size: 0.75rem;
+            font-family: var(--font-mono);
+            color: var(--text-dim);
+            letter-spacing: 0.04em;
+        }
+        .meta-badge .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        /* === Sticky Jump Nav === */
+        .jump-nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: var(--bg-muted);
+            border-bottom: 1px solid var(--border-default);
+            display: flex;
+            gap: 0;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            white-space: nowrap;
+            padding: 0 var(--space-sm);
+        }
+        .jump-nav a {
+            display: inline-block;
+            padding: var(--space-sm) var(--space-md);
+            color: var(--text-dim);
+            text-decoration: none;
+            font-size: 0.75rem;
+            font-weight: 600;
+            font-family: var(--font-mono);
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            border-bottom: 2px solid transparent;
+            transition: all var(--transition-fast);
+        }
+        .jump-nav a:hover {
+            color: var(--primary-bright);
+            border-bottom-color: var(--primary-bright);
+        }
+
+        /* === Container === */
+        .container {
+            max-width: 960px;
+            margin: 0 auto;
+            padding: var(--space-2xl) var(--space-lg);
+        }
+
+        /* === Section === */
+        .section {
+            margin-bottom: var(--space-3xl);
+            scroll-margin-top: 44px;
+        }
+        .section-header {
+            display: flex;
+            align-items: baseline;
+            gap: var(--space-md);
+            margin-bottom: var(--space-xl);
+            padding-bottom: var(--space-md);
+            border-bottom: 1px solid var(--border-default);
+        }
+        .section-number {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--primary);
+            font-weight: 500;
+        }
+        .section-title {
+            font-family: var(--font-display);
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-bright);
+        }
+        .section-description {
+            color: var(--text-dim);
+            margin-bottom: var(--space-xl);
+            max-width: 720px;
+            line-height: 1.7;
+        }
+
+        /* === Subsection === */
+        .subsection {
+            margin-bottom: var(--space-xl);
+        }
+        .subsection-title {
+            font-family: var(--font-display);
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: var(--space-md);
+            color: var(--text-bright);
+        }
+        .subsection p {
+            color: var(--text-dim);
+            margin-bottom: var(--space-md);
+            line-height: 1.7;
+        }
+
+        /* === Diagram Container === */
+        .diagram-container {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-lg);
+            padding: var(--space-xl);
+            margin: var(--space-lg) 0;
+            overflow-x: auto;
+            position: relative;
+        }
+        .diagram-container .mermaid {
+            display: flex;
+            justify-content: center;
+        }
+        .diagram-label {
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: var(--space-md);
+        }
+        .diagram-label::before {
+            content: '// ';
+            color: var(--accent-dim);
+        }
+
+        /* === Mermaid Overrides === */
+        .diagram-container .mermaid svg {
+            max-width: 100%;
+            height: auto;
+        }
+
+        /* === Info Cards === */
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: var(--space-md);
+            margin: var(--space-lg) 0;
+        }
+        .info-card {
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius);
+            padding: var(--space-lg);
+            transition: all var(--transition);
+        }
+        .info-card:hover {
+            border-color: var(--primary);
+            box-shadow: var(--shadow-md);
+        }
+        .info-card h4 {
+            font-family: var(--font-display);
+            font-size: 0.92rem;
+            font-weight: 600;
+            margin-bottom: var(--space-sm);
+            color: var(--primary-bright);
+        }
+        .info-card p {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            line-height: 1.6;
+        }
+        .info-card .card-meta {
+            margin-top: var(--space-sm);
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            color: var(--text-dim);
+        }
+
+        /* === Layer Badge === */
+        .layer-badge {
+            display: inline-block;
+            padding: 2px var(--space-sm);
+            border-radius: var(--radius-sm);
+            font-size: 0.72rem;
+            font-weight: 600;
+            font-family: var(--font-mono);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .layer-common { background: rgba(58, 150, 221, 0.15); color: var(--primary); border: 1px solid rgba(58, 150, 221, 0.3); }
+        .layer-browser { background: rgba(22, 198, 12, 0.15); color: var(--accent); border: 1px solid rgba(22, 198, 12, 0.3); }
+        .layer-addon { background: rgba(193, 156, 0, 0.15); color: var(--warning); border: 1px solid rgba(193, 156, 0, 0.3); }
+        .layer-api { background: rgba(180, 0, 158, 0.15); color: var(--ansi-bright-magenta); border: 1px solid rgba(180, 0, 158, 0.3); }
+        .layer-core { background: rgba(59, 120, 255, 0.15); color: var(--info); border: 1px solid rgba(59, 120, 255, 0.3); }
+        .layer-render { background: rgba(231, 72, 86, 0.15); color: var(--danger-bright); border: 1px solid rgba(231, 72, 86, 0.3); }
+
+        /* === Tables === */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+            margin: var(--space-lg) 0;
+        }
+        .data-table th {
+            text-align: left;
+            padding: var(--space-sm) var(--space-md);
+            background: var(--bg-elevated);
+            border-bottom: 2px solid var(--border-strong);
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-dim);
+            font-weight: 500;
+        }
+        .data-table td {
+            padding: var(--space-sm) var(--space-md);
+            border-bottom: 1px solid var(--border-subtle);
+            vertical-align: top;
+        }
+        .data-table tr:hover td {
+            background: var(--bg-highlight);
+        }
+
+        /* === Callout === */
+        .callout {
+            background: var(--bg-elevated);
+            border-left: 3px solid var(--primary);
+            border-radius: 0 var(--radius) var(--radius) 0;
+            padding: var(--space-lg);
+            margin: var(--space-lg) 0;
+        }
+        .callout.callout-green { border-left-color: var(--accent); }
+        .callout.callout-yellow { border-left-color: var(--warning); }
+        .callout.callout-red { border-left-color: var(--danger); }
+        .callout .callout-title {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--primary-bright);
+            margin-bottom: var(--space-sm);
+            font-weight: 500;
+        }
+        .callout.callout-green .callout-title { color: var(--accent); }
+        .callout.callout-yellow .callout-title { color: var(--warning); }
+        .callout.callout-red .callout-title { color: var(--danger-bright); }
+        .callout p {
+            font-size: 0.88rem;
+            color: var(--text-dim);
+            line-height: 1.6;
+        }
+
+        /* === Stat Row === */
+        .stat-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: var(--space-md);
+            margin: var(--space-xl) 0;
+        }
+        .stat-item {
+            text-align: center;
+            padding: var(--space-lg);
+            background: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius);
+        }
+        .stat-value {
+            font-family: var(--font-display);
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: var(--primary-bright);
+        }
+        .stat-label {
+            font-size: 0.72rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-top: var(--space-xs);
+            font-family: var(--font-mono);
+        }
+
+        /* === Acronym List === */
+        .acronym-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 0;
+        }
+        .acronym-item {
+            display: flex;
+            gap: var(--space-md);
+            padding: var(--space-xs) var(--space-md);
+            border-bottom: 1px solid var(--border-subtle);
+            font-size: 0.82rem;
+        }
+        .acronym-item:hover { background: var(--bg-surface); }
+        .acronym-key {
+            font-family: var(--font-mono);
+            font-weight: 500;
+            color: var(--primary-bright);
+            min-width: 50px;
+        }
+        .acronym-val { color: var(--text-dim); }
+
+        /* === Fullscreen Overlay === */
+        .diagram-expand-btn {
+            position: absolute;
+            top: var(--space-sm);
+            right: var(--space-sm);
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-sm);
+            color: var(--text-dim);
+            padding: 4px 8px;
+            cursor: pointer;
+            font-size: 0.68rem;
+            font-family: var(--font-mono);
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            transition: all var(--transition-fast);
+            z-index: 2;
+        }
+        .diagram-expand-btn:hover {
+            color: var(--primary-bright);
+            border-color: var(--primary-bright);
+            background: var(--bg-highlight);
+        }
+        .diagram-expand-btn svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        .fs-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            background: var(--bg);
+            display: none;
+            flex-direction: column;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+        .fs-overlay.active { opacity: 1; }
+
+        .fs-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: var(--space-sm) var(--space-lg);
+            background: var(--bg-muted);
+            border-bottom: 1px solid var(--border-default);
+            flex-shrink: 0;
+        }
+        .fs-toolbar-title {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+        .fs-controls {
+            display: flex;
+            gap: var(--space-sm);
+            align-items: center;
+        }
+        .fs-btn {
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-sm);
+            color: var(--text-dim);
+            padding: 4px 10px;
+            cursor: pointer;
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            transition: all var(--transition-fast);
+        }
+        .fs-btn:hover {
+            color: var(--primary-bright);
+            border-color: var(--primary-bright);
+        }
+        .fs-zoom-label {
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            color: var(--text-dim);
+            min-width: 48px;
+            text-align: center;
+        }
+        .fs-close {
+            background: none;
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-sm);
+            color: var(--text-dim);
+            padding: 4px 10px;
+            cursor: pointer;
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            transition: all var(--transition-fast);
+        }
+        .fs-close:hover {
+            color: var(--danger-bright);
+            border-color: var(--danger-bright);
+        }
+
+        .fs-viewport {
+            flex: 1;
+            overflow: hidden;
+            cursor: grab;
+            position: relative;
+        }
+        .fs-viewport:active { cursor: grabbing; }
+        .fs-content {
+            position: absolute;
+            top: 0;
+            left: 0;
+            transform-origin: 0 0;
+        }
+        .fs-content svg {
+            max-width: none !important;
+            height: auto !important;
+        }
+
+        .fs-hint {
+            position: absolute;
+            bottom: var(--space-md);
+            left: 50%;
+            transform: translateX(-50%);
+            font-family: var(--font-mono);
+            font-size: 0.68rem;
+            color: var(--text-dim);
+            background: var(--bg-muted);
+            padding: 4px 12px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border-subtle);
+            pointer-events: none;
+            opacity: 0.7;
+        }
+
+        /* === Footer === */
+        .site-footer {
+            border-top: 1px solid var(--border-default);
+            padding: var(--space-xl) var(--space-xl);
+            text-align: center;
+            color: var(--text-dim);
+            font-size: 0.8rem;
+            font-family: var(--font-mono);
+        }
+        .site-footer a {
+            color: var(--primary-bright);
+            text-decoration: none;
+        }
+        .site-footer a:hover { text-decoration: underline; }
+
+        /* === Responsive === */
+        @media (max-width: 768px) {
+            html { font-size: 14px; }
+            .hero-ascii { font-size: 9px; }
+            .section-title { font-size: 1.25rem; }
+            .card-grid { grid-template-columns: 1fr; }
+            .stat-row { grid-template-columns: repeat(2, 1fr); }
+            .acronym-grid { grid-template-columns: 1fr; }
+            .diagram-container { padding: var(--space-md); margin-left: calc(-1 * var(--space-md)); margin-right: calc(-1 * var(--space-md)); border-radius: 0; border-left: 0; border-right: 0; }
+            .hero { padding: var(--space-2xl) var(--space-md) var(--space-xl); }
+            .container { padding: var(--space-xl) var(--space-md); }
+        }
+    </style>
+</head>
+<body>
+    <a href="../index.html" class="back-link">Architecture Maps</a>
+
+    <!-- Hero -->
+    <header class="hero">
+        <div class="hero-inner">
+            <div class="hero-ascii">
+          _                              _
+ __  __| |_ ___ _ __ _ __ ___         (_)___
+ \ \/ /| __/ _ \ '__| '_ ` _ \        | / __|
+  >  < | ||  __/ |  | | | | | |  _    | \__ \
+ /_/\_\ \__\___|_|  |_| |_| |_| (_)  _/ |___/
+                                     |__/</div>
+            <p class="tagline">Interactive architecture map of xterm.js -- the terminal emulator component powering VS Code, Hyper, and Azure Cloud Shell. Four-layer architecture with pluggable renderers and an addon ecosystem.</p>
+            <div class="meta">
+                <span class="meta-badge"><span class="dot" style="background:var(--accent)"></span> Open Source (MIT)</span>
+                <span class="meta-badge">TypeScript</span>
+                <span class="meta-badge">~265KB bundle</span>
+                <span class="meta-badge">Zero runtime deps</span>
+                <span class="meta-badge">12 official addons</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Jump Nav -->
+    <nav class="jump-nav">
+        <a href="#overview">Overview</a>
+        <a href="#layers">Layers</a>
+        <a href="#parser">Parser</a>
+        <a href="#buffers">Buffers</a>
+        <a href="#renderers">Renderers</a>
+        <a href="#services">Services</a>
+        <a href="#addons">Addons</a>
+        <a href="#pty">PTY</a>
+        <a href="#unicode">Unicode</a>
+        <a href="#performance">Performance</a>
+        <a href="#accessibility">Accessibility</a>
+        <a href="#glossary">Glossary</a>
+    </nav>
+
+    <div class="container">
+
+        <!-- ════════════════════════════════════════ -->
+        <!-- 01 - OVERVIEW -->
+        <!-- ════════════════════════════════════════ -->
+        <section id="overview" class="section">
+            <div class="section-header">
+                <span class="section-number">01</span>
+                <h2 class="section-title">Enterprise Overview</h2>
+            </div>
+
+            <p class="section-description">xterm.js is a frontend-only terminal emulator written in TypeScript. It implements VT100/VT220/xterm escape sequences with zero runtime dependencies, separating platform-agnostic core logic from browser-specific rendering through a four-layer architecture.</p>
+
+            <div class="stat-row">
+                <div class="stat-item">
+                    <div class="stat-value">~265KB</div>
+                    <div class="stat-label">Bundle Size</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">4</div>
+                    <div class="stat-label">Architecture Layers</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">3</div>
+                    <div class="stat-label">Renderer Backends</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">12</div>
+                    <div class="stat-label">Official Addons</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">0</div>
+                    <div class="stat-label">Runtime Deps</div>
+                </div>
+            </div>
+
+            <div class="diagram-container">
+                <div class="diagram-label">High-Level Architecture</div>
+                <pre class="mermaid">
+graph TD
+    subgraph API["Layer 4: Public API"]
+        TYPES["xterm.d.ts<br/>Stable API surface"]
+    end
+
+    subgraph Browser["Layer 3: Browser Integration"]
+        TERM["Terminal class"]
+        REND["RenderService"]
+        SEL["SelectionService"]
+        MOUSE["MouseService"]
+        A11Y["AccessibilityManager"]
+    end
+
+    subgraph Core["Layer 2: Core Terminal Logic"]
+        CT["CoreTerminal"]
+        IH["InputHandler"]
+        BS["BufferService"]
+        OPTS["OptionsService"]
+    end
+
+    subgraph Foundation["Layer 1: Foundation"]
+        PARSER["EscapeSequenceParser"]
+        BUF["Buffer / BufferLine"]
+        DI["InstantiationService (DI)"]
+    end
+
+    TYPES --> TERM
+    TERM --> CT
+    REND --> CT
+    SEL --> BS
+    A11Y --> BS
+    CT --> IH
+    CT --> BS
+    IH --> PARSER
+    BS --> BUF
+    CT --> DI
+
+    style TYPES fill:#242424,stroke:#B4009E,color:#F2F2F2
+    style TERM fill:#1A1A1A,stroke:#16C60C,color:#F2F2F2
+    style REND fill:#1A1A1A,stroke:#16C60C,color:#F2F2F2
+    style SEL fill:#1A1A1A,stroke:#16C60C,color:#F2F2F2
+    style MOUSE fill:#1A1A1A,stroke:#16C60C,color:#F2F2F2
+    style A11Y fill:#1A1A1A,stroke:#16C60C,color:#F2F2F2
+    style CT fill:#242424,stroke:#3A96DD,color:#F2F2F2
+    style IH fill:#242424,stroke:#3A96DD,color:#F2F2F2
+    style BS fill:#242424,stroke:#3A96DD,color:#F2F2F2
+    style OPTS fill:#242424,stroke:#3A96DD,color:#F2F2F2
+    style PARSER fill:#0C0C0C,stroke:#3B78FF,color:#F2F2F2
+    style BUF fill:#0C0C0C,stroke:#3B78FF,color:#F2F2F2
+    style DI fill:#0C0C0C,stroke:#3B78FF,color:#F2F2F2
+                </pre>
+            </div>
+
+            <div class="callout callout-green">
+                <div class="callout-title">Key Adopters</div>
+                <p>VS Code (integrated terminal), Hyper, Eclipse Theia, Azure Cloud Shell, Tabby, Google Cloud Shell, CoCalc, StackBlitz, and many more.</p>
+            </div>
+        </section>
+
+        <!-- ════════════════════════════════════════ -->
+        <!-- 02 - LAYERED ARCHITECTURE -->
+        <!-- ════════════════════════════════════════ -->
+        <section id="layers" class="section">
+            <div class="section-header">
+                <span class="section-number">02</span>
+                <h2 class="section-title">Layered Architecture</h2>
+            </div>
+
+            <p class="section-description">The codebase enforces a strict dependency hierarchy: common is the foundation, browser and headless both depend on common, but never on each other. This separation enables xterm-headless for Node.js environments.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Module Organization</div>
+                <pre class="mermaid">
+graph TD
+    subgraph Public["typings/"]
+        XTERMD["xterm.d.ts"]
+    end
+
+    subgraph BrowserPkg["src/browser/"]
+        BTERM["Terminal.ts"]
+        BSVC["services/<br/>RenderService, SelectionService"]
+        BREND["renderer/<br/>DOM, Canvas, WebGL"]
+    end
+
+    subgraph HeadlessPkg["src/headless/"]
+        HTERM["Headless Terminal"]
+    end
+
+    subgraph CommonPkg["src/common/"]
+        CTERM["CoreTerminal.ts"]
+        CINPUT["InputHandler.ts"]
+        CPARSER["parser/<br/>EscapeSequenceParser"]
+        CBUF["buffer/<br/>Buffer, BufferLine, CellData"]
+        CSVC["services/<br/>Core DI services"]
+    end
+
+    subgraph AddonPkg["addons/"]
+        ADDONS["12 official addons"]
+    end
+
+    XTERMD --> BTERM
+    XTERMD --> HTERM
+    BTERM --> CTERM
+    HTERM --> CTERM
+    BSVC --> CSVC
+    BREND --> CBUF
+    CTERM --> CINPUT
+    CINPUT --> CPARSER
+    CTERM --> CBUF
+    CTERM --> CSVC
+    ADDONS -.-> XTERMD
+
+    style XTERMD fill:#242424,stroke:#B4009E,color:#F2F2F2
+    style BTERM fill:#1A1A1A,stroke:#16C60C,color:#F2F2F2
+    style BSVC fill:#1A1A1A,stroke:#16C60C,color:#F2F2F2
+    style BREND fill:#1A1A1A,stroke:#16C60C,color:#F2F2F2
+    style HTERM fill:#1A1A1A,stroke:#C19C00,color:#F2F2F2
+    style CTERM fill:#0C0C0C,stroke:#3A96DD,color:#F2F2F2
+    style CINPUT fill:#0C0C0C,stroke:#3A96DD,color:#F2F2F2
+    style CPARSER fill:#0C0C0C,stroke:#3A96DD,color:#F2F2F2
+    style CBUF fill:#0C0C0C,stroke:#3A96DD,color:#F2F2F2
+    style CSVC fill:#0C0C0C,stroke:#3A96DD,color:#F2F2F2
+    style ADDONS fill:#242424,stroke:#C19C00,color:#F2F2F2
+                </pre>
+            </div>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>Layer 1 -- Foundation</h4>
+                    <p>Platform-agnostic infrastructure: escape sequence parser state machine, buffer data structures, dependency injection framework.</p>
+                    <div class="card-meta"><span class="layer-badge layer-core">src/common/</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Layer 2 -- Core Logic</h4>
+                    <p>CoreTerminal, InputHandler, BufferService, OptionsService. Runs independently as xterm-headless in Node.js.</p>
+                    <div class="card-meta"><span class="layer-badge layer-common">CoreTerminal</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Layer 3 -- Browser</h4>
+                    <p>DOM manipulation, rendering coordination, viewport scrolling, keyboard/mouse input, and accessibility.</p>
+                    <div class="card-meta"><span class="layer-badge layer-browser">src/browser/</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Layer 4 -- Public API</h4>
+                    <p>Stable API surface in xterm.d.ts that external applications and addons depend on.</p>
+                    <div class="card-meta"><span class="layer-badge layer-api">typings/</span></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ════════════════════════════════════════ -->
+        <!-- 03 - INPUT PARSER -->
+        <!-- ════════════════════════════════════════ -->
+        <section id="parser" class="section">
+            <div class="section-header">
+                <span class="section-number">03</span>
+                <h2 class="section-title">Input Parser &amp; State Machine</h2>
+            </div>
+
+            <p class="section-description">The parser is based on Paul Flo Williams' state machine for DEC-compatible terminals. It processes input character-by-character with deterministic state transitions, recognizing VT sequences (CSI, OSC, DCS, ESC, APC) and dispatching to specialized handlers.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Write Pipeline -- Data Flow</div>
+                <pre class="mermaid">
+graph LR
+    INPUT["Input Source<br/>(API / keyboard)"]
+    WRITE["terminal.write()"]
+    WBUF["WriteBuffer<br/>(async batching)"]
+    PARSE["InputHandler.parse()"]
+    ESC["EscapeSequenceParser<br/>(state machine)"]
+    HANDLERS["Sequence Handlers<br/>(CSI/OSC/DCS/ESC)"]
+    BUFUPD["Buffer Updates<br/>via BufferService"]
+    EVENTS["Event Emission"]
+    RENDER["RenderService<br/>(debounced)"]
+
+    INPUT --> WRITE
+    WRITE --> WBUF
+    WBUF --> PARSE
+    PARSE --> ESC
+    ESC --> HANDLERS
+    HANDLERS --> BUFUPD
+    BUFUPD --> EVENTS
+    EVENTS --> RENDER
+
+    style INPUT fill:#242424,stroke:#767676,color:#F2F2F2
+    style WRITE fill:#1A1A1A,stroke:#3A96DD,color:#F2F2F2
+    style WBUF fill:#1A1A1A,stroke:#C19C00,color:#F2F2F2
+    style PARSE fill:#0C0C0C,stroke:#3A96DD,color:#F2F2F2
+    style ESC fill:#0C0C0C,stroke:#3B78FF,color:#F2F2F2
+    style HANDLERS fill:#0C0C0C,stroke:#B4009E,color:#F2F2F2
+    style BUFUPD fill:#1A1A1A,stroke:#16C60C,color:#F2F2F2
+    style EVENTS fill:#1A1A1A,stroke:#61D6D6,color:#F2F2F2
+    style RENDER fill:#242424,stroke:#E74856,color:#F2F2F2
+                </pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Sequence Handler Types</h3>
+                <p>Five handler registration categories, each with a registerXxxHandler() API. Handlers are probed in reverse registration order -- returning true stops the chain, false continues to the next handler.</p>
+
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Type</th>
+                            <th>Prefix</th>
+                            <th>Example</th>
+                            <th>Usage</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><span class="layer-badge layer-core">CSI</span></td>
+                            <td>ESC [</td>
+                            <td>ESC [ 2 J</td>
+                            <td>Erase display, SGR attributes, cursor movement</td>
+                        </tr>
+                        <tr>
+                            <td><span class="layer-badge layer-browser">OSC</span></td>
+                            <td>ESC ]</td>
+                            <td>ESC ] 0 ; title ST</td>
+                            <td>Window title, hyperlinks (OSC 8)</td>
+                        </tr>
+                        <tr>
+                            <td><span class="layer-badge layer-addon">DCS</span></td>
+                            <td>ESC P</td>
+                            <td>ESC P ... ST</td>
+                            <td>Device control with payload</td>
+                        </tr>
+                        <tr>
+                            <td><span class="layer-badge layer-api">ESC</span></td>
+                            <td>ESC</td>
+                            <td>ESC 7</td>
+                            <td>Save cursor, charset switching</td>
+                        </tr>
+                        <tr>
+                            <td><span class="layer-badge layer-render">APC</span></td>
+                            <td>ESC _</td>
+                            <td>ESC _ ... ST</td>
+                            <td>Application program commands</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="callout">
+                <div class="callout-title">Write Buffer</div>
+                <p>Incoming data is queued for asynchronous processing via WriteBuffer, preventing UI blocking. Maximum chunk size is 131,072 characters. Async handlers are supported but incur throughput cost. OSC/DCS payloads are capped at 10MB.</p>
+            </div>
+        </section>
+
+        <!-- ════════════════════════════════════════ -->
+        <!-- 04 - BUFFER ARCHITECTURE -->
+        <!-- ════════════════════════════════════════ -->
+        <section id="buffers" class="section">
+            <div class="section-header">
+                <span class="section-number">04</span>
+                <h2 class="section-title">Buffer Architecture</h2>
+            </div>
+
+            <p class="section-description">xterm.js maintains a dual buffer system -- normal and alternate screen. The normal buffer holds command output with scrollback history. The alternate buffer provides a clean slate for full-screen applications like vim and htop.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Dual Buffer System</div>
+                <pre class="mermaid">
+graph TD
+    subgraph BufferSet["BufferSet (manages active pointer)"]
+        NORMAL["Normal Buffer<br/>(default screen)"]
+        ALT["Alternate Buffer<br/>(full-screen apps)"]
+    end
+
+    subgraph NormalDetail["Normal Buffer Internals"]
+        SCROLL["Scrollback<br/>(CircularList)"]
+        VIEWPORT["Visible Viewport<br/>(rows x cols)"]
+        MARKERS["Markers<br/>(survive line trimming)"]
+    end
+
+    subgraph DataStructs["Data Structures"]
+        BLINE["BufferLine<br/>(Uint32Array, 3 per col)"]
+        CELL["CellData<br/>(char + attrs + width)"]
+    end
+
+    NORMAL --> NormalDetail
+    SCROLL --> BLINE
+    VIEWPORT --> BLINE
+    BLINE --> CELL
+
+    style NORMAL fill:#1A1A1A,stroke:#3A96DD,color:#F2F2F2
+    style ALT fill:#1A1A1A,stroke:#C19C00,color:#F2F2F2
+    style SCROLL fill:#0C0C0C,stroke:#3B78FF,color:#F2F2F2
+    style VIEWPORT fill:#0C0C0C,stroke:#16C60C,color:#F2F2F2
+    style MARKERS fill:#0C0C0C,stroke:#B4009E,color:#F2F2F2
+    style BLINE fill:#242424,stroke:#E74856,color:#F2F2F2
+    style CELL fill:#242424,stroke:#E74856,color:#F2F2F2
+                </pre>
+            </div>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>CircularList</h4>
+                    <p>Buffer extends CircularList for bounded-memory scrollback. Lines are overwritten when scrollback limit (default 1000) is reached.</p>
+                </div>
+                <div class="info-card">
+                    <h4>BufferLine</h4>
+                    <p>Uses a Uint32Array with 3 elements per column providing O(1) column-to-cell mapping. Attributes are bit-packed into fg/bg elements.</p>
+                </div>
+                <div class="info-card">
+                    <h4>CellData</h4>
+                    <p>Packed structure storing character code, combined attributes (flags, foreground, background), and character width in a compact format.</p>
+                </div>
+                <div class="info-card">
+                    <h4>Viewport Tracking</h4>
+                    <p>viewportY tracks the visible top line. baseY tracks where the bottom page starts. Markers survive line trimming via index tracking.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ════════════════════════════════════════ -->
+        <!-- 05 - RENDERER BACKENDS -->
+        <!-- ════════════════════════════════════════ -->
+        <section id="renderers" class="section">
+            <div class="section-header">
+                <span class="section-number">05</span>
+                <h2 class="section-title">Renderer Backends</h2>
+            </div>
+
+            <p class="section-description">The rendering system abstracts multiple backends through the IRenderer interface. RenderService coordinates rendering by debouncing updates, batching changes into single frames, and supporting DEC synchronized output (mode 2026).</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Renderer Architecture</div>
+                <pre class="mermaid">
+graph TD
+    RSVC["RenderService<br/>(debounce + batch)"]
+
+    subgraph DOM["DOM Renderer (Default)"]
+        DOMR["HTML elements<br/>per visible row"]
+    end
+
+    subgraph Canvas["Canvas Renderer (Addon)"]
+        TEXT["Text Layer<br/>(bg + fg, opaque)"]
+        SELC["Selection Layer"]
+        LINK["Link Layer"]
+        CURS["Cursor Layer"]
+        ATLAS["Texture Atlas<br/>(ImageBitmap cache)"]
+    end
+
+    subgraph WebGL["WebGL Renderer (Addon)"]
+        WGLP["WebGL2 Program<br/>(vertex + fragment)"]
+        FLOAT["Float32Array<br/>(full terminal data)"]
+        WATL["Texture Atlas<br/>(512x512 to 4096x4096)"]
+    end
+
+    RSVC --> DOMR
+    RSVC --> TEXT
+    RSVC --> WGLP
+    TEXT --> ATLAS
+    SELC --> ATLAS
+    WGLP --> FLOAT
+    WGLP --> WATL
+
+    style RSVC fill:#242424,stroke:#E74856,color:#F2F2F2
+    style DOMR fill:#1A1A1A,stroke:#767676,color:#F2F2F2
+    style TEXT fill:#1A1A1A,stroke:#3A96DD,color:#F2F2F2
+    style SELC fill:#1A1A1A,stroke:#3A96DD,color:#F2F2F2
+    style LINK fill:#1A1A1A,stroke:#3A96DD,color:#F2F2F2
+    style CURS fill:#1A1A1A,stroke:#3A96DD,color:#F2F2F2
+    style ATLAS fill:#0C0C0C,stroke:#C19C00,color:#F2F2F2
+    style WGLP fill:#1A1A1A,stroke:#16C60C,color:#F2F2F2
+    style FLOAT fill:#0C0C0C,stroke:#16C60C,color:#F2F2F2
+    style WATL fill:#0C0C0C,stroke:#C19C00,color:#F2F2F2
+                </pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Canvas Renderer Layers</h3>
+                <p>The canvas renderer uses multiple layered elements, each handling a specific concern. This separation allows the engine to repaint only changed layers rather than the entire terminal.</p>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">WebGL Texture Atlas</h3>
+                <p>Uses multiple active rows, adding glyphs to the most suitable row based on pixel height. Supports multiple 512x512 texture pages that merge up to 4096x4096. All characters including emoji are cached; glyphs are trimmed to minimal rectangles for space efficiency. When capacity is reached, the atlas clears and restarts.</p>
+            </div>
+
+            <div class="callout callout-yellow">
+                <div class="callout-title">Performance Comparison</div>
+                <p>DOM renderer: simplest but slowest. Canvas renderer: 5x-45x faster than DOM depending on scenario. WebGL renderer: fastest, offloads drawing entirely to the GPU, freeing the main thread.</p>
+            </div>
+        </section>
+
+        <!-- ════════════════════════════════════════ -->
+        <!-- 06 - DEPENDENCY INJECTION & SERVICES -->
+        <!-- ════════════════════════════════════════ -->
+        <section id="services" class="section">
+            <div class="section-header">
+                <span class="section-number">06</span>
+                <h2 class="section-title">Dependency Injection &amp; Services</h2>
+            </div>
+
+            <p class="section-description">xterm.js uses a service-oriented architecture with dependency injection through InstantiationService, a simplified version of VS Code's DI system. Components depend on interfaces rather than concrete implementations.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Service Dependency Graph</div>
+                <pre class="mermaid">
+graph TD
+    INST["InstantiationService<br/>(DI container)"]
+
+    subgraph CoreSvc["Core Services (src/common/)"]
+        OPTSVC["OptionsService<br/>(config + validation)"]
+        BUFSVC["BufferService<br/>(normal + alt buffers)"]
+        CORESVC["CoreService<br/>(terminal modes)"]
+        LOGSVC["LogService<br/>(configurable levels)"]
+        UNISVC["UnicodeService<br/>(char widths)"]
+        CHARSVC["CharsetService<br/>(G0, G1 switching)"]
+        OSCSVC["OscLinkService<br/>(OSC 8 hyperlinks)"]
+    end
+
+    INST --> CoreSvc
+    BUFSVC --> OPTSVC
+    CORESVC --> OPTSVC
+    UNISVC --> OPTSVC
+
+    style INST fill:#242424,stroke:#B4009E,color:#F2F2F2
+    style OPTSVC fill:#0C0C0C,stroke:#3A96DD,color:#F2F2F2
+    style BUFSVC fill:#0C0C0C,stroke:#3A96DD,color:#F2F2F2
+    style CORESVC fill:#0C0C0C,stroke:#3A96DD,color:#F2F2F2
+    style LOGSVC fill:#0C0C0C,stroke:#3A96DD,color:#F2F2F2
+    style UNISVC fill:#0C0C0C,stroke:#3A96DD,color:#F2F2F2
+    style CHARSVC fill:#0C0C0C,stroke:#3A96DD,color:#F2F2F2
+    style OSCSVC fill:#0C0C0C,stroke:#3A96DD,color:#F2F2F2
+                </pre>
+            </div>
+
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Service</th>
+                        <th>Responsibility</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>OptionsService</strong></td>
+                        <td>Manages configuration with validation; fires change events when options are modified</td>
+                    </tr>
+                    <tr>
+                        <td><strong>BufferService</strong></td>
+                        <td>Manages normal/alternate buffers, scrolling, viewport tracking</td>
+                    </tr>
+                    <tr>
+                        <td><strong>CoreService</strong></td>
+                        <td>Tracks terminal modes, DEC private modes, keyboard state</td>
+                    </tr>
+                    <tr>
+                        <td><strong>LogService</strong></td>
+                        <td>Configurable logging at multiple levels for debugging</td>
+                    </tr>
+                    <tr>
+                        <td><strong>UnicodeService</strong></td>
+                        <td>Unicode version handling and character width calculations (wcwidth)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>CharsetService</strong></td>
+                        <td>Character set switching (G0, G1, etc.) for legacy terminal compatibility</td>
+                    </tr>
+                    <tr>
+                        <td><strong>OscLinkService</strong></td>
+                        <td>Processes OSC 8 hyperlink sequences for clickable terminal links</td>
+                    </tr>
+                    <tr>
+                        <td><strong>CoreMouseService</strong></td>
+                        <td>Mouse tracking modes and event handling for terminal mouse support</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- ════════════════════════════════════════ -->
+        <!-- 07 - ADDON SYSTEM -->
+        <!-- ════════════════════════════════════════ -->
+        <section id="addons" class="section">
+            <div class="section-header">
+                <span class="section-number">07</span>
+                <h2 class="section-title">Addon System</h2>
+            </div>
+
+            <p class="section-description">Addons extend the terminal through the ITerminalAddon interface: activate(terminal) is called on loadAddon(), and dispose() handles cleanup. Third-party addons can be built using only the public API.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Addon Integration Pattern</div>
+                <pre class="mermaid">
+graph LR
+    APP["Application Code"]
+    TERM["Terminal Instance"]
+    LOAD["terminal.loadAddon()"]
+
+    subgraph Addons["ITerminalAddon"]
+        FIT["addon-fit<br/>(resize to container)"]
+        SEARCH["addon-search<br/>(buffer search)"]
+        WEBGL["addon-webgl<br/>(GPU renderer)"]
+        IMAGE["addon-image<br/>(inline images)"]
+        SERIAL["addon-serialize<br/>(export buffer)"]
+        ATTACH["addon-attach<br/>(WebSocket PTY)"]
+    end
+
+    APP --> TERM
+    TERM --> LOAD
+    LOAD --> Addons
+
+    style APP fill:#242424,stroke:#767676,color:#F2F2F2
+    style TERM fill:#1A1A1A,stroke:#3A96DD,color:#F2F2F2
+    style LOAD fill:#1A1A1A,stroke:#16C60C,color:#F2F2F2
+    style FIT fill:#0C0C0C,stroke:#C19C00,color:#F2F2F2
+    style SEARCH fill:#0C0C0C,stroke:#C19C00,color:#F2F2F2
+    style WEBGL fill:#0C0C0C,stroke:#C19C00,color:#F2F2F2
+    style IMAGE fill:#0C0C0C,stroke:#C19C00,color:#F2F2F2
+    style SERIAL fill:#0C0C0C,stroke:#C19C00,color:#F2F2F2
+    style ATTACH fill:#0C0C0C,stroke:#C19C00,color:#F2F2F2
+                </pre>
+            </div>
+
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Addon</th>
+                        <th>Purpose</th>
+                        <th>Category</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>addon-attach</strong></td>
+                        <td>Connects to a process via WebSocket</td>
+                        <td><span class="layer-badge layer-browser">IO</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>addon-clipboard</strong></td>
+                        <td>Browser clipboard integration</td>
+                        <td><span class="layer-badge layer-browser">IO</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>addon-fit</strong></td>
+                        <td>Resizes terminal to fit container element</td>
+                        <td><span class="layer-badge layer-common">Layout</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>addon-image</strong></td>
+                        <td>Inline image rendering support</td>
+                        <td><span class="layer-badge layer-render">Render</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>addon-ligatures</strong></td>
+                        <td>Font ligature rendering</td>
+                        <td><span class="layer-badge layer-render">Render</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>addon-progress</strong></td>
+                        <td>OSC 9;4 progress reporting API</td>
+                        <td><span class="layer-badge layer-addon">Extend</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>addon-search</strong></td>
+                        <td>Search through terminal buffer content</td>
+                        <td><span class="layer-badge layer-addon">Extend</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>addon-serialize</strong></td>
+                        <td>Export buffer to VT sequences or HTML</td>
+                        <td><span class="layer-badge layer-addon">Extend</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>addon-unicode-graphemes</strong></td>
+                        <td>Enhanced grapheme clustering (experimental)</td>
+                        <td><span class="layer-badge layer-core">Unicode</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>addon-unicode11</strong></td>
+                        <td>Unicode 11 character width standards</td>
+                        <td><span class="layer-badge layer-core">Unicode</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>addon-web-fonts</strong></td>
+                        <td>Web font loading and integration</td>
+                        <td><span class="layer-badge layer-render">Render</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>addon-webgl</strong></td>
+                        <td>WebGL2 GPU-accelerated rendering</td>
+                        <td><span class="layer-badge layer-render">Render</span></td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- ════════════════════════════════════════ -->
+        <!-- 08 - PTY INTEGRATION -->
+        <!-- ════════════════════════════════════════ -->
+        <section id="pty" class="section">
+            <div class="section-header">
+                <span class="section-number">08</span>
+                <h2 class="section-title">PTY Integration Patterns</h2>
+            </div>
+
+            <p class="section-description">xterm.js is a frontend-only library. It connects to backend processes (shells) via a WebSocket relay architecture. The server-side component (typically node-pty) spawns a pseudo-terminal and bridges it to the browser.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">PTY Relay Architecture</div>
+                <pre class="mermaid">
+graph LR
+    subgraph BrowserSide["Browser"]
+        XTJS["xterm.js<br/>(terminal emulator)"]
+    end
+
+    WS["WebSocket<br/>(bidirectional)"]
+
+    subgraph ServerSide["Server"]
+        RELAY["WebSocket Server<br/>(relay process)"]
+        NPTY["node-pty<br/>(pseudo-terminal)"]
+        SHELL["Shell<br/>(bash / zsh / fish)"]
+    end
+
+    XTJS <-->|"onData / write()"| WS
+    WS <-->|"data relay"| RELAY
+    RELAY <-->|"pty I/O"| NPTY
+    NPTY <-->|"stdin/stdout"| SHELL
+
+    style XTJS fill:#1A1A1A,stroke:#3A96DD,color:#F2F2F2
+    style WS fill:#242424,stroke:#C19C00,color:#F2F2F2
+    style RELAY fill:#1A1A1A,stroke:#16C60C,color:#F2F2F2
+    style NPTY fill:#0C0C0C,stroke:#3B78FF,color:#F2F2F2
+    style SHELL fill:#0C0C0C,stroke:#767676,color:#F2F2F2
+                </pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Data Flow Cycle</h3>
+                <p>1. User types in xterm.js -- onData event fires -- data sent via WebSocket. 2. Server receives data -- writes to ptyProcess.write(). 3. PTY executes command -- output via ptyProcess.onData. 4. Server sends output via WebSocket -- xterm.js terminal.write().</p>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Flow Control Strategies</h3>
+                <p>xterm.js processes data at 5-35 MB/s, constrained to avoid blocking the UI thread (targeting less than 16ms per frame). A hardcoded 50MB buffer limit prevents memory exhaustion.</p>
+
+                <div class="card-grid">
+                    <div class="info-card">
+                        <h4>Simple Pause/Resume</h4>
+                        <p>Pause PTY on each write, resume in callback. Simple but creates excessive context switches.</p>
+                    </div>
+                    <div class="info-card">
+                        <h4>Watermark-Based</h4>
+                        <p>High/low watermarks (e.g., 100K/10K bytes) reduce pause/resume frequency significantly.</p>
+                    </div>
+                    <div class="info-card">
+                        <h4>Batched Callbacks</h4>
+                        <p>Create callbacks only every ~100K bytes instead of per-chunk, with pending count as the signal.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ════════════════════════════════════════ -->
+        <!-- 09 - UNICODE HANDLING -->
+        <!-- ════════════════════════════════════════ -->
+        <section id="unicode" class="section">
+            <div class="section-header">
+                <span class="section-number">09</span>
+                <h2 class="section-title">Unicode Handling</h2>
+            </div>
+
+            <p class="section-description">Character width calculations use a wcwidth implementation managed by UnicodeService. Full grapheme cluster support is complex because clusters join multiple cells that wcwidth would output separately into one perceived character.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Unicode Processing Pipeline</div>
+                <pre class="mermaid">
+graph TD
+    INPUT["Incoming Bytes"]
+    DECODE["StringToUtf32 /<br/>Utf8ToUtf32"]
+    USERVICE["UnicodeService<br/>(version tables)"]
+    WCWIDTH["wcwidth<br/>(char width calc)"]
+
+    subgraph GraphemeAddon["addon-unicode-graphemes"]
+        GRAPHEME["Grapheme Clustering<br/>(experimental)"]
+        PROPS["Unicode Properties<br/>(generated file)"]
+    end
+
+    FUTURE["Future: WASM<br/>acceleration"]
+
+    INPUT --> DECODE
+    DECODE --> USERVICE
+    USERVICE --> WCWIDTH
+    USERVICE -.-> GRAPHEME
+    GRAPHEME --> PROPS
+    USERVICE -.-> FUTURE
+
+    style INPUT fill:#242424,stroke:#767676,color:#F2F2F2
+    style DECODE fill:#1A1A1A,stroke:#3A96DD,color:#F2F2F2
+    style USERVICE fill:#0C0C0C,stroke:#3B78FF,color:#F2F2F2
+    style WCWIDTH fill:#0C0C0C,stroke:#16C60C,color:#F2F2F2
+    style GRAPHEME fill:#242424,stroke:#C19C00,color:#F2F2F2
+    style PROPS fill:#242424,stroke:#C19C00,color:#F2F2F2
+    style FUTURE fill:#1A1A1A,stroke:#B4009E,color:#F2F2F2
+                </pre>
+            </div>
+
+            <div class="callout callout-yellow">
+                <div class="callout-title">Grapheme Cluster Challenge</div>
+                <p>A following character in a cluster might have wcwidth != 0, breaking cursor movement if widths are summed. The total of individual wcwidth values typically exceeds the final cluster's display width. This is why full grapheme support remains experimental.</p>
+            </div>
+        </section>
+
+        <!-- ════════════════════════════════════════ -->
+        <!-- 10 - PERFORMANCE -->
+        <!-- ════════════════════════════════════════ -->
+        <section id="performance" class="section">
+            <div class="section-header">
+                <span class="section-number">10</span>
+                <h2 class="section-title">Performance Optimizations</h2>
+            </div>
+
+            <p class="section-description">xterm.js employs multiple strategies across the rendering and write pipelines to maintain 60fps while processing high-throughput terminal output.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Performance Strategy Map</div>
+                <pre class="mermaid">
+graph TD
+    subgraph RenderPerf["Rendering Performance"]
+        DIRTY["Dirty Row Tracking<br/>(inlined in InputHandler)"]
+        TEXATL["Texture Atlas<br/>(GPU-friendly cache)"]
+        LAYERS["Layered Canvas<br/>(selective repaint)"]
+        DEBOUNCE["Render Debouncing<br/>(batch to single frame)"]
+        CLIP["Viewport Clipping<br/>(only visible rows)"]
+    end
+
+    subgraph WritePerf["Write Pipeline Performance"]
+        ASYNC["Async Batching<br/>(131K char chunks)"]
+        BUDGET["Frame Budget<br/>(16ms target for 60fps)"]
+        BURST["Burst Buffering<br/>(power-efficient coalescing)"]
+    end
+
+    subgraph Results["Measured Results"]
+        CANVAS_R["Canvas: 5x-45x speedup"]
+        WEBGL_R["WebGL: GPU offload"]
+        SIZE_R["Bundle: 265KB (-30%)"]
+    end
+
+    RenderPerf --> Results
+    WritePerf --> Results
+
+    style DIRTY fill:#0C0C0C,stroke:#16C60C,color:#F2F2F2
+    style TEXATL fill:#0C0C0C,stroke:#C19C00,color:#F2F2F2
+    style LAYERS fill:#0C0C0C,stroke:#3A96DD,color:#F2F2F2
+    style DEBOUNCE fill:#0C0C0C,stroke:#3A96DD,color:#F2F2F2
+    style CLIP fill:#0C0C0C,stroke:#3A96DD,color:#F2F2F2
+    style ASYNC fill:#1A1A1A,stroke:#3B78FF,color:#F2F2F2
+    style BUDGET fill:#1A1A1A,stroke:#3B78FF,color:#F2F2F2
+    style BURST fill:#1A1A1A,stroke:#3B78FF,color:#F2F2F2
+    style CANVAS_R fill:#242424,stroke:#16C60C,color:#F2F2F2
+    style WEBGL_R fill:#242424,stroke:#16C60C,color:#F2F2F2
+    style SIZE_R fill:#242424,stroke:#16C60C,color:#F2F2F2
+                </pre>
+            </div>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>Dirty Row Tracking</h4>
+                    <p>Inlined into InputHandler so only rows that changed since the last frame are redrawn. No full-line reconstruction needed.</p>
+                </div>
+                <div class="info-card">
+                    <h4>Texture Atlas</h4>
+                    <p>Pre-rendered character glyphs cached in GPU-friendly format. Avoids per-character fillText calls using drawImage from the atlas.</p>
+                </div>
+                <div class="info-card">
+                    <h4>Render Debouncing</h4>
+                    <p>RenderService batches multiple state changes into single animation frames. Supports DEC mode 2026 for synchronized output.</p>
+                </div>
+                <div class="info-card">
+                    <h4>Frame Budget</h4>
+                    <p>WriteBuffer processes chunks targeting under 16ms per frame. Burst buffering reduces GPU usage for power-sensitive environments.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ════════════════════════════════════════ -->
+        <!-- 11 - ACCESSIBILITY -->
+        <!-- ════════════════════════════════════════ -->
+        <section id="accessibility" class="section">
+            <div class="section-header">
+                <span class="section-number">11</span>
+                <h2 class="section-title">Accessibility</h2>
+            </div>
+
+            <p class="section-description">xterm.js creates an off-screen accessibility tree alongside rendered terminal rows, using ARIA attributes and a live region to support screen readers without sacrificing rendering performance.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Screen Reader Architecture</div>
+                <pre class="mermaid">
+graph TD
+    subgraph A11yTree["Accessibility Tree (off-screen)"]
+        VLIST["Virtual List<br/>(aria-posinset / aria-setsize)"]
+        LIVE["Assertive Live Region<br/>(announces output)"]
+        FOCUS["Focus Listeners<br/>(boundary scrolling)"]
+    end
+
+    subgraph EchoLogic["Character Echo Suppression"]
+        QUEUE["Keystroke Queue"]
+        ECHO["Echo Detection"]
+        SUPPRESS["Suppress if match"]
+        ANNOUNCE["Announce if different"]
+    end
+
+    KEYPRESS["User Keypress"] --> QUEUE
+    QUEUE --> ECHO
+    ECHO --> SUPPRESS
+    ECHO --> ANNOUNCE
+    ANNOUNCE --> LIVE
+    VLIST --> LIVE
+
+    style VLIST fill:#1A1A1A,stroke:#3A96DD,color:#F2F2F2
+    style LIVE fill:#1A1A1A,stroke:#16C60C,color:#F2F2F2
+    style FOCUS fill:#1A1A1A,stroke:#3A96DD,color:#F2F2F2
+    style QUEUE fill:#0C0C0C,stroke:#C19C00,color:#F2F2F2
+    style ECHO fill:#0C0C0C,stroke:#C19C00,color:#F2F2F2
+    style SUPPRESS fill:#0C0C0C,stroke:#767676,color:#F2F2F2
+    style ANNOUNCE fill:#0C0C0C,stroke:#16C60C,color:#F2F2F2
+    style KEYPRESS fill:#242424,stroke:#767676,color:#F2F2F2
+                </pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Echo Suppression Logic</h3>
+                <p>When a key is pressed, the character is queued. When the echo returns from the process, xterm.js compares it to the queue. If it matches, the announcement is suppressed (the user already heard the keypress). If they differ, the queue clears and the output is announced.</p>
+            </div>
+
+            <div class="callout callout-green">
+                <div class="callout-title">Design Constraints</div>
+                <p>The live region announces a maximum of 20 rows and clears when the user types. Tab characters are substituted with spaces. The accessibility tree updates at up to 60fps, balancing responsiveness with performance.</p>
+            </div>
+        </section>
+
+        <!-- ════════════════════════════════════════ -->
+        <!-- 12 - GLOSSARY -->
+        <!-- ════════════════════════════════════════ -->
+        <section id="glossary" class="section">
+            <div class="section-header">
+                <span class="section-number">12</span>
+                <h2 class="section-title">Glossary</h2>
+            </div>
+
+            <div class="acronym-grid">
+                <div class="acronym-item"><span class="acronym-key">APC</span><span class="acronym-val">Application Program Command</span></div>
+                <div class="acronym-item"><span class="acronym-key">ARIA</span><span class="acronym-val">Accessible Rich Internet Applications</span></div>
+                <div class="acronym-item"><span class="acronym-key">CSI</span><span class="acronym-val">Control Sequence Introducer</span></div>
+                <div class="acronym-item"><span class="acronym-key">DCS</span><span class="acronym-val">Device Control String</span></div>
+                <div class="acronym-item"><span class="acronym-key">DEC</span><span class="acronym-val">Digital Equipment Corporation</span></div>
+                <div class="acronym-item"><span class="acronym-key">DI</span><span class="acronym-val">Dependency Injection</span></div>
+                <div class="acronym-item"><span class="acronym-key">DOM</span><span class="acronym-val">Document Object Model</span></div>
+                <div class="acronym-item"><span class="acronym-key">ESC</span><span class="acronym-val">Escape (sequence prefix)</span></div>
+                <div class="acronym-item"><span class="acronym-key">FK/IK</span><span class="acronym-val">Forward/Inverse Kinematics</span></div>
+                <div class="acronym-item"><span class="acronym-key">GPU</span><span class="acronym-val">Graphics Processing Unit</span></div>
+                <div class="acronym-item"><span class="acronym-key">OSC</span><span class="acronym-val">Operating System Command</span></div>
+                <div class="acronym-item"><span class="acronym-key">PTY</span><span class="acronym-val">Pseudo-Terminal</span></div>
+                <div class="acronym-item"><span class="acronym-key">SGR</span><span class="acronym-val">Select Graphic Rendition</span></div>
+                <div class="acronym-item"><span class="acronym-key">VT</span><span class="acronym-val">Video Terminal (VT100/VT220)</span></div>
+                <div class="acronym-item"><span class="acronym-key">WASM</span><span class="acronym-val">WebAssembly</span></div>
+                <div class="acronym-item"><span class="acronym-key">WebGL</span><span class="acronym-val">Web Graphics Library</span></div>
+            </div>
+        </section>
+
+    </div>
+
+    <!-- Footer -->
+    <footer class="site-footer">
+        <p>Compiled from publicly available sources: xterm.js GitHub repository, API documentation, maintainer blog posts, DeepWiki analysis</p>
+        <p style="margin-top:var(--space-sm)"><a href="../index.html">Back to Architecture Maps</a></p>
+    </footer>
+
+    <!-- Fullscreen overlay -->
+    <div class="fs-overlay" id="fsOverlay">
+        <div class="fs-toolbar">
+            <span class="fs-toolbar-title" id="fsTitle">Diagram</span>
+            <div class="fs-controls">
+                <button class="fs-btn" id="fsZoomOut" title="Zoom out">-</button>
+                <span class="fs-zoom-label" id="fsZoomLabel">100%</span>
+                <button class="fs-btn" id="fsZoomIn" title="Zoom in">+</button>
+                <button class="fs-btn" id="fsFit" title="Fit to screen">Fit</button>
+                <button class="fs-close" id="fsClose" title="Close (Esc)">Close</button>
+            </div>
+        </div>
+        <div class="fs-viewport" id="fsViewport">
+            <div class="fs-content" id="fsContent"></div>
+            <div class="fs-hint">Scroll to zoom &middot; Drag to pan &middot; Esc to close</div>
+        </div>
+    </div>
+
+    <!-- Mermaid.js -->
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'dark',
+            themeVariables: {
+                darkMode: true,
+                background: '#1A1A1A',
+                primaryColor: '#242424',
+                primaryTextColor: '#F2F2F2',
+                primaryBorderColor: '#3A96DD',
+                secondaryColor: '#1A1A1A',
+                secondaryTextColor: '#CCCCCC',
+                secondaryBorderColor: '#767676',
+                tertiaryColor: '#0C0C0C',
+                tertiaryTextColor: '#F2F2F2',
+                lineColor: '#3A96DD',
+                textColor: '#F2F2F2',
+                mainBkg: '#242424',
+                nodeBorder: '#3A96DD',
+                clusterBkg: '#0C0C0C',
+                clusterBorder: '#767676',
+                titleColor: '#F2F2F2',
+                edgeLabelBackground: '#1A1A1A',
+                nodeTextColor: '#F2F2F2',
+                actorTextColor: '#F2F2F2',
+                actorBkg: '#242424',
+                actorBorder: '#3A96DD',
+                labelBoxBkgColor: '#1A1A1A',
+                labelBoxBorderColor: '#767676',
+                labelTextColor: '#F2F2F2',
+                loopTextColor: '#CCCCCC',
+                noteBkgColor: '#242424',
+                noteTextColor: '#F2F2F2',
+                noteBorderColor: '#3A96DD',
+                fontFamily: "'Fira Code', monospace",
+                fontSize: '13px',
+                sectionBkgColor: '#1A1A1A',
+                altSectionBkgColor: '#242424',
+                sectionBkgColor2: '#0C0C0C',
+                taskBkgColor: '#242424',
+                taskTextColor: '#F2F2F2',
+                taskBorderColor: '#3A96DD',
+                activeTaskBkgColor: '#1A1A1A',
+                activeTaskBorderColor: '#61D6D6',
+                doneTaskBkgColor: '#0C0C0C',
+                gridColor: '#767676',
+                todayLineColor: '#C19C00'
+            },
+            flowchart: {
+                htmlLabels: true,
+                curve: 'basis',
+                padding: 16,
+                nodeSpacing: 30,
+                rankSpacing: 50,
+                useMaxWidth: false
+            },
+            block: {
+                padding: 8
+            }
+        });
+
+        // Wait for mermaid to render, then add expand buttons
+        mermaid.run().then(() => {
+            const expandIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`;
+
+            document.querySelectorAll('.diagram-container').forEach(container => {
+                const btn = document.createElement('button');
+                btn.className = 'diagram-expand-btn';
+                btn.innerHTML = expandIcon + ' Expand';
+                btn.addEventListener('click', () => openFullscreen(container));
+                container.appendChild(btn);
+            });
+        });
+
+        // Fullscreen state
+        const overlay = document.getElementById('fsOverlay');
+        const viewport = document.getElementById('fsViewport');
+        const content = document.getElementById('fsContent');
+        const zoomLabel = document.getElementById('fsZoomLabel');
+        const titleEl = document.getElementById('fsTitle');
+        let zoom = 1;
+        let panX = 0, panY = 0;
+        let isDragging = false;
+        let dragStartX, dragStartY, panStartX, panStartY;
+
+        function openFullscreen(container) {
+            const label = container.querySelector('.diagram-label');
+            titleEl.textContent = label ? label.textContent : 'Diagram';
+
+            const svg = container.querySelector('svg');
+            if (!svg) return;
+
+            content.innerHTML = '';
+            content.appendChild(svg.cloneNode(true));
+
+            zoom = 1;
+            panX = 0;
+            panY = 0;
+            content.style.transform = 'translate(0px, 0px) scale(1)';
+
+            overlay.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    overlay.classList.add('active');
+                    fitToViewport();
+                });
+            });
+        }
+
+        function closeFullscreen() {
+            overlay.classList.remove('active');
+            setTimeout(() => {
+                overlay.style.display = 'none';
+                content.innerHTML = '';
+            }, 200);
+            document.body.style.overflow = '';
+        }
+
+        function fitToViewport() {
+            const svg = content.querySelector('svg');
+            if (!svg) return;
+
+            const vw = viewport.clientWidth;
+            const vh = viewport.clientHeight;
+            const padding = 48;
+
+            const rect = svg.getBoundingClientRect();
+            const currentZoom = zoom || 1;
+            const svgW = rect.width / currentZoom;
+            const svgH = rect.height / currentZoom;
+
+            const w = svgW > 0 ? svgW : (svg.viewBox?.baseVal?.width || 800);
+            const h = svgH > 0 ? svgH : (svg.viewBox?.baseVal?.height || 400);
+
+            const scaleX = (vw - padding * 2) / w;
+            const scaleY = (vh - padding * 2) / h;
+            zoom = Math.min(scaleX, scaleY, 2);
+            zoom = Math.max(zoom, 0.1);
+
+            panX = (vw - w * zoom) / 2;
+            panY = (vh - h * zoom) / 2;
+
+            updateTransform();
+        }
+
+        function updateTransform() {
+            content.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+            zoomLabel.textContent = Math.round(zoom * 100) + '%';
+        }
+
+        // Zoom controls
+        document.getElementById('fsZoomIn').addEventListener('click', () => {
+            const vw = viewport.clientWidth / 2;
+            const vh = viewport.clientHeight / 2;
+            zoomAt(vw, vh, 1.3);
+        });
+        document.getElementById('fsZoomOut').addEventListener('click', () => {
+            const vw = viewport.clientWidth / 2;
+            const vh = viewport.clientHeight / 2;
+            zoomAt(vw, vh, 1 / 1.3);
+        });
+        document.getElementById('fsFit').addEventListener('click', fitToViewport);
+        document.getElementById('fsClose').addEventListener('click', closeFullscreen);
+
+        // Scroll to zoom
+        viewport.addEventListener('wheel', e => {
+            e.preventDefault();
+            const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+            const rect = viewport.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+            zoomAt(mx, my, factor);
+        }, { passive: false });
+
+        function zoomAt(mx, my, factor) {
+            const newZoom = Math.min(Math.max(zoom * factor, 0.05), 8);
+            const ratio = newZoom / zoom;
+            panX = mx - ratio * (mx - panX);
+            panY = my - ratio * (my - panY);
+            zoom = newZoom;
+            updateTransform();
+        }
+
+        // Drag to pan
+        viewport.addEventListener('mousedown', e => {
+            isDragging = true;
+            dragStartX = e.clientX;
+            dragStartY = e.clientY;
+            panStartX = panX;
+            panStartY = panY;
+        });
+        window.addEventListener('mousemove', e => {
+            if (!isDragging) return;
+            panX = panStartX + (e.clientX - dragStartX);
+            panY = panStartY + (e.clientY - dragStartY);
+            updateTransform();
+        });
+        window.addEventListener('mouseup', () => { isDragging = false; });
+
+        // Touch support
+        let lastTouchDist = 0;
+        viewport.addEventListener('touchstart', e => {
+            if (e.touches.length === 1) {
+                isDragging = true;
+                dragStartX = e.touches[0].clientX;
+                dragStartY = e.touches[0].clientY;
+                panStartX = panX;
+                panStartY = panY;
+            } else if (e.touches.length === 2) {
+                isDragging = false;
+                lastTouchDist = Math.hypot(
+                    e.touches[1].clientX - e.touches[0].clientX,
+                    e.touches[1].clientY - e.touches[0].clientY
+                );
+            }
+        }, { passive: true });
+        viewport.addEventListener('touchmove', e => {
+            e.preventDefault();
+            if (e.touches.length === 1 && isDragging) {
+                panX = panStartX + (e.touches[0].clientX - dragStartX);
+                panY = panStartY + (e.touches[0].clientY - dragStartY);
+                updateTransform();
+            } else if (e.touches.length === 2) {
+                const dist = Math.hypot(
+                    e.touches[1].clientX - e.touches[0].clientX,
+                    e.touches[1].clientY - e.touches[0].clientY
+                );
+                if (lastTouchDist > 0) {
+                    const mid = {
+                        x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+                        y: (e.touches[0].clientY + e.touches[1].clientY) / 2
+                    };
+                    const rect = viewport.getBoundingClientRect();
+                    zoomAt(mid.x - rect.left, mid.y - rect.top, dist / lastTouchDist);
+                }
+                lastTouchDist = dist;
+            }
+        }, { passive: false });
+        viewport.addEventListener('touchend', () => { isDragging = false; lastTouchDist = 0; });
+
+        // Escape to close
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') closeFullscreen();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,1951 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cloudflare Architecture Map — Architecture Guide</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* Thermal Spectrum (cold to hot) */
+            --temp-freezing: #1a0030;
+            --temp-cold: #2d1b69;
+            --temp-cool: #1e3a8a;
+            --temp-mild: #0d9488;
+            --temp-warm: #22c55e;
+            --temp-hot: #eab308;
+            --temp-hotter: #f97316;
+            --temp-searing: #ef4444;
+            --temp-critical: #dc2626;
+            --temp-whiteout: #fef3c7;
+
+            /* Core Palette */
+            --void: #0a0010;
+            --void-light: #0f0018;
+            --panel: #120822;
+            --panel-light: #1a0f30;
+            --panel-lighter: #22143d;
+            --scanline: rgba(100, 60, 180, 0.06);
+
+            /* Text Colors */
+            --text-primary: #c4b5fd;
+            --text-bright: #e9e0ff;
+            --text-muted: #7c6faa;
+            --text-dim: #4a3d73;
+            --text-readout: #22c55e;
+
+            /* Accent Colors */
+            --accent-cold: #6366f1;
+            --accent-cool: #3b82f6;
+            --accent-neutral: #14b8a6;
+            --accent-warm: #f59e0b;
+            --accent-hot: #ef4444;
+            --accent-critical: #fbbf24;
+            --reticle: rgba(34, 197, 94, 0.7);
+
+            /* Semantic */
+            --bg-base: var(--void);
+            --bg-elevated: var(--panel);
+            --bg-surface: var(--panel-light);
+            --bg-surface-hover: var(--panel-lighter);
+            --bg-muted: var(--void-light);
+            --text-link: var(--accent-cool);
+            --text-link-hover: #60a5fa;
+
+            /* Typography */
+            --font-display: 'Orbitron', sans-serif;
+            --font-body: 'Rajdhani', sans-serif;
+            --font-mono: 'Share Tech Mono', monospace;
+
+            /* Spacing */
+            --space-xs: 4px;
+            --space-sm: 8px;
+            --space-md: 16px;
+            --space-lg: 32px;
+            --space-xl: 64px;
+            --space-0p5: 4px;
+            --space-1: 8px;
+            --space-1p5: 12px;
+            --space-2: 16px;
+            --space-3: 24px;
+            --space-4: 32px;
+            --space-5: 40px;
+            --space-6: 48px;
+            --space-8: 64px;
+
+            /* Borders & Radius */
+            --radius-sm: 2px;
+            --radius-md: 4px;
+            --radius: 6px;
+            --radius-lg: 8px;
+            --border-subtle: 1px solid rgba(99, 102, 241, 0.12);
+            --border-default: 1px solid rgba(99, 102, 241, 0.2);
+            --border-strong: 1px solid rgba(99, 102, 241, 0.35);
+
+            /* Shadows & Glows */
+            --glow-cold: 0 0 12px rgba(99, 102, 241, 0.2);
+            --glow-neutral: 0 0 15px rgba(20, 184, 166, 0.25);
+            --glow-warm: 0 0 20px rgba(245, 158, 11, 0.3);
+            --glow-hot: 0 0 25px rgba(239, 68, 68, 0.35);
+            --glow-readout: 0 0 10px rgba(34, 197, 94, 0.3);
+            --shadow-sm: 0 1px 3px rgba(10, 0, 16, 0.4);
+            --shadow-md: 0 4px 12px rgba(10, 0, 16, 0.5);
+            --shadow-lg: 0 8px 30px rgba(10, 0, 16, 0.6);
+
+            /* Transitions */
+            --transition-fast: 0.15s ease;
+            --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+
+            /* Domain Colors (Cloudflare services) */
+            --domain-network: #6366f1;
+            --domain-compute: #f59e0b;
+            --domain-storage: #14b8a6;
+            --domain-security: #ef4444;
+            --domain-dns: #3b82f6;
+            --domain-routing: #22c55e;
+            --domain-deploy: #a78bfa;
+            --domain-data: #f97316;
+        }
+
+        /* === Reset === */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { font-size: 17px; scroll-behavior: smooth; scroll-padding-top: 52px; }
+
+        body {
+            font-family: var(--font-body);
+            font-size: 1rem;
+            font-weight: 500;
+            line-height: 1.6;
+            color: var(--text-primary);
+            background: var(--bg-base);
+            -webkit-font-smoothing: antialiased;
+            min-height: 100vh;
+            position: relative;
+        }
+
+        /* Scan-line overlay */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: repeating-linear-gradient(0deg, transparent, transparent 2px, var(--scanline) 2px, var(--scanline) 4px);
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        /* Vignette */
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: radial-gradient(ellipse at center, transparent 50%, rgba(10, 0, 16, 0.5) 100%);
+            pointer-events: none;
+            z-index: 999;
+        }
+
+        /* === Back Link === */
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-1);
+            padding: var(--space-2) var(--space-4);
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-family: var(--font-mono);
+            letter-spacing: 0.02em;
+            transition: color var(--transition-fast);
+        }
+        .back-link::before { content: '\2190'; }
+        .back-link:hover { color: var(--text-link); }
+
+        /* === Hero === */
+        .hero {
+            background: linear-gradient(135deg, var(--temp-freezing) 0%, var(--void) 40%, var(--temp-cold) 100%);
+            padding: var(--space-8) var(--space-4) var(--space-6);
+            border-bottom: var(--border-default);
+            position: relative;
+            overflow: hidden;
+        }
+        .hero::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 600px 400px at 20% 50%, rgba(99, 102, 241, 0.08), transparent),
+                radial-gradient(ellipse 500px 300px at 80% 30%, rgba(245, 158, 11, 0.05), transparent);
+            pointer-events: none;
+        }
+        .hero-inner {
+            max-width: 1120px;
+            margin: 0 auto;
+            position: relative;
+        }
+        .hero h1 {
+            font-family: var(--font-display);
+            font-size: 2.4rem;
+            font-weight: 700;
+            line-height: 1.15;
+            margin-bottom: var(--space-2);
+            color: var(--text-bright);
+            text-shadow: 0 0 30px rgba(99, 102, 241, 0.3);
+        }
+        .hero .tagline {
+            font-size: 1.15rem;
+            color: var(--text-muted);
+            max-width: 640px;
+            line-height: 1.5;
+        }
+        .hero .meta {
+            margin-top: var(--space-3);
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-2);
+        }
+        .meta-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-0p5);
+            padding: var(--space-0p5) var(--space-1p5);
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            border-radius: var(--radius-sm);
+            font-size: 0.78rem;
+            font-family: var(--font-mono);
+            color: var(--text-muted);
+            letter-spacing: 0.02em;
+        }
+        .meta-badge .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        /* === Sticky Jump Nav === */
+        .jump-nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: var(--bg-muted);
+            border-bottom: var(--border-default);
+            display: flex;
+            gap: 0;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            white-space: nowrap;
+            padding: 0 var(--space-2);
+        }
+        .jump-nav a {
+            display: inline-block;
+            padding: var(--space-1p5) var(--space-2);
+            color: var(--text-dim);
+            text-decoration: none;
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+            border-bottom: 2px solid transparent;
+            transition: all var(--transition-fast);
+            font-family: var(--font-body);
+        }
+        .jump-nav a:hover {
+            color: var(--text-link);
+            border-bottom-color: var(--text-link);
+        }
+
+        /* === Container === */
+        .container {
+            max-width: 1120px;
+            margin: 0 auto;
+            padding: var(--space-6) var(--space-4);
+        }
+
+        /* === Section === */
+        .section {
+            margin-bottom: var(--space-8);
+            scroll-margin-top: 52px;
+        }
+        .section-header {
+            display: flex;
+            align-items: baseline;
+            gap: var(--space-2);
+            margin-bottom: var(--space-4);
+            padding-bottom: var(--space-2);
+            border-bottom: var(--border-default);
+        }
+        .section-number {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--text-readout);
+            font-weight: 500;
+        }
+        .section-title {
+            font-family: var(--font-display);
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: var(--text-bright);
+        }
+        .section-description {
+            color: var(--text-muted);
+            margin-bottom: var(--space-4);
+            max-width: 720px;
+            line-height: 1.65;
+        }
+
+        /* === Subsection === */
+        .subsection {
+            margin-bottom: var(--space-5);
+        }
+        .subsection-title {
+            font-family: var(--font-display);
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: var(--space-2);
+            color: var(--text-primary);
+            letter-spacing: 0.02em;
+        }
+        .subsection p {
+            color: var(--text-muted);
+            margin-bottom: var(--space-2);
+            line-height: 1.65;
+        }
+
+        /* === Diagram Container === */
+        .diagram-container {
+            background: var(--bg-elevated);
+            border: var(--border-default);
+            border-radius: var(--radius-lg);
+            padding: var(--space-4);
+            margin: var(--space-3) 0;
+            overflow-x: auto;
+            position: relative;
+        }
+        .diagram-container .mermaid {
+            display: flex;
+            justify-content: center;
+        }
+        .diagram-label {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: var(--space-2);
+        }
+        .diagram-container .mermaid svg {
+            max-width: 100%;
+            height: auto;
+        }
+
+        /* === Info Cards === */
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: var(--space-3);
+            margin: var(--space-3) 0;
+        }
+        .info-card {
+            background: var(--bg-surface);
+            border: 1px solid rgba(99, 102, 241, 0.12);
+            border-radius: var(--radius);
+            padding: var(--space-3);
+            transition: all var(--transition);
+        }
+        .info-card:hover {
+            border-color: rgba(99, 102, 241, 0.35);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+        .info-card h4 {
+            font-family: var(--font-display);
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: var(--space-1);
+            color: var(--text-bright);
+            letter-spacing: 0.02em;
+        }
+        .info-card p {
+            font-size: 0.88rem;
+            color: var(--text-muted);
+            line-height: 1.55;
+        }
+        .info-card .card-meta {
+            margin-top: var(--space-2);
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-dim);
+        }
+
+        /* === Domain Badge === */
+        .domain-badge {
+            display: inline-block;
+            padding: 2px var(--space-1);
+            border-radius: var(--radius-sm);
+            font-size: 0.72rem;
+            font-weight: 600;
+            font-family: var(--font-mono);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .domain-network { background: rgba(99, 102, 241, 0.15); color: var(--domain-network); border: 1px solid rgba(99, 102, 241, 0.3); }
+        .domain-compute { background: rgba(245, 158, 11, 0.15); color: var(--domain-compute); border: 1px solid rgba(245, 158, 11, 0.3); }
+        .domain-storage { background: rgba(20, 184, 166, 0.15); color: var(--domain-storage); border: 1px solid rgba(20, 184, 166, 0.3); }
+        .domain-security { background: rgba(239, 68, 68, 0.15); color: var(--domain-security); border: 1px solid rgba(239, 68, 68, 0.3); }
+        .domain-dns { background: rgba(59, 130, 246, 0.15); color: var(--domain-dns); border: 1px solid rgba(59, 130, 246, 0.3); }
+        .domain-routing { background: rgba(34, 197, 94, 0.15); color: var(--domain-routing); border: 1px solid rgba(34, 197, 94, 0.3); }
+        .domain-deploy { background: rgba(167, 139, 250, 0.15); color: var(--domain-deploy); border: 1px solid rgba(167, 139, 250, 0.3); }
+        .domain-data { background: rgba(249, 115, 22, 0.15); color: var(--domain-data); border: 1px solid rgba(249, 115, 22, 0.3); }
+
+        /* === Status Indicator === */
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-0p5);
+            font-size: 0.78rem;
+            font-family: var(--font-mono);
+        }
+        .status::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+        }
+        .status-active::before { background: var(--text-readout); }
+        .status-new::before { background: var(--accent-warm); }
+        .status-legacy::before { background: var(--accent-hot); }
+
+        /* === Tables === */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.88rem;
+            margin: var(--space-3) 0;
+        }
+        .data-table th {
+            text-align: left;
+            padding: var(--space-1p5) var(--space-2);
+            background: var(--bg-surface);
+            border-bottom: 2px solid rgba(99, 102, 241, 0.35);
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-dim);
+            font-weight: 500;
+        }
+        .data-table td {
+            padding: var(--space-1p5) var(--space-2);
+            border-bottom: 1px solid rgba(99, 102, 241, 0.12);
+            vertical-align: top;
+        }
+        .data-table tr:hover td {
+            background: var(--bg-surface-hover);
+        }
+
+        /* === Callout === */
+        .callout {
+            background: var(--bg-surface);
+            border-left: 3px solid var(--accent-cold);
+            border-radius: 0 var(--radius) var(--radius) 0;
+            padding: var(--space-3);
+            margin: var(--space-3) 0;
+        }
+        .callout.callout-warm { border-left-color: var(--accent-warm); }
+        .callout.callout-hot { border-left-color: var(--accent-hot); }
+        .callout.callout-cool { border-left-color: var(--accent-neutral); }
+        .callout .callout-title {
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--accent-cool);
+            margin-bottom: var(--space-1);
+            font-weight: 500;
+        }
+        .callout.callout-warm .callout-title { color: var(--accent-warm); }
+        .callout.callout-hot .callout-title { color: var(--accent-hot); }
+        .callout.callout-cool .callout-title { color: var(--accent-neutral); }
+        .callout p {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            line-height: 1.55;
+        }
+
+        /* === Stat Row === */
+        .stat-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: var(--space-3);
+            margin: var(--space-4) 0;
+        }
+        .stat-item {
+            text-align: center;
+            padding: var(--space-3);
+            background: var(--bg-elevated);
+            border: 1px solid rgba(99, 102, 241, 0.12);
+            border-radius: var(--radius);
+        }
+        .stat-value {
+            font-family: var(--font-display);
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--text-readout);
+            text-shadow: var(--glow-readout);
+        }
+        .stat-label {
+            font-size: 0.78rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-top: var(--space-0p5);
+        }
+
+        /* === Acronym List === */
+        .acronym-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 0;
+        }
+        .acronym-item {
+            display: flex;
+            gap: var(--space-2);
+            padding: var(--space-1) var(--space-2);
+            border-bottom: 1px solid rgba(99, 102, 241, 0.12);
+            font-size: 0.85rem;
+        }
+        .acronym-item:hover { background: var(--bg-surface); }
+        .acronym-key {
+            font-family: var(--font-mono);
+            font-weight: 500;
+            color: var(--text-readout);
+            min-width: 60px;
+        }
+        .acronym-val { color: var(--text-muted); }
+
+        /* === Expand Button === */
+        .diagram-expand-btn {
+            position: absolute;
+            top: var(--space-1);
+            right: var(--space-1);
+            background: var(--bg-surface);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            border-radius: var(--radius-sm);
+            color: var(--text-dim);
+            padding: 6px 8px;
+            cursor: pointer;
+            font-size: 0.7rem;
+            font-family: var(--font-mono);
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            transition: all var(--transition-fast);
+            z-index: 2;
+        }
+        .diagram-expand-btn:hover {
+            color: var(--text-link);
+            border-color: var(--text-link);
+            background: var(--bg-surface-hover);
+        }
+        .diagram-expand-btn svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        /* === Fullscreen Overlay === */
+        .fs-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            background: var(--bg-base);
+            display: none;
+            flex-direction: column;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+        .fs-overlay.active { opacity: 1; }
+
+        .fs-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: var(--space-1) var(--space-3);
+            background: var(--bg-muted);
+            border-bottom: var(--border-default);
+            flex-shrink: 0;
+        }
+        .fs-toolbar-title {
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+        .fs-controls {
+            display: flex;
+            gap: var(--space-1);
+            align-items: center;
+        }
+        .fs-btn {
+            background: var(--bg-surface);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            border-radius: var(--radius-sm);
+            color: var(--text-muted);
+            padding: 6px 12px;
+            cursor: pointer;
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            transition: all var(--transition-fast);
+        }
+        .fs-btn:hover {
+            color: var(--text-link);
+            border-color: var(--text-link);
+        }
+        .fs-zoom-label {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            min-width: 48px;
+            text-align: center;
+        }
+        .fs-close {
+            background: none;
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            border-radius: var(--radius-sm);
+            color: var(--text-muted);
+            padding: 6px 12px;
+            cursor: pointer;
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            transition: all var(--transition-fast);
+        }
+        .fs-close:hover {
+            color: var(--accent-hot);
+            border-color: var(--accent-hot);
+        }
+
+        .fs-viewport {
+            flex: 1;
+            overflow: hidden;
+            cursor: grab;
+            position: relative;
+        }
+        .fs-viewport:active { cursor: grabbing; }
+        .fs-content {
+            position: absolute;
+            top: 0;
+            left: 0;
+            transform-origin: 0 0;
+        }
+        .fs-content svg {
+            max-width: none !important;
+            height: auto !important;
+        }
+
+        .fs-hint {
+            position: absolute;
+            bottom: var(--space-2);
+            left: 50%;
+            transform: translateX(-50%);
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            background: var(--bg-muted);
+            padding: 4px 12px;
+            border-radius: var(--radius-sm);
+            border: 1px solid rgba(99, 102, 241, 0.12);
+            pointer-events: none;
+            opacity: 0.7;
+        }
+
+        /* === Footer === */
+        .site-footer {
+            border-top: var(--border-default);
+            padding: var(--space-4) var(--space-4);
+            text-align: center;
+            color: var(--text-dim);
+            font-size: 0.82rem;
+        }
+        .site-footer a {
+            color: var(--text-link);
+            text-decoration: none;
+        }
+
+        /* === Responsive === */
+        @media (max-width: 768px) {
+            html { font-size: 16px; }
+            .hero h1 { font-size: 1.8rem; }
+            .section-title { font-size: 1.3rem; }
+            .card-grid { grid-template-columns: 1fr; }
+            .stat-row { grid-template-columns: repeat(2, 1fr); }
+            .acronym-grid { grid-template-columns: 1fr; }
+            .diagram-container { padding: var(--space-2); margin-left: calc(-1 * var(--space-2)); margin-right: calc(-1 * var(--space-2)); border-radius: 0; border-left: 0; border-right: 0; }
+        }
+    </style>
+</head>
+<body>
+    <a href="../index.html" class="back-link">Architecture Maps</a>
+
+    <!-- Hero -->
+    <header class="hero">
+        <div class="hero-inner">
+            <h1>Cloudflare Architecture</h1>
+            <p class="tagline">Interactive architecture map of Cloudflare's global edge network, serverless compute platform, and storage services &mdash; compiled from publicly available sources.</p>
+            <div class="meta">
+                <span class="meta-badge"><span class="dot" style="background:var(--text-readout)"></span> Public Sources Only</span>
+                <span class="meta-badge">330+ Data Centers</span>
+                <span class="meta-badge">405+ Tbps Capacity</span>
+                <span class="meta-badge">Updated: Mar 2026</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Jump Nav -->
+    <nav class="jump-nav">
+        <a href="#overview">Overview</a>
+        <a href="#anycast">Anycast Network</a>
+        <a href="#workers">Workers Runtime</a>
+        <a href="#durable-objects">Durable Objects</a>
+        <a href="#r2">R2 Storage</a>
+        <a href="#kv">Workers KV</a>
+        <a href="#d1">D1 Database</a>
+        <a href="#ddos">DDoS Mitigation</a>
+        <a href="#routing">Smart Routing</a>
+        <a href="#pages">Pages</a>
+        <a href="#dataflow">Data Flow</a>
+        <a href="#acronyms">Acronyms</a>
+    </nav>
+
+    <div class="container">
+
+        <!-- 01 - OVERVIEW -->
+        <section id="overview" class="section">
+            <div class="section-header">
+                <span class="section-number">01</span>
+                <h2 class="section-title">Platform Overview</h2>
+            </div>
+
+            <p class="section-description">Cloudflare operates a homogeneous global edge network where every server in every data center runs every service simultaneously. Higher-level products are composed from lower-level primitives &mdash; D1 is built on Durable Objects, R2 metadata uses Durable Objects, Pages Functions compile to Workers.</p>
+
+            <div class="stat-row">
+                <div class="stat-item">
+                    <div class="stat-value">330+</div>
+                    <div class="stat-label">Cities</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">120+</div>
+                    <div class="stat-label">Countries</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">405+</div>
+                    <div class="stat-label">Tbps Capacity</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">13K+</div>
+                    <div class="stat-label">Peering Links</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">~93M</div>
+                    <div class="stat-label">HTTP Req/sec</div>
+                </div>
+            </div>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Platform Composition Hierarchy</div>
+                <pre class="mermaid">
+graph TD
+    subgraph Edge["Homogeneous Edge Network"]
+        AN["Anycast Routing<br/>(BGP + SR-MPLS)"]
+    end
+
+    subgraph Runtime["Compute Layer"]
+        WK["Workers Runtime<br/>(V8 Isolates)"]
+        DO["Durable Objects<br/>(Actor Model)"]
+    end
+
+    subgraph Storage["Storage Layer"]
+        KV["Workers KV<br/>(Edge Cache)"]
+        R2["R2 Object Storage<br/>(Zero Egress)"]
+        D1["D1 Database<br/>(SQLite)"]
+    end
+
+    subgraph Apps["Application Layer"]
+        PG["Pages<br/>(Static + Functions)"]
+    end
+
+    AN --> WK
+    WK --> DO
+    WK --> KV
+    WK --> R2
+    DO --> D1
+    DO --> R2
+    KV --> R2
+    PG --> WK
+
+    style AN fill:#1a0030,stroke:#6366f1,color:#e9e0ff
+    style WK fill:#1a0030,stroke:#f59e0b,color:#e9e0ff
+    style DO fill:#1a0030,stroke:#f59e0b,color:#e9e0ff
+    style KV fill:#1a0030,stroke:#14b8a6,color:#e9e0ff
+    style R2 fill:#1a0030,stroke:#14b8a6,color:#e9e0ff
+    style D1 fill:#1a0030,stroke:#14b8a6,color:#e9e0ff
+    style PG fill:#1a0030,stroke:#a78bfa,color:#e9e0ff
+                </pre>
+            </div>
+
+            <div class="callout callout-cool">
+                <div class="callout-title">Key Architectural Pattern</div>
+                <p>Cloudflare builds higher-level services on lower-level ones: D1 is SQLite inside a Durable Object. R2 metadata is stored in Durable Objects. Pages Functions compile to Workers. KV overflows large objects to R2. Durable Objects are specialized Workers with persistent storage. Everything runs on the homogeneous anycast edge.</p>
+            </div>
+        </section>
+
+        <!-- 02 - ANYCAST NETWORK -->
+        <section id="anycast" class="section">
+            <div class="section-header">
+                <span class="section-number">02</span>
+                <h2 class="section-title">Global Anycast Network</h2>
+            </div>
+
+            <p class="section-description">Every server in every data center is homogeneous &mdash; each runs every Cloudflare service simultaneously, eliminating service-chaining. Anycast routing via BGP directs each request to the nearest data center by network distance.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Anycast Request Routing</div>
+                <pre class="mermaid">
+graph LR
+    subgraph Users["Global Users"]
+        U1["User<br/>(Americas)"]
+        U2["User<br/>(Europe)"]
+        U3["User<br/>(Asia)"]
+    end
+
+    subgraph BGP["Anycast BGP"]
+        IP["Same IP<br/>Advertised<br/>Globally"]
+    end
+
+    subgraph DCs["Edge Data Centers"]
+        DC1["DC Americas<br/>(all services)"]
+        DC2["DC Europe<br/>(all services)"]
+        DC3["DC Asia<br/>(all services)"]
+    end
+
+    subgraph Backbone["Private Backbone"]
+        FIBER["Dark Fiber +<br/>DWDM + SR-MPLS"]
+    end
+
+    U1 --> IP
+    U2 --> IP
+    U3 --> IP
+    IP --> DC1
+    IP --> DC2
+    IP --> DC3
+    DC1 <--> FIBER
+    DC2 <--> FIBER
+    DC3 <--> FIBER
+
+    style U1 fill:#22143d,stroke:#7c6faa,color:#e9e0ff
+    style U2 fill:#22143d,stroke:#7c6faa,color:#e9e0ff
+    style U3 fill:#22143d,stroke:#7c6faa,color:#e9e0ff
+    style IP fill:#1a0030,stroke:#6366f1,color:#e9e0ff
+    style DC1 fill:#1a0030,stroke:#22c55e,color:#e9e0ff
+    style DC2 fill:#1a0030,stroke:#22c55e,color:#e9e0ff
+    style DC3 fill:#1a0030,stroke:#22c55e,color:#e9e0ff
+    style FIBER fill:#1a0030,stroke:#f59e0b,color:#e9e0ff
+                </pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Backbone Technologies</h3>
+                <div class="card-grid">
+                    <div class="info-card">
+                        <h4>BGP Routing</h4>
+                        <p>Standard internet routing protocol. Multiple data centers advertise the same IPs &mdash; routers pick the nearest by network distance.</p>
+                        <div class="card-meta"><span class="domain-badge domain-network">Network</span></div>
+                    </div>
+                    <div class="info-card">
+                        <h4>SR-MPLS</h4>
+                        <p>Segment Routing with MPLS for predetermined forwarding paths through label-switched tunnels. No intermediate route lookups needed.</p>
+                        <div class="card-meta"><span class="domain-badge domain-network">Network</span></div>
+                    </div>
+                    <div class="info-card">
+                        <h4>Dark Fiber + DWDM</h4>
+                        <p>Dense Wavelength Division Multiplexing enables multiple simultaneous data streams on different light wavelengths over dark fiber.</p>
+                        <div class="card-meta"><span class="domain-badge domain-network">Network</span></div>
+                    </div>
+                    <div class="info-card">
+                        <h4>Orpheus Self-Healing</h4>
+                        <p>Automatic network self-healing that detects and avoids degraded paths in real time. Backbone capacity grew 500%+ since 2021.</p>
+                        <div class="card-meta"><span class="domain-badge domain-routing">Routing</span></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 03 - WORKERS RUNTIME -->
+        <section id="workers" class="section">
+            <div class="section-header">
+                <span class="section-number">03</span>
+                <h2 class="section-title">Workers Runtime</h2>
+            </div>
+
+            <p class="section-description">Workers uses the V8 JavaScript engine but runs code in isolates instead of containers or VMs. A single runtime instance runs hundreds of isolates with complete memory isolation, starting ~100x faster and using an order of magnitude less memory than containers.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">V8 Isolate Execution Model</div>
+                <pre class="mermaid">
+graph TD
+    subgraph Server["Edge Server Process"]
+        V8["V8 Runtime Instance"]
+
+        subgraph Isolates["Concurrent Isolates"]
+            I1["Isolate A<br/>(Worker 1)"]
+            I2["Isolate B<br/>(Worker 2)"]
+            I3["Isolate C<br/>(Worker 3)"]
+            I4["Isolate D<br/>(Worker 1)"]
+        end
+    end
+
+    REQ["Incoming<br/>Request"] --> FETCH["fetch() handler"]
+    FETCH --> V8
+    V8 --> I1
+    V8 --> I2
+    V8 --> I3
+    V8 --> I4
+
+    subgraph Bindings["Platform Bindings"]
+        BKV["KV"]
+        BR2["R2"]
+        BD1["D1"]
+        BDO["Durable<br/>Objects"]
+    end
+
+    I1 --> BKV
+    I2 --> BR2
+    I3 --> BD1
+    I4 --> BDO
+
+    style V8 fill:#1a0030,stroke:#f59e0b,color:#e9e0ff
+    style I1 fill:#22143d,stroke:#eab308,color:#e9e0ff
+    style I2 fill:#22143d,stroke:#eab308,color:#e9e0ff
+    style I3 fill:#22143d,stroke:#eab308,color:#e9e0ff
+    style I4 fill:#22143d,stroke:#eab308,color:#e9e0ff
+    style REQ fill:#1a0030,stroke:#6366f1,color:#e9e0ff
+    style FETCH fill:#1a0030,stroke:#6366f1,color:#e9e0ff
+    style BKV fill:#1a0030,stroke:#14b8a6,color:#e9e0ff
+    style BR2 fill:#1a0030,stroke:#14b8a6,color:#e9e0ff
+    style BD1 fill:#1a0030,stroke:#14b8a6,color:#e9e0ff
+    style BDO fill:#1a0030,stroke:#14b8a6,color:#e9e0ff
+                </pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Isolate Properties</h3>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Property</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Startup</strong></td>
+                            <td>~100x faster than Node.js container processes. No traditional cold starts.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Memory</strong></td>
+                            <td>Order of magnitude less memory than containers. Hundreds of isolates per process.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Isolation</strong></td>
+                            <td>V8 prevents code from accessing memory outside its boundary, even within the same OS process.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Lifecycle</strong></td>
+                            <td>Not permanent. May be evicted for resource limits, suspected sandbox escapes, or inactivity.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Concurrency</strong></td>
+                            <td>Single-threaded event loop with cooperative multitasking via async operations.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>APIs</strong></td>
+                            <td>Standard Web APIs (Fetch, Streams, Web Crypto, Cache) plus Cloudflare-specific bindings.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- 04 - DURABLE OBJECTS -->
+        <section id="durable-objects" class="section">
+            <div class="section-header">
+                <span class="section-number">04</span>
+                <h2 class="section-title">Durable Objects</h2>
+            </div>
+
+            <p class="section-description">Specialized Workers following the Actor model &mdash; each instance is a globally unique, single-threaded actor with its own persistent storage. Ideal for real-time collaboration, chat, game servers, and coordination without distributed consensus.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Durable Object Actor Model</div>
+                <pre class="mermaid">
+graph TD
+    subgraph Clients["Distributed Requests"]
+        C1["Client A<br/>(US-East)"]
+        C2["Client B<br/>(EU-West)"]
+        C3["Client C<br/>(AP-South)"]
+    end
+
+    subgraph Edge["Edge Workers"]
+        W1["Worker<br/>(US-East)"]
+        W2["Worker<br/>(EU-West)"]
+        W3["Worker<br/>(AP-South)"]
+    end
+
+    subgraph DO["Durable Object Instance"]
+        ACTOR["Single-Threaded<br/>Actor"]
+        GATE["Input/Output<br/>Gates"]
+        STORE["Persistent Storage<br/>(SQLite or KV)"]
+    end
+
+    C1 --> W1
+    C2 --> W2
+    C3 --> W3
+    W1 --> ACTOR
+    W2 --> ACTOR
+    W3 --> ACTOR
+    ACTOR --> GATE
+    GATE --> STORE
+
+    style C1 fill:#22143d,stroke:#7c6faa,color:#e9e0ff
+    style C2 fill:#22143d,stroke:#7c6faa,color:#e9e0ff
+    style C3 fill:#22143d,stroke:#7c6faa,color:#e9e0ff
+    style W1 fill:#1a0030,stroke:#f59e0b,color:#e9e0ff
+    style W2 fill:#1a0030,stroke:#f59e0b,color:#e9e0ff
+    style W3 fill:#1a0030,stroke:#f59e0b,color:#e9e0ff
+    style ACTOR fill:#1a0030,stroke:#ef4444,color:#e9e0ff
+    style GATE fill:#1a0030,stroke:#ef4444,color:#e9e0ff
+    style STORE fill:#1a0030,stroke:#14b8a6,color:#e9e0ff
+                </pre>
+            </div>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>Single-Threaded</h4>
+                    <p>No concurrent execution. Async/await allows interleaved I/O but synchronous code blocks the input gate, preventing data races.</p>
+                    <div class="card-meta"><span class="domain-badge domain-compute">Compute</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Globally Unique</h4>
+                    <p>Each object ID maps to exactly one instance running in one location. Auto-provisions geographically close to where first requested.</p>
+                    <div class="card-meta"><span class="domain-badge domain-compute">Compute</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Persistent Storage</h4>
+                    <p>SQLite backend (transactional, up to 1-10 GB per object) or legacy Key-Value API. Storage is private to each object.</p>
+                    <div class="card-meta"><span class="domain-badge domain-storage">Storage</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Hibernation</h4>
+                    <p>Objects stay active during requests, then hibernate. WebSocket Hibernation API eliminates billing during idle connections.</p>
+                    <div class="card-meta"><span class="domain-badge domain-compute">Compute</span></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 05 - R2 STORAGE -->
+        <section id="r2" class="section">
+            <div class="section-header">
+                <span class="section-number">05</span>
+                <h2 class="section-title">R2 Object Storage</h2>
+            </div>
+
+            <p class="section-description">S3-compatible object storage with zero egress fees. Built on a four-layer architecture using Durable Objects for strongly consistent metadata and Cloudflare's CDN for tiered read caching.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">R2 Four-Layer Architecture</div>
+                <pre class="mermaid">
+graph TD
+    subgraph Access["Access Methods"]
+        BIND["Workers Binding<br/>(in-process)"]
+        S3["S3-Compatible<br/>API"]
+        REST["REST API<br/>(Dashboard/CLI)"]
+    end
+
+    subgraph Gateway["Layer 1: R2 Gateway"]
+        GW["Edge Workers<br/>(Auth + S3 Translation)"]
+    end
+
+    subgraph Meta["Layer 2: Metadata Service"]
+        MDO["Durable Objects<br/>(Keys, Checksums, Versions)"]
+    end
+
+    subgraph Cache["Layer 3: Tiered Read Cache"]
+        CDN["CDN Cache<br/>Infrastructure"]
+    end
+
+    subgraph Persist["Layer 4: Distributed Storage"]
+        ENC["Encrypted +<br/>Erasure-Coded<br/>Regional Storage"]
+    end
+
+    BIND --> GW
+    S3 --> GW
+    REST --> GW
+    GW --> MDO
+    GW --> CDN
+    CDN --> ENC
+    MDO --> ENC
+
+    style BIND fill:#22143d,stroke:#f59e0b,color:#e9e0ff
+    style S3 fill:#22143d,stroke:#6366f1,color:#e9e0ff
+    style REST fill:#22143d,stroke:#6366f1,color:#e9e0ff
+    style GW fill:#1a0030,stroke:#14b8a6,color:#e9e0ff
+    style MDO fill:#1a0030,stroke:#ef4444,color:#e9e0ff
+    style CDN fill:#1a0030,stroke:#3b82f6,color:#e9e0ff
+    style ENC fill:#1a0030,stroke:#22c55e,color:#e9e0ff
+                </pre>
+            </div>
+
+            <div class="callout callout-warm">
+                <div class="callout-title">Write Path</div>
+                <p>Request arrives at R2 Gateway for authentication. Metadata Service provides an encryption key. Gateway determines the storage cluster within the bucket's designated region. Encrypted data is written and replicated within that region. Objects are invisible to reads until the metadata commit completes.</p>
+            </div>
+
+            <div class="callout">
+                <div class="callout-title">Read Path</div>
+                <p>Request arrives at R2 Gateway for authentication. Metadata Service returns object metadata. Tiered read cache is checked first. On cache miss, the request falls through to distributed storage in the object's region.</p>
+            </div>
+        </section>
+
+        <!-- 06 - WORKERS KV -->
+        <section id="kv" class="section">
+            <div class="section-header">
+                <span class="section-number">06</span>
+                <h2 class="section-title">Workers KV</h2>
+            </div>
+
+            <p class="section-description">A global, low-latency key-value store optimized for read-heavy workloads. Eventually consistent &mdash; writes propagate globally within ~60 seconds. Rearchitected in 2025 with a hybrid dual-backend design after a major outage.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">KV Hybrid Dual-Backend Architecture (2025)</div>
+                <pre class="mermaid">
+graph TD
+    subgraph Workers["Workers Runtime"]
+        W["Worker<br/>KV Binding"]
+    end
+
+    subgraph Proxy["KV Storage Proxy (KVSP)"]
+        KVSP["HTTP-to-Binary<br/>Protocol Bridge"]
+        HASH["Consistent Hashing<br/>(Namespace Striping)"]
+    end
+
+    subgraph Primary["Primary Backend"]
+        DB["Cloudflare<br/>Distributed DB"]
+        REP["3-Way<br/>Replication"]
+    end
+
+    subgraph Secondary["Secondary Backend"]
+        R2S["R2<br/>(Large Objects)"]
+    end
+
+    subgraph Consistency["Consistency Mechanisms"]
+        WR["Write-Phase<br/>Reconciliation"]
+        RD["Read-Phase<br/>Detection"]
+        CR["Background<br/>Crawlers"]
+    end
+
+    W --> KVSP
+    KVSP --> HASH
+    HASH --> DB
+    HASH --> R2S
+    DB --> REP
+    WR --> DB
+    RD --> DB
+    CR --> DB
+
+    style W fill:#1a0030,stroke:#f59e0b,color:#e9e0ff
+    style KVSP fill:#1a0030,stroke:#6366f1,color:#e9e0ff
+    style HASH fill:#1a0030,stroke:#6366f1,color:#e9e0ff
+    style DB fill:#1a0030,stroke:#14b8a6,color:#e9e0ff
+    style REP fill:#1a0030,stroke:#14b8a6,color:#e9e0ff
+    style R2S fill:#1a0030,stroke:#22c55e,color:#e9e0ff
+    style WR fill:#22143d,stroke:#eab308,color:#e9e0ff
+    style RD fill:#22143d,stroke:#eab308,color:#e9e0ff
+    style CR fill:#22143d,stroke:#eab308,color:#e9e0ff
+                </pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Performance Improvements</h3>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Metric</th>
+                            <th>Old (3rd Party)</th>
+                            <th>New (2025)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>P99 Read Latency</strong></td>
+                            <td>200ms</td>
+                            <td>&lt; 5ms</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Median Object Size</strong></td>
+                            <td colspan="2">288 bytes (optimized for small values)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Max Value Size</strong></td>
+                            <td colspan="2">25 MB (large objects overflow to R2)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Consistency</strong></td>
+                            <td colspan="2">Eventually consistent (~60s propagation)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Deletes</strong></td>
+                            <td colspan="2">Tombstones with timestamps; both backends must have tombstone before removal</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- 07 - D1 DATABASE -->
+        <section id="d1" class="section">
+            <div class="section-header">
+                <span class="section-number">07</span>
+                <h2 class="section-title">D1 Database</h2>
+            </div>
+
+            <p class="section-description">Managed serverless SQL database built on SQLite running inside Durable Objects. Each D1 database is a single Durable Object in one location &mdash; all writes serialize through one actor, providing strong consistency without distributed consensus.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">D1 Read Replica Architecture</div>
+                <pre class="mermaid">
+graph LR
+    subgraph Workers["Edge Workers"]
+        W1["Worker<br/>(US-West)"]
+        W2["Worker<br/>(EU-Central)"]
+        W3["Worker<br/>(AP-East)"]
+    end
+
+    subgraph Replicas["Read Replicas (Edge)"]
+        RR1["SQLite Replica<br/>(US-West)"]
+        RR2["SQLite Replica<br/>(EU-Central)"]
+        RR3["SQLite Replica<br/>(AP-East)"]
+    end
+
+    subgraph Primary["Primary (Single Location)"]
+        DO["Durable Object"]
+        SQL["SQLite Primary<br/>(10 GB max)"]
+    end
+
+    W1 -.->|reads| RR1
+    W2 -.->|reads| RR2
+    W3 -.->|reads| RR3
+    W1 -->|writes| DO
+    W2 -->|writes| DO
+    W3 -->|writes| DO
+    DO --> SQL
+    SQL -->|replication| RR1
+    SQL -->|replication| RR2
+    SQL -->|replication| RR3
+
+    style W1 fill:#1a0030,stroke:#f59e0b,color:#e9e0ff
+    style W2 fill:#1a0030,stroke:#f59e0b,color:#e9e0ff
+    style W3 fill:#1a0030,stroke:#f59e0b,color:#e9e0ff
+    style RR1 fill:#22143d,stroke:#14b8a6,color:#e9e0ff
+    style RR2 fill:#22143d,stroke:#14b8a6,color:#e9e0ff
+    style RR3 fill:#22143d,stroke:#14b8a6,color:#e9e0ff
+    style DO fill:#1a0030,stroke:#ef4444,color:#e9e0ff
+    style SQL fill:#1a0030,stroke:#14b8a6,color:#e9e0ff
+                </pre>
+            </div>
+
+            <div class="callout callout-cool">
+                <div class="callout-title">Scale Model</div>
+                <p>D1 is designed for horizontal scale-out across many small databases (10 GB max each). Per-user, per-tenant, or per-entity databases rather than one giant shared database. A database processing 10ms queries handles ~100 QPS; 100ms queries yield ~10 QPS due to sequential execution through the single-threaded Durable Object.</p>
+            </div>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>No Connection Strings</h4>
+                    <p>Workers access D1 through a binding &mdash; no connection strings, no connection pooling, no cold-start connection overhead.</p>
+                </div>
+                <div class="info-card">
+                    <h4>Strong Consistency</h4>
+                    <p>Inherent because all operations run single-threaded through one SQLite instance. No distributed consensus needed.</p>
+                </div>
+                <div class="info-card">
+                    <h4>Disaster Recovery</h4>
+                    <p>Built-in with automatic backups and point-in-time restore.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 08 - DDoS MITIGATION -->
+        <section id="ddos" class="section">
+            <div class="section-header">
+                <span class="section-number">08</span>
+                <h2 class="section-title">DNS &amp; DDoS Mitigation</h2>
+            </div>
+
+            <p class="section-description">Cloudflare's DDoS protection operates across OSI layers 3, 4, and 7 using a fully decentralized, autonomous system. Each server decides independently &mdash; no centralized consensus needed for mitigation.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">DDoS Detection & Mitigation Stack</div>
+                <pre class="mermaid">
+graph TD
+    subgraph Traffic["Incoming Traffic"]
+        ATK["Attack +<br/>Legitimate Traffic"]
+    end
+
+    subgraph L4["L4 Mitigation (Linux Stack)"]
+        XDP["L4Drop / XDP<br/>(eBPF at wire speed)"]
+        IPT["iptables<br/>(L3/L4 rules)"]
+        JAIL["IP Jails<br/>(L7 attacks at L4)"]
+    end
+
+    subgraph Detect["Detection Daemons"]
+        DOSD["dosd<br/>(every server)"]
+        FT["flowtrackd<br/>(flow analysis)"]
+        GB["Gatebot<br/>(centralized)"]
+    end
+
+    subgraph Clean["Clean Traffic"]
+        APP["Application<br/>Layer"]
+    end
+
+    ATK --> XDP
+    XDP --> IPT
+    IPT --> JAIL
+    JAIL --> APP
+    DOSD -->|"signatures"| XDP
+    DOSD -->|"rules"| IPT
+    FT -->|"rules"| IPT
+    GB -->|"cross-edge rules"| IPT
+
+    style ATK fill:#1a0030,stroke:#ef4444,color:#e9e0ff
+    style XDP fill:#1a0030,stroke:#dc2626,color:#e9e0ff
+    style IPT fill:#1a0030,stroke:#ef4444,color:#e9e0ff
+    style JAIL fill:#1a0030,stroke:#ef4444,color:#e9e0ff
+    style DOSD fill:#22143d,stroke:#f59e0b,color:#e9e0ff
+    style FT fill:#22143d,stroke:#f59e0b,color:#e9e0ff
+    style GB fill:#22143d,stroke:#6366f1,color:#e9e0ff
+    style APP fill:#1a0030,stroke:#22c55e,color:#e9e0ff
+                </pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Detection Components</h3>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Component</th>
+                            <th>Deployment</th>
+                            <th>Coverage</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>dosd</strong></td>
+                            <td>Every server, every data center</td>
+                            <td>98.6% of L3/4 attacks, 81% of L7 attacks. Samples at 81x Gatebot's rate.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Gatebot</strong></td>
+                            <td>Centralized (network core)</td>
+                            <td>Large distributed volumetric attacks requiring cross-edge coordination.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>flowtrackd</strong></td>
+                            <td>Decentralized</td>
+                            <td>Complements dosd and Gatebot with additional flow-level analysis.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="callout callout-hot">
+                <div class="callout-title">Anycast Absorption</div>
+                <p>Attack traffic is automatically distributed across 330+ data centers and 405+ Tbps of capacity, preventing any single location from being overwhelmed. Advanced DNS Protection handles fully randomized subdomain attacks (random prefix / DNS water torture).</p>
+            </div>
+        </section>
+
+        <!-- 09 - ARGO SMART ROUTING -->
+        <section id="routing" class="section">
+            <div class="section-header">
+                <span class="section-number">09</span>
+                <h2 class="section-title">Argo Smart Routing &amp; Tunnel</h2>
+            </div>
+
+            <p class="section-description">Argo Smart Routing optimizes traffic using real-time network intelligence from ~93 million HTTP requests per second. Cloudflare Tunnel provides private, outbound-only connections from origin servers to the edge.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Argo Routing & Tunnel Architecture</div>
+                <pre class="mermaid">
+graph LR
+    subgraph Client["Client"]
+        USER["User<br/>Request"]
+    end
+
+    subgraph Edge["Cloudflare Edge"]
+        EDGE["Edge Server"]
+        ARGO["Argo Smart<br/>Routing"]
+        SRTE["SR-TE Path<br/>Selection"]
+    end
+
+    subgraph Backbone["Cloudflare Backbone"]
+        BB["Optimized Path<br/>(Transit + Peering)"]
+    end
+
+    subgraph Origin["Origin Infrastructure"]
+        CFD["cloudflared<br/>Daemon"]
+        ORI["Origin Server"]
+    end
+
+    USER --> EDGE
+    EDGE --> ARGO
+    ARGO --> SRTE
+    SRTE --> BB
+    BB --> CFD
+    CFD --> ORI
+
+    style USER fill:#22143d,stroke:#7c6faa,color:#e9e0ff
+    style EDGE fill:#1a0030,stroke:#6366f1,color:#e9e0ff
+    style ARGO fill:#1a0030,stroke:#22c55e,color:#e9e0ff
+    style SRTE fill:#1a0030,stroke:#22c55e,color:#e9e0ff
+    style BB fill:#1a0030,stroke:#f59e0b,color:#e9e0ff
+    style CFD fill:#1a0030,stroke:#14b8a6,color:#e9e0ff
+    style ORI fill:#22143d,stroke:#7c6faa,color:#e9e0ff
+                </pre>
+            </div>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>Argo Smart Routing</h4>
+                    <p>Runs on top of BGP as an overlay optimization. Analyzes latency, packet loss, and congestion across all network paths in real time.</p>
+                    <div class="card-meta"><span class="domain-badge domain-routing">Routing</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Transit Selection</h4>
+                    <p>Explicitly prioritizes backbone paths when they offer the best performance. Uses Segment Routing Traffic Engineering for optimal path selection.</p>
+                    <div class="card-meta"><span class="domain-badge domain-routing">Routing</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Cloudflare Tunnel</h4>
+                    <p>Outbound-only connections from cloudflared daemon to edge &mdash; no inbound ports need to be opened. Supports HTTP, WebSocket, TCP, and SSH.</p>
+                    <div class="card-meta"><span class="domain-badge domain-security">Security</span></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 10 - PAGES -->
+        <section id="pages" class="section">
+            <div class="section-header">
+                <span class="section-number">10</span>
+                <h2 class="section-title">Pages &amp; Static Deployment</h2>
+            </div>
+
+            <p class="section-description">Cloudflare Pages is a JAMstack deployment platform converging with Workers into a unified developer experience. Pages Functions are file-based routing that compiles to first-class Workers.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Pages Deployment Pipeline</div>
+                <pre class="mermaid">
+graph TD
+    subgraph Source["Source Control"]
+        GH["GitHub /<br/>GitLab"]
+    end
+
+    subgraph Build["Workers Builds (CI/CD)"]
+        CI["Build System<br/>(on Workers)"]
+        PREV["Preview Deploy<br/>(per PR)"]
+        PROD["Production<br/>Deploy"]
+    end
+
+    subgraph Runtime["Edge Runtime"]
+        STATIC["Static Assets<br/>(CDN Edge)"]
+        FUNC["Pages Functions<br/>(compiled to Workers)"]
+    end
+
+    subgraph Bindings["Platform Bindings"]
+        BKV["KV"]
+        BR2["R2"]
+        BD1["D1"]
+        BDO["Durable<br/>Objects"]
+    end
+
+    GH -->|push| CI
+    CI --> PREV
+    CI --> PROD
+    PROD --> STATIC
+    PROD --> FUNC
+    FUNC --> BKV
+    FUNC --> BR2
+    FUNC --> BD1
+    FUNC --> BDO
+
+    style GH fill:#22143d,stroke:#a78bfa,color:#e9e0ff
+    style CI fill:#1a0030,stroke:#a78bfa,color:#e9e0ff
+    style PREV fill:#22143d,stroke:#6366f1,color:#e9e0ff
+    style PROD fill:#1a0030,stroke:#22c55e,color:#e9e0ff
+    style STATIC fill:#1a0030,stroke:#3b82f6,color:#e9e0ff
+    style FUNC fill:#1a0030,stroke:#f59e0b,color:#e9e0ff
+    style BKV fill:#22143d,stroke:#14b8a6,color:#e9e0ff
+    style BR2 fill:#22143d,stroke:#14b8a6,color:#e9e0ff
+    style BD1 fill:#22143d,stroke:#14b8a6,color:#e9e0ff
+    style BDO fill:#22143d,stroke:#14b8a6,color:#e9e0ff
+                </pre>
+            </div>
+
+            <div class="callout">
+                <div class="callout-title">Full-Stack Integration</div>
+                <p>Pages projects can bind to KV, Durable Objects, R2, D1, and other Workers platform resources. Static assets, serverless functions, and storage all in one project. Each project gets a *.pages.dev subdomain with custom domain support via Cloudflare DNS.</p>
+            </div>
+        </section>
+
+        <!-- 11 - DATA FLOW -->
+        <section id="dataflow" class="section">
+            <div class="section-header">
+                <span class="section-number">11</span>
+                <h2 class="section-title">End-to-End Data Flow</h2>
+            </div>
+
+            <p class="section-description">How a user request traverses the entire Cloudflare stack, from DNS resolution through DDoS mitigation, edge compute, storage access, and origin connectivity.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Complete Request Lifecycle</div>
+                <pre class="mermaid">
+graph TD
+    subgraph Request["User Request"]
+        DNS["Anycast DNS<br/>(nearest DC)"]
+    end
+
+    subgraph Security["DDoS Mitigation"]
+        L4D["L4Drop / XDP"]
+        EBPF["eBPF Programs"]
+        FW["iptables + dosd"]
+    end
+
+    subgraph Edge["Edge Server (Homogeneous)"]
+        WR["Workers Runtime<br/>(V8 Isolate)"]
+    end
+
+    subgraph Services["Platform Services"]
+        KVS["KV<br/>(edge cache + central)"]
+        R2S["R2<br/>(Gateway + DO + Storage)"]
+        D1S["D1<br/>(replica or primary DO)"]
+        DOS["Durable Objects<br/>(actor at location)"]
+    end
+
+    subgraph Static["Static"]
+        PGS["Pages<br/>(edge cache + Functions)"]
+    end
+
+    subgraph Origin["Origin Path"]
+        ARGOS["Argo Smart Routing"]
+        TUN["Cloudflare Tunnel"]
+    end
+
+    DNS --> L4D
+    L4D --> EBPF
+    EBPF --> FW
+    FW --> WR
+    WR --> KVS
+    WR --> R2S
+    WR --> D1S
+    WR --> DOS
+    WR --> PGS
+    WR --> ARGOS
+    ARGOS --> TUN
+
+    style DNS fill:#1a0030,stroke:#3b82f6,color:#e9e0ff
+    style L4D fill:#1a0030,stroke:#ef4444,color:#e9e0ff
+    style EBPF fill:#1a0030,stroke:#ef4444,color:#e9e0ff
+    style FW fill:#1a0030,stroke:#ef4444,color:#e9e0ff
+    style WR fill:#1a0030,stroke:#f59e0b,color:#e9e0ff
+    style KVS fill:#22143d,stroke:#14b8a6,color:#e9e0ff
+    style R2S fill:#22143d,stroke:#14b8a6,color:#e9e0ff
+    style D1S fill:#22143d,stroke:#14b8a6,color:#e9e0ff
+    style DOS fill:#22143d,stroke:#f59e0b,color:#e9e0ff
+    style PGS fill:#22143d,stroke:#a78bfa,color:#e9e0ff
+    style ARGOS fill:#1a0030,stroke:#22c55e,color:#e9e0ff
+    style TUN fill:#1a0030,stroke:#22c55e,color:#e9e0ff
+                </pre>
+            </div>
+        </section>
+
+        <!-- 12 - ACRONYMS -->
+        <section id="acronyms" class="section">
+            <div class="section-header">
+                <span class="section-number">12</span>
+                <h2 class="section-title">Acronyms &amp; Glossary</h2>
+            </div>
+
+            <div class="acronym-grid">
+                <div class="acronym-item">
+                    <span class="acronym-key">BGP</span>
+                    <span class="acronym-val">Border Gateway Protocol</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">CDN</span>
+                    <span class="acronym-val">Content Delivery Network</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">D1</span>
+                    <span class="acronym-val">Cloudflare D1 (SQLite at Edge)</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">DDoS</span>
+                    <span class="acronym-val">Distributed Denial of Service</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">DO</span>
+                    <span class="acronym-val">Durable Objects</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">dosd</span>
+                    <span class="acronym-val">Denial of Service Daemon</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">DWDM</span>
+                    <span class="acronym-val">Dense Wavelength Division Multiplexing</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">eBPF</span>
+                    <span class="acronym-val">Extended Berkeley Packet Filter</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">KV</span>
+                    <span class="acronym-val">Key-Value (Workers KV store)</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">KVSP</span>
+                    <span class="acronym-val">KV Storage Proxy</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">MPLS</span>
+                    <span class="acronym-val">Multi-Protocol Label Switching</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">R2</span>
+                    <span class="acronym-val">Cloudflare R2 Object Storage</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">S3</span>
+                    <span class="acronym-val">Simple Storage Service (AWS API)</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">SR-MPLS</span>
+                    <span class="acronym-val">Segment Routing MPLS</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">SR-TE</span>
+                    <span class="acronym-val">Segment Routing Traffic Engineering</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">V8</span>
+                    <span class="acronym-val">Google V8 JavaScript Engine</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">XDP</span>
+                    <span class="acronym-val">eXpress Data Path (Linux)</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">WASM</span>
+                    <span class="acronym-val">WebAssembly</span>
+                </div>
+            </div>
+        </section>
+
+    </div>
+
+    <footer class="site-footer">
+        <p>Compiled from publicly available sources: blog.cloudflare.com, developers.cloudflare.com, Cloudflare architecture whitepapers</p>
+        <p style="margin-top:var(--space-1)"><a href="../index.html">Back to Architecture Maps</a></p>
+    </footer>
+
+    <!-- Fullscreen overlay -->
+    <div class="fs-overlay" id="fsOverlay">
+        <div class="fs-toolbar">
+            <span class="fs-toolbar-title" id="fsTitle">Diagram</span>
+            <div class="fs-controls">
+                <button class="fs-btn" id="fsZoomOut" title="Zoom out">-</button>
+                <span class="fs-zoom-label" id="fsZoomLabel">100%</span>
+                <button class="fs-btn" id="fsZoomIn" title="Zoom in">+</button>
+                <button class="fs-btn" id="fsFit" title="Fit to screen">Fit</button>
+                <button class="fs-close" id="fsClose" title="Close (Esc)">Close</button>
+            </div>
+        </div>
+        <div class="fs-viewport" id="fsViewport">
+            <div class="fs-content" id="fsContent"></div>
+            <div class="fs-hint">Scroll to zoom &middot; Drag to pan &middot; Esc to close</div>
+        </div>
+    </div>
+
+    <!-- Mermaid.js -->
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'dark',
+            themeVariables: {
+                darkMode: true,
+                background: '#120822',
+                primaryColor: '#1a0030',
+                primaryTextColor: '#e9e0ff',
+                primaryBorderColor: '#6366f1',
+                secondaryColor: '#22143d',
+                secondaryTextColor: '#c4b5fd',
+                secondaryBorderColor: '#7c6faa',
+                tertiaryColor: '#0a0010',
+                tertiaryTextColor: '#e9e0ff',
+                lineColor: '#6366f1',
+                textColor: '#e9e0ff',
+                mainBkg: '#1a0030',
+                nodeBorder: '#6366f1',
+                clusterBkg: '#0a0010',
+                clusterBorder: '#2d1b69',
+                titleColor: '#e9e0ff',
+                edgeLabelBackground: '#120822',
+                nodeTextColor: '#e9e0ff',
+                actorTextColor: '#e9e0ff',
+                actorBkg: '#1a0030',
+                actorBorder: '#6366f1',
+                labelBoxBkgColor: '#120822',
+                labelBoxBorderColor: '#2d1b69',
+                labelTextColor: '#e9e0ff',
+                loopTextColor: '#c4b5fd',
+                noteBkgColor: '#2d1b69',
+                noteTextColor: '#e9e0ff',
+                noteBorderColor: '#6366f1',
+                fontFamily: "'Rajdhani', sans-serif",
+                fontSize: '14px',
+                sectionBkgColor: '#1a0030',
+                altSectionBkgColor: '#120822',
+                sectionBkgColor2: '#0a0010',
+                taskBkgColor: '#2d1b69',
+                taskTextColor: '#e9e0ff',
+                taskBorderColor: '#6366f1',
+                activeTaskBkgColor: '#1e3a8a',
+                activeTaskBorderColor: '#3b82f6',
+                doneTaskBkgColor: '#1a0030',
+                gridColor: '#2d1b69',
+                todayLineColor: '#f59e0b',
+                cScale0: '#2d1b69',
+                cScale1: '#1e3a8a',
+                cScale2: '#6366f1',
+                cScale3: '#3b82f6',
+                cScaleLabel0: '#e9e0ff',
+                cScaleLabel1: '#e9e0ff',
+                cScaleLabel2: '#e9e0ff',
+                cScaleLabel3: '#e9e0ff'
+            },
+            flowchart: {
+                htmlLabels: true,
+                curve: 'basis',
+                padding: 16,
+                nodeSpacing: 30,
+                rankSpacing: 50,
+                useMaxWidth: false
+            },
+            block: {
+                padding: 8
+            },
+            timeline: {
+                useMaxWidth: true
+            }
+        });
+
+        // Wait for mermaid to render, then add expand buttons
+        mermaid.run().then(() => {
+            const expandIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`;
+
+            document.querySelectorAll('.diagram-container').forEach(container => {
+                const btn = document.createElement('button');
+                btn.className = 'diagram-expand-btn';
+                btn.innerHTML = expandIcon + ' Expand';
+                btn.addEventListener('click', () => openFullscreen(container));
+                container.appendChild(btn);
+            });
+        });
+
+        // Fullscreen state
+        const overlay = document.getElementById('fsOverlay');
+        const viewport = document.getElementById('fsViewport');
+        const content = document.getElementById('fsContent');
+        const zoomLabel = document.getElementById('fsZoomLabel');
+        const titleEl = document.getElementById('fsTitle');
+        let zoom = 1;
+        let panX = 0, panY = 0;
+        let isDragging = false;
+        let dragStartX, dragStartY, panStartX, panStartY;
+
+        function openFullscreen(container) {
+            const label = container.querySelector('.diagram-label');
+            titleEl.textContent = label ? label.textContent : 'Diagram';
+
+            const svg = container.querySelector('svg');
+            if (!svg) return;
+
+            content.innerHTML = '';
+            content.appendChild(svg.cloneNode(true));
+
+            zoom = 1;
+            panX = 0;
+            panY = 0;
+            content.style.transform = 'translate(0px, 0px) scale(1)';
+
+            overlay.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    overlay.classList.add('active');
+                    fitToViewport();
+                });
+            });
+        }
+
+        function closeFullscreen() {
+            overlay.classList.remove('active');
+            setTimeout(() => {
+                overlay.style.display = 'none';
+                content.innerHTML = '';
+            }, 200);
+            document.body.style.overflow = '';
+        }
+
+        function fitToViewport() {
+            const svg = content.querySelector('svg');
+            if (!svg) return;
+
+            const vw = viewport.clientWidth;
+            const vh = viewport.clientHeight;
+            const padding = 48;
+
+            const rect = svg.getBoundingClientRect();
+            const currentZoom = zoom || 1;
+            const svgW = rect.width / currentZoom;
+            const svgH = rect.height / currentZoom;
+
+            const w = svgW > 0 ? svgW : (svg.viewBox?.baseVal?.width || 800);
+            const h = svgH > 0 ? svgH : (svg.viewBox?.baseVal?.height || 400);
+
+            const scaleX = (vw - padding * 2) / w;
+            const scaleY = (vh - padding * 2) / h;
+            zoom = Math.min(scaleX, scaleY, 2);
+            zoom = Math.max(zoom, 0.1);
+
+            panX = (vw - w * zoom) / 2;
+            panY = (vh - h * zoom) / 2;
+
+            updateTransform();
+        }
+
+        function updateTransform() {
+            content.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+            zoomLabel.textContent = Math.round(zoom * 100) + '%';
+        }
+
+        // Zoom controls
+        document.getElementById('fsZoomIn').addEventListener('click', () => {
+            const vw = viewport.clientWidth / 2;
+            const vh = viewport.clientHeight / 2;
+            zoomAt(vw, vh, 1.3);
+        });
+        document.getElementById('fsZoomOut').addEventListener('click', () => {
+            const vw = viewport.clientWidth / 2;
+            const vh = viewport.clientHeight / 2;
+            zoomAt(vw, vh, 1 / 1.3);
+        });
+        document.getElementById('fsFit').addEventListener('click', fitToViewport);
+        document.getElementById('fsClose').addEventListener('click', closeFullscreen);
+
+        // Scroll to zoom
+        viewport.addEventListener('wheel', e => {
+            e.preventDefault();
+            const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+            const rect = viewport.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+            zoomAt(mx, my, factor);
+        }, { passive: false });
+
+        function zoomAt(mx, my, factor) {
+            const newZoom = Math.min(Math.max(zoom * factor, 0.05), 8);
+            const ratio = newZoom / zoom;
+            panX = mx - ratio * (mx - panX);
+            panY = my - ratio * (my - panY);
+            zoom = newZoom;
+            updateTransform();
+        }
+
+        // Drag to pan
+        viewport.addEventListener('mousedown', e => {
+            isDragging = true;
+            dragStartX = e.clientX;
+            dragStartY = e.clientY;
+            panStartX = panX;
+            panStartY = panY;
+        });
+        window.addEventListener('mousemove', e => {
+            if (!isDragging) return;
+            panX = panStartX + (e.clientX - dragStartX);
+            panY = panStartY + (e.clientY - dragStartY);
+            updateTransform();
+        });
+        window.addEventListener('mouseup', () => { isDragging = false; });
+
+        // Touch support
+        let lastTouchDist = 0;
+        viewport.addEventListener('touchstart', e => {
+            if (e.touches.length === 1) {
+                isDragging = true;
+                dragStartX = e.touches[0].clientX;
+                dragStartY = e.touches[0].clientY;
+                panStartX = panX;
+                panStartY = panY;
+            } else if (e.touches.length === 2) {
+                isDragging = false;
+                lastTouchDist = Math.hypot(
+                    e.touches[1].clientX - e.touches[0].clientX,
+                    e.touches[1].clientY - e.touches[0].clientY
+                );
+            }
+        }, { passive: true });
+        viewport.addEventListener('touchmove', e => {
+            e.preventDefault();
+            if (e.touches.length === 1 && isDragging) {
+                panX = panStartX + (e.touches[0].clientX - dragStartX);
+                panY = panStartY + (e.touches[0].clientY - dragStartY);
+                updateTransform();
+            } else if (e.touches.length === 2) {
+                const dist = Math.hypot(
+                    e.touches[1].clientX - e.touches[0].clientX,
+                    e.touches[1].clientY - e.touches[0].clientY
+                );
+                if (lastTouchDist > 0) {
+                    const mid = {
+                        x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+                        y: (e.touches[0].clientY + e.touches[1].clientY) / 2
+                    };
+                    const rect = viewport.getBoundingClientRect();
+                    zoomAt(mid.x - rect.left, mid.y - rect.top, dist / lastTouchDist);
+                }
+                lastTouchDist = dist;
+            }
+        }, { passive: false });
+        viewport.addEventListener('touchend', () => { isDragging = false; lastTouchDist = 0; });
+
+        // Escape to close
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') closeFullscreen();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,1663 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stripe Architecture Map — Architecture Guide</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* === Typography (Swiss) === */
+            --font-sans: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            --font-mono: 'SF Mono', 'Cascadia Code', 'Roboto Mono', 'Courier New', monospace;
+
+            /* === Spacing (4px base grid) === */
+            --space-1: 4px;
+            --space-2: 8px;
+            --space-3: 12px;
+            --space-4: 16px;
+            --space-5: 24px;
+            --space-6: 32px;
+            --space-7: 48px;
+            --space-8: 64px;
+            --space-9: 96px;
+
+            /* === Primary Palette (Swiss: black, white, red, grays) === */
+            --black: #000000;
+            --white: #ffffff;
+            --red: #ff0000;
+            --gray-50: #fafafa;
+            --gray-100: #f5f5f5;
+            --gray-200: #e5e5e5;
+            --gray-300: #d4d4d4;
+            --gray-400: #a3a3a3;
+            --gray-500: #737373;
+            --gray-600: #525252;
+            --gray-700: #404040;
+            --gray-800: #262626;
+            --gray-900: #171717;
+
+            /* === Semantic Colors === */
+            --text-primary: var(--black);
+            --text-secondary: var(--gray-600);
+            --text-tertiary: var(--gray-400);
+            --text-inverse: var(--white);
+            --bg-primary: var(--white);
+            --bg-secondary: var(--gray-50);
+            --bg-surface: var(--gray-100);
+            --bg-surface-hover: var(--gray-200);
+            --bg-muted: var(--gray-50);
+            --border-color: var(--gray-200);
+            --border-strong: var(--gray-300);
+            --accent: var(--red);
+
+            /* === Domain Colors === */
+            --domain-api: #2563eb;
+            --domain-payments: #16a34a;
+            --domain-fraud: #dc2626;
+            --domain-infra: #9333ea;
+            --domain-connect: #ea580c;
+            --domain-pci: #0891b2;
+            --domain-monolith: #4f46e5;
+            --domain-webhook: #ca8a04;
+
+            /* === Transitions === */
+            --transition-fast: 0.1s ease;
+            --transition: 0.2s ease;
+
+            /* === Border Radius === */
+            --radius-sm: 0px;
+            --radius: 0px;
+            --radius-lg: 0px;
+
+            /* === Shadows === */
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.06);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+        }
+
+        /* === Reset === */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { font-size: 16px; scroll-behavior: smooth; scroll-padding-top: 48px; }
+
+        body {
+            font-family: var(--font-sans);
+            font-size: 1rem;
+            line-height: 1.5;
+            color: var(--text-primary);
+            background: var(--bg-primary);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* === Back Link === */
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-2);
+            padding: var(--space-4) var(--space-6);
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            text-transform: uppercase;
+            transition: color var(--transition-fast);
+        }
+        .back-link::before { content: '\2190'; }
+        .back-link:hover { color: var(--accent); }
+
+        /* === Hero === */
+        .hero {
+            background: var(--black);
+            color: var(--white);
+            padding: var(--space-9) var(--space-6) var(--space-7);
+            border-bottom: 4px solid var(--accent);
+            position: relative;
+        }
+        .hero-inner {
+            max-width: 1120px;
+            margin: 0 auto;
+        }
+        .hero h1 {
+            font-size: clamp(2rem, 5vw, 3rem);
+            font-weight: 700;
+            line-height: 1.1;
+            letter-spacing: -0.02em;
+            margin-bottom: var(--space-4);
+        }
+        .hero .tagline {
+            font-size: 1.15rem;
+            color: var(--gray-400);
+            max-width: 640px;
+            line-height: 1.5;
+        }
+        .hero .meta {
+            margin-top: var(--space-5);
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-3);
+        }
+        .meta-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-1);
+            padding: var(--space-1) var(--space-3);
+            background: transparent;
+            border: 1px solid var(--gray-600);
+            font-size: 0.78rem;
+            font-family: var(--font-mono);
+            color: var(--gray-300);
+            letter-spacing: 0.02em;
+            text-transform: uppercase;
+        }
+        .meta-badge .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        /* === Sticky Jump Nav === */
+        .jump-nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: var(--white);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            gap: 0;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            white-space: nowrap;
+            padding: 0 var(--space-4);
+        }
+        .jump-nav a {
+            display: inline-block;
+            padding: var(--space-3) var(--space-4);
+            color: var(--text-tertiary);
+            text-decoration: none;
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            border-bottom: 2px solid transparent;
+            transition: all var(--transition-fast);
+        }
+        .jump-nav a:hover {
+            color: var(--accent);
+            border-bottom-color: var(--accent);
+        }
+
+        /* === Container === */
+        .container {
+            max-width: 1120px;
+            margin: 0 auto;
+            padding: var(--space-7) var(--space-6);
+        }
+
+        /* === Section === */
+        .section {
+            margin-bottom: var(--space-9);
+            scroll-margin-top: 48px;
+        }
+        .section-header {
+            display: flex;
+            align-items: baseline;
+            gap: var(--space-3);
+            margin-bottom: var(--space-6);
+            padding-bottom: var(--space-4);
+            border-bottom: 1px solid var(--border-color);
+        }
+        .section-number {
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            color: var(--accent);
+            font-weight: 600;
+        }
+        .section-title {
+            font-size: 2rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            line-height: 1.1;
+        }
+        .section-description {
+            color: var(--text-secondary);
+            margin-bottom: var(--space-6);
+            max-width: 720px;
+            line-height: 1.65;
+        }
+
+        /* === Subsection === */
+        .subsection {
+            margin-bottom: var(--space-7);
+        }
+        .subsection-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            letter-spacing: -0.01em;
+            margin-bottom: var(--space-3);
+            color: var(--text-primary);
+        }
+        .subsection p {
+            color: var(--text-secondary);
+            margin-bottom: var(--space-3);
+            line-height: 1.65;
+        }
+
+        /* === Diagram Container === */
+        .diagram-container {
+            background: var(--gray-100);
+            border: 1px solid var(--border-color);
+            padding: var(--space-6);
+            margin: var(--space-5) 0;
+            overflow-x: auto;
+            position: relative;
+        }
+        .diagram-container .mermaid {
+            display: flex;
+            justify-content: center;
+        }
+        .diagram-label {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: var(--space-3);
+        }
+
+        /* === Mermaid Overrides === */
+        .diagram-container .mermaid svg {
+            max-width: 100%;
+            height: auto;
+        }
+
+        /* === Info Cards === */
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: var(--space-5);
+            margin: var(--space-5) 0;
+        }
+        .info-card {
+            background: var(--white);
+            border: 1px solid var(--border-color);
+            padding: var(--space-5);
+            transition: all var(--transition);
+        }
+        .info-card:hover {
+            border-color: var(--black);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+        .info-card h4 {
+            font-size: 1rem;
+            font-weight: 700;
+            margin-bottom: var(--space-2);
+        }
+        .info-card p {
+            font-size: 0.88rem;
+            color: var(--text-secondary);
+            line-height: 1.55;
+        }
+        .info-card .card-meta {
+            margin-top: var(--space-3);
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+        }
+
+        /* === Domain Badge === */
+        .domain-badge {
+            display: inline-block;
+            padding: 2px var(--space-2);
+            font-size: 0.72rem;
+            font-weight: 600;
+            font-family: var(--font-mono);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border: 1px solid currentColor;
+        }
+        .domain-api { color: var(--domain-api); }
+        .domain-payments { color: var(--domain-payments); }
+        .domain-fraud { color: var(--domain-fraud); }
+        .domain-infra { color: var(--domain-infra); }
+        .domain-connect { color: var(--domain-connect); }
+        .domain-pci { color: var(--domain-pci); }
+        .domain-monolith { color: var(--domain-monolith); }
+        .domain-webhook { color: var(--domain-webhook); }
+
+        /* === Stat Row === */
+        .stat-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: var(--space-5);
+            margin: var(--space-6) 0;
+        }
+        .stat-item {
+            text-align: center;
+            padding: var(--space-5);
+            border: 1px solid var(--border-color);
+        }
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--accent);
+            line-height: 1;
+        }
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-top: var(--space-2);
+            font-weight: 600;
+        }
+
+        /* === Callout === */
+        .callout {
+            background: var(--gray-100);
+            border-left: 3px solid var(--black);
+            padding: var(--space-5);
+            margin: var(--space-5) 0;
+        }
+        .callout.callout-red { border-left-color: var(--accent); }
+        .callout.callout-accent { border-left-color: var(--accent); }
+        .callout .callout-title {
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--black);
+            margin-bottom: var(--space-2);
+            font-weight: 600;
+        }
+        .callout.callout-red .callout-title { color: var(--accent); }
+        .callout p {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            line-height: 1.55;
+        }
+
+        /* === Tables === */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.88rem;
+            margin: var(--space-5) 0;
+        }
+        .data-table th {
+            text-align: left;
+            padding: var(--space-3) var(--space-4);
+            border-bottom: 2px solid var(--black);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+        .data-table td {
+            padding: var(--space-3) var(--space-4);
+            border-bottom: 1px solid var(--border-color);
+            vertical-align: top;
+        }
+        .data-table tr:hover td {
+            background: var(--bg-secondary);
+        }
+
+        /* === Acronym List === */
+        .acronym-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 0;
+        }
+        .acronym-item {
+            display: flex;
+            gap: var(--space-3);
+            padding: var(--space-2) var(--space-4);
+            border-bottom: 1px solid var(--border-color);
+            font-size: 0.85rem;
+        }
+        .acronym-item:hover { background: var(--bg-secondary); }
+        .acronym-key {
+            font-family: var(--font-mono);
+            font-weight: 600;
+            color: var(--accent);
+            min-width: 70px;
+        }
+        .acronym-val { color: var(--text-secondary); }
+
+        /* === Fullscreen Overlay === */
+        .diagram-expand-btn {
+            position: absolute;
+            top: var(--space-2);
+            right: var(--space-2);
+            background: var(--white);
+            border: 1px solid var(--border-color);
+            color: var(--text-tertiary);
+            padding: 6px 8px;
+            cursor: pointer;
+            font-size: 0.7rem;
+            font-family: var(--font-mono);
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            transition: all var(--transition-fast);
+            z-index: 2;
+        }
+        .diagram-expand-btn:hover {
+            color: var(--accent);
+            border-color: var(--accent);
+        }
+        .diagram-expand-btn svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        .fs-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            background: var(--white);
+            display: none;
+            flex-direction: column;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+        .fs-overlay.active { opacity: 1; }
+
+        .fs-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: var(--space-2) var(--space-5);
+            background: var(--black);
+            color: var(--white);
+            border-bottom: 2px solid var(--accent);
+            flex-shrink: 0;
+        }
+        .fs-toolbar-title {
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            color: var(--gray-400);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+        .fs-controls {
+            display: flex;
+            gap: var(--space-2);
+            align-items: center;
+        }
+        .fs-btn {
+            background: transparent;
+            border: 1px solid var(--gray-600);
+            color: var(--gray-300);
+            padding: 6px 12px;
+            cursor: pointer;
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            transition: all var(--transition-fast);
+        }
+        .fs-btn:hover {
+            color: var(--white);
+            border-color: var(--white);
+        }
+        .fs-zoom-label {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--gray-400);
+            min-width: 48px;
+            text-align: center;
+        }
+        .fs-close {
+            background: none;
+            border: 1px solid var(--gray-600);
+            color: var(--gray-300);
+            padding: 6px 12px;
+            cursor: pointer;
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            transition: all var(--transition-fast);
+        }
+        .fs-close:hover {
+            color: var(--accent);
+            border-color: var(--accent);
+        }
+
+        .fs-viewport {
+            flex: 1;
+            overflow: hidden;
+            cursor: grab;
+            position: relative;
+        }
+        .fs-viewport:active { cursor: grabbing; }
+        .fs-content {
+            position: absolute;
+            top: 0;
+            left: 0;
+            transform-origin: 0 0;
+        }
+        .fs-content svg {
+            max-width: none !important;
+            height: auto !important;
+        }
+
+        .fs-hint {
+            position: absolute;
+            bottom: var(--space-3);
+            left: 50%;
+            transform: translateX(-50%);
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            color: var(--text-tertiary);
+            background: var(--gray-100);
+            padding: 4px 12px;
+            border: 1px solid var(--border-color);
+            pointer-events: none;
+            opacity: 0.7;
+        }
+
+        /* === Footer === */
+        .site-footer {
+            border-top: 2px solid var(--black);
+            padding: var(--space-6) var(--space-6);
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 0.82rem;
+        }
+        .site-footer a {
+            color: var(--accent);
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        /* === Responsive === */
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 1.8rem; }
+            .section-title { font-size: 1.5rem; }
+            .card-grid { grid-template-columns: 1fr; }
+            .stat-row { grid-template-columns: repeat(2, 1fr); }
+            .acronym-grid { grid-template-columns: 1fr; }
+            .diagram-container { padding: var(--space-3); margin-left: calc(-1 * var(--space-3)); margin-right: calc(-1 * var(--space-3)); border-left: 0; border-right: 0; }
+            .hero { padding: var(--space-7) var(--space-4) var(--space-6); }
+            .container { padding: var(--space-6) var(--space-4); }
+        }
+    </style>
+</head>
+<body>
+    <a href="../index.html" class="back-link">Architecture Maps</a>
+
+    <!-- Hero -->
+    <header class="hero">
+        <div class="hero-inner">
+            <h1>Stripe</h1>
+            <p class="tagline">Interactive architecture map of Stripe's payment infrastructure &mdash; API design, idempotency, fraud detection, and the Ruby monolith compiled from publicly available engineering sources.</p>
+            <div class="meta">
+                <span class="meta-badge"><span class="dot" style="background:#16a34a"></span> Public Sources Only</span>
+                <span class="meta-badge">15M+ Lines of Ruby</span>
+                <span class="meta-badge">5.5 Nines Availability</span>
+                <span class="meta-badge">Updated: Mar 2026</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Jump Nav -->
+    <nav class="jump-nav">
+        <a href="#overview">Overview</a>
+        <a href="#api">API Design</a>
+        <a href="#idempotency">Idempotency</a>
+        <a href="#payments">Payments</a>
+        <a href="#webhooks">Webhooks</a>
+        <a href="#monolith">Monolith</a>
+        <a href="#pci">PCI Vault</a>
+        <a href="#radar">Radar</a>
+        <a href="#connect">Connect</a>
+        <a href="#infra">Infrastructure</a>
+        <a href="#acronyms">Acronyms</a>
+    </nav>
+
+    <div class="container">
+
+        <!-- ════════════════════════════════════════ -->
+        <!-- 01 · OVERVIEW -->
+        <!-- ════════════════════════════════════════ -->
+        <section id="overview" class="section">
+            <div class="section-header">
+                <span class="section-number">01</span>
+                <h2 class="section-title">Platform Overview</h2>
+            </div>
+
+            <p class="section-description">Stripe processes payments for millions of businesses worldwide. The platform is built on a Ruby monolith with approximately 3,000 engineers across 360 teams, targeting 99.99995% availability. Every API version since 2011 remains backwards compatible.</p>
+
+            <div class="stat-row">
+                <div class="stat-item">
+                    <div class="stat-value">3K+</div>
+                    <div class="stat-label">Engineers</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">360</div>
+                    <div class="stat-label">Teams</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">15M+</div>
+                    <div class="stat-label">Lines of Ruby</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">150K</div>
+                    <div class="stat-label">Ruby Files</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">5.5</div>
+                    <div class="stat-label">Nines Availability</div>
+                </div>
+            </div>
+
+            <div class="diagram-container">
+                <div class="diagram-label">High-Level Platform Architecture</div>
+                <pre class="mermaid">
+graph TD
+    subgraph Clients["Client Layer"]
+        SDK["SDKs<br/>(Ruby, Python, JS, Go)"]
+        ELEM["Stripe Elements<br/>& Checkout"]
+        DASH["Dashboard<br/>& CLI"]
+    end
+
+    subgraph Core["Core Platform"]
+        GW["API Gateway"]
+        MONO["Ruby Monolith<br/>(Sorbet-typed)"]
+        PAY["Payment<br/>Processor"]
+        LEDGER["Ledger<br/>(double-entry)"]
+    end
+
+    subgraph Services["Supporting Services"]
+        RADAR["Radar<br/>(fraud ML)"]
+        WEBHOOK["Webhook<br/>Delivery"]
+        CONNECT["Connect<br/>(multi-party)"]
+        CDV["Card Data Vault<br/>(PCI Level 1)"]
+    end
+
+    subgraph Infra["Infrastructure"]
+        AWS["AWS"]
+        DOCDB["DocDB<br/>(MongoDB)"]
+        PROM["Prometheus<br/>& Grafana"]
+    end
+
+    Clients --> GW
+    GW --> MONO
+    MONO --> PAY
+    MONO --> LEDGER
+    MONO --> RADAR
+    MONO --> WEBHOOK
+    MONO --> CONNECT
+    PAY --> CDV
+    Core --> Infra
+
+    style GW fill:#000,stroke:#ff0000,color:#fff
+    style MONO fill:#000,stroke:#ff0000,color:#fff
+    style PAY fill:#171717,stroke:#525252,color:#fff
+    style LEDGER fill:#171717,stroke:#525252,color:#fff
+    style RADAR fill:#171717,stroke:#dc2626,color:#fff
+    style WEBHOOK fill:#171717,stroke:#ca8a04,color:#fff
+    style CONNECT fill:#171717,stroke:#ea580c,color:#fff
+    style CDV fill:#171717,stroke:#0891b2,color:#fff
+    style DOCDB fill:#262626,stroke:#9333ea,color:#fff
+    style AWS fill:#262626,stroke:#9333ea,color:#fff
+    style PROM fill:#262626,stroke:#9333ea,color:#fff
+                </pre>
+            </div>
+        </section>
+
+        <!-- ════════════════════════════════════════ -->
+        <!-- 02 · API DESIGN & VERSIONING -->
+        <!-- ════════════════════════════════════════ -->
+        <section id="api" class="section">
+            <div class="section-header">
+                <span class="section-number">02</span>
+                <h2 class="section-title">API Design &amp; Versioning</h2>
+            </div>
+
+            <p class="section-description">Stripe has maintained backwards compatibility with every API version since 2011. The versioning system uses date-based rolling versions rather than semver. Major releases ship twice a year; monthly updates between majors are always backwards-compatible.</p>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Version Change Module Pipeline</h3>
+                <p>Engineers write code only against the latest API version. A separate versioning layer transforms responses backwards through time by applying version change modules sequentially.</p>
+
+                <div class="diagram-container">
+                    <div class="diagram-label">API Versioning Pipeline</div>
+                    <pre class="mermaid">
+graph LR
+    REQ["Incoming<br/>Request"] --> AUTH["Authentication<br/>& Rate Limiting"]
+    AUTH --> VER["Determine<br/>Target Version"]
+    VER --> LOGIC["Core Business<br/>Logic"]
+    LOGIC --> RESP["Generate Response<br/>(latest schema)"]
+    RESP --> VCM["Version Change<br/>Module Chain"]
+    VCM --> DELIVER["Deliver<br/>Response"]
+
+    subgraph Versioning["Version Change Modules"]
+        VCM
+        V1["2024-09-30<br/>acacia"]
+        V2["2024-04-10<br/>..."]
+        V3["2023-10-16<br/>..."]
+        VN["2017-05-24<br/>..."]
+    end
+
+    VCM --> V1
+    V1 --> V2
+    V2 --> V3
+    V3 --> VN
+
+    style REQ fill:#000,stroke:#ff0000,color:#fff
+    style LOGIC fill:#000,stroke:#ff0000,color:#fff
+    style VCM fill:#171717,stroke:#2563eb,color:#fff
+    style V1 fill:#262626,stroke:#525252,color:#e5e5e5
+    style V2 fill:#262626,stroke:#525252,color:#e5e5e5
+    style V3 fill:#262626,stroke:#525252,color:#e5e5e5
+    style VN fill:#262626,stroke:#525252,color:#e5e5e5
+    style AUTH fill:#171717,stroke:#525252,color:#fff
+    style VER fill:#171717,stroke:#525252,color:#fff
+    style RESP fill:#171717,stroke:#525252,color:#fff
+    style DELIVER fill:#171717,stroke:#525252,color:#fff
+                    </pre>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Account Pinning</h3>
+                <p>The first time a user makes an API request, their account is pinned to the current version. Users can override per-request via the <code>Stripe-Version</code> header or upgrade through the dashboard.</p>
+            </div>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>Version Change Module</h4>
+                    <p>Each module specifies: documentation of the change, a transformation function, and which API resource types it applies to.</p>
+                    <div class="card-meta">has_side_effects annotation for non-response changes</div>
+                </div>
+                <div class="info-card">
+                    <h4>Safe Changes</h4>
+                    <p>New API resources, new optional request parameters, and new properties on existing responses can ship without versioning.</p>
+                    <div class="card-meta">Backwards-compatible by definition</div>
+                </div>
+                <div class="info-card">
+                    <h4>Developer Tooling</h4>
+                    <p>Version modules power automatic changelog generation, personalized API docs, and field-level change tracking.</p>
+                    <div class="card-meta">Warns users about breaking changes vs. their pin</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ════════════════════════════════════════ -->
+        <!-- 03 · IDEMPOTENCY SYSTEM -->
+        <!-- ════════════════════════════════════════ -->
+        <section id="idempotency" class="section">
+            <div class="section-header">
+                <span class="section-number">03</span>
+                <h2 class="section-title">Idempotency System</h2>
+            </div>
+
+            <p class="section-description">All mutating endpoints (POST) support idempotency via the <code>Idempotency-Key</code> HTTP header. The system uses an atomic phases pattern that divides request lifecycles into discrete phases separated by recovery points.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Atomic Phases &amp; Recovery Points</div>
+                <pre class="mermaid">
+graph TD
+    START["Client Request<br/>+ Idempotency Key"] --> P1["Phase 1 (ACID tx)<br/>Upsert idempotency<br/>key record"]
+    P1 --> P2["Phase 2 (ACID tx)<br/>Create local records<br/>(ride, audit logs)"]
+    P2 --> FM["Foreign Mutation<br/>Call payment<br/>processor"]
+    FM --> P3["Phase 3 (ACID tx)<br/>Update with charge ID<br/>Stage background jobs"]
+    P3 --> DONE["Recovery Point:<br/>finished"]
+
+    P1 -.->|"recovery: started"| RP1["RP: started"]
+    P2 -.->|"recovery: ride_created"| RP2["RP: ride_created"]
+    FM -.->|"recovery: charge_created"| RP3["RP: charge_created"]
+
+    style START fill:#000,stroke:#ff0000,color:#fff
+    style DONE fill:#000,stroke:#ff0000,color:#fff
+    style P1 fill:#171717,stroke:#525252,color:#fff
+    style P2 fill:#171717,stroke:#525252,color:#fff
+    style P3 fill:#171717,stroke:#525252,color:#fff
+    style FM fill:#171717,stroke:#dc2626,color:#fff
+    style RP1 fill:#262626,stroke:#a3a3a3,color:#e5e5e5
+    style RP2 fill:#262626,stroke:#a3a3a3,color:#e5e5e5
+    style RP3 fill:#262626,stroke:#a3a3a3,color:#e5e5e5
+                </pre>
+            </div>
+
+            <div class="callout">
+                <div class="callout-title">Key Behavior</div>
+                <p>On retry, the server jumps to the last recovery point and resumes. Finished requests return the cached response immediately. Keys expire after 24 hours; the Reaper deletes records after ~72 hours.</p>
+            </div>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>Completer</h4>
+                    <p>Finds abandoned incomplete requests and pushes them to completion automatically.</p>
+                </div>
+                <div class="info-card">
+                    <h4>Reaper</h4>
+                    <p>Deletes idempotency key records after approximately 72 hours of inactivity.</p>
+                </div>
+                <div class="info-card">
+                    <h4>Enqueuer</h4>
+                    <p>Moves jobs from the <code>staged_jobs</code> table to worker queues only after transaction commit.</p>
+                </div>
+            </div>
+
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Error Type</th>
+                        <th>Action</th>
+                        <th>HTTP Code</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Recoverable (timeout)</td>
+                        <td>Unlock key, allow retries</td>
+                        <td>5xx</td>
+                    </tr>
+                    <tr>
+                        <td>Unrecoverable (invalid card)</td>
+                        <td>Set recovery point to finished with error</td>
+                        <td>4xx</td>
+                    </tr>
+                    <tr>
+                        <td>Concurrent conflict</td>
+                        <td>SERIALIZABLE isolation rejects duplicate</td>
+                        <td>409</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- ════════════════════════════════════════ -->
+        <!-- 04 · PAYMENT STATE MACHINE -->
+        <!-- ════════════════════════════════════════ -->
+        <section id="payments" class="section">
+            <div class="section-header">
+                <span class="section-number">04</span>
+                <h2 class="section-title">Payment State Machine</h2>
+            </div>
+
+            <p class="section-description">The PaymentIntent is the central stateful object tracking a customer's attempt to pay. It combines a PaymentMethod (the "how") with the payment amount and currency (the "what"), progressing through seven states.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">PaymentIntent Lifecycle</div>
+                <pre class="mermaid">
+graph TD
+    RPM["requires_payment<br/>_method"] --> RC["requires_<br/>confirmation"]
+    RC --> RA["requires_<br/>action"]
+    RC --> PROC["processing"]
+    RA --> PROC
+    PROC --> SUC["succeeded"]
+    PROC --> RPM
+    RC --> RCAP["requires_<br/>capture"]
+    RCAP --> PROC
+    RCAP --> RPM
+
+    RPM --> CAN["canceled"]
+    RC --> CAN
+    RA --> CAN
+    RCAP --> CAN
+
+    style RPM fill:#000,stroke:#ff0000,color:#fff
+    style SUC fill:#171717,stroke:#16a34a,color:#fff
+    style CAN fill:#171717,stroke:#dc2626,color:#fff
+    style RC fill:#262626,stroke:#525252,color:#e5e5e5
+    style RA fill:#262626,stroke:#ca8a04,color:#e5e5e5
+    style PROC fill:#262626,stroke:#525252,color:#e5e5e5
+    style RCAP fill:#262626,stroke:#525252,color:#e5e5e5
+                </pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Internal Payment Pipeline</h3>
+                <p>Behind the state machine, the payment pipeline coordinates multiple internal services from gateway to ledger.</p>
+
+                <div class="diagram-container">
+                    <div class="diagram-label">Payment Processing Pipeline</div>
+                    <pre class="mermaid">
+graph LR
+    GW["API Gateway<br/>Auth, rate limit,<br/>idempotency"] --> PS["Payments<br/>Service<br/>State machine"]
+    PS --> TP["Transaction<br/>Processor<br/>Business logic"]
+    TP --> RADAR["Radar<br/>Fraud scoring"]
+    TP --> CDV["Card Data<br/>Vault"]
+    TP --> LED["Ledger<br/>Double-entry<br/>bookkeeping"]
+    PS --> WH["Notification<br/>System<br/>Webhooks"]
+
+    style GW fill:#000,stroke:#ff0000,color:#fff
+    style PS fill:#171717,stroke:#525252,color:#fff
+    style TP fill:#171717,stroke:#525252,color:#fff
+    style RADAR fill:#171717,stroke:#dc2626,color:#fff
+    style CDV fill:#171717,stroke:#0891b2,color:#fff
+    style LED fill:#171717,stroke:#16a34a,color:#fff
+    style WH fill:#171717,stroke:#ca8a04,color:#fff
+                    </pre>
+                </div>
+            </div>
+        </section>
+
+        <!-- ════════════════════════════════════════ -->
+        <!-- 05 · WEBHOOK INFRASTRUCTURE -->
+        <!-- ════════════════════════════════════════ -->
+        <section id="webhooks" class="section">
+            <div class="section-header">
+                <span class="section-number">05</span>
+                <h2 class="section-title">Webhook Delivery Infrastructure</h2>
+            </div>
+
+            <p class="section-description">Stripe delivers event notifications via webhooks with exponential backoff retries over 3 days in live mode. Each delivery is signed with HMAC-SHA256 to prevent replay attacks.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Webhook Delivery &amp; Retry Flow</div>
+                <pre class="mermaid">
+graph TD
+    EVT["Payment Event<br/>Triggered"] --> SIG["Generate HMAC-SHA256<br/>Signature + Timestamp"]
+    SIG --> DEL["Deliver to<br/>Endpoint"]
+    DEL -->|"2xx"| OK["Delivery<br/>Confirmed"]
+    DEL -->|"Error/Timeout"| RETRY["Exponential<br/>Backoff Queue"]
+    RETRY --> RESIG["New Signature<br/>+ Timestamp"]
+    RESIG --> DEL
+    RETRY -->|"After 3 days"| FAIL["Mark<br/>Failed"]
+
+    style EVT fill:#000,stroke:#ff0000,color:#fff
+    style SIG fill:#171717,stroke:#ca8a04,color:#fff
+    style DEL fill:#171717,stroke:#525252,color:#fff
+    style OK fill:#171717,stroke:#16a34a,color:#fff
+    style RETRY fill:#262626,stroke:#a3a3a3,color:#e5e5e5
+    style RESIG fill:#262626,stroke:#ca8a04,color:#e5e5e5
+    style FAIL fill:#171717,stroke:#dc2626,color:#fff
+                </pre>
+            </div>
+
+            <div class="callout callout-red">
+                <div class="callout-title">Retry Schedule (Live Mode)</div>
+                <p>Immediately, then 5 min, 30 min, 2 hours, 5 hours, 10 hours, then every 12 hours for up to 3 days. Sandbox webhooks retry only 3 times over a few hours. Each retry generates a new signature &mdash; the signature is specific to each delivery attempt.</p>
+            </div>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>Idempotent Handlers</h4>
+                    <p>Handlers must be idempotent because duplicate deliveries are possible during retries.</p>
+                </div>
+                <div class="info-card">
+                    <h4>Signature Verification</h4>
+                    <p>The <code>Stripe-Signature</code> header contains a timestamp and HMAC-SHA256 hash. The timestamp is part of the signed payload, preventing replay attacks.</p>
+                </div>
+                <div class="info-card">
+                    <h4>Async Processing</h4>
+                    <p>Handlers should return 2xx quickly and process the event asynchronously to avoid timeout retries.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ════════════════════════════════════════ -->
+        <!-- 06 · RUBY MONOLITH & SORBET -->
+        <!-- ════════════════════════════════════════ -->
+        <section id="monolith" class="section">
+            <div class="section-header">
+                <span class="section-number">06</span>
+                <h2 class="section-title">Ruby Monolith &amp; Sorbet</h2>
+            </div>
+
+            <p class="section-description">Stripe's core product runs in a single Ruby monolith &mdash; over 15 million lines of code across 150,000 files. The Sorbet type system, written in C++, made it possible to maintain this monolith at scale rather than being forced into premature microservice decomposition.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Sorbet Type Checking Architecture</div>
+                <pre class="mermaid">
+graph TD
+    subgraph Codebase["Ruby Monolith (15M LOC)"]
+        SRC["150,000<br/>Ruby Files"]
+    end
+
+    subgraph Sorbet["Sorbet (C++ Binary)"]
+        PARSE["Parser<br/>& Resolver"]
+        LOCAL["Local Type<br/>Inference"]
+        MT["Multithreaded<br/>Checker"]
+        PRESER["Pre-serialized<br/>stdlib defs"]
+    end
+
+    subgraph Output["Results"]
+        ERR["Error Reports<br/>(ms for 80% of edits)"]
+        IDE["IDE Integration<br/>(LSP)"]
+    end
+
+    SRC --> PARSE
+    PARSE --> LOCAL
+    LOCAL --> MT
+    PRESER --> PARSE
+    MT --> ERR
+    MT --> IDE
+
+    style SRC fill:#000,stroke:#ff0000,color:#fff
+    style PARSE fill:#171717,stroke:#4f46e5,color:#fff
+    style LOCAL fill:#171717,stroke:#4f46e5,color:#fff
+    style MT fill:#171717,stroke:#4f46e5,color:#fff
+    style PRESER fill:#262626,stroke:#525252,color:#e5e5e5
+    style ERR fill:#262626,stroke:#525252,color:#e5e5e5
+    style IDE fill:#262626,stroke:#525252,color:#e5e5e5
+                </pre>
+            </div>
+
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Strictness Level</th>
+                        <th>Behavior</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>typed: false</code></td>
+                        <td>Sorbet ignores the file entirely</td>
+                    </tr>
+                    <tr>
+                        <td><code>typed: true</code></td>
+                        <td>Checks method calls and types, allows untyped signatures</td>
+                    </tr>
+                    <tr>
+                        <td><code>typed: strict</code></td>
+                        <td>Requires explicit type signatures on all methods</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="callout">
+                <div class="callout-title">Why Sorbet?</div>
+                <p>By 2017, the most common production failure was <code>NoMethodError</code>. Hundreds of engineers were working in millions of lines of untyped Ruby. Sorbet typechecks at ~100,000 lines/sec per core and reports errors in milliseconds for 80% of edits. Development started November 2017; open-sourced June 2019.</p>
+            </div>
+        </section>
+
+        <!-- ════════════════════════════════════════ -->
+        <!-- 07 · PCI COMPLIANCE & VAULT -->
+        <!-- ════════════════════════════════════════ -->
+        <section id="pci" class="section">
+            <div class="section-header">
+                <span class="section-number">07</span>
+                <h2 class="section-title">PCI Compliance &amp; Card Data Vault</h2>
+            </div>
+
+            <p class="section-description">Stripe is certified as PCI Service Provider Level 1 &mdash; the most stringent level in the payments industry. The Card Data Vault (CDV) runs in a completely separate hosting environment with no shared credentials.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Card Data Vault Isolation Architecture</div>
+                <pre class="mermaid">
+graph TD
+    subgraph ClientSide["Client-Side Capture"]
+        CHECKOUT["Stripe Checkout<br/>(hosted page)"]
+        ELEMENTS["Stripe Elements<br/>(embedded UI)"]
+        MOBILE["Mobile SDKs<br/>(iOS, Android)"]
+        TERMINAL["Terminal SDKs<br/>(in-person)"]
+    end
+
+    subgraph CDVZone["Card Data Vault (Isolated Environment)"]
+        TOK["Tokenization<br/>Engine"]
+        ENC["AES-256<br/>Encryption"]
+        KEYS["Decryption Keys<br/>(separate machines)"]
+        ALLOW["Provider<br/>Allowlist"]
+    end
+
+    subgraph Main["Primary Stripe Services"]
+        API["API Server"]
+        BIZ["Business Logic"]
+    end
+
+    ClientSide -->|"PAN"| TOK
+    TOK --> ENC
+    ENC -.-> KEYS
+    TOK -->|"token only"| API
+    API --> BIZ
+    TOK -->|"PAN via allowlist"| ALLOW
+    ALLOW --> PROC["Payment<br/>Processors"]
+
+    style TOK fill:#000,stroke:#0891b2,color:#fff
+    style ENC fill:#171717,stroke:#0891b2,color:#fff
+    style KEYS fill:#171717,stroke:#dc2626,color:#fff
+    style ALLOW fill:#171717,stroke:#0891b2,color:#fff
+    style API fill:#262626,stroke:#525252,color:#e5e5e5
+    style BIZ fill:#262626,stroke:#525252,color:#e5e5e5
+    style PROC fill:#262626,stroke:#525252,color:#e5e5e5
+    style CHECKOUT fill:#262626,stroke:#a3a3a3,color:#e5e5e5
+    style ELEMENTS fill:#262626,stroke:#a3a3a3,color:#e5e5e5
+    style MOBILE fill:#262626,stroke:#a3a3a3,color:#e5e5e5
+    style TERMINAL fill:#262626,stroke:#a3a3a3,color:#e5e5e5
+                </pre>
+            </div>
+
+            <div class="callout callout-red">
+                <div class="callout-title">Key Isolation Principle</div>
+                <p>No internal servers or daemons can obtain plaintext card numbers. Cards can only be sent to service providers on a static allowlist. Decryption keys are stored on separate machines from encrypted data. The CDV has no shared credentials with primary Stripe services.</p>
+            </div>
+        </section>
+
+        <!-- ════════════════════════════════════════ -->
+        <!-- 08 · RADAR FRAUD DETECTION -->
+        <!-- ════════════════════════════════════════ -->
+        <section id="radar" class="section">
+            <div class="section-header">
+                <span class="section-number">08</span>
+                <h2 class="section-title">Radar Fraud Detection</h2>
+            </div>
+
+            <p class="section-description">Radar is Stripe's ML-powered fraud detection system that scores every transaction in under 100 milliseconds using 1,000+ characteristics. The model evolved from a Wide &amp; Deep ensemble to a pure DNN architecture, reducing training time by 85%.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Real-Time Fraud Scoring Pipeline</div>
+                <pre class="mermaid">
+graph LR
+    TX["Transaction<br/>Enters Pipeline"] --> FE["Feature<br/>Extraction<br/>1,000+ signals"]
+    FE --> DNN["DNN Model<br/>(ResNeXt-inspired<br/>multi-branch)"]
+    DNN --> SCORE["Fraud<br/>Probability<br/>Score"]
+    SCORE -->|"Low risk"| APPROVE["Approve"]
+    SCORE -->|"Medium risk"| THREEDS["3D Secure<br/>Challenge"]
+    SCORE -->|"High risk"| BLOCK["Block"]
+
+    FE --> EXPLAIN["Feature<br/>Attribution<br/>& Risk Insights"]
+
+    style TX fill:#000,stroke:#ff0000,color:#fff
+    style FE fill:#171717,stroke:#dc2626,color:#fff
+    style DNN fill:#171717,stroke:#dc2626,color:#fff
+    style SCORE fill:#171717,stroke:#525252,color:#fff
+    style APPROVE fill:#171717,stroke:#16a34a,color:#fff
+    style THREEDS fill:#262626,stroke:#ca8a04,color:#e5e5e5
+    style BLOCK fill:#262626,stroke:#dc2626,color:#e5e5e5
+    style EXPLAIN fill:#262626,stroke:#a3a3a3,color:#e5e5e5
+                </pre>
+            </div>
+
+            <div class="stat-row">
+                <div class="stat-item">
+                    <div class="stat-value">&lt;100ms</div>
+                    <div class="stat-label">Scoring Latency</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">1,000+</div>
+                    <div class="stat-label">Features</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">0.1%</div>
+                    <div class="stat-label">False Positive Rate</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">&lt;2hr</div>
+                    <div class="stat-label">Training Time</div>
+                </div>
+            </div>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>Feature Engineering</h4>
+                    <p>Forensic analysis of past fraud attacks, pattern recognition across the Stripe network, and dark web monitoring with weekly team meetings on emerging trends.</p>
+                </div>
+                <div class="info-card">
+                    <h4>Model Evolution</h4>
+                    <p>Migrated from XGBoost + DNN ensemble to pure DNN-only "Network-in-Neuron" architecture in mid-2022. Currently testing 10x-100x training data increases.</p>
+                </div>
+                <div class="info-card">
+                    <h4>Network Effect</h4>
+                    <p>More Stripe merchants means more training data, which means better fraud detection for everyone on the platform.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ════════════════════════════════════════ -->
+        <!-- 09 · CONNECT PLATFORM -->
+        <!-- ════════════════════════════════════════ -->
+        <section id="connect" class="section">
+            <div class="section-header">
+                <span class="section-number">09</span>
+                <h2 class="section-title">Connect Platform</h2>
+            </div>
+
+            <p class="section-description">Stripe Connect enables platforms and marketplaces to route payments between multiple parties. Three charge types support different fund flow topologies, from simple SaaS fee collection to multi-vendor payment splitting.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Connect Charge Types</div>
+                <pre class="mermaid">
+graph TD
+    subgraph Direct["Direct Charges"]
+        DC_CUST["Customer"] -->|"pays"| DC_CA["Connected<br/>Account"]
+        DC_CA -->|"app fee"| DC_PLAT["Platform"]
+    end
+
+    subgraph Destination["Destination Charges"]
+        DEST_CUST["Customer"] -->|"pays"| DEST_PLAT["Platform"]
+        DEST_PLAT -->|"transfers"| DEST_CA["Connected<br/>Account"]
+    end
+
+    subgraph Separate["Separate Charges & Transfers"]
+        SEP_CUST["Customer"] -->|"pays"| SEP_PLAT["Platform"]
+        SEP_PLAT -->|"split"| SEP_CA1["Account A"]
+        SEP_PLAT -->|"split"| SEP_CA2["Account B"]
+    end
+
+    style DC_CUST fill:#262626,stroke:#525252,color:#e5e5e5
+    style DC_CA fill:#171717,stroke:#ea580c,color:#fff
+    style DC_PLAT fill:#000,stroke:#ff0000,color:#fff
+    style DEST_CUST fill:#262626,stroke:#525252,color:#e5e5e5
+    style DEST_PLAT fill:#000,stroke:#ff0000,color:#fff
+    style DEST_CA fill:#171717,stroke:#ea580c,color:#fff
+    style SEP_CUST fill:#262626,stroke:#525252,color:#e5e5e5
+    style SEP_PLAT fill:#000,stroke:#ff0000,color:#fff
+    style SEP_CA1 fill:#171717,stroke:#ea580c,color:#fff
+    style SEP_CA2 fill:#171717,stroke:#ea580c,color:#fff
+                </pre>
+            </div>
+
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Account Type</th>
+                        <th>Control</th>
+                        <th>Dashboard</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Standard</td>
+                        <td>Account holder controls everything</td>
+                        <td>Full Stripe dashboard</td>
+                    </tr>
+                    <tr>
+                        <td>Express</td>
+                        <td>Platform manages payouts and fund flows</td>
+                        <td>Limited dashboard</td>
+                    </tr>
+                    <tr>
+                        <td>Custom</td>
+                        <td>Fully white-labeled by platform</td>
+                        <td>None (API only)</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>Automatic Fee Deduction</h4>
+                    <p>Platform fees are deducted before fund transfer to connected accounts.</p>
+                </div>
+                <div class="info-card">
+                    <h4>Refund Clawback</h4>
+                    <p>Automatic clawback from each party on refunds and chargebacks.</p>
+                </div>
+                <div class="info-card">
+                    <h4>KYC &amp; Onboarding</h4>
+                    <p>Built-in identity verification flows, either Stripe-hosted or API-based.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ════════════════════════════════════════ -->
+        <!-- 10 · INFRASTRUCTURE -->
+        <!-- ════════════════════════════════════════ -->
+        <section id="infra" class="section">
+            <div class="section-header">
+                <span class="section-number">10</span>
+                <h2 class="section-title">Infrastructure &amp; Availability</h2>
+            </div>
+
+            <p class="section-description">Stripe runs on AWS, generating 500 million metrics every 10 seconds across 360 teams. The Core Infrastructure organization abstracts cloud primitives to maintain high reliability at internet scale.</p>
+
+            <div class="subsection">
+                <h3 class="subsection-title">DocDB &mdash; Internal Database as a Service</h3>
+                <p>Built on top of MongoDB to handle petabytes of data at 99.999% uptime. DocDB provides sharding, replication, and zero-downtime migrations.</p>
+
+                <div class="diagram-container">
+                    <div class="diagram-label">DocDB Architecture</div>
+                    <pre class="mermaid">
+graph TD
+    APP["Application<br/>Services"] --> PROXY["Database Proxy<br/>Access control,<br/>validation, routing"]
+    PROXY --> CMS["Chunk Metadata<br/>Service<br/>Data-to-shard map"]
+    CMS --> S1["Shard 1"]
+    CMS --> S2["Shard 2"]
+    CMS --> SN["Shard N"]
+    S1 --> R1["Replicas<br/>(CDC sync)"]
+    S2 --> R2["Replicas<br/>(CDC sync)"]
+    SN --> RN["Replicas<br/>(CDC sync)"]
+
+    style APP fill:#000,stroke:#ff0000,color:#fff
+    style PROXY fill:#171717,stroke:#9333ea,color:#fff
+    style CMS fill:#171717,stroke:#9333ea,color:#fff
+    style S1 fill:#262626,stroke:#525252,color:#e5e5e5
+    style S2 fill:#262626,stroke:#525252,color:#e5e5e5
+    style SN fill:#262626,stroke:#525252,color:#e5e5e5
+    style R1 fill:#262626,stroke:#a3a3a3,color:#e5e5e5
+    style R2 fill:#262626,stroke:#a3a3a3,color:#e5e5e5
+    style RN fill:#262626,stroke:#a3a3a3,color:#e5e5e5
+                    </pre>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Zero-Downtime Migration Protocol</h3>
+
+                <div class="diagram-container">
+                    <div class="diagram-label">6-Step Migration Flow</div>
+                    <pre class="mermaid">
+graph LR
+    S1["1. Register<br/>& Index"] --> S2["2. Bulk<br/>Import"]
+    S2 --> S3["3. Async<br/>Replication"]
+    S3 --> S4["4. Correctness<br/>Verification"]
+    S4 --> S5["5. Traffic<br/>Switchover"]
+    S5 --> S6["6. Finalize<br/>& Cleanup"]
+
+    style S1 fill:#262626,stroke:#525252,color:#e5e5e5
+    style S2 fill:#262626,stroke:#525252,color:#e5e5e5
+    style S3 fill:#262626,stroke:#525252,color:#e5e5e5
+    style S4 fill:#171717,stroke:#ca8a04,color:#fff
+    style S5 fill:#171717,stroke:#dc2626,color:#fff
+    style S6 fill:#262626,stroke:#525252,color:#e5e5e5
+                    </pre>
+                </div>
+
+                <div class="callout">
+                    <div class="callout-title">Switchover Window</div>
+                    <p>Step 5 blocks source writes, replicates pending changes, and updates chunk metadata. The actual downtime window is measured in seconds. Step 4 uses point-in-time snapshot comparison to guarantee correctness before the switch.</p>
+                </div>
+            </div>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>Observability Stack</h4>
+                    <p>Amazon Managed Prometheus for metrics, Amazon Managed Grafana for visualization. Sharded and tiered storage separates hot vs. cold data.</p>
+                    <div class="card-meta">500M metrics / 10 seconds</div>
+                </div>
+                <div class="info-card">
+                    <h4>Core Infrastructure Scope</h4>
+                    <p>OS components, databases (MongoDB, PostgreSQL, MySQL), HA/DR, container orchestration, mesh networking, service discovery, and change management.</p>
+                </div>
+                <div class="info-card">
+                    <h4>Culture of Self-Reliance</h4>
+                    <p>Engineers are expected to own their observability tooling, building dashboards and alerts for their own services.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ════════════════════════════════════════ -->
+        <!-- 11 · ACRONYMS & GLOSSARY -->
+        <!-- ════════════════════════════════════════ -->
+        <section id="acronyms" class="section">
+            <div class="section-header">
+                <span class="section-number">11</span>
+                <h2 class="section-title">Acronyms &amp; Glossary</h2>
+            </div>
+
+            <div class="acronym-grid">
+                <div class="acronym-item"><span class="acronym-key">3DS</span><span class="acronym-val">3D Secure (cardholder authentication)</span></div>
+                <div class="acronym-item"><span class="acronym-key">AES</span><span class="acronym-val">Advanced Encryption Standard</span></div>
+                <div class="acronym-item"><span class="acronym-key">API</span><span class="acronym-val">Application Programming Interface</span></div>
+                <div class="acronym-item"><span class="acronym-key">CDC</span><span class="acronym-val">Change Data Capture</span></div>
+                <div class="acronym-item"><span class="acronym-key">CDV</span><span class="acronym-val">Card Data Vault</span></div>
+                <div class="acronym-item"><span class="acronym-key">DNN</span><span class="acronym-val">Deep Neural Network</span></div>
+                <div class="acronym-item"><span class="acronym-key">DocDB</span><span class="acronym-val">Internal Database as a Service (MongoDB)</span></div>
+                <div class="acronym-item"><span class="acronym-key">HMAC</span><span class="acronym-val">Hash-based Message Authentication Code</span></div>
+                <div class="acronym-item"><span class="acronym-key">IK</span><span class="acronym-val">Idempotency Key</span></div>
+                <div class="acronym-item"><span class="acronym-key">KYC</span><span class="acronym-val">Know Your Customer</span></div>
+                <div class="acronym-item"><span class="acronym-key">LOC</span><span class="acronym-val">Lines of Code</span></div>
+                <div class="acronym-item"><span class="acronym-key">LSP</span><span class="acronym-val">Language Server Protocol</span></div>
+                <div class="acronym-item"><span class="acronym-key">ML</span><span class="acronym-val">Machine Learning</span></div>
+                <div class="acronym-item"><span class="acronym-key">PAN</span><span class="acronym-val">Personal Account Number</span></div>
+                <div class="acronym-item"><span class="acronym-key">PCI</span><span class="acronym-val">Payment Card Industry</span></div>
+                <div class="acronym-item"><span class="acronym-key">SDK</span><span class="acronym-val">Software Development Kit</span></div>
+                <div class="acronym-item"><span class="acronym-key">SHA</span><span class="acronym-val">Secure Hash Algorithm</span></div>
+                <div class="acronym-item"><span class="acronym-key">UUID</span><span class="acronym-val">Universally Unique Identifier</span></div>
+            </div>
+        </section>
+
+    </div>
+
+    <!-- Footer -->
+    <footer class="site-footer">
+        <p>Compiled from publicly available sources: Stripe Engineering Blog, API documentation, Sorbet.org, AWS re:Invent talks, Quastor</p>
+        <p style="margin-top:var(--space-2)"><a href="../index.html">Back to Architecture Maps</a></p>
+    </footer>
+
+    <!-- Fullscreen overlay -->
+    <div class="fs-overlay" id="fsOverlay">
+        <div class="fs-toolbar">
+            <span class="fs-toolbar-title" id="fsTitle">Diagram</span>
+            <div class="fs-controls">
+                <button class="fs-btn" id="fsZoomOut" title="Zoom out">-</button>
+                <span class="fs-zoom-label" id="fsZoomLabel">100%</span>
+                <button class="fs-btn" id="fsZoomIn" title="Zoom in">+</button>
+                <button class="fs-btn" id="fsFit" title="Fit to screen">Fit</button>
+                <button class="fs-close" id="fsClose" title="Close (Esc)">Close</button>
+            </div>
+        </div>
+        <div class="fs-viewport" id="fsViewport">
+            <div class="fs-content" id="fsContent"></div>
+            <div class="fs-hint">Scroll to zoom &middot; Drag to pan &middot; Esc to close</div>
+        </div>
+    </div>
+
+    <!-- Mermaid.js -->
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            themeVariables: {
+                background: '#f5f5f5',
+                primaryColor: '#171717',
+                primaryTextColor: '#ffffff',
+                primaryBorderColor: '#ff0000',
+                secondaryColor: '#262626',
+                secondaryTextColor: '#e5e5e5',
+                secondaryBorderColor: '#525252',
+                tertiaryColor: '#f5f5f5',
+                tertiaryTextColor: '#000000',
+                lineColor: '#737373',
+                textColor: '#000000',
+                mainBkg: '#171717',
+                nodeBorder: '#ff0000',
+                clusterBkg: '#fafafa',
+                clusterBorder: '#e5e5e5',
+                titleColor: '#000000',
+                edgeLabelBackground: '#f5f5f5',
+                nodeTextColor: '#ffffff',
+                fontFamily: "'Inter', sans-serif",
+                fontSize: '14px'
+            },
+            flowchart: {
+                htmlLabels: true,
+                curve: 'basis',
+                padding: 16,
+                nodeSpacing: 30,
+                rankSpacing: 50,
+                useMaxWidth: false
+            }
+        });
+
+        // Wait for mermaid to render, then add expand buttons
+        mermaid.run().then(() => {
+            const expandIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`;
+
+            document.querySelectorAll('.diagram-container').forEach(container => {
+                const btn = document.createElement('button');
+                btn.className = 'diagram-expand-btn';
+                btn.innerHTML = expandIcon + ' Expand';
+                btn.addEventListener('click', () => openFullscreen(container));
+                container.appendChild(btn);
+            });
+        });
+
+        // Fullscreen state
+        const overlay = document.getElementById('fsOverlay');
+        const viewport = document.getElementById('fsViewport');
+        const content = document.getElementById('fsContent');
+        const zoomLabel = document.getElementById('fsZoomLabel');
+        const titleEl = document.getElementById('fsTitle');
+        let zoom = 1;
+        let panX = 0, panY = 0;
+        let isDragging = false;
+        let dragStartX, dragStartY, panStartX, panStartY;
+
+        function openFullscreen(container) {
+            const label = container.querySelector('.diagram-label');
+            titleEl.textContent = label ? label.textContent : 'Diagram';
+
+            const svg = container.querySelector('svg');
+            if (!svg) return;
+
+            content.innerHTML = '';
+            content.appendChild(svg.cloneNode(true));
+
+            // Reset transform
+            zoom = 1;
+            panX = 0;
+            panY = 0;
+            content.style.transform = 'translate(0px, 0px) scale(1)';
+
+            overlay.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+
+            // Double rAF: first to lay out SVG at scale(1), second to measure & fit
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    overlay.classList.add('active');
+                    fitToViewport();
+                });
+            });
+        }
+
+        function closeFullscreen() {
+            overlay.classList.remove('active');
+            setTimeout(() => {
+                overlay.style.display = 'none';
+                content.innerHTML = '';
+            }, 200);
+            document.body.style.overflow = '';
+        }
+
+        function fitToViewport() {
+            const svg = content.querySelector('svg');
+            if (!svg) return;
+
+            const vw = viewport.clientWidth;
+            const vh = viewport.clientHeight;
+            const padding = 48;
+
+            const rect = svg.getBoundingClientRect();
+            const currentZoom = zoom || 1;
+            const svgW = rect.width / currentZoom;
+            const svgH = rect.height / currentZoom;
+
+            const w = svgW > 0 ? svgW : (svg.viewBox?.baseVal?.width || 800);
+            const h = svgH > 0 ? svgH : (svg.viewBox?.baseVal?.height || 400);
+
+            const scaleX = (vw - padding * 2) / w;
+            const scaleY = (vh - padding * 2) / h;
+            zoom = Math.min(scaleX, scaleY, 2);
+            zoom = Math.max(zoom, 0.1);
+
+            panX = (vw - w * zoom) / 2;
+            panY = (vh - h * zoom) / 2;
+
+            updateTransform();
+        }
+
+        function updateTransform() {
+            content.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+            zoomLabel.textContent = Math.round(zoom * 100) + '%';
+        }
+
+        // Zoom controls
+        document.getElementById('fsZoomIn').addEventListener('click', () => {
+            const vw = viewport.clientWidth / 2;
+            const vh = viewport.clientHeight / 2;
+            zoomAt(vw, vh, 1.3);
+        });
+        document.getElementById('fsZoomOut').addEventListener('click', () => {
+            const vw = viewport.clientWidth / 2;
+            const vh = viewport.clientHeight / 2;
+            zoomAt(vw, vh, 1 / 1.3);
+        });
+        document.getElementById('fsFit').addEventListener('click', fitToViewport);
+        document.getElementById('fsClose').addEventListener('click', closeFullscreen);
+
+        // Scroll to zoom
+        viewport.addEventListener('wheel', e => {
+            e.preventDefault();
+            const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+            const rect = viewport.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+            zoomAt(mx, my, factor);
+        }, { passive: false });
+
+        function zoomAt(mx, my, factor) {
+            const newZoom = Math.min(Math.max(zoom * factor, 0.05), 8);
+            const ratio = newZoom / zoom;
+            panX = mx - ratio * (mx - panX);
+            panY = my - ratio * (my - panY);
+            zoom = newZoom;
+            updateTransform();
+        }
+
+        // Drag to pan
+        viewport.addEventListener('mousedown', e => {
+            isDragging = true;
+            dragStartX = e.clientX;
+            dragStartY = e.clientY;
+            panStartX = panX;
+            panStartY = panY;
+        });
+        window.addEventListener('mousemove', e => {
+            if (!isDragging) return;
+            panX = panStartX + (e.clientX - dragStartX);
+            panY = panStartY + (e.clientY - dragStartY);
+            updateTransform();
+        });
+        window.addEventListener('mouseup', () => { isDragging = false; });
+
+        // Touch support
+        let lastTouchDist = 0;
+        viewport.addEventListener('touchstart', e => {
+            if (e.touches.length === 1) {
+                isDragging = true;
+                dragStartX = e.touches[0].clientX;
+                dragStartY = e.touches[0].clientY;
+                panStartX = panX;
+                panStartY = panY;
+            } else if (e.touches.length === 2) {
+                isDragging = false;
+                lastTouchDist = Math.hypot(
+                    e.touches[1].clientX - e.touches[0].clientX,
+                    e.touches[1].clientY - e.touches[0].clientY
+                );
+            }
+        }, { passive: true });
+        viewport.addEventListener('touchmove', e => {
+            e.preventDefault();
+            if (e.touches.length === 1 && isDragging) {
+                panX = panStartX + (e.touches[0].clientX - dragStartX);
+                panY = panStartY + (e.touches[0].clientY - dragStartY);
+                updateTransform();
+            } else if (e.touches.length === 2) {
+                const dist = Math.hypot(
+                    e.touches[1].clientX - e.touches[0].clientX,
+                    e.touches[1].clientY - e.touches[0].clientY
+                );
+                if (lastTouchDist > 0) {
+                    const mid = {
+                        x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+                        y: (e.touches[0].clientY + e.touches[1].clientY) / 2
+                    };
+                    const rect = viewport.getBoundingClientRect();
+                    zoomAt(mid.x - rect.left, mid.y - rect.top, dist / lastTouchDist);
+                }
+                lastTouchDist = dist;
+            }
+        }, { passive: false });
+        viewport.addEventListener('touchend', () => { isDragging = false; lastTouchDist = 0; });
+
+        // Escape to close
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') closeFullscreen();
+        });
+    </script>
+</body>
+</html>

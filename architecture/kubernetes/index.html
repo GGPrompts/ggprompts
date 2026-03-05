@@ -1,0 +1,2119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kubernetes Architecture Map — Architecture Guide</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@700;800;900&display=swap" rel="stylesheet">
+    <style>
+        /* ================================================================
+           KUBERNETES ARCHITECTURE MAP
+           Styled with the Topographic Map palette
+           ================================================================ */
+
+        :root {
+            /* ELEVATION PALETTE */
+            --lowland: #2d5016;
+            --lowland-light: #3a6b1e;
+            --valley: #4a7c28;
+            --meadow: #6b9b3a;
+            --foothill: #8b7d3c;
+            --hill: #a0884a;
+            --ridge: #bfa462;
+            --highland: #d4bc7a;
+            --summit: #e8d9a8;
+            --peak: #f5f0e0;
+
+            /* WATER FEATURES */
+            --water-deep: #1a5276;
+            --water: #2980b9;
+            --water-shallow: #5dade2;
+            --water-stream: #85c1e9;
+
+            /* MAP FUNCTIONAL COLORS */
+            --contour-brown: #8B6914;
+            --contour-index: #6B4F10;
+            --contour-light: rgba(139, 105, 20, 0.3);
+            --grid-blue: rgba(41, 128, 185, 0.15);
+            --road-red: #c0392b;
+            --trail-black: #2c3e50;
+            --boundary-purple: #6c3483;
+
+            /* BACKGROUND & PAPER */
+            --paper: #f5f0e0;
+            --paper-aged: #ede4cc;
+            --paper-shadow: #d5c9a8;
+            --paper-dark: #c4b694;
+
+            /* TEXT */
+            --text-primary: #2c3e50;
+            --text-secondary: #5d4e37;
+            --text-muted: #8b7d5e;
+            --text-light: #a89c7e;
+            --text-on-dark: #f5f0e0;
+
+            /* ALERT / STATUS */
+            --alert-danger: #c0392b;
+            --alert-warning: #d4a017;
+            --alert-info: #2980b9;
+            --alert-success: #27ae60;
+
+            /* TYPOGRAPHY */
+            --font-display: 'Playfair Display', Georgia, serif;
+            --font-body: 'Inter', -apple-system, sans-serif;
+            --font-mono: 'IBM Plex Mono', 'Courier New', monospace;
+
+            /* SPACING */
+            --space-0p5: 4px;
+            --space-1: 8px;
+            --space-1p5: 12px;
+            --space-2: 16px;
+            --space-3: 24px;
+            --space-4: 32px;
+            --space-5: 40px;
+            --space-6: 48px;
+            --space-8: 64px;
+
+            /* BORDERS */
+            --border-subtle: rgba(139, 105, 20, 0.15);
+            --border-default: rgba(139, 105, 20, 0.3);
+            --border-strong: rgba(139, 105, 20, 0.5);
+            --border-focus: var(--contour-brown);
+
+            /* BORDER RADIUS */
+            --radius-sm: 2px;
+            --radius-md: 4px;
+            --radius: 6px;
+            --radius-lg: 8px;
+
+            /* SHADOWS */
+            --shadow-sm: 0 1px 3px rgba(44, 62, 80, 0.1);
+            --shadow-md: 0 4px 12px rgba(44, 62, 80, 0.15);
+            --shadow-lg: 0 8px 30px rgba(44, 62, 80, 0.2);
+
+            /* TRANSITIONS */
+            --transition-fast: 0.15s ease;
+            --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* === Reset === */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { font-size: 17px; scroll-behavior: smooth; scroll-padding-top: 52px; }
+
+        body {
+            font-family: var(--font-body);
+            font-size: 1rem;
+            line-height: 1.65;
+            color: var(--text-primary);
+            background: var(--paper);
+            -webkit-font-smoothing: antialiased;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* === Paper Texture + Grid Overlay === */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image:
+                linear-gradient(var(--grid-blue) 1px, transparent 1px),
+                linear-gradient(90deg, var(--grid-blue) 1px, transparent 1px),
+                linear-gradient(rgba(41, 128, 185, 0.08) 2px, transparent 2px),
+                linear-gradient(90deg, rgba(41, 128, 185, 0.08) 2px, transparent 2px);
+            background-size:
+                24px 24px,
+                24px 24px,
+                120px 120px,
+                120px 120px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+            pointer-events: none;
+            z-index: 0;
+            opacity: 0.5;
+        }
+
+        /* === Back Link === */
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-1);
+            padding: var(--space-2) var(--space-4);
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.85rem;
+            letter-spacing: 0.02em;
+            transition: color var(--transition-fast);
+            position: relative;
+            z-index: 1;
+        }
+        .back-link::before { content: '\2190'; }
+        .back-link:hover { color: var(--water); }
+
+        /* === Hero === */
+        .hero {
+            background: linear-gradient(135deg, var(--lowland) 0%, var(--valley) 30%, var(--lowland-light) 60%, var(--lowland) 100%);
+            padding: var(--space-8) var(--space-4) var(--space-6);
+            border-bottom: 3px solid var(--contour-brown);
+            position: relative;
+            overflow: hidden;
+            z-index: 1;
+        }
+        .hero::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 600px 400px at 20% 50%, rgba(107, 155, 58, 0.2), transparent),
+                radial-gradient(ellipse 500px 300px at 80% 30%, rgba(41, 128, 185, 0.1), transparent);
+            pointer-events: none;
+        }
+        /* Contour decoration on hero */
+        .hero::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image:
+                repeating-linear-gradient(0deg, transparent, transparent 38px, rgba(139, 105, 20, 0.12) 38px, rgba(139, 105, 20, 0.12) 40px);
+            pointer-events: none;
+        }
+        .hero-inner {
+            max-width: 1120px;
+            margin: 0 auto;
+            position: relative;
+        }
+        .hero h1 {
+            font-family: var(--font-display);
+            font-size: 2.4rem;
+            font-weight: 800;
+            line-height: 1.15;
+            margin-bottom: var(--space-2);
+            color: var(--peak);
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+        .hero .tagline {
+            font-size: 1.1rem;
+            color: var(--summit);
+            max-width: 660px;
+            line-height: 1.55;
+        }
+        .hero .meta {
+            margin-top: var(--space-3);
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-2);
+        }
+        .meta-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-0p5);
+            padding: var(--space-0p5) var(--space-1p5);
+            background: rgba(245, 240, 224, 0.12);
+            border: 1px solid rgba(245, 240, 224, 0.2);
+            border-radius: var(--radius-sm);
+            font-size: 0.78rem;
+            font-family: var(--font-mono);
+            color: var(--highland);
+            letter-spacing: 0.02em;
+        }
+        .meta-badge .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        /* === Sticky Jump Nav === */
+        .jump-nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: var(--paper-aged);
+            border-bottom: 2px solid var(--contour-brown);
+            display: flex;
+            gap: 0;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            white-space: nowrap;
+            padding: 0 var(--space-2);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+        .jump-nav a {
+            display: inline-block;
+            padding: var(--space-1p5) var(--space-2);
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.78rem;
+            font-weight: 600;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+            border-bottom: 2px solid transparent;
+            transition: all var(--transition-fast);
+        }
+        .jump-nav a:hover {
+            color: var(--water-deep);
+            border-bottom-color: var(--water);
+        }
+
+        /* === Container === */
+        .container {
+            max-width: 1120px;
+            margin: 0 auto;
+            padding: var(--space-6) var(--space-4);
+            position: relative;
+            z-index: 1;
+        }
+
+        /* === Section === */
+        .section {
+            margin-bottom: var(--space-8);
+            scroll-margin-top: 52px;
+        }
+        .section-header {
+            display: flex;
+            align-items: baseline;
+            gap: var(--space-2);
+            margin-bottom: var(--space-4);
+            padding-bottom: var(--space-2);
+            border-bottom: 2px solid var(--contour-brown);
+        }
+        .section-number {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--water);
+            font-weight: 500;
+        }
+        .section-title {
+            font-family: var(--font-display);
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        .section-description {
+            color: var(--text-secondary);
+            margin-bottom: var(--space-4);
+            max-width: 720px;
+            line-height: 1.65;
+        }
+
+        /* === Subsection === */
+        .subsection {
+            margin-bottom: var(--space-5);
+        }
+        .subsection-title {
+            font-family: var(--font-display);
+            font-size: 1.2rem;
+            font-weight: 700;
+            margin-bottom: var(--space-2);
+            color: var(--text-primary);
+        }
+        .subsection p {
+            color: var(--text-secondary);
+            margin-bottom: var(--space-2);
+            line-height: 1.65;
+        }
+
+        /* === Diagram Container === */
+        .diagram-container {
+            background: var(--paper-aged);
+            border: 2px solid var(--contour-brown);
+            border-radius: var(--radius-lg);
+            padding: var(--space-4);
+            margin: var(--space-3) 0;
+            overflow-x: auto;
+            position: relative;
+        }
+        .diagram-container::before {
+            content: '';
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            right: 3px;
+            bottom: 3px;
+            border: 1px solid var(--contour-light);
+            border-radius: calc(var(--radius-lg) - 2px);
+            pointer-events: none;
+        }
+        .diagram-container .mermaid {
+            display: flex;
+            justify-content: center;
+        }
+        .diagram-label {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: var(--space-2);
+        }
+
+        /* === Mermaid Overrides === */
+        .diagram-container .mermaid svg {
+            max-width: 100%;
+            height: auto;
+        }
+
+        /* === Info Cards === */
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: var(--space-3);
+            margin: var(--space-3) 0;
+        }
+        .info-card {
+            background: var(--paper);
+            border: 1.5px solid var(--contour-light);
+            border-radius: var(--radius);
+            padding: var(--space-3);
+            transition: all var(--transition);
+        }
+        .info-card:hover {
+            border-color: var(--contour-brown);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+        .info-card h4 {
+            font-family: var(--font-display);
+            font-size: 1rem;
+            font-weight: 700;
+            margin-bottom: var(--space-1);
+            color: var(--text-primary);
+        }
+        .info-card p {
+            font-size: 0.88rem;
+            color: var(--text-secondary);
+            line-height: 1.55;
+        }
+        .info-card .card-meta {
+            margin-top: var(--space-2);
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        /* === Component Badge === */
+        .component-badge {
+            display: inline-block;
+            padding: 2px var(--space-1);
+            border-radius: var(--radius-sm);
+            font-size: 0.72rem;
+            font-weight: 600;
+            font-family: var(--font-mono);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .badge-control { background: rgba(41, 128, 185, 0.12); color: var(--water); border: 1px solid rgba(41, 128, 185, 0.3); }
+        .badge-data { background: rgba(108, 52, 131, 0.12); color: var(--boundary-purple); border: 1px solid rgba(108, 52, 131, 0.3); }
+        .badge-network { background: rgba(45, 80, 22, 0.15); color: var(--valley); border: 1px solid rgba(45, 80, 22, 0.3); }
+        .badge-runtime { background: rgba(192, 57, 43, 0.12); color: var(--road-red); border: 1px solid rgba(192, 57, 43, 0.3); }
+        .badge-storage { background: rgba(139, 105, 20, 0.12); color: var(--contour-brown); border: 1px solid rgba(139, 105, 20, 0.3); }
+        .badge-security { background: rgba(212, 160, 23, 0.12); color: var(--alert-warning); border: 1px solid rgba(212, 160, 23, 0.3); }
+
+        /* === Status Indicator === */
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-0p5);
+            font-size: 0.78rem;
+            font-family: var(--font-mono);
+        }
+        .status::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+        }
+        .status-active::before { background: var(--alert-success); }
+        .status-ga::before { background: var(--alert-success); }
+        .status-beta::before { background: var(--alert-warning); }
+        .status-deprecated::before { background: var(--alert-danger); }
+        .status-new::before { background: var(--water); }
+
+        /* === Tables === */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.88rem;
+            margin: var(--space-3) 0;
+        }
+        .data-table th {
+            text-align: left;
+            padding: var(--space-1p5) var(--space-2);
+            background: var(--paper-aged);
+            border-bottom: 2px solid var(--contour-brown);
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+        .data-table td {
+            padding: var(--space-1p5) var(--space-2);
+            border-bottom: 1px solid var(--border-subtle);
+            vertical-align: top;
+        }
+        .data-table tr:hover td {
+            background: var(--paper-aged);
+        }
+
+        /* === Callout === */
+        .callout {
+            background: var(--paper-aged);
+            border-left: 3px solid var(--water);
+            border-radius: 0 var(--radius) var(--radius) 0;
+            padding: var(--space-3);
+            margin: var(--space-3) 0;
+        }
+        .callout.callout-brown { border-left-color: var(--contour-brown); }
+        .callout.callout-red { border-left-color: var(--alert-danger); }
+        .callout.callout-green { border-left-color: var(--alert-success); }
+        .callout .callout-title {
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--water);
+            margin-bottom: var(--space-1);
+            font-weight: 500;
+        }
+        .callout.callout-brown .callout-title { color: var(--contour-brown); }
+        .callout.callout-red .callout-title { color: var(--alert-danger); }
+        .callout.callout-green .callout-title { color: var(--alert-success); }
+        .callout p {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            line-height: 1.55;
+        }
+
+        /* === Stat Row === */
+        .stat-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: var(--space-3);
+            margin: var(--space-4) 0;
+        }
+        .stat-item {
+            text-align: center;
+            padding: var(--space-3);
+            background: var(--paper-aged);
+            border: 1.5px solid var(--contour-light);
+            border-radius: var(--radius);
+        }
+        .stat-value {
+            font-family: var(--font-display);
+            font-size: 1.8rem;
+            font-weight: 800;
+            color: var(--lowland);
+        }
+        .stat-label {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-top: var(--space-0p5);
+        }
+
+        /* === Acronym Grid === */
+        .acronym-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 0;
+        }
+        .acronym-item {
+            display: flex;
+            gap: var(--space-2);
+            padding: var(--space-1) var(--space-2);
+            border-bottom: 1px solid var(--border-subtle);
+            font-size: 0.85rem;
+        }
+        .acronym-item:hover { background: var(--paper-aged); }
+        .acronym-key {
+            font-family: var(--font-mono);
+            font-weight: 500;
+            color: var(--water-deep);
+            min-width: 70px;
+        }
+        .acronym-val { color: var(--text-secondary); }
+
+        /* === Fullscreen Overlay === */
+        .diagram-expand-btn {
+            position: absolute;
+            top: var(--space-1);
+            right: var(--space-1);
+            background: var(--paper);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-sm);
+            color: var(--text-muted);
+            padding: 6px 8px;
+            cursor: pointer;
+            font-size: 0.7rem;
+            font-family: var(--font-mono);
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            transition: all var(--transition-fast);
+            z-index: 2;
+        }
+        .diagram-expand-btn:hover {
+            color: var(--water);
+            border-color: var(--water);
+            background: var(--paper-aged);
+        }
+        .diagram-expand-btn svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        .fs-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            background: var(--paper);
+            display: none;
+            flex-direction: column;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+        .fs-overlay.active { opacity: 1; }
+
+        .fs-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: var(--space-1) var(--space-3);
+            background: var(--paper-aged);
+            border-bottom: 2px solid var(--contour-brown);
+            flex-shrink: 0;
+        }
+        .fs-toolbar-title {
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+        .fs-controls {
+            display: flex;
+            gap: var(--space-1);
+            align-items: center;
+        }
+        .fs-btn {
+            background: var(--paper);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-sm);
+            color: var(--text-secondary);
+            padding: 6px 12px;
+            cursor: pointer;
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            transition: all var(--transition-fast);
+        }
+        .fs-btn:hover {
+            color: var(--water);
+            border-color: var(--water);
+        }
+        .fs-zoom-label {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            min-width: 48px;
+            text-align: center;
+        }
+        .fs-close {
+            background: none;
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-sm);
+            color: var(--text-secondary);
+            padding: 6px 12px;
+            cursor: pointer;
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            transition: all var(--transition-fast);
+        }
+        .fs-close:hover {
+            color: var(--alert-danger);
+            border-color: var(--alert-danger);
+        }
+
+        .fs-viewport {
+            flex: 1;
+            overflow: hidden;
+            cursor: grab;
+            position: relative;
+        }
+        .fs-viewport:active { cursor: grabbing; }
+        .fs-content {
+            position: absolute;
+            top: 0;
+            left: 0;
+            transform-origin: 0 0;
+        }
+        .fs-content svg {
+            max-width: none !important;
+            height: auto !important;
+        }
+
+        .fs-hint {
+            position: absolute;
+            bottom: var(--space-2);
+            left: 50%;
+            transform: translateX(-50%);
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            background: var(--paper-aged);
+            padding: 4px 12px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border-subtle);
+            pointer-events: none;
+            opacity: 0.7;
+        }
+
+        /* === Pipeline List === */
+        .pipeline {
+            list-style: none;
+            padding: 0;
+            margin: var(--space-3) 0;
+            counter-reset: pipeline;
+        }
+        .pipeline li {
+            counter-increment: pipeline;
+            position: relative;
+            padding: var(--space-1p5) var(--space-2) var(--space-1p5) var(--space-5);
+            border-left: 2px solid var(--contour-light);
+            margin-left: var(--space-2);
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+        .pipeline li::before {
+            content: counter(pipeline);
+            position: absolute;
+            left: calc(-1 * var(--space-2) - 11px);
+            top: var(--space-1p5);
+            width: 22px;
+            height: 22px;
+            background: var(--paper);
+            border: 2px solid var(--contour-brown);
+            border-radius: 50%;
+            font-family: var(--font-mono);
+            font-size: 0.65rem;
+            font-weight: 600;
+            color: var(--contour-brown);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .pipeline li strong {
+            color: var(--text-primary);
+        }
+
+        /* === Footer === */
+        .site-footer {
+            border-top: 2px solid var(--contour-brown);
+            padding: var(--space-4) var(--space-4);
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.82rem;
+            position: relative;
+            z-index: 1;
+        }
+        .site-footer a {
+            color: var(--water);
+            text-decoration: none;
+        }
+
+        /* === Responsive === */
+        @media (max-width: 768px) {
+            html { font-size: 16px; }
+            .hero h1 { font-size: 1.8rem; }
+            .section-title { font-size: 1.3rem; }
+            .card-grid { grid-template-columns: 1fr; }
+            .stat-row { grid-template-columns: repeat(2, 1fr); }
+            .acronym-grid { grid-template-columns: 1fr; }
+            .diagram-container { padding: var(--space-2); margin-left: calc(-1 * var(--space-2)); margin-right: calc(-1 * var(--space-2)); border-radius: 0; border-left: 0; border-right: 0; }
+        }
+    </style>
+</head>
+<body>
+    <a href="../index.html" class="back-link">Architecture Maps</a>
+
+    <!-- Hero -->
+    <header class="hero">
+        <div class="hero-inner">
+            <h1>Kubernetes Architecture</h1>
+            <p class="tagline">Interactive architecture map of Kubernetes internals &mdash; control plane, data plane, networking, storage, security, and extensibility patterns compiled from official documentation.</p>
+            <div class="meta">
+                <span class="meta-badge"><span class="dot" style="background:var(--alert-success)"></span> CNCF Graduated</span>
+                <span class="meta-badge">v1.32 (Dec 2025)</span>
+                <span class="meta-badge">Go / gRPC / etcd</span>
+                <span class="meta-badge">Updated: Mar 2026</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Jump Nav -->
+    <nav class="jump-nav">
+        <a href="#overview">Overview</a>
+        <a href="#control-plane">Control Plane</a>
+        <a href="#data-plane">Data Plane</a>
+        <a href="#api-lifecycle">API Lifecycle</a>
+        <a href="#scheduling">Scheduling</a>
+        <a href="#networking">Networking</a>
+        <a href="#plugins">CRI/CNI/CSI</a>
+        <a href="#rbac">RBAC</a>
+        <a href="#operators">Operators</a>
+        <a href="#etcd">etcd</a>
+        <a href="#ha">High Availability</a>
+        <a href="#acronyms">Acronyms</a>
+    </nav>
+
+    <div class="container">
+
+        <!-- ======================================== -->
+        <!-- 01 - OVERVIEW -->
+        <!-- ======================================== -->
+        <section id="overview" class="section">
+            <div class="section-header">
+                <span class="section-number">01</span>
+                <h2 class="section-title">Cluster Overview</h2>
+            </div>
+
+            <p class="section-description">Kubernetes is an open-source container orchestration platform that automates deployment, scaling, and management of containerized applications. A cluster consists of a control plane (the brain) and worker nodes (the muscle), communicating through the API server.</p>
+
+            <div class="stat-row">
+                <div class="stat-item">
+                    <div class="stat-value">5.6M+</div>
+                    <div class="stat-label">Developers</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">88%</div>
+                    <div class="stat-label">Container Adoption</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">130+</div>
+                    <div class="stat-label">Certified Distros</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">4 mo</div>
+                    <div class="stat-label">Release Cadence</div>
+                </div>
+            </div>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Kubernetes Cluster Architecture</div>
+                <pre class="mermaid">
+graph TD
+    subgraph CP["Control Plane"]
+        API["kube-apiserver"]
+        ETCD["etcd cluster"]
+        SCHED["kube-scheduler"]
+        CCM["controller-manager"]
+    end
+
+    subgraph N1["Worker Node 1"]
+        K1["kubelet"]
+        KP1["kube-proxy"]
+        CR1["Container Runtime"]
+        P1A["Pod A"]
+        P1B["Pod B"]
+    end
+
+    subgraph N2["Worker Node 2"]
+        K2["kubelet"]
+        KP2["kube-proxy"]
+        CR2["Container Runtime"]
+        P2A["Pod C"]
+        P2B["Pod D"]
+    end
+
+    API --- ETCD
+    API --- SCHED
+    API --- CCM
+    K1 --> API
+    K2 --> API
+    KP1 --> API
+    KP2 --> API
+    K1 --> CR1
+    K2 --> CR2
+
+    style API fill:#2d5016,stroke:#6b9b3a,color:#f5f0e0
+    style ETCD fill:#1a5276,stroke:#5dade2,color:#f5f0e0
+    style SCHED fill:#2d5016,stroke:#6b9b3a,color:#f5f0e0
+    style CCM fill:#2d5016,stroke:#6b9b3a,color:#f5f0e0
+    style K1 fill:#8b7d3c,stroke:#d4bc7a,color:#f5f0e0
+    style K2 fill:#8b7d3c,stroke:#d4bc7a,color:#f5f0e0
+    style KP1 fill:#8b7d3c,stroke:#d4bc7a,color:#f5f0e0
+    style KP2 fill:#8b7d3c,stroke:#d4bc7a,color:#f5f0e0
+    style CR1 fill:#6c3483,stroke:#a569bd,color:#f5f0e0
+    style CR2 fill:#6c3483,stroke:#a569bd,color:#f5f0e0
+    style P1A fill:#4a7c28,stroke:#6b9b3a,color:#f5f0e0
+    style P1B fill:#4a7c28,stroke:#6b9b3a,color:#f5f0e0
+    style P2A fill:#4a7c28,stroke:#6b9b3a,color:#f5f0e0
+    style P2B fill:#4a7c28,stroke:#6b9b3a,color:#f5f0e0
+                </pre>
+            </div>
+        </section>
+
+        <!-- ======================================== -->
+        <!-- 02 - CONTROL PLANE -->
+        <!-- ======================================== -->
+        <section id="control-plane" class="section">
+            <div class="section-header">
+                <span class="section-number">02</span>
+                <h2 class="section-title">Control Plane</h2>
+            </div>
+
+            <p class="section-description">The control plane maintains the desired state of the cluster, making all scheduling and orchestration decisions. In production, these components run across multiple nodes for high availability.</p>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>kube-apiserver</h4>
+                    <p>The front door to the cluster. Every interaction goes through its RESTful HTTP API. The only component that talks directly to etcd. Horizontally scalable behind a load balancer.</p>
+                    <div class="card-meta"><span class="component-badge badge-control">Control</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>etcd</h4>
+                    <p>Distributed key-value store serving as the cluster's single source of truth. Every Kubernetes object is persisted here. Uses Raft consensus for strong consistency.</p>
+                    <div class="card-meta"><span class="component-badge badge-data">Data</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>kube-scheduler</h4>
+                    <p>Watches for unscheduled Pods. Runs a two-phase algorithm: filtering eliminates infeasible nodes, scoring ranks remaining nodes by fitness. Pluggable scheduling framework.</p>
+                    <div class="card-meta"><span class="component-badge badge-control">Control</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>kube-controller-manager</h4>
+                    <p>Bundles dozens of independent control loops. Each controller watches a resource type via the API server and reconciles actual state toward desired state.</p>
+                    <div class="card-meta"><span class="component-badge badge-control">Control</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>cloud-controller-manager</h4>
+                    <p>Decouples cloud-provider-specific logic from core controllers. Manages cloud load balancers, node lifecycle, and routes. Implementations for AWS, Azure, GCP, and others.</p>
+                    <div class="card-meta"><span class="component-badge badge-control">Control</span> optional</div>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Key Controllers</h3>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Controller</th>
+                            <th>Responsibility</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>ReplicaSet</strong></td>
+                            <td>Ensures the correct number of Pod replicas are running</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Deployment</strong></td>
+                            <td>Manages rollouts and rollbacks for declarative updates</td>
+                        </tr>
+                        <tr>
+                            <td><strong>StatefulSet</strong></td>
+                            <td>Ordered deployment with stable network identities and persistent storage</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Job / CronJob</strong></td>
+                            <td>Run-to-completion and scheduled workloads</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Node</strong></td>
+                            <td>Monitors node health, marks unreachable nodes for eviction</td>
+                        </tr>
+                        <tr>
+                            <td><strong>EndpointSlice</strong></td>
+                            <td>Populates service backend lists efficiently (up to 100 endpoints per slice)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Namespace</strong></td>
+                            <td>Cleans up all resources when a namespace is deleted</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- ======================================== -->
+        <!-- 03 - DATA PLANE -->
+        <!-- ======================================== -->
+        <section id="data-plane" class="section">
+            <div class="section-header">
+                <span class="section-number">03</span>
+                <h2 class="section-title">Data Plane (Node Components)</h2>
+            </div>
+
+            <p class="section-description">Each worker node runs three components that execute and network the actual workloads. The kubelet acts as the node agent, kube-proxy implements service routing, and the container runtime manages container lifecycles.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Worker Node Internals</div>
+                <pre class="mermaid">
+graph TD
+    subgraph Node["Worker Node"]
+        KL["kubelet"]
+        KP["kube-proxy"]
+
+        subgraph Runtime["Container Runtime (CRI)"]
+            CTD["containerd / CRI-O"]
+            RUNC["runc (OCI)"]
+        end
+
+        subgraph Pods["Pod Namespace"]
+            PA["Pod A<br/>containers + volumes"]
+            PB["Pod B<br/>containers + volumes"]
+        end
+
+        subgraph Net["Network Stack"]
+            IPT["iptables / IPVS"]
+            CNI["CNI Plugin"]
+        end
+    end
+
+    API["kube-apiserver"] --> KL
+    KL --> CTD
+    CTD --> RUNC
+    RUNC --> PA
+    RUNC --> PB
+    KP --> IPT
+    CNI --> PA
+    CNI --> PB
+
+    style API fill:#2d5016,stroke:#6b9b3a,color:#f5f0e0
+    style KL fill:#8b7d3c,stroke:#d4bc7a,color:#f5f0e0
+    style KP fill:#8b7d3c,stroke:#d4bc7a,color:#f5f0e0
+    style CTD fill:#6c3483,stroke:#a569bd,color:#f5f0e0
+    style RUNC fill:#6c3483,stroke:#a569bd,color:#f5f0e0
+    style PA fill:#4a7c28,stroke:#6b9b3a,color:#f5f0e0
+    style PB fill:#4a7c28,stroke:#6b9b3a,color:#f5f0e0
+    style IPT fill:#1a5276,stroke:#5dade2,color:#f5f0e0
+    style CNI fill:#1a5276,stroke:#5dade2,color:#f5f0e0
+                </pre>
+            </div>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>kubelet</h4>
+                    <p>Primary node agent. Receives PodSpecs, ensures containers are running via CRI. Handles volume mounts, probes, resource monitoring, and Pod eviction under pressure.</p>
+                    <div class="card-meta"><span class="component-badge badge-runtime">Runtime</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>kube-proxy</h4>
+                    <p>Implements the Service abstraction via iptables, IPVS, or nftables rules. Routes traffic from ClusterIP to backend Pods with load balancing.</p>
+                    <div class="card-meta"><span class="component-badge badge-network">Network</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Container Runtime</h4>
+                    <p>Pulls images, creates containers, manages lifecycle. containerd is most widely used; CRI-O is common in OpenShift. Both use runc by default, or gVisor/Kata for isolation.</p>
+                    <div class="card-meta"><span class="component-badge badge-runtime">Runtime</span></div>
+                </div>
+            </div>
+
+            <div class="callout callout-brown">
+                <div class="callout-title">kube-proxy modes</div>
+                <p><strong>iptables</strong> (default) installs rules for random backend selection. <strong>IPVS</strong> uses Linux kernel virtual server for higher performance and more algorithms (round-robin, least connections, source hashing). <strong>nftables</strong> is the newer alternative replacing iptables.</p>
+            </div>
+        </section>
+
+        <!-- ======================================== -->
+        <!-- 04 - API REQUEST LIFECYCLE -->
+        <!-- ======================================== -->
+        <section id="api-lifecycle" class="section">
+            <div class="section-header">
+                <span class="section-number">04</span>
+                <h2 class="section-title">API Request Lifecycle</h2>
+            </div>
+
+            <p class="section-description">Every request to the cluster follows a strict pipeline through authentication, authorization, admission control, and persistence. Understanding this flow is key to debugging access issues and writing admission webhooks.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Request Pipeline</div>
+                <pre class="mermaid">
+graph LR
+    C["Client<br/>kubectl / controller"] --> TLS["TLS<br/>Termination"]
+    TLS --> AuthN["Authentication<br/>certs, tokens, OIDC"]
+    AuthN --> AuthZ["Authorization<br/>RBAC / Webhook"]
+    AuthZ --> MUT["Mutating<br/>Admission"]
+    MUT --> VAL["Schema<br/>Validation"]
+    VAL --> VADM["Validating<br/>Admission"]
+    VADM --> ETCD["Persist to<br/>etcd"]
+    ETCD --> RESP["Response"]
+
+    style C fill:#8b7d3c,stroke:#d4bc7a,color:#f5f0e0
+    style TLS fill:#2d5016,stroke:#6b9b3a,color:#f5f0e0
+    style AuthN fill:#1a5276,stroke:#5dade2,color:#f5f0e0
+    style AuthZ fill:#1a5276,stroke:#5dade2,color:#f5f0e0
+    style MUT fill:#6c3483,stroke:#a569bd,color:#f5f0e0
+    style VAL fill:#4a7c28,stroke:#6b9b3a,color:#f5f0e0
+    style VADM fill:#6c3483,stroke:#a569bd,color:#f5f0e0
+    style ETCD fill:#1a5276,stroke:#5dade2,color:#f5f0e0
+    style RESP fill:#2d5016,stroke:#6b9b3a,color:#f5f0e0
+                </pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Pipeline Stages</h3>
+                <ol class="pipeline">
+                    <li><strong>TLS Termination</strong> &mdash; all API traffic is encrypted; the API server validates client certificates</li>
+                    <li><strong>Authentication</strong> &mdash; identifies the requester via client certs, bearer tokens, OIDC tokens, or ServiceAccount tokens</li>
+                    <li><strong>Authorization</strong> &mdash; RBAC checks whether the authenticated identity can perform the requested verb on the resource</li>
+                    <li><strong>Mutating Admission Webhooks</strong> &mdash; external HTTPS endpoints that can modify the object (inject sidecars, add labels, set defaults). Called serially.</li>
+                    <li><strong>Object Schema Validation</strong> &mdash; validates the object against its OpenAPI schema</li>
+                    <li><strong>Validating Admission Webhooks</strong> &mdash; accept/reject only, cannot modify. Called in parallel for speed.</li>
+                    <li><strong>Persistence to etcd</strong> &mdash; the validated object is written to the key-value store</li>
+                    <li><strong>Response</strong> &mdash; the API server returns the result to the client</li>
+                </ol>
+            </div>
+
+            <div class="callout">
+                <div class="callout-title">ValidatingAdmissionPolicy (K8s 1.30+)</div>
+                <p>GA since Kubernetes 1.30, this in-process validation uses CEL (Common Expression Language) expressions instead of external webhooks. Lower latency, no external dependency, and easier to audit.</p>
+            </div>
+        </section>
+
+        <!-- ======================================== -->
+        <!-- 05 - SCHEDULING -->
+        <!-- ======================================== -->
+        <section id="scheduling" class="section">
+            <div class="section-header">
+                <span class="section-number">05</span>
+                <h2 class="section-title">Pod Lifecycle &amp; Scheduling</h2>
+            </div>
+
+            <p class="section-description">The scheduler assigns Pods to nodes using a pluggable framework with filtering and scoring phases. Users influence placement through affinity rules, taints, tolerations, and resource constraints.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Scheduling Pipeline</div>
+                <pre class="mermaid">
+graph TD
+    NEW["New Pod Created<br/>nodeName empty"] --> WATCH["Scheduler Detects<br/>Unscheduled Pod"]
+
+    subgraph Sched["Scheduling Cycle (serial)"]
+        FILT["Filter<br/>eliminate infeasible nodes"]
+        POST["PostFilter<br/>attempt preemption"]
+        SCORE["Score &amp; Rank<br/>surviving nodes"]
+        RESERVE["Reserve<br/>claim resources"]
+    end
+
+    subgraph Bind["Binding Cycle (concurrent)"]
+        PREBIND["PreBind<br/>mount volumes"]
+        BINDN["Bind<br/>set nodeName in etcd"]
+        POSTBIND["PostBind<br/>cleanup"]
+    end
+
+    WATCH --> FILT
+    FILT -->|"no nodes pass"| POST
+    FILT -->|"nodes pass"| SCORE
+    POST --> SCORE
+    SCORE --> RESERVE
+    RESERVE --> PREBIND
+    PREBIND --> BINDN
+    BINDN --> POSTBIND
+
+    style NEW fill:#8b7d3c,stroke:#d4bc7a,color:#f5f0e0
+    style WATCH fill:#2d5016,stroke:#6b9b3a,color:#f5f0e0
+    style FILT fill:#1a5276,stroke:#5dade2,color:#f5f0e0
+    style POST fill:#c0392b,stroke:#e74c3c,color:#f5f0e0
+    style SCORE fill:#1a5276,stroke:#5dade2,color:#f5f0e0
+    style RESERVE fill:#4a7c28,stroke:#6b9b3a,color:#f5f0e0
+    style PREBIND fill:#6c3483,stroke:#a569bd,color:#f5f0e0
+    style BINDN fill:#2d5016,stroke:#6b9b3a,color:#f5f0e0
+    style POSTBIND fill:#4a7c28,stroke:#6b9b3a,color:#f5f0e0
+                </pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Pod Phases</h3>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Phase</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Pending</strong></td>
+                            <td>Accepted by the cluster but not yet scheduled, or images not yet pulled</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Running</strong></td>
+                            <td>Bound to a node with at least one container running</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Succeeded</strong></td>
+                            <td>All containers terminated with exit code 0</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Failed</strong></td>
+                            <td>All containers terminated, at least one with non-zero exit</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Unknown</strong></td>
+                            <td>Pod status undetermined (usually node communication failure)</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Scheduling Constraints</h3>
+                <div class="card-grid">
+                    <div class="info-card">
+                        <h4>nodeSelector</h4>
+                        <p>Simple label matching to constrain Pods to nodes with specific labels.</p>
+                    </div>
+                    <div class="info-card">
+                        <h4>Affinity / Anti-Affinity</h4>
+                        <p>Expressive rules for node and Pod placement: required (hard) or preferred (soft) constraints.</p>
+                    </div>
+                    <div class="info-card">
+                        <h4>Taints &amp; Tolerations</h4>
+                        <p>Nodes repel Pods unless the Pod explicitly tolerates the taint. Used for dedicated nodes, special hardware.</p>
+                    </div>
+                    <div class="info-card">
+                        <h4>Topology Spread</h4>
+                        <p>Distribute Pods across failure domains (zones, nodes) with configurable skew constraints.</p>
+                    </div>
+                    <div class="info-card">
+                        <h4>Priority &amp; Preemption</h4>
+                        <p>Higher-priority Pods can evict lower-priority ones when cluster resources are scarce.</p>
+                    </div>
+                    <div class="info-card">
+                        <h4>Resource Requests/Limits</h4>
+                        <p>CPU, memory, GPU, ephemeral storage. Requests guarantee minimum; limits cap maximum usage.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ======================================== -->
+        <!-- 06 - NETWORKING -->
+        <!-- ======================================== -->
+        <section id="networking" class="section">
+            <div class="section-header">
+                <span class="section-number">06</span>
+                <h2 class="section-title">Networking &amp; Services</h2>
+            </div>
+
+            <p class="section-description">Kubernetes enforces a flat network model: every Pod gets a unique cluster-wide IP, and Pods communicate without NAT. Services provide stable endpoints and load balancing atop this flat network.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Service Types &amp; Traffic Flow</div>
+                <pre class="mermaid">
+graph TD
+    EXT["External Client"] --> LB["LoadBalancer<br/>cloud-provisioned"]
+    LB --> NP["NodePort<br/>30000-32767"]
+    NP --> CIP["ClusterIP<br/>virtual IP"]
+    CIP --> EP["EndpointSlice"]
+    EP --> PA["Pod A"]
+    EP --> PB["Pod B"]
+    EP --> PC["Pod C"]
+
+    ING["Ingress Controller<br/>L7 HTTP routing"] --> CIP
+    GW["Gateway API<br/>L4/L7 routing"] --> CIP
+
+    style EXT fill:#8b7d3c,stroke:#d4bc7a,color:#f5f0e0
+    style LB fill:#1a5276,stroke:#5dade2,color:#f5f0e0
+    style NP fill:#1a5276,stroke:#85c1e9,color:#f5f0e0
+    style CIP fill:#2d5016,stroke:#6b9b3a,color:#f5f0e0
+    style EP fill:#4a7c28,stroke:#6b9b3a,color:#f5f0e0
+    style PA fill:#4a7c28,stroke:#6b9b3a,color:#f5f0e0
+    style PB fill:#4a7c28,stroke:#6b9b3a,color:#f5f0e0
+    style PC fill:#4a7c28,stroke:#6b9b3a,color:#f5f0e0
+    style ING fill:#6c3483,stroke:#a569bd,color:#f5f0e0
+    style GW fill:#6c3483,stroke:#a569bd,color:#f5f0e0
+                </pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Service Types</h3>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Type</th>
+                            <th>Scope</th>
+                            <th>Use Case</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>ClusterIP</strong></td>
+                            <td>Internal only</td>
+                            <td>Default. Virtual IP reachable within the cluster for service-to-service communication.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>NodePort</strong></td>
+                            <td>External via node IP</td>
+                            <td>Opens a static port (30000-32767) on every node. Used for development or on-prem.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>LoadBalancer</strong></td>
+                            <td>External via cloud LB</td>
+                            <td>Provisions a cloud load balancer with its own external IP. Production standard.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>ExternalName</strong></td>
+                            <td>DNS alias</td>
+                            <td>Maps a Service to a DNS CNAME record, no proxying. Aliases external services.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Headless</strong></td>
+                            <td>Direct Pod IPs</td>
+                            <td>ClusterIP: None. DNS returns Pod IPs directly. Used for StatefulSets.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Gateway API &amp; Service Mesh</h3>
+                <div class="diagram-container">
+                    <div class="diagram-label">Gateway API Resource Model</div>
+                    <pre class="mermaid">
+graph TD
+    GC["GatewayClass<br/>infrastructure provider"] --> GW["Gateway<br/>proxy config, listeners, TLS"]
+    GW --> HR["HTTPRoute"]
+    GW --> TR["TCPRoute"]
+    GW --> GR["GRPCRoute"]
+
+    HR --> SVC1["Service A"]
+    HR --> SVC2["Service B"]
+    TR --> SVC3["Service C"]
+
+    style GC fill:#2d5016,stroke:#6b9b3a,color:#f5f0e0
+    style GW fill:#1a5276,stroke:#5dade2,color:#f5f0e0
+    style HR fill:#6c3483,stroke:#a569bd,color:#f5f0e0
+    style TR fill:#6c3483,stroke:#a569bd,color:#f5f0e0
+    style GR fill:#6c3483,stroke:#a569bd,color:#f5f0e0
+    style SVC1 fill:#4a7c28,stroke:#6b9b3a,color:#f5f0e0
+    style SVC2 fill:#4a7c28,stroke:#6b9b3a,color:#f5f0e0
+    style SVC3 fill:#4a7c28,stroke:#6b9b3a,color:#f5f0e0
+                    </pre>
+                </div>
+
+                <p>The Gateway API is the successor to Ingress, offering richer capabilities: TCP, UDP, gRPC, TLS passthrough, traffic splitting, and header-based routing. It separates concerns between cluster operators (GatewayClass, Gateway) and developers (Routes).</p>
+
+                <div class="callout callout-brown">
+                    <div class="callout-title">Service Mesh Options</div>
+                    <p><strong>Istio</strong> is the most widely adopted service mesh, now supporting ambient mode (GA since 1.24) with per-node ztunnel proxies instead of sidecar injection. <strong>Cilium</strong> provides eBPF-based mesh without sidecar proxies, using kernel-level packet processing for networking, security, and observability.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ======================================== -->
+        <!-- 07 - CRI/CNI/CSI PLUGINS -->
+        <!-- ======================================== -->
+        <section id="plugins" class="section">
+            <div class="section-header">
+                <span class="section-number">07</span>
+                <h2 class="section-title">CRI / CNI / CSI Plugin Interfaces</h2>
+            </div>
+
+            <p class="section-description">Kubernetes uses three standardized plugin interfaces to decouple core logic from runtime, networking, and storage implementations. This extensibility model enables a rich ecosystem of providers.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Plugin Architecture</div>
+                <pre class="mermaid">
+graph TD
+    KL["kubelet"]
+
+    subgraph CRI["Container Runtime Interface"]
+        CRI_GW["CRI gRPC"]
+        CTRD["containerd"]
+        CRIO["CRI-O"]
+    end
+
+    subgraph CNI["Container Network Interface"]
+        CNI_CFG["CNI Config<br/>/etc/cni/net.d/"]
+        CAL["Calico"]
+        CIL["Cilium"]
+        FLAN["Flannel"]
+    end
+
+    subgraph CSI["Container Storage Interface"]
+        CSI_CTRL["CSI Controller<br/>provision, attach"]
+        CSI_NODE["CSI Node Plugin<br/>mount, unmount"]
+    end
+
+    KL --> CRI_GW
+    CRI_GW --> CTRD
+    CRI_GW --> CRIO
+    KL --> CNI_CFG
+    CNI_CFG --> CAL
+    CNI_CFG --> CIL
+    CNI_CFG --> FLAN
+    KL --> CSI_NODE
+    CSI_CTRL --> CSI_NODE
+
+    style KL fill:#8b7d3c,stroke:#d4bc7a,color:#f5f0e0
+    style CRI_GW fill:#6c3483,stroke:#a569bd,color:#f5f0e0
+    style CTRD fill:#6c3483,stroke:#a569bd,color:#f5f0e0
+    style CRIO fill:#6c3483,stroke:#a569bd,color:#f5f0e0
+    style CNI_CFG fill:#1a5276,stroke:#5dade2,color:#f5f0e0
+    style CAL fill:#1a5276,stroke:#5dade2,color:#f5f0e0
+    style CIL fill:#1a5276,stroke:#5dade2,color:#f5f0e0
+    style FLAN fill:#1a5276,stroke:#5dade2,color:#f5f0e0
+    style CSI_CTRL fill:#8B6914,stroke:#d4bc7a,color:#f5f0e0
+    style CSI_NODE fill:#8B6914,stroke:#d4bc7a,color:#f5f0e0
+                </pre>
+            </div>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>CRI (Container Runtime)</h4>
+                    <p>gRPC protocol defining RuntimeService (Pod/container lifecycle, exec, attach) and ImageService (pull, list, remove). Replaced the original Docker-specific code path.</p>
+                    <div class="card-meta"><span class="component-badge badge-runtime">Runtime</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>CNI (Networking)</h4>
+                    <p>Specification for Pod networking. Assigns Pod IPs, configures routes, sets up network namespaces. Kubelet reads config from /etc/cni/net.d/ and invokes plugins at Pod start/stop.</p>
+                    <div class="card-meta"><span class="component-badge badge-network">Network</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>CSI (Storage)</h4>
+                    <p>Standardized interface for storage vendors. CSI Controller (Deployment) handles provisioning and snapshots; CSI Node plugin (DaemonSet) handles mount/unmount on each node.</p>
+                    <div class="card-meta"><span class="component-badge badge-storage">Storage</span></div>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Popular CNI Plugins</h3>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Plugin</th>
+                            <th>Approach</th>
+                            <th>Network Policy</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Calico</strong></td>
+                            <td>BGP-based routing, eBPF dataplane option</td>
+                            <td><span class="status status-active">Yes</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Cilium</strong></td>
+                            <td>eBPF-native networking and security, identity-based policy</td>
+                            <td><span class="status status-active">Yes</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Flannel</strong></td>
+                            <td>Simple VXLAN overlay</td>
+                            <td><span class="status status-deprecated">No</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Weave Net</strong></td>
+                            <td>Encrypted mesh overlay</td>
+                            <td><span class="status status-active">Yes</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>AWS VPC CNI</strong></td>
+                            <td>Assigns real VPC IPs to Pods</td>
+                            <td><span class="status status-active">Yes</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- ======================================== -->
+        <!-- 08 - RBAC -->
+        <!-- ======================================== -->
+        <section id="rbac" class="section">
+            <div class="section-header">
+                <span class="section-number">08</span>
+                <h2 class="section-title">RBAC &amp; Admission Control</h2>
+            </div>
+
+            <p class="section-description">Role-Based Access Control determines who can do what in the cluster. Admission controllers intercept API requests after auth, enforcing policies and mutating objects before persistence.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">RBAC Resource Model</div>
+                <pre class="mermaid">
+graph LR
+    subgraph Subjects["Subjects"]
+        U["User"]
+        G["Group"]
+        SA["ServiceAccount"]
+    end
+
+    subgraph Bindings["Bindings"]
+        RB["RoleBinding<br/>namespace-scoped"]
+        CRB["ClusterRoleBinding<br/>cluster-scoped"]
+    end
+
+    subgraph Roles["Roles"]
+        R["Role<br/>namespace-scoped"]
+        CR["ClusterRole<br/>cluster-scoped"]
+    end
+
+    subgraph Resources["Resources"]
+        PODS["pods"]
+        DEPLOY["deployments"]
+        SVC["services"]
+        SEC["secrets"]
+    end
+
+    U --> RB
+    G --> CRB
+    SA --> RB
+    RB --> R
+    RB --> CR
+    CRB --> CR
+    R --> PODS
+    R --> DEPLOY
+    CR --> SVC
+    CR --> SEC
+
+    style U fill:#8b7d3c,stroke:#d4bc7a,color:#f5f0e0
+    style G fill:#8b7d3c,stroke:#d4bc7a,color:#f5f0e0
+    style SA fill:#8b7d3c,stroke:#d4bc7a,color:#f5f0e0
+    style RB fill:#1a5276,stroke:#5dade2,color:#f5f0e0
+    style CRB fill:#1a5276,stroke:#5dade2,color:#f5f0e0
+    style R fill:#2d5016,stroke:#6b9b3a,color:#f5f0e0
+    style CR fill:#2d5016,stroke:#6b9b3a,color:#f5f0e0
+    style PODS fill:#4a7c28,stroke:#6b9b3a,color:#f5f0e0
+    style DEPLOY fill:#4a7c28,stroke:#6b9b3a,color:#f5f0e0
+    style SVC fill:#4a7c28,stroke:#6b9b3a,color:#f5f0e0
+    style SEC fill:#4a7c28,stroke:#6b9b3a,color:#f5f0e0
+                </pre>
+            </div>
+
+            <div class="callout">
+                <div class="callout-title">Additive Permissions Only</div>
+                <p>RBAC permissions are purely additive &mdash; there are no deny rules. Rules specify apiGroups, resources, and verbs (get, list, watch, create, update, patch, delete). Users cannot grant permissions they do not already have (privilege escalation prevention).</p>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Built-in Admission Controllers</h3>
+                <div class="card-grid">
+                    <div class="info-card">
+                        <h4>LimitRanger</h4>
+                        <p>Enforces default resource requests and limits for containers that do not specify them.</p>
+                    </div>
+                    <div class="info-card">
+                        <h4>ResourceQuota</h4>
+                        <p>Enforces aggregate resource quotas per namespace (CPU, memory, object counts).</p>
+                    </div>
+                    <div class="info-card">
+                        <h4>PodSecurity</h4>
+                        <p>Enforces Pod Security Standards at three levels: privileged, baseline, restricted.</p>
+                    </div>
+                    <div class="info-card">
+                        <h4>NamespaceLifecycle</h4>
+                        <p>Prevents creation of new objects in namespaces that are being terminated.</p>
+                    </div>
+                    <div class="info-card">
+                        <h4>ServiceAccount</h4>
+                        <p>Automatically mounts projected service account tokens into Pods.</p>
+                    </div>
+                    <div class="info-card">
+                        <h4>DefaultStorageClass</h4>
+                        <p>Assigns the default StorageClass to PersistentVolumeClaims that do not specify one.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ======================================== -->
+        <!-- 09 - OPERATORS & CRDs -->
+        <!-- ======================================== -->
+        <section id="operators" class="section">
+            <div class="section-header">
+                <span class="section-number">09</span>
+                <h2 class="section-title">Operators &amp; Custom Resources</h2>
+            </div>
+
+            <p class="section-description">The Operator pattern extends Kubernetes by encoding domain knowledge into custom controllers. CRDs extend the API with new resource types, and controllers reconcile actual state toward the desired state declared in those resources.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Operator Reconciliation Loop</div>
+                <pre class="mermaid">
+graph TD
+    CR["Custom Resource<br/>desired state (spec)"] --> WATCH["Controller<br/>watches API server"]
+    WATCH --> COMPARE["Compare<br/>desired vs actual"]
+    COMPARE -->|"drift detected"| ACT["Take Action<br/>create Pods, update config"]
+    COMPARE -->|"in sync"| WAIT["Wait for Next<br/>Change Event"]
+    ACT --> STATUS["Update Status<br/>subresource"]
+    STATUS --> WATCH
+    WAIT --> WATCH
+
+    style CR fill:#8b7d3c,stroke:#d4bc7a,color:#f5f0e0
+    style WATCH fill:#2d5016,stroke:#6b9b3a,color:#f5f0e0
+    style COMPARE fill:#1a5276,stroke:#5dade2,color:#f5f0e0
+    style ACT fill:#c0392b,stroke:#e74c3c,color:#f5f0e0
+    style WAIT fill:#4a7c28,stroke:#6b9b3a,color:#f5f0e0
+    style STATUS fill:#6c3483,stroke:#a569bd,color:#f5f0e0
+                </pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Operator Capability Levels</h3>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Level</th>
+                            <th>Capability</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>1</strong></td>
+                            <td>Basic Install</td>
+                            <td>Automated deployment of the application</td>
+                        </tr>
+                        <tr>
+                            <td><strong>2</strong></td>
+                            <td>Seamless Upgrades</td>
+                            <td>Patch and minor version upgrades</td>
+                        </tr>
+                        <tr>
+                            <td><strong>3</strong></td>
+                            <td>Full Lifecycle</td>
+                            <td>Backup, restore, failure recovery</td>
+                        </tr>
+                        <tr>
+                            <td><strong>4</strong></td>
+                            <td>Deep Insights</td>
+                            <td>Metrics, alerts, log processing</td>
+                        </tr>
+                        <tr>
+                            <td><strong>5</strong></td>
+                            <td>Auto Pilot</td>
+                            <td>Auto-scaling, auto-tuning, anomaly detection</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Operator Frameworks</h3>
+                <div class="card-grid">
+                    <div class="info-card">
+                        <h4>Kubebuilder</h4>
+                        <p>Official Kubernetes SIG project. Scaffold-based Go framework for building controllers and webhooks.</p>
+                        <div class="card-meta">Go</div>
+                    </div>
+                    <div class="info-card">
+                        <h4>Operator SDK</h4>
+                        <p>Red Hat project supporting Go, Ansible, and Helm. Includes OLM for operator lifecycle management.</p>
+                        <div class="card-meta">Go / Ansible / Helm</div>
+                    </div>
+                    <div class="info-card">
+                        <h4>kube-rs</h4>
+                        <p>High-performance Rust framework for building Kubernetes controllers and operators.</p>
+                        <div class="card-meta">Rust</div>
+                    </div>
+                    <div class="info-card">
+                        <h4>Kopf</h4>
+                        <p>Pythonic operator framework with decorators for event handlers and timers.</p>
+                        <div class="card-meta">Python</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="callout callout-green">
+                <div class="callout-title">Common Operators</div>
+                <p>Databases (PostgreSQL Operator, MySQL Operator), message queues (Strimzi for Kafka), monitoring (Prometheus Operator), certificates (cert-manager), GitOps (Argo CD, Flux). The controller is level-triggered and idempotent, making reconciliation self-healing.</p>
+            </div>
+        </section>
+
+        <!-- ======================================== -->
+        <!-- 10 - ETCD -->
+        <!-- ======================================== -->
+        <section id="etcd" class="section">
+            <div class="section-header">
+                <span class="section-number">10</span>
+                <h2 class="section-title">etcd &amp; Raft Consensus</h2>
+            </div>
+
+            <p class="section-description">etcd is the distributed key-value store that serves as Kubernetes' single source of truth. Written in Go, it uses the Raft consensus algorithm for strong consistency across a 3- or 5-member cluster.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Raft Consensus - Log Replication</div>
+                <pre class="mermaid">
+graph TD
+    CLIENT["API Server<br/>(sole client)"] --> LEADER["etcd Leader"]
+    LEADER --> LOG["Append to<br/>Leader Log"]
+    LOG --> REP1["Replicate to<br/>Follower 1"]
+    LOG --> REP2["Replicate to<br/>Follower 2"]
+    REP1 --> QUORUM["Quorum<br/>Acknowledged"]
+    REP2 --> QUORUM
+    QUORUM --> COMMIT["Commit Entry"]
+    COMMIT --> APPLY["Apply to<br/>State Machine"]
+    APPLY --> RESP["Respond to<br/>API Server"]
+
+    style CLIENT fill:#2d5016,stroke:#6b9b3a,color:#f5f0e0
+    style LEADER fill:#1a5276,stroke:#5dade2,color:#f5f0e0
+    style LOG fill:#1a5276,stroke:#85c1e9,color:#f5f0e0
+    style REP1 fill:#8b7d3c,stroke:#d4bc7a,color:#f5f0e0
+    style REP2 fill:#8b7d3c,stroke:#d4bc7a,color:#f5f0e0
+    style QUORUM fill:#4a7c28,stroke:#6b9b3a,color:#f5f0e0
+    style COMMIT fill:#2d5016,stroke:#6b9b3a,color:#f5f0e0
+    style APPLY fill:#6c3483,stroke:#a569bd,color:#f5f0e0
+    style RESP fill:#4a7c28,stroke:#6b9b3a,color:#f5f0e0
+                </pre>
+            </div>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>Strong Consistency</h4>
+                    <p>Linearizable reads and writes via Raft. All operations appear to occur atomically and in total order.</p>
+                </div>
+                <div class="info-card">
+                    <h4>Watch Support</h4>
+                    <p>Clients subscribe to key change notifications. This powers all Kubernetes controllers' event-driven architecture.</p>
+                </div>
+                <div class="info-card">
+                    <h4>MVCC</h4>
+                    <p>Multi-Version Concurrency Control maintains revision history, enabling consistent snapshots and watch resumption.</p>
+                </div>
+                <div class="info-card">
+                    <h4>Lease System</h4>
+                    <p>TTL-based key expiration for leader election and distributed locking. Scheduler and controller-manager use leases.</p>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Kubernetes-Specific Patterns</h3>
+                <ol class="pipeline">
+                    <li><strong>Sole client</strong> &mdash; only kube-apiserver reads/writes to etcd directly; all other components go through the API</li>
+                    <li><strong>Watch-based architecture</strong> &mdash; controllers establish long-lived watches via the API server, which maps to etcd watches. Event-driven, no polling.</li>
+                    <li><strong>Resource versioning</strong> &mdash; every object carries a resourceVersion (mapped to etcd's mod_revision) for optimistic concurrency and watch resumption</li>
+                    <li><strong>Key layout</strong> &mdash; /registry/&lt;resource-type&gt;/&lt;namespace&gt;/&lt;name&gt; for namespaced resources</li>
+                    <li><strong>Compaction</strong> &mdash; old revisions are periodically compacted to reclaim storage; snapshots enable backup/restore</li>
+                </ol>
+            </div>
+
+            <div class="callout callout-red">
+                <div class="callout-title">Performance Warning</div>
+                <p>etcd is sensitive to disk I/O latency. SSDs are strongly recommended for production deployments. Large clusters (1000+ nodes) may require tuning heartbeat interval, election timeout, and snapshot count. Quorum: (n/2) + 1 members must agree. A 3-member cluster tolerates 1 failure; 5 members tolerate 2.</p>
+            </div>
+        </section>
+
+        <!-- ======================================== -->
+        <!-- 11 - HIGH AVAILABILITY -->
+        <!-- ======================================== -->
+        <section id="ha" class="section">
+            <div class="section-header">
+                <span class="section-number">11</span>
+                <h2 class="section-title">High Availability Patterns</h2>
+            </div>
+
+            <p class="section-description">Production Kubernetes clusters use redundancy at both the control plane and data plane levels. HA requires careful distribution across failure domains and automated scaling mechanisms.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">HA Control Plane Architecture</div>
+                <pre class="mermaid">
+graph TD
+    LB["Load Balancer"] --> API1["API Server 1"]
+    LB --> API2["API Server 2"]
+    LB --> API3["API Server 3"]
+
+    API1 --> ETCD1["etcd 1"]
+    API2 --> ETCD2["etcd 2"]
+    API3 --> ETCD3["etcd 3"]
+
+    SCHED["Scheduler<br/>(leader-elected)"] --> LB
+    CCM["Controller Manager<br/>(leader-elected)"] --> LB
+
+    ETCD1 <--> ETCD2
+    ETCD2 <--> ETCD3
+    ETCD1 <--> ETCD3
+
+    style LB fill:#8b7d3c,stroke:#d4bc7a,color:#f5f0e0
+    style API1 fill:#2d5016,stroke:#6b9b3a,color:#f5f0e0
+    style API2 fill:#2d5016,stroke:#6b9b3a,color:#f5f0e0
+    style API3 fill:#2d5016,stroke:#6b9b3a,color:#f5f0e0
+    style ETCD1 fill:#1a5276,stroke:#5dade2,color:#f5f0e0
+    style ETCD2 fill:#1a5276,stroke:#5dade2,color:#f5f0e0
+    style ETCD3 fill:#1a5276,stroke:#5dade2,color:#f5f0e0
+    style SCHED fill:#4a7c28,stroke:#6b9b3a,color:#f5f0e0
+    style CCM fill:#4a7c28,stroke:#6b9b3a,color:#f5f0e0
+                </pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Control Plane HA</h3>
+                <div class="card-grid">
+                    <div class="info-card">
+                        <h4>API Server Replicas</h4>
+                        <p>Multiple instances behind a load balancer. Stateless and horizontally scalable. All instances are active.</p>
+                    </div>
+                    <div class="info-card">
+                        <h4>etcd Cluster</h4>
+                        <p>3 or 5 members across failure domains. Uses Raft consensus. Odd numbers ensure clean quorum.</p>
+                    </div>
+                    <div class="info-card">
+                        <h4>Leader Election</h4>
+                        <p>Scheduler and controller-manager use lease-based election via the API server. Only one active instance; others on standby.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Data Plane HA</h3>
+                <div class="card-grid">
+                    <div class="info-card">
+                        <h4>Pod Disruption Budgets</h4>
+                        <p>Guarantee minimum available replicas during voluntary disruptions (node drain, upgrades).</p>
+                    </div>
+                    <div class="info-card">
+                        <h4>Topology Spread</h4>
+                        <p>Distribute Pod replicas across availability zones and nodes to survive infrastructure failures.</p>
+                    </div>
+                    <div class="info-card">
+                        <h4>Horizontal Pod Autoscaler</h4>
+                        <p>Automatically scales replica count based on CPU, memory, or custom metrics (Prometheus, Datadog).</p>
+                    </div>
+                    <div class="info-card">
+                        <h4>Cluster Autoscaler</h4>
+                        <p>Adds or removes nodes based on pending Pods and node utilization. Integrates with cloud providers.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ======================================== -->
+        <!-- 12 - ACRONYMS -->
+        <!-- ======================================== -->
+        <section id="acronyms" class="section">
+            <div class="section-header">
+                <span class="section-number">12</span>
+                <h2 class="section-title">Acronym Reference</h2>
+            </div>
+
+            <div class="acronym-grid">
+                <div class="acronym-item"><span class="acronym-key">API</span><span class="acronym-val">Application Programming Interface</span></div>
+                <div class="acronym-item"><span class="acronym-key">BGP</span><span class="acronym-val">Border Gateway Protocol</span></div>
+                <div class="acronym-item"><span class="acronym-key">CEL</span><span class="acronym-val">Common Expression Language</span></div>
+                <div class="acronym-item"><span class="acronym-key">CNCF</span><span class="acronym-val">Cloud Native Computing Foundation</span></div>
+                <div class="acronym-item"><span class="acronym-key">CNI</span><span class="acronym-val">Container Network Interface</span></div>
+                <div class="acronym-item"><span class="acronym-key">CRD</span><span class="acronym-val">Custom Resource Definition</span></div>
+                <div class="acronym-item"><span class="acronym-key">CRI</span><span class="acronym-val">Container Runtime Interface</span></div>
+                <div class="acronym-item"><span class="acronym-key">CSI</span><span class="acronym-val">Container Storage Interface</span></div>
+                <div class="acronym-item"><span class="acronym-key">DNS</span><span class="acronym-val">Domain Name System</span></div>
+                <div class="acronym-item"><span class="acronym-key">eBPF</span><span class="acronym-val">Extended Berkeley Packet Filter</span></div>
+                <div class="acronym-item"><span class="acronym-key">gRPC</span><span class="acronym-val">Google Remote Procedure Call</span></div>
+                <div class="acronym-item"><span class="acronym-key">HA</span><span class="acronym-val">High Availability</span></div>
+                <div class="acronym-item"><span class="acronym-key">HPA</span><span class="acronym-val">Horizontal Pod Autoscaler</span></div>
+                <div class="acronym-item"><span class="acronym-key">IPVS</span><span class="acronym-val">IP Virtual Server</span></div>
+                <div class="acronym-item"><span class="acronym-key">K8s</span><span class="acronym-val">Kubernetes (K + 8 letters + s)</span></div>
+                <div class="acronym-item"><span class="acronym-key">L4/L7</span><span class="acronym-val">OSI Layer 4 (transport) / Layer 7 (application)</span></div>
+                <div class="acronym-item"><span class="acronym-key">mTLS</span><span class="acronym-val">Mutual Transport Layer Security</span></div>
+                <div class="acronym-item"><span class="acronym-key">MVCC</span><span class="acronym-val">Multi-Version Concurrency Control</span></div>
+                <div class="acronym-item"><span class="acronym-key">NAT</span><span class="acronym-val">Network Address Translation</span></div>
+                <div class="acronym-item"><span class="acronym-key">OCI</span><span class="acronym-val">Open Container Initiative</span></div>
+                <div class="acronym-item"><span class="acronym-key">OIDC</span><span class="acronym-val">OpenID Connect</span></div>
+                <div class="acronym-item"><span class="acronym-key">OLM</span><span class="acronym-val">Operator Lifecycle Manager</span></div>
+                <div class="acronym-item"><span class="acronym-key">PDB</span><span class="acronym-val">Pod Disruption Budget</span></div>
+                <div class="acronym-item"><span class="acronym-key">PV</span><span class="acronym-val">Persistent Volume</span></div>
+                <div class="acronym-item"><span class="acronym-key">PVC</span><span class="acronym-val">Persistent Volume Claim</span></div>
+                <div class="acronym-item"><span class="acronym-key">RBAC</span><span class="acronym-val">Role-Based Access Control</span></div>
+                <div class="acronym-item"><span class="acronym-key">SIG</span><span class="acronym-val">Special Interest Group</span></div>
+                <div class="acronym-item"><span class="acronym-key">TLS</span><span class="acronym-val">Transport Layer Security</span></div>
+                <div class="acronym-item"><span class="acronym-key">TTL</span><span class="acronym-val">Time To Live</span></div>
+                <div class="acronym-item"><span class="acronym-key">VXLAN</span><span class="acronym-val">Virtual Extensible LAN</span></div>
+            </div>
+        </section>
+
+    </div>
+
+    <!-- Footer -->
+    <footer class="site-footer">
+        <p>Compiled from kubernetes.io official documentation, CNCF resources, and Kubernetes GitHub design proposals.</p>
+        <p style="margin-top:var(--space-1)"><a href="../index.html">Back to Architecture Maps</a></p>
+    </footer>
+
+    <!-- Fullscreen overlay -->
+    <div class="fs-overlay" id="fsOverlay">
+        <div class="fs-toolbar">
+            <span class="fs-toolbar-title" id="fsTitle">Diagram</span>
+            <div class="fs-controls">
+                <button class="fs-btn" id="fsZoomOut" title="Zoom out">-</button>
+                <span class="fs-zoom-label" id="fsZoomLabel">100%</span>
+                <button class="fs-btn" id="fsZoomIn" title="Zoom in">+</button>
+                <button class="fs-btn" id="fsFit" title="Fit to screen">Fit</button>
+                <button class="fs-close" id="fsClose" title="Close (Esc)">Close</button>
+            </div>
+        </div>
+        <div class="fs-viewport" id="fsViewport">
+            <div class="fs-content" id="fsContent"></div>
+            <div class="fs-hint">Scroll to zoom &middot; Drag to pan &middot; Esc to close</div>
+        </div>
+    </div>
+
+    <!-- Mermaid.js -->
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'base',
+            themeVariables: {
+                darkMode: false,
+                background: '#ede4cc',
+                primaryColor: '#4a7c28',
+                primaryTextColor: '#2c3e50',
+                primaryBorderColor: '#6b9b3a',
+                secondaryColor: '#1a5276',
+                secondaryTextColor: '#f5f0e0',
+                secondaryBorderColor: '#5dade2',
+                tertiaryColor: '#8b7d3c',
+                tertiaryTextColor: '#f5f0e0',
+                lineColor: '#8B6914',
+                textColor: '#2c3e50',
+                mainBkg: '#ede4cc',
+                nodeBorder: '#8B6914',
+                clusterBkg: '#f5f0e0',
+                clusterBorder: '#8B6914',
+                titleColor: '#2c3e50',
+                edgeLabelBackground: '#f5f0e0',
+                nodeTextColor: '#2c3e50',
+                actorTextColor: '#2c3e50',
+                actorBkg: '#ede4cc',
+                actorBorder: '#8B6914',
+                labelBoxBkgColor: '#f5f0e0',
+                labelBoxBorderColor: '#8B6914',
+                labelTextColor: '#2c3e50',
+                loopTextColor: '#5d4e37',
+                noteBkgColor: '#d4bc7a',
+                noteTextColor: '#2c3e50',
+                noteBorderColor: '#8B6914',
+                fontFamily: "'Inter', sans-serif",
+                fontSize: '14px',
+                sectionBkgColor: '#ede4cc',
+                altSectionBkgColor: '#f5f0e0',
+                sectionBkgColor2: '#d5c9a8',
+                taskBkgColor: '#4a7c28',
+                taskTextColor: '#f5f0e0',
+                taskBorderColor: '#6b9b3a',
+                activeTaskBkgColor: '#2d5016',
+                activeTaskBorderColor: '#6b9b3a',
+                doneTaskBkgColor: '#8b7d3c',
+                gridColor: '#8B6914',
+                todayLineColor: '#c0392b'
+            },
+            flowchart: {
+                htmlLabels: true,
+                curve: 'basis',
+                padding: 16,
+                nodeSpacing: 30,
+                rankSpacing: 50,
+                useMaxWidth: false
+            },
+            block: {
+                padding: 8
+            }
+        });
+
+        // Wait for mermaid to render, then add expand buttons
+        mermaid.run().then(() => {
+            const expandIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`;
+
+            document.querySelectorAll('.diagram-container').forEach(container => {
+                const btn = document.createElement('button');
+                btn.className = 'diagram-expand-btn';
+                btn.innerHTML = expandIcon + ' Expand';
+                btn.addEventListener('click', () => openFullscreen(container));
+                container.appendChild(btn);
+            });
+        });
+
+        // Fullscreen state
+        const overlay = document.getElementById('fsOverlay');
+        const viewport = document.getElementById('fsViewport');
+        const content = document.getElementById('fsContent');
+        const zoomLabel = document.getElementById('fsZoomLabel');
+        const titleEl = document.getElementById('fsTitle');
+        let zoom = 1;
+        let panX = 0, panY = 0;
+        let isDragging = false;
+        let dragStartX, dragStartY, panStartX, panStartY;
+
+        function openFullscreen(container) {
+            const label = container.querySelector('.diagram-label');
+            titleEl.textContent = label ? label.textContent : 'Diagram';
+
+            const svg = container.querySelector('svg');
+            if (!svg) return;
+
+            content.innerHTML = '';
+            content.appendChild(svg.cloneNode(true));
+
+            zoom = 1;
+            panX = 0;
+            panY = 0;
+            content.style.transform = 'translate(0px, 0px) scale(1)';
+
+            overlay.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    overlay.classList.add('active');
+                    fitToViewport();
+                });
+            });
+        }
+
+        function closeFullscreen() {
+            overlay.classList.remove('active');
+            setTimeout(() => {
+                overlay.style.display = 'none';
+                content.innerHTML = '';
+            }, 200);
+            document.body.style.overflow = '';
+        }
+
+        function fitToViewport() {
+            const svg = content.querySelector('svg');
+            if (!svg) return;
+
+            const vw = viewport.clientWidth;
+            const vh = viewport.clientHeight;
+            const padding = 48;
+
+            const rect = svg.getBoundingClientRect();
+            const currentZoom = zoom || 1;
+            const svgW = rect.width / currentZoom;
+            const svgH = rect.height / currentZoom;
+
+            const w = svgW > 0 ? svgW : (svg.viewBox?.baseVal?.width || 800);
+            const h = svgH > 0 ? svgH : (svg.viewBox?.baseVal?.height || 400);
+
+            const scaleX = (vw - padding * 2) / w;
+            const scaleY = (vh - padding * 2) / h;
+            zoom = Math.min(scaleX, scaleY, 2);
+            zoom = Math.max(zoom, 0.1);
+
+            panX = (vw - w * zoom) / 2;
+            panY = (vh - h * zoom) / 2;
+
+            updateTransform();
+        }
+
+        function updateTransform() {
+            content.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+            zoomLabel.textContent = Math.round(zoom * 100) + '%';
+        }
+
+        // Zoom controls
+        document.getElementById('fsZoomIn').addEventListener('click', () => {
+            const vw = viewport.clientWidth / 2;
+            const vh = viewport.clientHeight / 2;
+            zoomAt(vw, vh, 1.3);
+        });
+        document.getElementById('fsZoomOut').addEventListener('click', () => {
+            const vw = viewport.clientWidth / 2;
+            const vh = viewport.clientHeight / 2;
+            zoomAt(vw, vh, 1 / 1.3);
+        });
+        document.getElementById('fsFit').addEventListener('click', fitToViewport);
+        document.getElementById('fsClose').addEventListener('click', closeFullscreen);
+
+        // Scroll to zoom
+        viewport.addEventListener('wheel', e => {
+            e.preventDefault();
+            const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+            const rect = viewport.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+            zoomAt(mx, my, factor);
+        }, { passive: false });
+
+        function zoomAt(mx, my, factor) {
+            const newZoom = Math.min(Math.max(zoom * factor, 0.05), 8);
+            const ratio = newZoom / zoom;
+            panX = mx - ratio * (mx - panX);
+            panY = my - ratio * (my - panY);
+            zoom = newZoom;
+            updateTransform();
+        }
+
+        // Drag to pan
+        viewport.addEventListener('mousedown', e => {
+            isDragging = true;
+            dragStartX = e.clientX;
+            dragStartY = e.clientY;
+            panStartX = panX;
+            panStartY = panY;
+        });
+        window.addEventListener('mousemove', e => {
+            if (!isDragging) return;
+            panX = panStartX + (e.clientX - dragStartX);
+            panY = panStartY + (e.clientY - dragStartY);
+            updateTransform();
+        });
+        window.addEventListener('mouseup', () => { isDragging = false; });
+
+        // Touch support
+        let lastTouchDist = 0;
+        viewport.addEventListener('touchstart', e => {
+            if (e.touches.length === 1) {
+                isDragging = true;
+                dragStartX = e.touches[0].clientX;
+                dragStartY = e.touches[0].clientY;
+                panStartX = panX;
+                panStartY = panY;
+            } else if (e.touches.length === 2) {
+                isDragging = false;
+                lastTouchDist = Math.hypot(
+                    e.touches[1].clientX - e.touches[0].clientX,
+                    e.touches[1].clientY - e.touches[0].clientY
+                );
+            }
+        }, { passive: true });
+        viewport.addEventListener('touchmove', e => {
+            e.preventDefault();
+            if (e.touches.length === 1 && isDragging) {
+                panX = panStartX + (e.touches[0].clientX - dragStartX);
+                panY = panStartY + (e.touches[0].clientY - dragStartY);
+                updateTransform();
+            } else if (e.touches.length === 2) {
+                const dist = Math.hypot(
+                    e.touches[1].clientX - e.touches[0].clientX,
+                    e.touches[1].clientY - e.touches[0].clientY
+                );
+                if (lastTouchDist > 0) {
+                    const mid = {
+                        x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+                        y: (e.touches[0].clientY + e.touches[1].clientY) / 2
+                    };
+                    const rect = viewport.getBoundingClientRect();
+                    zoomAt(mid.x - rect.left, mid.y - rect.top, dist / lastTouchDist);
+                }
+                lastTouchDist = dist;
+            }
+        }, { passive: false });
+        viewport.addEventListener('touchend', () => { isDragging = false; lastTouchDist = 0; });
+
+        // Escape to close
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') closeFullscreen();
+        });
+    </script>
+</body>
+</html>
