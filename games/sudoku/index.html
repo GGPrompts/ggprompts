@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Sudoku -- Ink & Paper</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --paper: #f5f0e8;
+            --paper-dark: #e8e0d0;
+            --paper-shadow: #d5cbb8;
+            --ink: #1a1612;
+            --ink-light: #3a342a;
+            --ink-dim: rgba(26, 22, 18, 0.4);
+            --pencil: #7a7060;
+            --pencil-light: #9a9080;
+            --blue-ink: #2255aa;
+            --blue-light: rgba(34, 85, 170, 0.12);
+            --blue-glow: rgba(34, 85, 170, 0.08);
+            --red-ink: #bb2233;
+            --red-light: rgba(187, 34, 51, 0.1);
+            --green-ink: #2a7a3a;
+            --green-light: rgba(42, 122, 58, 0.15);
+            --gold: #b8942a;
+            --gold-light: #d4b040;
+            --highlight-selected: rgba(34, 85, 170, 0.22);
+            --highlight-related: rgba(34, 85, 170, 0.07);
+            --highlight-same: rgba(34, 85, 170, 0.16);
+            --grid-thin: 1px solid rgba(26, 22, 18, 0.2);
+            --grid-thick: 2.5px solid var(--ink);
+            --font-display: 'Crimson Pro', serif;
+            --font-mono: 'JetBrains Mono', monospace;
+            --font-body: 'Inter', sans-serif;
+            --cell-size: min(10.5vw, 56px);
+            --board-gap: 0px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: var(--paper);
+            color: var(--ink);
+            font-family: var(--font-body);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow-x: hidden;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* Paper texture */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 0;
+            background:
+                repeating-linear-gradient(
+                    0deg,
+                    transparent,
+                    transparent 28px,
+                    rgba(26, 22, 18, 0.02) 28px,
+                    rgba(26, 22, 18, 0.02) 29px
+                );
+        }
+
+        /* -------- HEADER -------- */
+
+        .header {
+            width: 100%;
+            max-width: 560px;
+            padding: 16px 16px 0;
+            position: relative;
+            z-index: 1;
+        }
+
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+
+        .back-link {
+            font-family: var(--font-body);
+            font-size: 0.8rem;
+            color: var(--pencil);
+            text-decoration: none;
+            letter-spacing: 0.04em;
+            transition: color 0.2s;
+        }
+        .back-link:hover { color: var(--ink); }
+
+        .title {
+            font-family: var(--font-display);
+            font-size: 1.6rem;
+            font-weight: 300;
+            letter-spacing: 0.06em;
+            color: var(--ink);
+            text-align: center;
+        }
+
+        .title-ornament {
+            font-size: 0.7em;
+            color: var(--pencil-light);
+            margin: 0 6px;
+        }
+
+        /* -------- STATUS BAR -------- */
+
+        .status-bar {
+            width: 100%;
+            max-width: 560px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 16px;
+            font-size: 0.78rem;
+            color: var(--pencil);
+            z-index: 1;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .status-label {
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            font-size: 0.65rem;
+            color: var(--pencil-light);
+        }
+
+        .status-value {
+            font-family: var(--font-mono);
+            font-size: 0.82rem;
+            color: var(--ink-light);
+        }
+
+        .timer {
+            font-family: var(--font-mono);
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* -------- BOARD -------- */
+
+        .board-wrapper {
+            position: relative;
+            z-index: 1;
+            padding: 0 8px;
+        }
+
+        .board {
+            display: grid;
+            grid-template-columns: repeat(9, var(--cell-size));
+            grid-template-rows: repeat(9, var(--cell-size));
+            background: var(--ink);
+            gap: 0;
+            border: var(--grid-thick);
+            box-shadow:
+                0 2px 12px rgba(26, 22, 18, 0.12),
+                inset 0 0 0 1px rgba(26, 22, 18, 0.05);
+            user-select: none;
+        }
+
+        .cell {
+            background: var(--paper);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-display);
+            font-size: calc(var(--cell-size) * 0.52);
+            font-weight: 400;
+            color: var(--ink);
+            cursor: pointer;
+            position: relative;
+            transition: background 0.1s;
+            border-right: var(--grid-thin);
+            border-bottom: var(--grid-thin);
+        }
+
+        /* Thick borders for 3x3 boxes */
+        .cell[data-col="2"],
+        .cell[data-col="5"] {
+            border-right: var(--grid-thick);
+        }
+        .cell[data-row="2"],
+        .cell[data-row="5"] {
+            border-bottom: var(--grid-thick);
+        }
+        /* Remove outer-right and outer-bottom (handled by board border) */
+        .cell[data-col="8"] { border-right: none; }
+        .cell[data-row="8"] { border-bottom: none; }
+
+        /* Cell states */
+        .cell.clue {
+            font-weight: 600;
+            color: var(--ink);
+        }
+
+        .cell.player {
+            color: var(--blue-ink);
+        }
+
+        .cell.highlight-selected {
+            background: var(--highlight-selected);
+        }
+
+        .cell.highlight-related {
+            background: var(--highlight-related);
+        }
+
+        .cell.highlight-same-number {
+            background: var(--highlight-same);
+        }
+
+        .cell.error {
+            color: var(--red-ink);
+            background: var(--red-light);
+        }
+
+        .cell.error.highlight-selected {
+            background: color-mix(in srgb, var(--red-light) 60%, var(--highlight-selected) 40%);
+        }
+
+        /* Notes (pencil marks) */
+        .cell-notes {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            inset: 0;
+        }
+
+        .cell-note {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-mono);
+            font-size: calc(var(--cell-size) * 0.22);
+            font-weight: 400;
+            color: var(--pencil);
+            line-height: 1;
+        }
+
+        /* -------- CONTROLS -------- */
+
+        .controls {
+            width: 100%;
+            max-width: 560px;
+            padding: 12px 12px 0;
+            z-index: 1;
+        }
+
+        /* Number pad */
+        .numpad {
+            display: grid;
+            grid-template-columns: repeat(9, 1fr);
+            gap: 4px;
+            margin-bottom: 10px;
+        }
+
+        .numpad-btn {
+            aspect-ratio: 1;
+            max-height: 52px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: white;
+            border: 1px solid var(--paper-shadow);
+            border-radius: 6px;
+            font-family: var(--font-display);
+            font-size: 1.3rem;
+            font-weight: 400;
+            color: var(--ink);
+            cursor: pointer;
+            transition: all 0.15s;
+            position: relative;
+        }
+
+        .numpad-btn:hover {
+            background: var(--blue-light);
+            border-color: var(--blue-ink);
+        }
+
+        .numpad-btn:active {
+            transform: scale(0.95);
+        }
+
+        .numpad-btn.completed-num {
+            opacity: 0.3;
+            pointer-events: none;
+        }
+
+        .numpad-count {
+            font-family: var(--font-body);
+            font-size: 0.55rem;
+            color: var(--pencil-light);
+            line-height: 1;
+            margin-top: 1px;
+        }
+
+        /* Action buttons */
+        .actions {
+            display: flex;
+            gap: 6px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .action-btn {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 8px 14px;
+            background: white;
+            border: 1px solid var(--paper-shadow);
+            border-radius: 6px;
+            font-family: var(--font-body);
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: var(--ink-light);
+            cursor: pointer;
+            transition: all 0.15s;
+            letter-spacing: 0.02em;
+        }
+
+        .action-btn:hover {
+            background: var(--paper-dark);
+            border-color: var(--pencil-light);
+        }
+
+        .action-btn.active {
+            background: var(--blue-light);
+            border-color: var(--blue-ink);
+            color: var(--blue-ink);
+        }
+
+        .action-icon {
+            font-size: 1rem;
+            line-height: 1;
+        }
+
+        /* -------- NEW GAME MENU -------- */
+
+        .menu-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(26, 22, 18, 0.5);
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.25s;
+        }
+
+        .menu-overlay.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .menu-panel {
+            background: var(--paper);
+            border: 2px solid var(--ink);
+            padding: 32px;
+            max-width: 360px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 8px 40px rgba(26, 22, 18, 0.3);
+        }
+
+        .menu-title {
+            font-family: var(--font-display);
+            font-size: 1.5rem;
+            font-weight: 300;
+            margin-bottom: 4px;
+            letter-spacing: 0.05em;
+        }
+
+        .menu-sub {
+            font-size: 0.78rem;
+            color: var(--pencil);
+            margin-bottom: 20px;
+        }
+
+        .menu-difficulty {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        .diff-btn {
+            padding: 12px 20px;
+            background: white;
+            border: 1px solid var(--paper-shadow);
+            font-family: var(--font-display);
+            font-size: 1rem;
+            color: var(--ink);
+            cursor: pointer;
+            transition: all 0.15s;
+            letter-spacing: 0.04em;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .diff-btn:hover {
+            background: var(--blue-light);
+            border-color: var(--blue-ink);
+        }
+
+        .diff-clues {
+            font-family: var(--font-body);
+            font-size: 0.7rem;
+            color: var(--pencil);
+        }
+
+        .menu-cancel {
+            background: none;
+            border: none;
+            font-family: var(--font-body);
+            font-size: 0.8rem;
+            color: var(--pencil);
+            cursor: pointer;
+            padding: 8px 16px;
+            transition: color 0.15s;
+        }
+        .menu-cancel:hover { color: var(--ink); }
+
+        /* -------- COMPLETION -------- */
+
+        .completion-banner {
+            display: none;
+            width: 100%;
+            max-width: 560px;
+            padding: 20px;
+            text-align: center;
+            z-index: 1;
+        }
+
+        .completion-banner.visible { display: block; }
+
+        .completion-inner {
+            background: var(--green-light);
+            border: 2px solid var(--green-ink);
+            padding: 24px;
+        }
+
+        .completion-title {
+            font-family: var(--font-display);
+            font-size: 1.5rem;
+            font-weight: 400;
+            color: var(--green-ink);
+            margin-bottom: 4px;
+        }
+
+        .completion-stats {
+            font-size: 0.85rem;
+            color: var(--ink-light);
+        }
+
+        .completion-actions {
+            margin-top: 16px;
+        }
+
+        .completion-btn {
+            padding: 10px 24px;
+            background: var(--green-ink);
+            border: none;
+            color: white;
+            font-family: var(--font-display);
+            font-size: 1rem;
+            cursor: pointer;
+            letter-spacing: 0.04em;
+            transition: background 0.15s;
+        }
+        .completion-btn:hover { background: #1d6a2d; }
+
+        /* -------- KEYBOARD HINTS -------- */
+
+        .keyboard-hint {
+            text-align: center;
+            padding: 12px 16px 24px;
+            font-size: 0.65rem;
+            color: var(--pencil-light);
+            letter-spacing: 0.03em;
+            z-index: 1;
+        }
+
+        .kbd {
+            display: inline-block;
+            padding: 1px 5px;
+            border: 1px solid var(--paper-shadow);
+            border-radius: 3px;
+            font-family: var(--font-mono);
+            font-size: 0.6rem;
+            background: white;
+            margin: 0 1px;
+        }
+
+        /* -------- RESPONSIVE -------- */
+
+        @media (max-width: 768px) {
+            :root {
+                --cell-size: min(10.5vw, 50px);
+            }
+
+            .title { font-size: 1.3rem; }
+
+            .action-btn {
+                padding: 7px 10px;
+                font-size: 0.7rem;
+            }
+
+            .keyboard-hint { display: none; }
+        }
+
+        @media (max-width: 400px) {
+            :root {
+                --cell-size: 10vw;
+            }
+
+            .numpad-btn { font-size: 1.1rem; }
+            .actions { gap: 4px; }
+            .action-btn { padding: 6px 8px; font-size: 0.65rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <div class="header">
+        <div class="header-top">
+            <a href="../index.html" class="back-link">Games</a>
+            <div></div>
+        </div>
+        <h1 class="title">
+            <span class="title-ornament">&mdash;</span>
+            Sudoku
+            <span class="title-ornament">&mdash;</span>
+        </h1>
+    </div>
+
+    <!-- Status Bar -->
+    <div class="status-bar">
+        <div class="status-item">
+            <span class="status-label">Difficulty</span>
+            <span class="status-value" id="difficulty-label">Medium</span>
+        </div>
+        <div class="status-item">
+            <span class="status-label">Errors</span>
+            <span class="status-value" id="error-count">0</span>
+        </div>
+        <div class="status-item">
+            <span class="status-label">Time</span>
+            <span class="status-value timer" id="timer">0:00</span>
+        </div>
+    </div>
+
+    <!-- Board -->
+    <div class="board-wrapper">
+        <div class="board" id="board"></div>
+    </div>
+
+    <!-- Completion Banner -->
+    <div class="completion-banner" id="completion">
+        <div class="completion-inner">
+            <div class="completion-title">Puzzle Complete</div>
+            <div class="completion-stats" id="completion-stats"></div>
+            <div class="completion-actions">
+                <button class="completion-btn" id="btn-new-after">New Puzzle</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="controls" id="controls">
+        <div class="numpad" id="numpad"></div>
+        <div class="actions">
+            <button class="action-btn" id="btn-undo">
+                <span class="action-icon">&#8630;</span> Undo
+            </button>
+            <button class="action-btn" id="btn-redo">
+                <span class="action-icon">&#8631;</span> Redo
+            </button>
+            <button class="action-btn" id="btn-erase">
+                <span class="action-icon">&#9003;</span> Erase
+            </button>
+            <button class="action-btn" id="btn-notes">
+                <span class="action-icon">&#9998;</span> Notes
+            </button>
+            <button class="action-btn" id="btn-new">
+                <span class="action-icon">+</span> New
+            </button>
+        </div>
+    </div>
+
+    <!-- Keyboard Hints -->
+    <div class="keyboard-hint">
+        <kbd class="kbd">1</kbd>-<kbd class="kbd">9</kbd> enter number
+        &nbsp;&middot;&nbsp;
+        <kbd class="kbd">N</kbd> notes
+        &nbsp;&middot;&nbsp;
+        <kbd class="kbd">Del</kbd> erase
+        &nbsp;&middot;&nbsp;
+        <kbd class="kbd">Ctrl+Z</kbd> undo
+        &nbsp;&middot;&nbsp;
+        <kbd class="kbd">Arrows</kbd> navigate
+    </div>
+
+    <!-- New Game Menu -->
+    <div class="menu-overlay" id="menu-overlay">
+        <div class="menu-panel">
+            <div class="menu-title">New Puzzle</div>
+            <div class="menu-sub">Choose your difficulty</div>
+            <div class="menu-difficulty">
+                <button class="diff-btn" data-diff="easy">
+                    Easy <span class="diff-clues">45 clues</span>
+                </button>
+                <button class="diff-btn" data-diff="medium">
+                    Medium <span class="diff-clues">35 clues</span>
+                </button>
+                <button class="diff-btn" data-diff="hard">
+                    Hard <span class="diff-clues">29 clues</span>
+                </button>
+                <button class="diff-btn" data-diff="expert">
+                    Expert <span class="diff-clues">25 clues</span>
+                </button>
+            </div>
+            <button class="menu-cancel" id="menu-cancel">Cancel</button>
+        </div>
+    </div>
+
+    <script src="generator.js"></script>
+    <script src="engine.js"></script>
+    <script>
+    (function () {
+        'use strict';
+
+        var E = SudokuEngine;
+        var boardEl = document.getElementById('board');
+        var numpadEl = document.getElementById('numpad');
+        var timerEl = document.getElementById('timer');
+        var diffLabel = document.getElementById('difficulty-label');
+        var errorCountEl = document.getElementById('error-count');
+        var completionEl = document.getElementById('completion');
+        var completionStats = document.getElementById('completion-stats');
+        var menuOverlay = document.getElementById('menu-overlay');
+
+        /* -------- build board DOM -------- */
+
+        var cells = [];
+        for (var r = 0; r < 9; r++) {
+            cells.push([]);
+            for (var c = 0; c < 9; c++) {
+                var cell = document.createElement('div');
+                cell.className = 'cell';
+                cell.dataset.row = r;
+                cell.dataset.col = c;
+                boardEl.appendChild(cell);
+                cells[r].push(cell);
+            }
+        }
+
+        /* -------- build numpad -------- */
+
+        for (var n = 1; n <= 9; n++) {
+            var btn = document.createElement('button');
+            btn.className = 'numpad-btn';
+            btn.dataset.num = n;
+            btn.innerHTML = n + '<span class="numpad-count" id="count-' + n + '"></span>';
+            numpadEl.appendChild(btn);
+        }
+
+        /* -------- render -------- */
+
+        function render(state) {
+            if (!state) return;
+
+            diffLabel.textContent = state.label;
+            errorCountEl.textContent = state.errors.size;
+
+            for (var r = 0; r < 9; r++) {
+                for (var c = 0; c < 9; c++) {
+                    var el = cells[r][c];
+                    var val = state.board[r][c];
+                    var clue = E.isClue(r, c);
+                    var highlight = E.getHighlight(r, c);
+                    var error = E.hasError(r, c);
+                    var notes = state.notes[r][c];
+
+                    // Build class
+                    var cls = 'cell';
+                    if (clue) cls += ' clue';
+                    else if (val > 0) cls += ' player';
+                    if (highlight === 'selected') cls += ' highlight-selected';
+                    else if (highlight === 'same-number') cls += ' highlight-same-number';
+                    else if (highlight === 'related') cls += ' highlight-related';
+                    if (error) cls += ' error';
+                    el.className = cls;
+
+                    // Content
+                    if (val > 0) {
+                        el.textContent = val;
+                    } else if (notes.size > 0) {
+                        var html = '<div class="cell-notes">';
+                        for (var i = 1; i <= 9; i++) {
+                            html += '<span class="cell-note">' + (notes.has(i) ? i : '') + '</span>';
+                        }
+                        html += '</div>';
+                        el.innerHTML = html;
+                    } else {
+                        el.textContent = '';
+                    }
+                }
+            }
+
+            // Number counts
+            var counts = E.getNumberCounts();
+            for (var i = 1; i <= 9; i++) {
+                var countEl = document.getElementById('count-' + i);
+                var remaining = 9 - counts[i];
+                countEl.textContent = remaining > 0 ? remaining : '';
+                var numBtn = numpadEl.children[i - 1];
+                if (remaining <= 0) numBtn.classList.add('completed-num');
+                else numBtn.classList.remove('completed-num');
+            }
+
+            // Notes button state
+            var notesBtn = document.getElementById('btn-notes');
+            if (state.notesMode) notesBtn.classList.add('active');
+            else notesBtn.classList.remove('active');
+
+            // Completion
+            if (state.completed) {
+                completionEl.classList.add('visible');
+                completionStats.textContent =
+                    state.label + ' completed in ' + E.formatTime(state.timer);
+            } else {
+                completionEl.classList.remove('visible');
+            }
+        }
+
+        function renderTimer(state) {
+            if (!state) return;
+            timerEl.textContent = E.formatTime(state.timer);
+        }
+
+        E.on(render);
+        E.onTimer(renderTimer);
+
+        /* -------- board clicks -------- */
+
+        boardEl.addEventListener('click', function (e) {
+            var cell = e.target.closest('.cell');
+            if (!cell) return;
+            var r = parseInt(cell.dataset.row);
+            var c = parseInt(cell.dataset.col);
+            E.select(r, c);
+        });
+
+        /* -------- numpad clicks -------- */
+
+        numpadEl.addEventListener('click', function (e) {
+            var btn = e.target.closest('.numpad-btn');
+            if (!btn) return;
+            E.enterNumber(parseInt(btn.dataset.num));
+        });
+
+        /* -------- action buttons -------- */
+
+        document.getElementById('btn-undo').addEventListener('click', function () { E.undo(); });
+        document.getElementById('btn-redo').addEventListener('click', function () { E.redo(); });
+        document.getElementById('btn-erase').addEventListener('click', function () { E.eraseCell(); });
+        document.getElementById('btn-notes').addEventListener('click', function () { E.toggleNotesMode(); });
+
+        document.getElementById('btn-new').addEventListener('click', function () {
+            menuOverlay.classList.add('visible');
+        });
+
+        document.getElementById('btn-new-after').addEventListener('click', function () {
+            menuOverlay.classList.add('visible');
+        });
+
+        document.getElementById('menu-cancel').addEventListener('click', function () {
+            menuOverlay.classList.remove('visible');
+        });
+
+        menuOverlay.addEventListener('click', function (e) {
+            if (e.target === menuOverlay) menuOverlay.classList.remove('visible');
+        });
+
+        document.querySelectorAll('.diff-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var diff = btn.dataset.diff;
+                menuOverlay.classList.remove('visible');
+                // Brief delay so overlay can close before generation work
+                setTimeout(function () {
+                    E.newGame(diff);
+                }, 50);
+            });
+        });
+
+        /* -------- keyboard -------- */
+
+        document.addEventListener('keydown', function (e) {
+            var state = E.getState();
+            if (!state) return;
+
+            // Menu open? Escape closes it
+            if (menuOverlay.classList.contains('visible')) {
+                if (e.key === 'Escape') menuOverlay.classList.remove('visible');
+                return;
+            }
+
+            // Numbers
+            if (e.key >= '1' && e.key <= '9' && !e.ctrlKey && !e.metaKey) {
+                e.preventDefault();
+                E.enterNumber(parseInt(e.key));
+                return;
+            }
+
+            // Navigation
+            if (state.selected) {
+                var r = state.selected.row;
+                var c = state.selected.col;
+                var moved = false;
+                if (e.key === 'ArrowUp' && r > 0) { r--; moved = true; }
+                else if (e.key === 'ArrowDown' && r < 8) { r++; moved = true; }
+                else if (e.key === 'ArrowLeft' && c > 0) { c--; moved = true; }
+                else if (e.key === 'ArrowRight' && c < 8) { c++; moved = true; }
+                if (moved) { e.preventDefault(); E.select(r, c); return; }
+            }
+
+            // Erase
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                e.preventDefault();
+                E.eraseCell();
+                return;
+            }
+
+            // Notes toggle
+            if (e.key === 'n' || e.key === 'N') {
+                e.preventDefault();
+                E.toggleNotesMode();
+                return;
+            }
+
+            // Undo
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+                e.preventDefault();
+                E.undo();
+                return;
+            }
+
+            // Redo
+            if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+                e.preventDefault();
+                E.redo();
+                return;
+            }
+
+            // Escape deselect
+            if (e.key === 'Escape') {
+                E.deselect();
+            }
+        });
+
+        /* -------- init -------- */
+
+        if (!E.load()) {
+            // No saved game, show menu
+            menuOverlay.classList.add('visible');
+        } else {
+            render(E.getState());
+            renderTimer(E.getState());
+        }
+
+        E.startTimer();
+
+        // Pause/resume on visibility
+        document.addEventListener('visibilitychange', function () {
+            if (document.hidden) E.pauseTimer();
+            else E.resumeTimer();
+        });
+
+    })();
+    </script>
+
+</body>
+</html>
