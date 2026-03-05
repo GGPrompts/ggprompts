@@ -1,0 +1,1783 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Timeline / Gantt Maker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --font-sans: 'Inter', -apple-system, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+
+            --bg: #0f1117;
+            --bg-panel: #181a20;
+            --bg-header: #1c1e26;
+            --bg-hover: #22252e;
+            --bg-input: #1e2028;
+            --bg-chart: #14161c;
+            --border: #2a2d38;
+            --border-focus: #5b8def;
+            --text: #e4e6ec;
+            --text-secondary: #9a9daa;
+            --text-muted: #5c5f6e;
+            --accent: #5b8def;
+            --accent-hover: #4a7de0;
+            --accent-light: rgba(91, 141, 239, 0.15);
+            --danger: #ef5350;
+            --danger-light: rgba(239, 83, 80, 0.15);
+            --success: #4caf50;
+            --warning: #ffb74d;
+            --milestone: #ff9800;
+            --grid-line: rgba(255,255,255,0.04);
+            --grid-line-major: rgba(255,255,255,0.08);
+            --today: rgba(239, 83, 80, 0.6);
+
+            --radius: 6px;
+            --radius-sm: 3px;
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+            --transition: 150ms ease;
+
+            --task-colors: #5b8def, #4caf50, #ff9800, #e91e63, #9c27b0, #00bcd4, #cddc39, #ff5722;
+            --lane-height: 40px;
+            --header-height: 48px;
+            --sidebar-width: 240px;
+            --row-alt: rgba(255,255,255,0.015);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: var(--font-sans);
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ---- Header ---- */
+        .header {
+            background: var(--bg-header);
+            border-bottom: 1px solid var(--border);
+            padding: 0 16px;
+            height: var(--header-height);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-shrink: 0;
+            z-index: 100;
+        }
+
+        .header-back {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .header-back:hover { color: var(--text); }
+
+        .header-title {
+            font-size: 15px;
+            font-weight: 600;
+            letter-spacing: -0.3px;
+            white-space: nowrap;
+        }
+
+        .header-sep {
+            width: 1px;
+            height: 20px;
+            background: var(--border);
+        }
+
+        .header-actions {
+            margin-left: auto;
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+
+        /* ---- Buttons ---- */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 6px 12px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: var(--bg-panel);
+            color: var(--text-secondary);
+            font-family: var(--font-sans);
+            font-size: 12px;
+            cursor: pointer;
+            transition: all var(--transition);
+            white-space: nowrap;
+        }
+        .btn:hover { background: var(--bg-hover); color: var(--text); border-color: var(--text-muted); }
+
+        .btn-primary {
+            background: var(--accent);
+            color: #fff;
+            border-color: var(--accent);
+        }
+        .btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: #fff; }
+
+        .btn-danger {
+            color: var(--danger);
+        }
+        .btn-danger:hover { background: var(--danger-light); border-color: var(--danger); }
+
+        .btn-icon {
+            padding: 6px 8px;
+            font-size: 14px;
+        }
+
+        select.btn {
+            appearance: none;
+            padding-right: 24px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%239a9daa'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 8px center;
+        }
+
+        /* ---- Main Layout ---- */
+        .main {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* ---- Sidebar ---- */
+        .sidebar {
+            width: var(--sidebar-width);
+            min-width: var(--sidebar-width);
+            background: var(--bg-panel);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .sidebar-header {
+            height: 60px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            padding: 0 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+            gap: 8px;
+        }
+
+        .sidebar-header .btn { margin-left: auto; }
+
+        .sidebar-list {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .sidebar-group {
+            border-bottom: 1px solid var(--border);
+        }
+
+        .group-header {
+            display: flex;
+            align-items: center;
+            padding: 6px 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+            cursor: pointer;
+            user-select: none;
+            gap: 6px;
+            background: rgba(255,255,255,0.02);
+        }
+        .group-header:hover { background: var(--bg-hover); }
+
+        .group-header .arrow {
+            font-size: 8px;
+            transition: transform var(--transition);
+        }
+        .group-header.collapsed .arrow { transform: rotate(-90deg); }
+
+        .group-header .group-actions {
+            margin-left: auto;
+            display: flex;
+            gap: 2px;
+            opacity: 0;
+            transition: opacity var(--transition);
+        }
+        .group-header:hover .group-actions { opacity: 1; }
+
+        .group-header .ga-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 12px;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+        .group-header .ga-btn:hover { color: var(--text); background: var(--bg-hover); }
+
+        .task-row {
+            display: flex;
+            align-items: center;
+            height: var(--lane-height);
+            padding: 0 12px 0 24px;
+            font-size: 12px;
+            cursor: pointer;
+            border-bottom: 1px solid rgba(255,255,255,0.02);
+            gap: 8px;
+        }
+        .task-row:hover { background: var(--bg-hover); }
+        .task-row.selected { background: var(--accent-light); }
+
+        .task-row .color-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .task-row .milestone-diamond {
+            width: 10px;
+            height: 10px;
+            flex-shrink: 0;
+            transform: rotate(45deg);
+        }
+
+        .task-row .task-name {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .task-row .task-actions {
+            display: flex;
+            gap: 2px;
+            opacity: 0;
+            transition: opacity var(--transition);
+        }
+        .task-row:hover .task-actions { opacity: 1; }
+
+        .task-row .ta-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 11px;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+        .task-row .ta-btn:hover { color: var(--text); background: rgba(255,255,255,0.08); }
+
+        /* ---- Chart Area ---- */
+        .chart-wrapper {
+            flex: 1;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .chart-scroll {
+            flex: 1;
+            overflow: auto;
+            position: relative;
+        }
+
+        canvas#ganttCanvas {
+            display: block;
+        }
+
+        /* ---- Modal ---- */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.6);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .modal-overlay.active { display: flex; }
+
+        .modal {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            width: 440px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        }
+
+        .modal-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 18px;
+            cursor: pointer;
+            padding: 4px;
+        }
+        .modal-close:hover { color: var(--text); }
+
+        .modal-body {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .form-group label {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-secondary);
+        }
+
+        .form-group input,
+        .form-group select {
+            padding: 8px 10px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: var(--bg-input);
+            color: var(--text);
+            font-family: var(--font-sans);
+            font-size: 13px;
+            outline: none;
+            transition: border-color var(--transition);
+        }
+        .form-group input:focus,
+        .form-group select:focus { border-color: var(--border-focus); }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .color-swatches {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .color-swatch {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: all var(--transition);
+        }
+        .color-swatch:hover { transform: scale(1.15); }
+        .color-swatch.active { border-color: #fff; box-shadow: 0 0 0 2px var(--accent); }
+
+        .modal-footer {
+            padding: 14px 20px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+
+        /* ---- Dependency Arrow Tooltip ---- */
+        .dep-indicator {
+            font-size: 10px;
+            color: var(--text-muted);
+            margin-left: 4px;
+        }
+
+        /* ---- Toolbar Zoom ---- */
+        .zoom-controls {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .zoom-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            min-width: 32px;
+            text-align: center;
+            font-family: var(--font-mono);
+        }
+
+        /* ---- Context Menu ---- */
+        .context-menu {
+            position: fixed;
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-md);
+            z-index: 2000;
+            display: none;
+            min-width: 160px;
+            padding: 4px 0;
+        }
+        .context-menu.active { display: block; }
+
+        .ctx-item {
+            padding: 7px 14px;
+            font-size: 12px;
+            cursor: pointer;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .ctx-item:hover { background: var(--bg-hover); color: var(--text); }
+        .ctx-item.danger { color: var(--danger); }
+
+        .ctx-sep {
+            height: 1px;
+            background: var(--border);
+            margin: 4px 0;
+        }
+
+        /* ---- Responsive ---- */
+        @media (max-width: 768px) {
+            :root {
+                --sidebar-width: 180px;
+                --lane-height: 36px;
+            }
+            .header { padding: 0 10px; gap: 8px; }
+            .header-title { font-size: 13px; }
+            .btn { font-size: 11px; padding: 5px 8px; }
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <a href="../index.html" class="header-back">&#8592; Tools</a>
+    <div class="header-sep"></div>
+    <span class="header-title">Timeline / Gantt Maker</span>
+    <div class="header-sep"></div>
+    <div class="zoom-controls">
+        <button class="btn btn-icon" id="zoomOut" title="Zoom out">-</button>
+        <span class="zoom-label" id="zoomLabel">100%</span>
+        <button class="btn btn-icon" id="zoomIn" title="Zoom in">+</button>
+        <select class="btn" id="viewMode" title="View mode">
+            <option value="day">Day</option>
+            <option value="week" selected>Week</option>
+            <option value="month">Month</option>
+        </select>
+    </div>
+    <div class="header-sep"></div>
+    <button class="btn" id="btnFitAll" title="Fit all tasks">Fit All</button>
+    <button class="btn" id="btnToday" title="Scroll to today">Today</button>
+    <div class="header-actions">
+        <button class="btn" id="btnNew">New Project</button>
+        <button class="btn" id="btnLoad">Open JSON</button>
+        <button class="btn" id="btnSave">Save JSON</button>
+        <button class="btn" id="btnExportPNG">Export PNG</button>
+        <button class="btn" id="btnExportSVG">Export SVG</button>
+    </div>
+</div>
+
+<div class="main">
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <span>Tasks</span>
+            <button class="btn" id="btnAddGroup">+ Group</button>
+            <button class="btn btn-primary" id="btnAddTask">+ Task</button>
+        </div>
+        <div class="sidebar-list" id="sidebarList"></div>
+    </div>
+    <div class="chart-wrapper">
+        <div class="chart-scroll" id="chartScroll">
+            <canvas id="ganttCanvas"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Task Modal -->
+<div class="modal-overlay" id="taskModal">
+    <div class="modal">
+        <div class="modal-header">
+            <span id="taskModalTitle">Add Task</span>
+            <button class="modal-close" id="taskModalClose">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Task Name</label>
+                <input type="text" id="fTaskName" placeholder="Enter task name">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Start Date</label>
+                    <input type="date" id="fTaskStart">
+                </div>
+                <div class="form-group">
+                    <label>End Date</label>
+                    <input type="date" id="fTaskEnd">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Type</label>
+                <select id="fTaskType">
+                    <option value="task">Task (bar)</option>
+                    <option value="milestone">Milestone (diamond)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Group</label>
+                <select id="fTaskGroup"></select>
+            </div>
+            <div class="form-group">
+                <label>Progress (%)</label>
+                <input type="number" id="fTaskProgress" min="0" max="100" value="0">
+            </div>
+            <div class="form-group">
+                <label>Depends On</label>
+                <select id="fTaskDep">
+                    <option value="">None</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Color</label>
+                <div class="color-swatches" id="fTaskColors"></div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-danger" id="taskDeleteBtn" style="margin-right:auto;display:none">Delete</button>
+            <button class="btn" id="taskCancelBtn">Cancel</button>
+            <button class="btn btn-primary" id="taskSaveBtn">Save</button>
+        </div>
+    </div>
+</div>
+
+<!-- Group Modal -->
+<div class="modal-overlay" id="groupModal">
+    <div class="modal">
+        <div class="modal-header">
+            <span id="groupModalTitle">Add Group</span>
+            <button class="modal-close" id="groupModalClose">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Group Name</label>
+                <input type="text" id="fGroupName" placeholder="Enter group / swimlane name">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-danger" id="groupDeleteBtn" style="margin-right:auto;display:none">Delete</button>
+            <button class="btn" id="groupCancelBtn">Cancel</button>
+            <button class="btn btn-primary" id="groupSaveBtn">Save</button>
+        </div>
+    </div>
+</div>
+
+<!-- Context Menu -->
+<div class="context-menu" id="ctxMenu">
+    <div class="ctx-item" data-action="edit">Edit Task</div>
+    <div class="ctx-item" data-action="addDep">Add Dependency From...</div>
+    <div class="ctx-item" data-action="removeDep">Remove Dependency</div>
+    <div class="ctx-sep"></div>
+    <div class="ctx-item" data-action="duplicate">Duplicate</div>
+    <div class="ctx-item danger" data-action="delete">Delete</div>
+</div>
+
+<!-- Hidden file input -->
+<input type="file" id="fileInput" accept=".json" style="display:none">
+
+<script>
+/* ================================================================
+   Timeline / Gantt Maker  -  Vanilla JS, no build tools
+   ================================================================ */
+(function() {
+'use strict';
+
+// ---- Constants ----
+const COLORS = ['#5b8def','#4caf50','#ff9800','#e91e63','#9c27b0','#00bcd4','#cddc39','#ff5722','#795548','#607d8b'];
+const DAY_MS = 86400000;
+const MIN_ZOOM = 0.25;
+const MAX_ZOOM = 4;
+const LANE_H = 40;
+const HEADER_H = 60;
+const MIN_COL_W = 30;
+
+// ---- State ----
+let project = createEmptyProject();
+let zoom = 1;
+let viewMode = 'week'; // day | week | month
+let selectedTaskId = null;
+let editingTaskId = null;
+let editingGroupId = null;
+let depSourceId = null; // for adding dependency
+let dragState = null; // { taskId, type: 'move'|'resizeL'|'resizeR', startX, origStart, origEnd }
+
+// ---- DOM refs ----
+const $ = id => document.getElementById(id);
+const canvas = $('ganttCanvas');
+const ctx = canvas.getContext('2d');
+const chartScroll = $('chartScroll');
+const sidebarList = $('sidebarList');
+const ctxMenu = $('ctxMenu');
+
+// ---- Project data model ----
+function createEmptyProject() {
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    return {
+        name: 'Untitled Project',
+        groups: [{ id: gid(), name: 'Default', collapsed: false }],
+        tasks: [
+            {
+                id: tid(), name: 'Sample Task', type: 'task',
+                start: fmtDate(today), end: fmtDate(new Date(today.getTime() + 7 * DAY_MS)),
+                color: COLORS[0], group: null, progress: 0, dep: null
+            }
+        ]
+    };
+}
+
+function gid() { return 'g' + Math.random().toString(36).slice(2, 8); }
+function tid() { return 't' + Math.random().toString(36).slice(2, 8); }
+
+function fmtDate(d) {
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function parseDate(s) {
+    const [y,m,d] = s.split('-').map(Number);
+    return new Date(y, m-1, d);
+}
+
+function addDays(d, n) { return new Date(d.getTime() + n * DAY_MS); }
+
+function daysBetween(a, b) { return Math.round((b - a) / DAY_MS); }
+
+// Assign tasks with no group to the first group
+function resolveGroup(task) {
+    if (task.group && project.groups.find(g => g.id === task.group)) return task.group;
+    return project.groups.length ? project.groups[0].id : null;
+}
+
+// ---- Ordered task list (grouped) ----
+function getOrderedRows() {
+    const rows = [];
+    for (const g of project.groups) {
+        rows.push({ type: 'group', group: g });
+        if (!g.collapsed) {
+            for (const t of project.tasks) {
+                if (resolveGroup(t) === g.id) {
+                    rows.push({ type: 'task', task: t });
+                }
+            }
+        }
+    }
+    // Ungrouped tasks
+    const ungrouped = project.tasks.filter(t => !resolveGroup(t));
+    for (const t of ungrouped) {
+        rows.push({ type: 'task', task: t });
+    }
+    return rows;
+}
+
+// ---- Date range of project ----
+function getDateRange() {
+    const tasks = project.tasks;
+    if (!tasks.length) {
+        const today = new Date(); today.setHours(0,0,0,0);
+        return { start: addDays(today, -7), end: addDays(today, 30) };
+    }
+    let minD = Infinity, maxD = -Infinity;
+    for (const t of tasks) {
+        const s = parseDate(t.start).getTime();
+        const e = t.type === 'milestone' ? s : parseDate(t.end).getTime();
+        if (s < minD) minD = s;
+        if (e > maxD) maxD = e;
+    }
+    // Add padding
+    const pad = Math.max(7, Math.round((maxD - minD) / DAY_MS * 0.15));
+    return {
+        start: addDays(new Date(minD), -pad),
+        end: addDays(new Date(maxD), pad)
+    };
+}
+
+// ---- Column width based on zoom and view ----
+function getColWidth() {
+    const base = viewMode === 'day' ? 40 : viewMode === 'week' ? 20 : 6;
+    return Math.max(MIN_COL_W * 0.5, base * zoom);
+}
+
+// ---- Rendering ----
+let dpr = window.devicePixelRatio || 1;
+
+function render() {
+    const rows = getOrderedRows();
+    const range = getDateRange();
+    const totalDays = daysBetween(range.start, range.end);
+    const colW = getColWidth();
+    const chartW = Math.max(totalDays * colW, chartScroll.clientWidth);
+    const chartH = Math.max(rows.length * LANE_H + HEADER_H, chartScroll.clientHeight);
+
+    canvas.width = chartW * dpr;
+    canvas.height = chartH * dpr;
+    canvas.style.width = chartW + 'px';
+    canvas.style.height = chartH + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    // Background
+    ctx.fillStyle = '#14161c';
+    ctx.fillRect(0, 0, chartW, chartH);
+
+    // ---- Draw date header ----
+    ctx.save();
+    ctx.fillStyle = '#1c1e26';
+    ctx.fillRect(0, 0, chartW, HEADER_H);
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.lineWidth = 1;
+
+    const today = new Date(); today.setHours(0,0,0,0);
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+    // Draw day/week/month columns
+    let prevMonth = -1;
+    let prevWeek = -1;
+    for (let i = 0; i < totalDays; i++) {
+        const d = addDays(range.start, i);
+        const x = i * colW;
+
+        // Day grid lines
+        const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+        if (isWeekend) {
+            ctx.fillStyle = 'rgba(255,255,255,0.015)';
+            ctx.fillRect(x, HEADER_H, colW, chartH - HEADER_H);
+        }
+
+        // Vertical grid lines
+        if (viewMode === 'day' || (viewMode === 'week' && d.getDay() === 1) || (viewMode === 'month' && d.getDate() === 1)) {
+            ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+            ctx.beginPath(); ctx.moveTo(x, HEADER_H); ctx.lineTo(x, chartH); ctx.stroke();
+        }
+
+        // Month label (top row)
+        if (d.getMonth() !== prevMonth) {
+            prevMonth = d.getMonth();
+            ctx.fillStyle = '#9a9daa';
+            ctx.font = '11px Inter, sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillText(months[d.getMonth()] + ' ' + d.getFullYear(), x + 4, 16);
+
+            // Month separator
+            ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, HEADER_H); ctx.stroke();
+        }
+
+        // Day/week label (bottom row)
+        if (viewMode === 'day' && colW >= 24) {
+            ctx.fillStyle = isWeekend ? '#5c5f6e' : '#7a7d8a';
+            ctx.font = '10px Inter, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(d.getDate(), x + colW / 2, 38);
+            if (colW >= 50) {
+                ctx.fillStyle = '#5c5f6e';
+                ctx.font = '9px Inter, sans-serif';
+                ctx.fillText(days[d.getDay()], x + colW / 2, 52);
+            }
+        } else if (viewMode === 'week' && d.getDay() === 1) {
+            ctx.fillStyle = '#7a7d8a';
+            ctx.font = '10px Inter, sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillText(d.getDate() + ' ' + months[d.getMonth()], x + 3, 42);
+        } else if (viewMode === 'month' && d.getDate() === 1) {
+            // Already drawn in month label
+        }
+
+        // Today line
+        if (d.getTime() === today.getTime()) {
+            ctx.strokeStyle = 'rgba(239, 83, 80, 0.7)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(x + colW / 2, 0);
+            ctx.lineTo(x + colW / 2, chartH);
+            ctx.stroke();
+            ctx.lineWidth = 1;
+
+            // Today marker
+            ctx.fillStyle = '#ef5350';
+            ctx.beginPath();
+            ctx.arc(x + colW / 2, HEADER_H - 4, 4, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
+    // Header bottom border
+    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+    ctx.beginPath(); ctx.moveTo(0, HEADER_H); ctx.lineTo(chartW, HEADER_H); ctx.stroke();
+    ctx.restore();
+
+    // ---- Draw row backgrounds ----
+    for (let i = 0; i < rows.length; i++) {
+        const y = HEADER_H + i * LANE_H;
+        if (rows[i].type === 'group') {
+            ctx.fillStyle = 'rgba(255,255,255,0.025)';
+            ctx.fillRect(0, y, chartW, LANE_H);
+        } else if (i % 2 === 0) {
+            ctx.fillStyle = 'rgba(255,255,255,0.01)';
+            ctx.fillRect(0, y, chartW, LANE_H);
+        }
+
+        // Row separator
+        ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+        ctx.beginPath(); ctx.moveTo(0, y + LANE_H); ctx.lineTo(chartW, y + LANE_H); ctx.stroke();
+    }
+
+    // ---- Draw dependency arrows ----
+    ctx.save();
+    for (const t of project.tasks) {
+        if (!t.dep) continue;
+        const src = project.tasks.find(s => s.id === t.dep);
+        if (!src) continue;
+
+        const srcRow = rows.findIndex(r => r.type === 'task' && r.task.id === src.id);
+        const dstRow = rows.findIndex(r => r.type === 'task' && r.task.id === t.id);
+        if (srcRow < 0 || dstRow < 0) continue;
+
+        const srcEnd = src.type === 'milestone'
+            ? (daysBetween(range.start, parseDate(src.start)) + 0.5) * colW
+            : (daysBetween(range.start, parseDate(src.end)) + 1) * colW;
+        const dstStart = daysBetween(range.start, parseDate(t.start)) * colW;
+
+        const srcY = HEADER_H + srcRow * LANE_H + LANE_H / 2;
+        const dstY = HEADER_H + dstRow * LANE_H + LANE_H / 2;
+
+        const midX = srcEnd + 10;
+
+        ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([4, 3]);
+        ctx.beginPath();
+        ctx.moveTo(srcEnd, srcY);
+        ctx.lineTo(midX, srcY);
+        ctx.lineTo(midX, dstY);
+        ctx.lineTo(dstStart - 4, dstY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Arrowhead
+        ctx.fillStyle = 'rgba(255,255,255,0.35)';
+        ctx.beginPath();
+        ctx.moveTo(dstStart - 2, dstY);
+        ctx.lineTo(dstStart - 8, dstY - 4);
+        ctx.lineTo(dstStart - 8, dstY + 4);
+        ctx.closePath();
+        ctx.fill();
+    }
+    ctx.restore();
+
+    // ---- Draw task bars ----
+    for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        if (row.type !== 'task') continue;
+        const t = row.task;
+        const y = HEADER_H + i * LANE_H;
+
+        if (t.type === 'milestone') {
+            // Diamond
+            const dx = (daysBetween(range.start, parseDate(t.start)) + 0.5) * colW;
+            const dy = y + LANE_H / 2;
+            const sz = 8;
+            ctx.fillStyle = t.color || COLORS[0];
+            ctx.beginPath();
+            ctx.moveTo(dx, dy - sz);
+            ctx.lineTo(dx + sz, dy);
+            ctx.lineTo(dx, dy + sz);
+            ctx.lineTo(dx - sz, dy);
+            ctx.closePath();
+            ctx.fill();
+
+            if (t.id === selectedTaskId) {
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+
+            // Label
+            ctx.fillStyle = '#ccc';
+            ctx.font = '11px Inter, sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillText(t.name, dx + sz + 6, dy + 4);
+        } else {
+            // Bar
+            const startDay = daysBetween(range.start, parseDate(t.start));
+            const endDay = daysBetween(range.start, parseDate(t.end));
+            const bx = startDay * colW;
+            const bw = Math.max((endDay - startDay + 1) * colW, 4);
+            const by = y + 8;
+            const bh = LANE_H - 16;
+            const r = 4;
+
+            // Bar background
+            ctx.fillStyle = t.color || COLORS[0];
+            ctx.globalAlpha = 0.3;
+            ctx.beginPath();
+            ctx.roundRect(bx, by, bw, bh, r);
+            ctx.fill();
+            ctx.globalAlpha = 1;
+
+            // Progress fill
+            if (t.progress > 0) {
+                const pw = bw * Math.min(t.progress, 100) / 100;
+                ctx.fillStyle = t.color || COLORS[0];
+                ctx.globalAlpha = 0.7;
+                ctx.beginPath();
+                ctx.roundRect(bx, by, pw, bh, r);
+                ctx.fill();
+                ctx.globalAlpha = 1;
+            }
+
+            // Bar border
+            ctx.strokeStyle = t.color || COLORS[0];
+            ctx.lineWidth = t.id === selectedTaskId ? 2 : 1;
+            ctx.globalAlpha = t.id === selectedTaskId ? 1 : 0.6;
+            ctx.beginPath();
+            ctx.roundRect(bx, by, bw, bh, r);
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+
+            // Resize handles (visual hint on hover/selected)
+            if (t.id === selectedTaskId) {
+                ctx.fillStyle = '#fff';
+                ctx.globalAlpha = 0.8;
+                ctx.fillRect(bx + 1, by + bh/2 - 6, 3, 12);
+                ctx.fillRect(bx + bw - 4, by + bh/2 - 6, 3, 12);
+                ctx.globalAlpha = 1;
+            }
+
+            // Label inside bar
+            if (bw > 40) {
+                ctx.fillStyle = '#fff';
+                ctx.font = '11px Inter, sans-serif';
+                ctx.textAlign = 'left';
+                ctx.globalAlpha = 0.9;
+                ctx.save();
+                ctx.beginPath();
+                ctx.rect(bx, by, bw, bh);
+                ctx.clip();
+                ctx.fillText(t.name, bx + 8, by + bh / 2 + 4);
+                ctx.restore();
+                ctx.globalAlpha = 1;
+            }
+        }
+    }
+
+    renderSidebar(rows);
+}
+
+// ---- Sidebar ----
+function renderSidebar(rows) {
+    if (!rows) rows = getOrderedRows();
+    sidebarList.innerHTML = '';
+
+    for (const row of rows) {
+        if (row.type === 'group') {
+            const g = row.group;
+            const el = document.createElement('div');
+            el.className = 'group-header' + (g.collapsed ? ' collapsed' : '');
+            el.innerHTML = `
+                <span class="arrow">&#9660;</span>
+                <span>${esc(g.name)}</span>
+                <span class="group-actions">
+                    <button class="ga-btn" data-gid="${g.id}" data-action="editGroup" title="Edit group">&#9998;</button>
+                    <button class="ga-btn" data-gid="${g.id}" data-action="addToGroup" title="Add task to group">+</button>
+                </span>
+            `;
+            el.addEventListener('click', (e) => {
+                if (e.target.closest('.ga-btn')) {
+                    const btn = e.target.closest('.ga-btn');
+                    if (btn.dataset.action === 'editGroup') openGroupModal(g.id);
+                    else if (btn.dataset.action === 'addToGroup') openTaskModal(null, g.id);
+                    return;
+                }
+                g.collapsed = !g.collapsed;
+                render();
+            });
+            sidebarList.appendChild(el);
+        } else {
+            const t = row.task;
+            const el = document.createElement('div');
+            el.className = 'task-row' + (t.id === selectedTaskId ? ' selected' : '');
+            const depCount = project.tasks.filter(x => x.dep === t.id).length;
+            const hasDep = t.dep ? ' &#8594;' : '';
+            if (t.type === 'milestone') {
+                el.innerHTML = `
+                    <span class="milestone-diamond" style="background:${t.color || COLORS[0]}"></span>
+                    <span class="task-name">${esc(t.name)}</span>
+                    ${depCount ? '<span class="dep-indicator">' + depCount + ' dep</span>' : ''}
+                    <span class="task-actions">
+                        <button class="ta-btn" data-tid="${t.id}" data-action="editTask">&#9998;</button>
+                    </span>
+                `;
+            } else {
+                el.innerHTML = `
+                    <span class="color-dot" style="background:${t.color || COLORS[0]}"></span>
+                    <span class="task-name">${esc(t.name)}</span>
+                    ${depCount ? '<span class="dep-indicator">' + depCount + ' dep</span>' : ''}
+                    <span class="task-actions">
+                        <button class="ta-btn" data-tid="${t.id}" data-action="editTask">&#9998;</button>
+                    </span>
+                `;
+            }
+            el.addEventListener('click', (e) => {
+                if (e.target.closest('.ta-btn')) {
+                    openTaskModal(t.id);
+                    return;
+                }
+                selectedTaskId = t.id === selectedTaskId ? null : t.id;
+                render();
+            });
+            sidebarList.appendChild(el);
+        }
+    }
+}
+
+function esc(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+}
+
+// ---- Task Modal ----
+function openTaskModal(taskId, defaultGroup) {
+    editingTaskId = taskId;
+    const isEdit = !!taskId;
+    const task = isEdit ? project.tasks.find(t => t.id === taskId) : null;
+
+    $('taskModalTitle').textContent = isEdit ? 'Edit Task' : 'Add Task';
+    $('taskDeleteBtn').style.display = isEdit ? '' : 'none';
+
+    $('fTaskName').value = task ? task.name : '';
+    $('fTaskType').value = task ? task.type : 'task';
+
+    const today = new Date(); today.setHours(0,0,0,0);
+    $('fTaskStart').value = task ? task.start : fmtDate(today);
+    $('fTaskEnd').value = task ? task.end : fmtDate(addDays(today, 7));
+    $('fTaskProgress').value = task ? task.progress : 0;
+
+    // Group select
+    const groupSel = $('fTaskGroup');
+    groupSel.innerHTML = '';
+    for (const g of project.groups) {
+        const o = document.createElement('option');
+        o.value = g.id;
+        o.textContent = g.name;
+        groupSel.appendChild(o);
+    }
+    if (task) groupSel.value = resolveGroup(task);
+    else if (defaultGroup) groupSel.value = defaultGroup;
+
+    // Dependency select
+    const depSel = $('fTaskDep');
+    depSel.innerHTML = '<option value="">None</option>';
+    for (const t of project.tasks) {
+        if (t.id === taskId) continue;
+        const o = document.createElement('option');
+        o.value = t.id;
+        o.textContent = t.name;
+        depSel.appendChild(o);
+    }
+    depSel.value = task && task.dep ? task.dep : '';
+
+    // Color swatches
+    const colorDiv = $('fTaskColors');
+    colorDiv.innerHTML = '';
+    const activeColor = task ? task.color : COLORS[0];
+    for (const c of COLORS) {
+        const s = document.createElement('div');
+        s.className = 'color-swatch' + (c === activeColor ? ' active' : '');
+        s.style.background = c;
+        s.dataset.color = c;
+        s.addEventListener('click', () => {
+            colorDiv.querySelectorAll('.color-swatch').forEach(x => x.classList.remove('active'));
+            s.classList.add('active');
+        });
+        colorDiv.appendChild(s);
+    }
+
+    $('taskModal').classList.add('active');
+    setTimeout(() => $('fTaskName').focus(), 50);
+}
+
+function closeTaskModal() {
+    $('taskModal').classList.remove('active');
+    editingTaskId = null;
+}
+
+function saveTask() {
+    const name = $('fTaskName').value.trim() || 'Untitled';
+    const type = $('fTaskType').value;
+    const start = $('fTaskStart').value;
+    const end = $('fTaskEnd').value;
+    const group = $('fTaskGroup').value;
+    const progress = parseInt($('fTaskProgress').value) || 0;
+    const dep = $('fTaskDep').value || null;
+    const activeColor = $('fTaskColors').querySelector('.active');
+    const color = activeColor ? activeColor.dataset.color : COLORS[0];
+
+    if (editingTaskId) {
+        const task = project.tasks.find(t => t.id === editingTaskId);
+        if (task) {
+            task.name = name; task.type = type; task.start = start; task.end = end;
+            task.group = group; task.progress = progress; task.dep = dep; task.color = color;
+        }
+    } else {
+        project.tasks.push({
+            id: tid(), name, type, start, end, color, group, progress, dep
+        });
+    }
+
+    closeTaskModal();
+    render();
+    autosave();
+}
+
+function deleteTask(id) {
+    const taskId = id || editingTaskId;
+    project.tasks = project.tasks.filter(t => t.id !== taskId);
+    // Remove dependencies pointing to this task
+    for (const t of project.tasks) {
+        if (t.dep === taskId) t.dep = null;
+    }
+    if (selectedTaskId === taskId) selectedTaskId = null;
+    closeTaskModal();
+    render();
+    autosave();
+}
+
+// ---- Group Modal ----
+function openGroupModal(groupId) {
+    editingGroupId = groupId || null;
+    const isEdit = !!groupId;
+    const group = isEdit ? project.groups.find(g => g.id === groupId) : null;
+
+    $('groupModalTitle').textContent = isEdit ? 'Edit Group' : 'Add Group';
+    $('groupDeleteBtn').style.display = isEdit ? '' : 'none';
+    $('fGroupName').value = group ? group.name : '';
+
+    $('groupModal').classList.add('active');
+    setTimeout(() => $('fGroupName').focus(), 50);
+}
+
+function closeGroupModal() {
+    $('groupModal').classList.remove('active');
+    editingGroupId = null;
+}
+
+function saveGroup() {
+    const name = $('fGroupName').value.trim() || 'Untitled Group';
+
+    if (editingGroupId) {
+        const group = project.groups.find(g => g.id === editingGroupId);
+        if (group) group.name = name;
+    } else {
+        project.groups.push({ id: gid(), name, collapsed: false });
+    }
+
+    closeGroupModal();
+    render();
+    autosave();
+}
+
+function deleteGroup(id) {
+    const groupId = id || editingGroupId;
+    // Move tasks from this group to the first remaining group
+    const remaining = project.groups.filter(g => g.id !== groupId);
+    const fallback = remaining.length ? remaining[0].id : null;
+    for (const t of project.tasks) {
+        if (t.group === groupId) t.group = fallback;
+    }
+    project.groups = remaining;
+    if (!project.groups.length) {
+        project.groups.push({ id: gid(), name: 'Default', collapsed: false });
+    }
+    closeGroupModal();
+    render();
+    autosave();
+}
+
+// ---- Canvas interaction ----
+function getTaskAtPos(mx, my) {
+    const rows = getOrderedRows();
+    const range = getDateRange();
+    const colW = getColWidth();
+
+    for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        if (row.type !== 'task') continue;
+        const t = row.task;
+        const y = HEADER_H + i * LANE_H;
+
+        if (t.type === 'milestone') {
+            const dx = (daysBetween(range.start, parseDate(t.start)) + 0.5) * colW;
+            const dy = y + LANE_H / 2;
+            if (Math.abs(mx - dx) < 10 && Math.abs(my - dy) < 10) {
+                return { task: t, hitType: 'move' };
+            }
+        } else {
+            const startDay = daysBetween(range.start, parseDate(t.start));
+            const endDay = daysBetween(range.start, parseDate(t.end));
+            const bx = startDay * colW;
+            const bw = Math.max((endDay - startDay + 1) * colW, 4);
+            const by = y + 8;
+            const bh = LANE_H - 16;
+
+            if (mx >= bx && mx <= bx + bw && my >= by && my <= by + bh) {
+                if (mx < bx + 8) return { task: t, hitType: 'resizeL' };
+                if (mx > bx + bw - 8) return { task: t, hitType: 'resizeR' };
+                return { task: t, hitType: 'move' };
+            }
+        }
+    }
+    return null;
+}
+
+canvas.addEventListener('mousedown', (e) => {
+    hideCtxMenu();
+    const rect = canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) + chartScroll.scrollLeft;
+    const my = (e.clientY - rect.top) + chartScroll.scrollTop;
+
+    const hit = getTaskAtPos(mx, my);
+    if (hit && e.button === 0) {
+        selectedTaskId = hit.task.id;
+
+        if (depSourceId) {
+            // We're in "add dependency" mode
+            if (depSourceId !== hit.task.id) {
+                hit.task.dep = depSourceId;
+                autosave();
+            }
+            depSourceId = null;
+            canvas.style.cursor = 'default';
+            render();
+            return;
+        }
+
+        dragState = {
+            taskId: hit.task.id,
+            type: hit.hitType,
+            startX: mx,
+            origStart: hit.task.start,
+            origEnd: hit.task.end
+        };
+        render();
+    } else {
+        if (depSourceId) {
+            depSourceId = null;
+            canvas.style.cursor = 'default';
+        }
+        selectedTaskId = null;
+        render();
+    }
+});
+
+canvas.addEventListener('mousemove', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) + chartScroll.scrollLeft;
+    const my = (e.clientY - rect.top) + chartScroll.scrollTop;
+
+    if (dragState) {
+        const range = getDateRange();
+        const colW = getColWidth();
+        const dx = mx - dragState.startX;
+        const dayDelta = Math.round(dx / colW);
+
+        const task = project.tasks.find(t => t.id === dragState.taskId);
+        if (!task) return;
+
+        if (dragState.type === 'move') {
+            task.start = fmtDate(addDays(parseDate(dragState.origStart), dayDelta));
+            if (task.type !== 'milestone') {
+                task.end = fmtDate(addDays(parseDate(dragState.origEnd), dayDelta));
+            }
+        } else if (dragState.type === 'resizeL') {
+            const newStart = addDays(parseDate(dragState.origStart), dayDelta);
+            const origEnd = parseDate(dragState.origEnd);
+            if (newStart <= origEnd) {
+                task.start = fmtDate(newStart);
+            }
+        } else if (dragState.type === 'resizeR') {
+            const origStart = parseDate(dragState.origStart);
+            const newEnd = addDays(parseDate(dragState.origEnd), dayDelta);
+            if (newEnd >= origStart) {
+                task.end = fmtDate(newEnd);
+            }
+        }
+        render();
+        return;
+    }
+
+    // Cursor hints
+    if (depSourceId) {
+        canvas.style.cursor = 'crosshair';
+        return;
+    }
+    const hit = getTaskAtPos(mx, my);
+    if (hit) {
+        if (hit.hitType === 'resizeL' || hit.hitType === 'resizeR') {
+            canvas.style.cursor = 'ew-resize';
+        } else {
+            canvas.style.cursor = 'grab';
+        }
+    } else {
+        canvas.style.cursor = 'default';
+    }
+});
+
+canvas.addEventListener('mouseup', () => {
+    if (dragState) {
+        dragState = null;
+        autosave();
+    }
+});
+
+canvas.addEventListener('mouseleave', () => {
+    if (dragState) {
+        dragState = null;
+        autosave();
+    }
+});
+
+canvas.addEventListener('dblclick', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) + chartScroll.scrollLeft;
+    const my = (e.clientY - rect.top) + chartScroll.scrollTop;
+    const hit = getTaskAtPos(mx, my);
+    if (hit) {
+        openTaskModal(hit.task.id);
+    }
+});
+
+// Context menu
+canvas.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) + chartScroll.scrollLeft;
+    const my = (e.clientY - rect.top) + chartScroll.scrollTop;
+    const hit = getTaskAtPos(mx, my);
+
+    if (hit) {
+        selectedTaskId = hit.task.id;
+        render();
+        showCtxMenu(e.clientX, e.clientY, hit.task);
+    }
+});
+
+function showCtxMenu(x, y, task) {
+    ctxMenu.style.left = x + 'px';
+    ctxMenu.style.top = y + 'px';
+    ctxMenu.dataset.taskId = task.id;
+
+    // Show/hide remove dep option
+    const removeDep = ctxMenu.querySelector('[data-action="removeDep"]');
+    removeDep.style.display = task.dep ? '' : 'none';
+
+    ctxMenu.classList.add('active');
+}
+
+function hideCtxMenu() {
+    ctxMenu.classList.remove('active');
+}
+
+document.addEventListener('click', (e) => {
+    if (!ctxMenu.contains(e.target)) hideCtxMenu();
+});
+
+ctxMenu.addEventListener('click', (e) => {
+    const item = e.target.closest('.ctx-item');
+    if (!item) return;
+    const action = item.dataset.action;
+    const taskId = ctxMenu.dataset.taskId;
+
+    switch (action) {
+        case 'edit':
+            openTaskModal(taskId);
+            break;
+        case 'addDep':
+            depSourceId = taskId;
+            canvas.style.cursor = 'crosshair';
+            break;
+        case 'removeDep': {
+            const t = project.tasks.find(t => t.id === taskId);
+            if (t) { t.dep = null; autosave(); render(); }
+            break;
+        }
+        case 'duplicate': {
+            const src = project.tasks.find(t => t.id === taskId);
+            if (src) {
+                project.tasks.push({
+                    ...structuredClone(src),
+                    id: tid(),
+                    name: src.name + ' (copy)',
+                    dep: null
+                });
+                autosave(); render();
+            }
+            break;
+        }
+        case 'delete':
+            deleteTask(taskId);
+            break;
+    }
+    hideCtxMenu();
+});
+
+// ---- Zoom ----
+function setZoom(z) {
+    zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, z));
+    $('zoomLabel').textContent = Math.round(zoom * 100) + '%';
+    render();
+}
+
+$('zoomIn').addEventListener('click', () => setZoom(zoom * 1.3));
+$('zoomOut').addEventListener('click', () => setZoom(zoom / 1.3));
+
+chartScroll.addEventListener('wheel', (e) => {
+    if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? 0.9 : 1.1;
+        setZoom(zoom * delta);
+    }
+}, { passive: false });
+
+$('viewMode').addEventListener('change', (e) => {
+    viewMode = e.target.value;
+    render();
+});
+
+// ---- Fit All ----
+$('btnFitAll').addEventListener('click', () => {
+    const range = getDateRange();
+    const totalDays = daysBetween(range.start, range.end);
+    const availW = chartScroll.clientWidth;
+    const base = viewMode === 'day' ? 40 : viewMode === 'week' ? 20 : 6;
+    const idealZoom = availW / (totalDays * base);
+    setZoom(idealZoom);
+});
+
+// ---- Today ----
+$('btnToday').addEventListener('click', () => {
+    const range = getDateRange();
+    const today = new Date(); today.setHours(0,0,0,0);
+    const colW = getColWidth();
+    const dayOffset = daysBetween(range.start, today);
+    const x = dayOffset * colW - chartScroll.clientWidth / 2;
+    chartScroll.scrollLeft = Math.max(0, x);
+});
+
+// ---- Button events ----
+$('btnAddTask').addEventListener('click', () => openTaskModal(null));
+$('btnAddGroup').addEventListener('click', () => openGroupModal(null));
+
+// Task modal
+$('taskModalClose').addEventListener('click', closeTaskModal);
+$('taskCancelBtn').addEventListener('click', closeTaskModal);
+$('taskSaveBtn').addEventListener('click', saveTask);
+$('taskDeleteBtn').addEventListener('click', () => deleteTask());
+$('taskModal').addEventListener('click', (e) => { if (e.target === $('taskModal')) closeTaskModal(); });
+$('fTaskName').addEventListener('keydown', (e) => { if (e.key === 'Enter') saveTask(); });
+
+// Group modal
+$('groupModalClose').addEventListener('click', closeGroupModal);
+$('groupCancelBtn').addEventListener('click', closeGroupModal);
+$('groupSaveBtn').addEventListener('click', saveGroup);
+$('groupDeleteBtn').addEventListener('click', () => deleteGroup());
+$('groupModal').addEventListener('click', (e) => { if (e.target === $('groupModal')) closeGroupModal(); });
+$('fGroupName').addEventListener('keydown', (e) => { if (e.key === 'Enter') saveGroup(); });
+
+// ---- New project ----
+$('btnNew').addEventListener('click', () => {
+    if (!confirm('Create a new project? Unsaved changes will be lost.')) return;
+    project = createEmptyProject();
+    selectedTaskId = null;
+    render();
+    autosave();
+});
+
+// ---- Save / Load JSON ----
+$('btnSave').addEventListener('click', () => {
+    const json = JSON.stringify(project, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = (project.name || 'gantt-project').replace(/\s+/g, '-').toLowerCase() + '.json';
+    a.click();
+    URL.revokeObjectURL(url);
+});
+
+$('btnLoad').addEventListener('click', () => $('fileInput').click());
+$('fileInput').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+        try {
+            const data = JSON.parse(ev.target.result);
+            if (data.groups && data.tasks) {
+                project = data;
+                selectedTaskId = null;
+                render();
+                autosave();
+            } else {
+                alert('Invalid project file.');
+            }
+        } catch (err) {
+            alert('Error reading file: ' + err.message);
+        }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+});
+
+// ---- Export PNG ----
+$('btnExportPNG').addEventListener('click', () => {
+    // Re-render at current size then export
+    const dataUrl = canvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = (project.name || 'gantt').replace(/\s+/g, '-').toLowerCase() + '.png';
+    a.click();
+});
+
+// ---- Export SVG ----
+$('btnExportSVG').addEventListener('click', () => {
+    const rows = getOrderedRows();
+    const range = getDateRange();
+    const totalDays = daysBetween(range.start, range.end);
+    const colW = getColWidth();
+    const chartW = totalDays * colW;
+    const chartH = rows.length * LANE_H + HEADER_H;
+
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const today = new Date(); today.setHours(0,0,0,0);
+
+    let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${chartW}" height="${chartH}" font-family="Inter, Arial, sans-serif">`;
+    svg += `<rect width="100%" height="100%" fill="#14161c"/>`;
+
+    // Header bg
+    svg += `<rect width="100%" height="${HEADER_H}" fill="#1c1e26"/>`;
+
+    // Grid lines and date labels
+    let prevMonth = -1;
+    for (let i = 0; i < totalDays; i++) {
+        const d = addDays(range.start, i);
+        const x = i * colW;
+
+        // Weekend shading
+        if (d.getDay() === 0 || d.getDay() === 6) {
+            svg += `<rect x="${x}" y="${HEADER_H}" width="${colW}" height="${chartH - HEADER_H}" fill="rgba(255,255,255,0.015)"/>`;
+        }
+
+        // Month labels
+        if (d.getMonth() !== prevMonth) {
+            prevMonth = d.getMonth();
+            svg += `<text x="${x + 4}" y="16" fill="#9a9daa" font-size="11">${months[d.getMonth()]} ${d.getFullYear()}</text>`;
+            svg += `<line x1="${x}" y1="0" x2="${x}" y2="${HEADER_H}" stroke="rgba(255,255,255,0.1)"/>`;
+        }
+
+        // Grid
+        if (viewMode === 'day' || (viewMode === 'week' && d.getDay() === 1) || (viewMode === 'month' && d.getDate() === 1)) {
+            svg += `<line x1="${x}" y1="${HEADER_H}" x2="${x}" y2="${chartH}" stroke="rgba(255,255,255,0.06)"/>`;
+        }
+
+        // Today line
+        if (d.getTime() === today.getTime()) {
+            svg += `<line x1="${x + colW/2}" y1="0" x2="${x + colW/2}" y2="${chartH}" stroke="rgba(239,83,80,0.7)" stroke-width="2"/>`;
+        }
+    }
+
+    // Header bottom line
+    svg += `<line x1="0" y1="${HEADER_H}" x2="${chartW}" y2="${HEADER_H}" stroke="rgba(255,255,255,0.1)"/>`;
+
+    // Row backgrounds
+    for (let i = 0; i < rows.length; i++) {
+        const y = HEADER_H + i * LANE_H;
+        if (rows[i].type === 'group') {
+            svg += `<rect x="0" y="${y}" width="${chartW}" height="${LANE_H}" fill="rgba(255,255,255,0.025)"/>`;
+        }
+        svg += `<line x1="0" y1="${y + LANE_H}" x2="${chartW}" y2="${y + LANE_H}" stroke="rgba(255,255,255,0.03)"/>`;
+    }
+
+    // Dependency arrows
+    for (const t of project.tasks) {
+        if (!t.dep) continue;
+        const src = project.tasks.find(s => s.id === t.dep);
+        if (!src) continue;
+        const srcRow = rows.findIndex(r => r.type === 'task' && r.task.id === src.id);
+        const dstRow = rows.findIndex(r => r.type === 'task' && r.task.id === t.id);
+        if (srcRow < 0 || dstRow < 0) continue;
+
+        const srcEnd = src.type === 'milestone'
+            ? (daysBetween(range.start, parseDate(src.start)) + 0.5) * colW
+            : (daysBetween(range.start, parseDate(src.end)) + 1) * colW;
+        const dstStart = daysBetween(range.start, parseDate(t.start)) * colW;
+        const srcY = HEADER_H + srcRow * LANE_H + LANE_H / 2;
+        const dstY = HEADER_H + dstRow * LANE_H + LANE_H / 2;
+        const midX = srcEnd + 10;
+
+        svg += `<path d="M${srcEnd},${srcY} L${midX},${srcY} L${midX},${dstY} L${dstStart - 4},${dstY}" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="1.5" stroke-dasharray="4,3"/>`;
+        svg += `<polygon points="${dstStart - 2},${dstY} ${dstStart - 8},${dstY - 4} ${dstStart - 8},${dstY + 4}" fill="rgba(255,255,255,0.35)"/>`;
+    }
+
+    // Task bars
+    for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        if (row.type !== 'task') continue;
+        const t = row.task;
+        const y = HEADER_H + i * LANE_H;
+
+        if (t.type === 'milestone') {
+            const dx = (daysBetween(range.start, parseDate(t.start)) + 0.5) * colW;
+            const dy = y + LANE_H / 2;
+            svg += `<polygon points="${dx},${dy-8} ${dx+8},${dy} ${dx},${dy+8} ${dx-8},${dy}" fill="${t.color || COLORS[0]}"/>`;
+            svg += `<text x="${dx + 14}" y="${dy + 4}" fill="#ccc" font-size="11">${escSvg(t.name)}</text>`;
+        } else {
+            const startDay = daysBetween(range.start, parseDate(t.start));
+            const endDay = daysBetween(range.start, parseDate(t.end));
+            const bx = startDay * colW;
+            const bw = Math.max((endDay - startDay + 1) * colW, 4);
+            const by = y + 8;
+            const bh = LANE_H - 16;
+            const c = t.color || COLORS[0];
+
+            svg += `<rect x="${bx}" y="${by}" width="${bw}" height="${bh}" rx="4" fill="${c}" opacity="0.3"/>`;
+            if (t.progress > 0) {
+                const pw = bw * Math.min(t.progress, 100) / 100;
+                svg += `<rect x="${bx}" y="${by}" width="${pw}" height="${bh}" rx="4" fill="${c}" opacity="0.7"/>`;
+            }
+            svg += `<rect x="${bx}" y="${by}" width="${bw}" height="${bh}" rx="4" fill="none" stroke="${c}" stroke-width="1" opacity="0.6"/>`;
+            if (bw > 40) {
+                svg += `<text x="${bx + 8}" y="${by + bh/2 + 4}" fill="#fff" font-size="11" opacity="0.9">${escSvg(t.name)}</text>`;
+            }
+        }
+    }
+
+    svg += `</svg>`;
+
+    const blob = new Blob([svg], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = (project.name || 'gantt').replace(/\s+/g, '-').toLowerCase() + '.svg';
+    a.click();
+    URL.revokeObjectURL(url);
+});
+
+function escSvg(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// ---- Autosave ----
+function autosave() {
+    try {
+        localStorage.setItem('gantt-maker-project', JSON.stringify(project));
+    } catch (e) { /* quota exceeded */ }
+}
+
+function loadAutosave() {
+    try {
+        const data = localStorage.getItem('gantt-maker-project');
+        if (data) {
+            const parsed = JSON.parse(data);
+            if (parsed.groups && parsed.tasks) {
+                project = parsed;
+                return true;
+            }
+        }
+    } catch (e) { /* corrupt */ }
+    return false;
+}
+
+// ---- Keyboard shortcuts ----
+document.addEventListener('keydown', (e) => {
+    // Don't capture when modal is open or input focused
+    if ($('taskModal').classList.contains('active') || $('groupModal').classList.contains('active')) return;
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
+
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selectedTaskId) {
+            deleteTask(selectedTaskId);
+            e.preventDefault();
+        }
+    }
+    if (e.key === 'Escape') {
+        selectedTaskId = null;
+        depSourceId = null;
+        canvas.style.cursor = 'default';
+        render();
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        $('btnSave').click();
+    }
+});
+
+// ---- Resize ----
+function onResize() {
+    dpr = window.devicePixelRatio || 1;
+    render();
+}
+window.addEventListener('resize', onResize);
+
+// ---- Init ----
+loadAutosave();
+// Assign tasks with null group
+for (const t of project.tasks) {
+    if (!t.group || !project.groups.find(g => g.id === t.group)) {
+        t.group = project.groups.length ? project.groups[0].id : null;
+    }
+}
+render();
+
+// Scroll to today on load
+setTimeout(() => $('btnToday').click(), 100);
+
+})();
+</script>
+</body>
+</html>
