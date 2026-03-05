@@ -2,7 +2,7 @@
 
 Master mapping of all 195 style guides and their usage across tech guides and stories.
 
-**Used:** 65 styles · **Available:** 130 styles
+**Used:** 66 styles · **Available:** 129 styles
 
 | Style | Tech Guide | Story |
 |-------|-----------|-------|
@@ -19,7 +19,7 @@ Master mapping of all 195 style guides and their usage across tech guides and st
 | art-nouveau | | Belle Epoque |
 | astronomical | | |
 | atlas-console | Monitoring & Observability | |
-| aurora-borealis | | |
+| aurora-borealis | Elixir | |
 | barbiecore | | |
 | baroque | | |
 | batik | | |
