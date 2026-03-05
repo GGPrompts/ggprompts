@@ -32,7 +32,7 @@ Master mapping of all 195 style guides and their usage across tech guides and st
 | bubbles | | |
 | byzantine | Active Directory & IAM | |
 | casino-vegas | | |
-| cassette-futurism | | |
+| cassette-futurism | htmx | |
 | celtic | Go | |
 | chalkboard | | |
 | cherry-blossom | | |
