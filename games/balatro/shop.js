@@ -7,16 +7,18 @@
     const state = B.gameState;
     if (!state) return null;
 
+    const hasRerollSurplus = state.ownedVouchers && state.ownedVouchers.includes('reroll_surplus');
     const shop = {
       jokers: [],
       consumables: [],
       voucher: null,
-      rerollCost: 5,
+      rerollCost: hasRerollSurplus ? 3 : 5,
       ownedVouchers: state.ownedVouchers || [],
     };
 
-    // 2 joker slots
-    for (let i = 0; i < 2; i++) {
+    // Joker slots (Overstock voucher adds +1)
+    const jokerSlots = (state.ownedVouchers && state.ownedVouchers.includes('overstock')) ? 3 : 2;
+    for (let i = 0; i < jokerSlots; i++) {
       const j = B.getRandomJoker(B.Rarity.UNCOMMON);
       if (j) {
         j.cost = B.getJokerCost(j);
@@ -35,8 +37,10 @@
     }
 
     // 2 consumable slots (mix of planet and tarot)
+    const hasTelescope = state.ownedVouchers && state.ownedVouchers.includes('telescope');
+    const planetChance = hasTelescope ? 0.75 : 0.5;
     for (let i = 0; i < 2; i++) {
-      if (Math.random() < 0.5) {
+      if (Math.random() < planetChance) {
         shop.consumables.push(B.getRandomPlanet());
       } else {
         shop.consumables.push(B.getRandomTarot());
@@ -50,16 +54,28 @@
     return shop;
   };
 
+  // Get effective item cost (accounting for Clearance Sale voucher)
+  B.getEffectiveCost = (cost, state) => {
+    if (state && state.ownedVouchers && state.ownedVouchers.includes('clearance')) {
+      return Math.floor(cost * 0.75);
+    }
+    return cost;
+  };
+
   B.buyJoker = index => {
     const state = B.gameState;
     if (!state || !state.currentShop) return false;
     const shop = state.currentShop;
     const joker = shop.jokers[index];
     if (!joker) return false;
-    if (state.roundState.money < joker.cost) return false;
-    if (state.jokers.length >= B.MAX_JOKERS) return false;
+    const cost = B.getEffectiveCost(joker.cost, state);
+    if (state.roundState.money < cost) return false;
+    const maxJ = B.getMaxJokers ? B.getMaxJokers() : B.MAX_JOKERS;
+    if (state.jokers.length >= maxJ) return false;
 
-    state.roundState.money -= joker.cost;
+    state.roundState.money -= cost;
+    B.runStats.moneySpent += cost;
+    B.runStats.jokersAcquired++;
     state.jokers.push(joker);
     shop.jokers.splice(index, 1);
     return true;
@@ -71,19 +87,23 @@
     const shop = state.currentShop;
     const item = shop.consumables[index];
     if (!item) return false;
-    if (state.roundState.money < (item.cost || 3)) return false;
+    const cost = B.getEffectiveCost(item.cost || 3, state);
+    if (state.roundState.money < cost) return false;
 
-    state.roundState.money -= (item.cost || 3);
+    state.roundState.money -= cost;
+    B.runStats.moneySpent += cost;
 
     // Use planet cards immediately
     if (item.cardType === 'planet') {
       const newLevel = B.usePlanetCard(item);
+      B.runStats.consumablesUsed++;
       shop.consumables.splice(index, 1);
       return { type: 'planet', name: item.name, handType: item.handType, newLevel };
     }
 
-    // Tarot cards go to consumable slots (max 2)
-    if (state.consumables.length >= 2) return false;
+    // Tarot cards go to consumable slots
+    const maxCons = B.getMaxConsumables ? B.getMaxConsumables() : 2;
+    if (state.consumables.length >= maxCons) return false;
     state.consumables.push(item);
     shop.consumables.splice(index, 1);
     return { type: 'tarot', name: item.name };
@@ -94,18 +114,51 @@
     if (!state || !state.currentShop) return false;
     const shop = state.currentShop;
     if (!shop.voucher) return false;
-    if (state.roundState.money < shop.voucher.cost) return false;
+    const cost = B.getEffectiveCost(shop.voucher.cost, state);
+    if (state.roundState.money < cost) return false;
 
-    state.roundState.money -= shop.voucher.cost;
+    state.roundState.money -= cost;
+    B.runStats.moneySpent += cost;
     if (!state.ownedVouchers) state.ownedVouchers = [];
     state.ownedVouchers.push(shop.voucher.id);
 
-    // Apply voucher effect
+    // Apply voucher effect immediately
     const v = shop.voucher;
-    if (v.effect === 'cheapReroll') shop.rerollCost = 3;
+    switch (v.effect) {
+      case 'cheapReroll':
+        shop.rerollCost = 3;
+        break;
+      case 'discount':
+        // Clearance Sale: 25% off - applied via getEffectiveCost
+        break;
+      case 'extraHand':
+        // Grabber: +1 hand takes effect next blind (handled in advanceBlind)
+        break;
+      case 'extraDiscard':
+        // Wasteful: +1 discard takes effect next blind (handled in advanceBlind)
+        break;
+      case 'jokerSlot':
+        // Blank: +1 joker slot - handled via getMaxJokers
+        break;
+      case 'consumableSlot':
+        // Crystal Ball: +1 consumable slot - handled via getMaxConsumables
+        break;
+      case 'interestCap':
+        // Seed Money: interest cap to $25 - handled in advanceBlind
+        break;
+      case 'shopSlot':
+        // Overstock: +1 shop item - adds an extra joker slot to shop
+        break;
+      case 'editionBoost':
+        // Hone: editions appear 2x more - applied during card generation
+        break;
+      case 'planetBoost':
+        // Telescope: celestials 2x more - applied during shop generation
+        break;
+    }
 
     shop.voucher = null;
-    return true;
+    return { id: v.id, name: v.name, effect: v.effect };
   };
 
   B.sellJoker = index => {
