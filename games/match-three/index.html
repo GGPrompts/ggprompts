@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gem Cascade -- Match-Three Puzzle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg-deep: #0a0a1e;
+  --bg-mid: #12122e;
+  --bg-surface: #1a1a3e;
+  --accent-cyan: #00e5ff;
+  --accent-magenta: #ff2d7b;
+  --accent-gold: #ffd700;
+  --accent-green: #00e676;
+  --text-bright: #e8eaf6;
+  --text-dim: rgba(232, 234, 246, 0.5);
+  --font-display: 'Orbitron', sans-serif;
+  --font-body: 'Inter', sans-serif;
+  --glow-cyan: 0 0 8px rgba(0, 229, 255, 0.4), 0 0 20px rgba(0, 229, 255, 0.15);
+  --glow-magenta: 0 0 8px rgba(255, 45, 123, 0.4), 0 0 20px rgba(255, 45, 123, 0.15);
+  --glow-gold: 0 0 8px rgba(255, 215, 0, 0.4), 0 0 20px rgba(255, 215, 0, 0.15);
+}
+
+html { font-size: 16px; }
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg-deep);
+  color: var(--text-bright);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Background grid effect */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    linear-gradient(rgba(0, 229, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 229, 255, 0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 0;
+  background: radial-gradient(ellipse at 50% 0%, rgba(0, 229, 255, 0.06) 0%, transparent 60%);
+}
+
+/* Back link */
+.back-link {
+  position: fixed;
+  top: 12px;
+  left: 16px;
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--accent-cyan);
+  text-decoration: none;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 6px 14px;
+  border: 1px solid rgba(0, 229, 255, 0.3);
+  border-radius: 4px;
+  background: rgba(0, 229, 255, 0.05);
+  transition: all 0.3s;
+  z-index: 100;
+}
+.back-link:hover {
+  background: rgba(0, 229, 255, 0.15);
+  box-shadow: var(--glow-cyan);
+}
+
+/* Header */
+.game-header {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  padding: 24px 16px 8px;
+  width: 100%;
+  max-width: 600px;
+}
+
+.game-title {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  font-weight: 900;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  background: linear-gradient(135deg, var(--accent-cyan), var(--accent-magenta));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.game-subtitle {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin-top: 4px;
+}
+
+/* HUD */
+.hud {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  max-width: 560px;
+  padding: 12px 16px;
+  margin: 8px 0;
+  background: rgba(26, 26, 62, 0.8);
+  border: 1px solid rgba(0, 229, 255, 0.15);
+  border-radius: 8px;
+  backdrop-filter: blur(8px);
+}
+
+.hud-item {
+  text-align: center;
+}
+
+.hud-label {
+  font-family: var(--font-display);
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 2px;
+}
+
+.hud-value {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+
+.hud-score .hud-value { color: var(--accent-gold); }
+.hud-moves .hud-value { color: var(--accent-cyan); }
+.hud-level .hud-value { color: var(--accent-magenta); }
+.hud-target .hud-value { color: var(--accent-green); font-size: 1rem; }
+
+/* Progress bar */
+.progress-wrap {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 560px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-cyan), var(--accent-gold));
+  border-radius: 3px;
+  transition: width 0.4s ease;
+  box-shadow: 0 0 8px rgba(0, 229, 255, 0.3);
+}
+
+/* Canvas */
+.game-canvas {
+  position: relative;
+  z-index: 1;
+  display: block;
+  cursor: default;
+}
+
+/* Mode selection */
+.mode-select {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.mode-btn {
+  font-family: var(--font-display);
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  padding: 6px 16px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+.mode-btn:hover {
+  color: var(--accent-cyan);
+  border-color: rgba(0, 229, 255, 0.4);
+}
+.mode-btn.active {
+  color: var(--accent-cyan);
+  border-color: var(--accent-cyan);
+  background: rgba(0, 229, 255, 0.08);
+  box-shadow: var(--glow-cyan);
+}
+
+/* Combo display */
+.combo-display {
+  position: fixed;
+  top: 50%;
+  right: 20px;
+  transform: translateY(-50%);
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 900;
+  color: var(--accent-magenta);
+  text-shadow: 0 0 20px rgba(255, 45, 123, 0.6);
+  opacity: 0;
+  transition: opacity 0.3s, transform 0.3s;
+  pointer-events: none;
+  z-index: 10;
+}
+.combo-display.visible {
+  opacity: 1;
+  transform: translateY(-50%) scale(1.1);
+}
+
+/* Overlay */
+.overlay {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background: rgba(10, 10, 30, 0.85);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  backdrop-filter: blur(6px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s;
+}
+.overlay.visible {
+  opacity: 1;
+  pointer-events: all;
+}
+
+.overlay-title {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 900;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+.overlay-title.win {
+  background: linear-gradient(135deg, var(--accent-gold), var(--accent-green));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.overlay-title.lose {
+  color: var(--accent-magenta);
+}
+
+.overlay-score {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  color: var(--text-dim);
+  margin-bottom: 24px;
+}
+.overlay-score span {
+  color: var(--accent-gold);
+}
+
+.overlay-btn {
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--bg-deep);
+  background: linear-gradient(135deg, var(--accent-cyan), #0091ea);
+  border: none;
+  border-radius: 6px;
+  padding: 12px 32px;
+  cursor: pointer;
+  transition: all 0.3s;
+  margin: 6px;
+}
+.overlay-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--glow-cyan);
+}
+.overlay-btn.secondary {
+  background: transparent;
+  color: var(--accent-cyan);
+  border: 1px solid var(--accent-cyan);
+}
+
+/* Timer bar (timed mode) */
+.timer-wrap {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 560px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+  margin-bottom: 4px;
+  overflow: hidden;
+  display: none;
+}
+.timer-wrap.visible { display: block; }
+
+.timer-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-magenta), var(--accent-gold));
+  border-radius: 3px;
+  transition: width 0.2s linear;
+  box-shadow: 0 0 8px rgba(255, 45, 123, 0.3);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .game-title { font-size: 1.2rem; }
+  .hud { padding: 8px 12px; }
+  .hud-value { font-size: 1rem; }
+  .hud-label { font-size: 0.55rem; }
+  .combo-display { display: none; }
+  .back-link { font-size: 0.65rem; padding: 4px 10px; }
+}
+
+@media (max-width: 480px) {
+  .game-header { padding: 16px 8px 4px; }
+  .game-title { font-size: 1rem; }
+}
+</style>
+</head>
+<body>
+
+<a href="../index.html" class="back-link">Games</a>
+
+<header class="game-header">
+  <h1 class="game-title">Gem Cascade</h1>
+  <p class="game-subtitle">Match Three or More</p>
+</header>
+
+<div class="hud">
+  <div class="hud-item hud-level">
+    <div class="hud-label">Level</div>
+    <div class="hud-value" id="hud-level">1</div>
+  </div>
+  <div class="hud-item hud-score">
+    <div class="hud-label">Score</div>
+    <div class="hud-value" id="hud-score">0</div>
+  </div>
+  <div class="hud-item hud-target">
+    <div class="hud-label">Target</div>
+    <div class="hud-value" id="hud-target">0</div>
+  </div>
+  <div class="hud-item hud-moves">
+    <div class="hud-label" id="hud-moves-label">Moves</div>
+    <div class="hud-value" id="hud-moves">30</div>
+  </div>
+</div>
+
+<div class="progress-wrap">
+  <div class="progress-bar" id="progress-bar" style="width: 0%"></div>
+</div>
+
+<div class="timer-wrap" id="timer-wrap">
+  <div class="timer-bar" id="timer-bar" style="width: 100%"></div>
+</div>
+
+<canvas class="game-canvas" id="game-canvas"></canvas>
+
+<div class="mode-select">
+  <button class="mode-btn active" id="btn-moves" data-mode="moves">Moves</button>
+  <button class="mode-btn" id="btn-timed" data-mode="timed">Timed</button>
+</div>
+
+<div class="combo-display" id="combo-display">x2</div>
+
+<!-- Level Complete Overlay -->
+<div class="overlay" id="overlay-win">
+  <div class="overlay-title win">Level Complete</div>
+  <div class="overlay-score">Score: <span id="win-score">0</span></div>
+  <button class="overlay-btn" id="btn-next-level">Next Level</button>
+</div>
+
+<!-- Game Over Overlay -->
+<div class="overlay" id="overlay-lose">
+  <div class="overlay-title lose">Game Over</div>
+  <div class="overlay-score">Score: <span id="lose-score">0</span> / Target: <span id="lose-target">0</span></div>
+  <button class="overlay-btn" id="btn-retry">Retry</button>
+  <button class="overlay-btn secondary" id="btn-new-game">New Game</button>
+</div>
+
+<script src="engine.js"></script>
+<script src="renderer.js"></script>
+<script src="audio.js"></script>
+<script>
+'use strict';
+
+(function () {
+  const Engine = window.MatchEngine;
+  const Renderer = window.MatchRenderer;
+  const Audio = window.MatchAudio;
+
+  /* --- DOM refs --- */
+  const $score = document.getElementById('hud-score');
+  const $moves = document.getElementById('hud-moves');
+  const $movesLabel = document.getElementById('hud-moves-label');
+  const $level = document.getElementById('hud-level');
+  const $target = document.getElementById('hud-target');
+  const $progress = document.getElementById('progress-bar');
+  const $timerWrap = document.getElementById('timer-wrap');
+  const $timerBar = document.getElementById('timer-bar');
+  const $combo = document.getElementById('combo-display');
+  const $overlayWin = document.getElementById('overlay-win');
+  const $overlayLose = document.getElementById('overlay-lose');
+  const $winScore = document.getElementById('win-score');
+  const $loseScore = document.getElementById('lose-score');
+  const $loseTarget = document.getElementById('lose-target');
+
+  let gameMode = 'moves';
+  let timerTotal = 90;
+  let timerLeft = 90;
+  let timerInterval = null;
+  let comboTimer = null;
+
+  /* --- Mode buttons --- */
+  document.querySelectorAll('.mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      gameMode = btn.dataset.mode;
+      initAudioAndStart();
+    });
+  });
+
+  /* --- Timer mode --- */
+  function startTimer() {
+    if (gameMode !== 'timed') return;
+    timerTotal = Math.max(60, 120 - (Engine.getState().level - 1) * 10);
+    timerLeft = timerTotal;
+    $timerWrap.classList.add('visible');
+    $timerBar.style.width = '100%';
+    clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+      timerLeft -= 0.1;
+      if (timerLeft <= 0) {
+        timerLeft = 0;
+        clearInterval(timerInterval);
+        // Trigger game over
+        const state = Engine.getState();
+        if (state.score < state.target) {
+          showOverlay('lose', state);
+          Audio.play('gameOver');
+        }
+      }
+      $timerBar.style.width = (timerLeft / timerTotal * 100) + '%';
+      $moves.textContent = Math.ceil(timerLeft) + 's';
+    }, 100);
+  }
+
+  function stopTimer() {
+    clearInterval(timerInterval);
+    $timerWrap.classList.remove('visible');
+  }
+
+  /* --- Engine event handler --- */
+  function onEngineEvent(event, data) {
+    switch (event) {
+      case 'levelStart':
+        $level.textContent = data.level;
+        $target.textContent = data.target.toLocaleString();
+        if (gameMode === 'moves') {
+          $movesLabel.textContent = 'Moves';
+          $moves.textContent = data.moves;
+          stopTimer();
+        } else {
+          $movesLabel.textContent = 'Time';
+          startTimer();
+        }
+        break;
+
+      case 'gridUpdate':
+        Renderer.setGrid(data.grid);
+        updateHUD(data);
+        break;
+
+      case 'swap':
+        Audio.play('swap');
+        break;
+
+      case 'invalidSwap':
+        Audio.play('invalidSwap');
+        Renderer.triggerShake(4, 0.15);
+        break;
+
+      case 'match': {
+        Audio.play('match', data.combo);
+        const gemColors = {
+          ruby: '#e63946', sapphire: '#2196f3', emerald: '#2ecc71',
+          topaz: '#f39c12', amethyst: '#9b59b6', diamond: '#ecf0f1'
+        };
+        for (const cell of data.cells) {
+          const pos = Renderer.cellPos(cell.row, cell.col);
+          const cx = pos.x + Renderer.CELL / 2;
+          const cy = pos.y + Renderer.CELL / 2;
+          const color = cell.gem ? (gemColors[cell.gem.type] || '#fff') : '#fff';
+          Renderer.addParticles(cx, cy, color, 6);
+        }
+        // Floating score text at center of match
+        if (data.cells.length > 0) {
+          const avgR = data.cells.reduce((s, c) => s + c.row, 0) / data.cells.length;
+          const avgC = data.cells.reduce((s, c) => s + c.col, 0) / data.cells.length;
+          const pos = Renderer.cellPos(Math.round(avgR), Math.round(avgC));
+          Renderer.addFloatingText(pos.x + Renderer.CELL / 2, pos.y, '+' + data.points, '#ffd700');
+        }
+        // Combo display
+        if (data.combo > 1) showCombo(data.combo);
+        if (data.combo >= 3) Renderer.triggerShake(6, 0.2);
+        break;
+      }
+
+      case 'specialCreated':
+        Audio.play('specialCreate');
+        break;
+
+      case 'fall':
+        Audio.play('fall');
+        break;
+
+      case 'shuffle':
+        Renderer.triggerShake(8, 0.3);
+        break;
+
+      case 'levelComplete':
+        Audio.play('levelComplete');
+        showOverlay('win', data);
+        stopTimer();
+        break;
+
+      case 'gameOver':
+        Audio.play('gameOver');
+        showOverlay('lose', data);
+        stopTimer();
+        break;
+
+      case 'idle':
+        Renderer.setLocked(false);
+        break;
+    }
+  }
+
+  function updateHUD(data) {
+    $score.textContent = (data.score || 0).toLocaleString();
+    if (gameMode === 'moves') {
+      $moves.textContent = data.moves;
+    }
+    const state = Engine.getState();
+    const pct = Math.min(100, (state.score / state.target) * 100);
+    $progress.style.width = pct + '%';
+  }
+
+  function showCombo(n) {
+    $combo.textContent = 'x' + n;
+    $combo.classList.add('visible');
+    clearTimeout(comboTimer);
+    comboTimer = setTimeout(() => $combo.classList.remove('visible'), 1200);
+  }
+
+  function showOverlay(type, data) {
+    Renderer.setLocked(true);
+    if (type === 'win') {
+      $winScore.textContent = data.score.toLocaleString();
+      $overlayWin.classList.add('visible');
+    } else {
+      $loseScore.textContent = data.score.toLocaleString();
+      $loseTarget.textContent = data.target.toLocaleString();
+      $overlayLose.classList.add('visible');
+    }
+  }
+
+  function hideOverlays() {
+    $overlayWin.classList.remove('visible');
+    $overlayLose.classList.remove('visible');
+  }
+
+  /* --- Swap handler --- */
+  Renderer.onSwap(async function (r1, c1, r2, c2) {
+    if (Renderer.isLocked()) return;
+    Audio.play('select');
+    Renderer.setLocked(true);
+    const valid = Engine.swap(r1, c1, r2, c2);
+    if (valid) {
+      await Engine.cascade();
+    } else {
+      Renderer.setLocked(false);
+    }
+  });
+
+  /* --- Button handlers --- */
+  document.getElementById('btn-next-level').addEventListener('click', () => {
+    hideOverlays();
+    Engine.nextLevel();
+  });
+
+  document.getElementById('btn-retry').addEventListener('click', () => {
+    hideOverlays();
+    Engine.restart();
+  });
+
+  document.getElementById('btn-new-game').addEventListener('click', () => {
+    hideOverlays();
+    Engine.startLevel(1);
+  });
+
+  /* --- Init --- */
+  function initAudioAndStart() {
+    Audio.init();
+    hideOverlays();
+    stopTimer();
+    Engine.init(onEngineEvent);
+    Renderer.setGrid(Engine.getState().grid);
+  }
+
+  const canvas = document.getElementById('game-canvas');
+  Renderer.init(canvas);
+
+  // Start on first click (for AudioContext)
+  let started = false;
+  function firstInteraction() {
+    if (started) return;
+    started = true;
+    initAudioAndStart();
+  }
+
+  // Auto-start with visual only, audio kicks in on interaction
+  Engine.init(onEngineEvent);
+  Renderer.setGrid(Engine.getState().grid);
+
+  document.addEventListener('click', firstInteraction, { once: true });
+  document.addEventListener('touchstart', firstInteraction, { once: true });
+})();
+</script>
+</body>
+</html>
