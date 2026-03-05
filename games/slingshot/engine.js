@@ -316,9 +316,11 @@ const Engine = (() => {
             Renderer.setCameraTarget(0);
         }
 
+        // Always update camera so it pans back to slingshot after settling
+        Renderer.updateCamera(dt);
+
         if (state === 'flying' || state === 'settling') {
             world.step(dt);
-            Renderer.updateCamera(dt);
 
             // Track active bird with camera
             if (activeBird && activeBird.alive) {

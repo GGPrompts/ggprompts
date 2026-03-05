@@ -280,7 +280,7 @@
         plungerCharging = false;
         var power = Math.max(0.2, Math.min(1, plungerPower));
         ball.vel.y = -(600 + power * 1200);
-        ball.vel.x = -20 - Math.random() * 30;
+        ball.vel.x = 0;
         ball.active = true;
         gameState = 'playing';
         PinballAudio.play('plunger', power);

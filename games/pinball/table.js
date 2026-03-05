@@ -10,7 +10,7 @@
     var TABLE_H = 750;
 
     // Plunger lane
-    var PLUNGER_X = 375;
+    var PLUNGER_X = 383;
     var PLUNGER_LANE_W = 25;
 
     function createTable() {
