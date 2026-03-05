@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hangman &amp; Wheel of Fortune</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Inter:wght@300;400;500;600;700&family=Abril+Fatface&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-deep: #0c0612;
+  --bg-panel: #161225;
+  --bg-card: #1e1833;
+  --felt-green: #2d6a32;
+  --gold: #d4a017;
+  --gold-light: #f0c84d;
+  --gold-dark: #a67c00;
+  --neon-pink: #ff2d7b;
+  --neon-blue: #00d4ff;
+  --neon-green: #39ff14;
+  --velvet-red: #8b1a2b;
+  --chrome: #c0c0c0;
+  --text-light: #e8e0d4;
+  --text-dim: rgba(232, 224, 212, 0.5);
+  --font-display: 'Abril Fatface', serif;
+  --font-heading: 'Playfair Display', serif;
+  --font-body: 'Inter', sans-serif;
+  --gold-glow: 0 0 10px rgba(212, 160, 23, 0.4), 0 0 20px rgba(212, 160, 23, 0.2);
+  --neon-pink-glow: 0 0 7px #ff2d7b, 0 0 10px #ff2d7b, 0 0 21px #ff2d7b;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; }
+
+body {
+  font-family: var(--font-body);
+  color: var(--text-light);
+  background: var(--bg-deep);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  -webkit-font-smoothing: antialiased;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse at 30% 20%, rgba(212, 160, 23, 0.04) 0%, transparent 50%),
+    radial-gradient(ellipse at 70% 80%, rgba(139, 26, 43, 0.05) 0%, transparent 50%);
+}
+
+/* ===== HEADER ===== */
+.header {
+  text-align: center;
+  padding: 24px 16px 12px;
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 900px;
+}
+
+.header h1 {
+  font-family: var(--font-display);
+  font-size: 2.4rem;
+  color: var(--gold);
+  text-shadow: var(--gold-glow);
+  letter-spacing: 0.04em;
+}
+
+.header .subtitle {
+  font-family: var(--font-heading);
+  font-size: 0.95rem;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+
+.back-link {
+  position: absolute;
+  top: 24px;
+  left: 16px;
+  color: var(--gold);
+  text-decoration: none;
+  font-size: 0.9rem;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+.back-link:hover { opacity: 1; }
+
+/* ===== MODE & CATEGORY SELECTORS ===== */
+.controls-bar {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+  padding: 8px 16px 16px;
+  z-index: 1;
+}
+
+.btn-mode, .btn-cat, .btn-new {
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 6px 16px;
+  border: 1.5px solid var(--gold-dark);
+  border-radius: 20px;
+  background: transparent;
+  color: var(--gold);
+  cursor: pointer;
+  transition: all 0.2s;
+  letter-spacing: 0.04em;
+}
+.btn-mode:hover, .btn-cat:hover { background: rgba(212, 160, 23, 0.12); }
+.btn-mode.active { background: var(--gold-dark); color: #fff; }
+.btn-new {
+  background: var(--gold-dark);
+  color: #fff;
+  margin-left: 8px;
+  font-size: 0.85rem;
+}
+.btn-new:hover { background: var(--gold); color: var(--bg-deep); }
+
+.cat-select {
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  padding: 6px 12px;
+  border: 1.5px solid var(--gold-dark);
+  border-radius: 20px;
+  background: var(--bg-card);
+  color: var(--gold);
+  cursor: pointer;
+  outline: none;
+}
+
+/* ===== MAIN GAME AREA ===== */
+.game-container {
+  display: flex;
+  gap: 24px;
+  width: 100%;
+  max-width: 900px;
+  padding: 0 16px;
+  z-index: 1;
+  align-items: flex-start;
+}
+
+.game-left {
+  flex: 0 0 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.game-center {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+/* ===== GALLOWS CANVAS ===== */
+.gallows-wrapper {
+  background: var(--bg-panel);
+  border: 1px solid rgba(212, 160, 23, 0.15);
+  border-radius: 12px;
+  padding: 12px;
+  width: 100%;
+}
+
+#gallows-canvas {
+  width: 100%;
+  height: 200px;
+  display: block;
+}
+
+.wrong-counter {
+  text-align: center;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  margin-top: 8px;
+}
+
+.wrong-counter span {
+  color: var(--neon-pink);
+  font-weight: 600;
+}
+
+/* ===== WORD DISPLAY ===== */
+#category-display {
+  font-family: var(--font-heading);
+  font-size: 0.95rem;
+  color: var(--gold);
+  text-align: center;
+  letter-spacing: 0.06em;
+}
+
+#word-display {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+  padding: 12px 0;
+  min-height: 60px;
+  align-items: flex-end;
+}
+
+.letter-tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 48px;
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  border-bottom: 3px solid var(--gold-dark);
+  color: var(--text-light);
+  transition: all 0.3s;
+}
+
+.letter-tile.hidden-letter {
+  color: transparent;
+}
+
+.letter-tile.revealed {
+  animation: tileReveal 0.35s ease;
+}
+
+.letter-tile.missed {
+  color: var(--neon-pink);
+  border-bottom-color: var(--neon-pink);
+}
+
+.letter-tile.won {
+  animation: tileWin 0.5s ease forwards;
+  color: var(--neon-green);
+  border-bottom-color: var(--neon-green);
+}
+
+.letter-tile.space {
+  border-bottom: none;
+  width: 20px;
+}
+
+@keyframes tileReveal {
+  0% { transform: scale(0.5) rotateX(90deg); opacity: 0; }
+  100% { transform: scale(1) rotateX(0); opacity: 1; }
+}
+
+@keyframes tileWin {
+  0% { transform: translateY(0); }
+  40% { transform: translateY(-12px); }
+  60% { transform: translateY(-8px); }
+  100% { transform: translateY(0); }
+}
+
+/* ===== ON-SCREEN KEYBOARD ===== */
+#keyboard {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+  width: 100%;
+  max-width: 520px;
+}
+
+.kb-row {
+  display: flex;
+  gap: 5px;
+  justify-content: center;
+}
+
+.kb-key {
+  width: 42px;
+  height: 44px;
+  border: 1.5px solid rgba(212, 160, 23, 0.3);
+  border-radius: 8px;
+  background: var(--bg-card);
+  color: var(--text-light);
+  font-family: var(--font-body);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.kb-key:hover:not(:disabled) {
+  background: rgba(212, 160, 23, 0.15);
+  border-color: var(--gold);
+  transform: translateY(-2px);
+}
+
+.kb-key:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.kb-key.correct {
+  background: rgba(57, 255, 20, 0.15);
+  border-color: var(--neon-green);
+  color: var(--neon-green);
+  opacity: 0.7;
+}
+
+.kb-key.wrong {
+  background: rgba(255, 45, 123, 0.1);
+  border-color: rgba(255, 45, 123, 0.3);
+  color: rgba(255, 45, 123, 0.5);
+  opacity: 0.5;
+}
+
+.kb-key.vowel {
+  border-color: rgba(0, 212, 255, 0.4);
+  color: var(--neon-blue);
+}
+
+.kb-key.locked {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.kb-key:disabled {
+  cursor: default;
+}
+
+/* ===== STATS PANEL ===== */
+.stats-panel {
+  background: var(--bg-panel);
+  border: 1px solid rgba(212, 160, 23, 0.15);
+  border-radius: 12px;
+  padding: 16px;
+  width: 100%;
+}
+
+.stats-title {
+  font-family: var(--font-heading);
+  font-size: 0.85rem;
+  color: var(--gold);
+  margin-bottom: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.stat-item {
+  text-align: center;
+}
+
+.stat-value {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  color: var(--text-light);
+}
+
+.stat-label {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* ===== GAME MESSAGE ===== */
+.game-message {
+  display: none;
+  text-align: center;
+  padding: 16px 24px;
+  border-radius: 12px;
+  font-family: var(--font-heading);
+  font-size: 1.1rem;
+  animation: msgSlide 0.4s ease;
+}
+
+.game-message.win {
+  background: linear-gradient(135deg, rgba(57, 255, 20, 0.1), rgba(57, 255, 20, 0.05));
+  border: 1px solid rgba(57, 255, 20, 0.3);
+  color: var(--neon-green);
+}
+
+.game-message.lose {
+  background: linear-gradient(135deg, rgba(255, 45, 123, 0.1), rgba(255, 45, 123, 0.05));
+  border: 1px solid rgba(255, 45, 123, 0.3);
+  color: var(--neon-pink);
+}
+
+.msg-icon { font-size: 1.3rem; margin-right: 6px; }
+
+@keyframes msgSlide {
+  0% { opacity: 0; transform: translateY(-10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+/* ===== WHEEL PANEL ===== */
+#wheel-panel {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-panel);
+  border: 1px solid rgba(212, 160, 23, 0.15);
+  border-radius: 12px;
+  padding: 16px;
+  width: 100%;
+}
+
+#wheel-canvas {
+  width: 200px;
+  height: 200px;
+  cursor: pointer;
+}
+
+#btn-spin {
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  font-weight: 700;
+  padding: 10px 28px;
+  border: 2px solid var(--gold);
+  border-radius: 24px;
+  background: linear-gradient(135deg, var(--gold-dark), var(--gold));
+  color: var(--bg-deep);
+  cursor: pointer;
+  transition: all 0.2s;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+#btn-spin:hover:not(:disabled) {
+  box-shadow: var(--gold-glow);
+  transform: translateY(-2px);
+}
+
+#btn-spin:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.wheel-info {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  text-align: center;
+  min-height: 20px;
+}
+.wheel-info.active { color: var(--neon-green); }
+.wheel-info.bankrupt { color: var(--neon-pink); font-weight: 600; }
+
+.round-score-label {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+#round-score {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  color: var(--gold-light);
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 768px) {
+  .header h1 { font-size: 1.7rem; }
+  .back-link { position: static; display: block; margin-bottom: 8px; }
+
+  .game-container {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .game-left {
+    flex: none;
+    width: 100%;
+    max-width: 400px;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .gallows-wrapper {
+    flex: 0 0 auto;
+    width: 180px;
+  }
+
+  #gallows-canvas { height: 160px; }
+
+  .stats-panel {
+    flex: 1;
+    min-width: 160px;
+  }
+
+  #wheel-panel {
+    width: auto;
+    min-width: 220px;
+  }
+
+  #wheel-canvas {
+    width: 160px;
+    height: 160px;
+  }
+
+  .letter-tile {
+    width: 32px;
+    height: 40px;
+    font-size: 1.3rem;
+  }
+
+  .kb-key {
+    width: 34px;
+    height: 38px;
+    font-size: 0.85rem;
+  }
+
+  #word-display { gap: 5px; }
+}
+
+@media (max-width: 480px) {
+  .header h1 { font-size: 1.3rem; }
+  .kb-key {
+    width: 28px;
+    height: 34px;
+    font-size: 0.78rem;
+  }
+  .letter-tile {
+    width: 26px;
+    height: 34px;
+    font-size: 1.1rem;
+  }
+  .game-left { flex-direction: column; align-items: center; }
+  .gallows-wrapper { width: 100%; max-width: 220px; }
+}
+
+/* ===== FOOTER ===== */
+.footer {
+  margin-top: auto;
+  padding: 24px;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  z-index: 1;
+}
+.footer a {
+  color: var(--gold);
+  text-decoration: none;
+}
+</style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="header">
+    <a href="../index.html" class="back-link">&larr; Arcade</a>
+    <h1>Hangman</h1>
+    <p class="subtitle">Classic Word Guessing &amp; Wheel of Fortune</p>
+  </header>
+
+  <!-- Mode & Category Controls -->
+  <div class="controls-bar">
+    <button class="btn-mode active" id="btn-mode-classic" onclick="HangmanEngine.setMode('classic')">Classic</button>
+    <button class="btn-mode" id="btn-mode-wheel" onclick="HangmanEngine.setMode('wheel')">Wheel of Fortune</button>
+    <select class="cat-select" onchange="HangmanEngine.setCategory(this.value)">
+      <option value="">Random Category</option>
+      <option value="animals">Animals</option>
+      <option value="countries">Countries</option>
+      <option value="movies">Movies</option>
+      <option value="tech">Tech Terms</option>
+      <option value="food">Food &amp; Drink</option>
+      <option value="science">Science</option>
+    </select>
+  </div>
+
+  <!-- Main Game -->
+  <div class="game-container">
+
+    <!-- Left: Gallows + Stats + Wheel -->
+    <aside class="game-left">
+      <div class="gallows-wrapper">
+        <canvas id="gallows-canvas"></canvas>
+        <div class="wrong-counter">Misses: <span id="wrong-count">0 / 7</span></div>
+      </div>
+
+      <div class="stats-panel" id="stats-panel">
+        <div class="stats-title">Stats</div>
+        <div class="stats-grid">
+          <div class="stat-item">
+            <div class="stat-value" id="stat-played">0</div>
+            <div class="stat-label">Played</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value" id="stat-won">0</div>
+            <div class="stat-label">Won</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value" id="stat-streak">0</div>
+            <div class="stat-label">Streak</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value" id="stat-best">0</div>
+            <div class="stat-label">Best</div>
+          </div>
+          <div class="stat-item" id="stat-score-row" style="display:none; grid-column: span 2;">
+            <div class="stat-value" id="stat-score">$0</div>
+            <div class="stat-label">Total Score</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Wheel (hidden in classic mode) -->
+      <div id="wheel-panel">
+        <canvas id="wheel-canvas"></canvas>
+        <button id="btn-spin" onclick="HangmanEngine.spinWheel()">SPIN</button>
+        <div id="wheel-info" class="wheel-info"></div>
+        <div class="round-score-label">Round Score</div>
+        <div id="round-score">$0</div>
+      </div>
+    </aside>
+
+    <!-- Center: Word + Keyboard -->
+    <section class="game-center">
+      <div id="category-display"></div>
+      <div id="word-display"></div>
+      <div id="game-message" class="game-message"></div>
+      <div id="keyboard"></div>
+    </section>
+
+  </div>
+
+  <footer class="footer">
+    <a href="../index.html">High Roller Arcade</a>
+  </footer>
+
+  <script src="words.js"></script>
+  <script src="engine.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      HangmanEngine.init();
+    });
+  </script>
+</body>
+</html>
