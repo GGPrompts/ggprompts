@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connect Four -- Drop &amp; Conquer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Exo+2:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-deep: #0a1628;
+            --bg-panel: #111d33;
+            --bg-card: #162240;
+            --border-subtle: #1e3355;
+            --accent-blue: #1a56c4;
+            --accent-blue-light: #3b7dff;
+            --red-disc: #e63946;
+            --red-glow: rgba(230, 57, 70, 0.4);
+            --yellow-disc: #f4d03f;
+            --yellow-glow: rgba(244, 208, 63, 0.4);
+            --win-green: #39ff14;
+            --win-green-glow: rgba(57, 255, 20, 0.3);
+            --text-primary: #e8eaf0;
+            --text-secondary: #8899b4;
+            --text-dim: #556680;
+            --font-display: 'Orbitron', sans-serif;
+            --font-body: 'Exo 2', sans-serif;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: var(--font-body);
+            color: var(--text-primary);
+            background: var(--bg-deep);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* ── Back link ─────────────────────────────────── */
+        .back-link {
+            display: inline-block;
+            font-family: var(--font-display);
+            font-size: 0.65rem;
+            font-weight: 600;
+            color: var(--accent-blue-light);
+            text-decoration: none;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            padding: 8px 18px;
+            border: 1px solid var(--accent-blue);
+            background: rgba(26, 86, 196, 0.1);
+            transition: all 0.3s ease;
+            align-self: flex-start;
+            margin: 12px 0 0 12px;
+        }
+        .back-link::before { content: '\2190  '; }
+        .back-link:hover {
+            background: var(--accent-blue);
+            color: #fff;
+        }
+
+        /* ── Title ─────────────────────────────────────── */
+        .title-area {
+            text-align: center;
+            margin: 10px 0 12px;
+        }
+        .title-area h1 {
+            font-family: var(--font-display);
+            font-size: 1.8rem;
+            font-weight: 900;
+            letter-spacing: 0.08em;
+            background: linear-gradient(135deg, var(--red-disc), var(--yellow-disc));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .title-area .subtitle {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            margin-top: 2px;
+        }
+
+        /* ── Layout ────────────────────────────────────── */
+        .game-wrap {
+            display: flex;
+            gap: 24px;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            justify-content: center;
+            padding: 0 16px 32px;
+        }
+
+        /* ── Side panel ────────────────────────────────── */
+        .panel {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            padding: 16px;
+            width: 220px;
+        }
+        .panel h2 {
+            font-family: var(--font-display);
+            font-size: 0.65rem;
+            font-weight: 700;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+            border-bottom: 1px solid var(--border-subtle);
+            padding-bottom: 6px;
+        }
+
+        /* ── Mode selector ─────────────────────────────── */
+        .mode-group {
+            margin-bottom: 16px;
+        }
+        .mode-group label {
+            display: block;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+        .mode-btns {
+            display: flex;
+            gap: 4px;
+        }
+        .mode-btn {
+            flex: 1;
+            padding: 6px 4px;
+            font-family: var(--font-body);
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+        .mode-btn.active {
+            color: #fff;
+            background: var(--accent-blue);
+            border-color: var(--accent-blue-light);
+        }
+        .mode-btn:hover:not(.active) {
+            background: var(--bg-panel);
+            border-color: var(--accent-blue);
+        }
+
+        /* ── Scoreboard ────────────────────────────────── */
+        .scoreboard {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        .score-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 10px;
+            border-radius: 6px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+        }
+        .score-row.active-turn {
+            border-color: var(--accent-blue-light);
+            box-shadow: 0 0 8px rgba(59, 125, 255, 0.2);
+        }
+        .score-disc {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+            flex-shrink: 0;
+        }
+        .score-disc.red { background: var(--red-disc); box-shadow: 0 0 6px var(--red-glow); }
+        .score-disc.yellow { background: var(--yellow-disc); box-shadow: 0 0 6px var(--yellow-glow); }
+        .score-name {
+            font-size: 0.8rem;
+            font-weight: 600;
+            flex: 1;
+        }
+        .score-val {
+            font-family: var(--font-display);
+            font-size: 1rem;
+            font-weight: 700;
+            min-width: 24px;
+            text-align: right;
+        }
+        .draws-row {
+            text-align: center;
+            font-size: 0.75rem;
+            color: var(--text-dim);
+        }
+        .draws-row span {
+            font-family: var(--font-display);
+            font-weight: 700;
+            color: var(--text-secondary);
+        }
+
+        /* ── Status ────────────────────────────────────── */
+        .status-bar {
+            text-align: center;
+            font-size: 0.85rem;
+            font-weight: 500;
+            margin-bottom: 8px;
+            min-height: 24px;
+            color: var(--text-primary);
+        }
+        .status-bar.win {
+            color: var(--win-green);
+            text-shadow: 0 0 8px var(--win-green-glow);
+        }
+        .status-bar.draw {
+            color: var(--yellow-disc);
+        }
+
+        /* ── Action buttons ────────────────────────────── */
+        .actions {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 8px 12px;
+            font-family: var(--font-body);
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+        .btn:hover { background: var(--accent-blue); border-color: var(--accent-blue-light); }
+        .btn:disabled { opacity: 0.35; cursor: default; }
+        .btn:disabled:hover { background: var(--bg-card); border-color: var(--border-subtle); }
+        .btn-primary {
+            background: var(--accent-blue);
+            border-color: var(--accent-blue-light);
+        }
+        .btn-primary:hover { background: var(--accent-blue-light); }
+
+        /* ── Canvas area ───────────────────────────────── */
+        .board-area {
+            position: relative;
+        }
+        #game-canvas {
+            display: block;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        /* ── Responsive ────────────────────────────────── */
+        @media (max-width: 768px) {
+            .game-wrap {
+                flex-direction: column-reverse;
+                align-items: center;
+            }
+            .panel { width: 100%; max-width: 400px; }
+            .title-area h1 { font-size: 1.3rem; }
+            .mode-btns { flex-wrap: wrap; }
+        }
+    </style>
+</head>
+<body>
+    <a href="../index.html" class="back-link">Arcade</a>
+
+    <div class="title-area">
+        <h1>Connect Four</h1>
+        <p class="subtitle">Drop &amp; Conquer</p>
+    </div>
+
+    <div class="game-wrap">
+        <!-- Board -->
+        <div class="board-area">
+            <div class="status-bar" id="status">Red's turn</div>
+            <canvas id="game-canvas"></canvas>
+        </div>
+
+        <!-- Side Panel -->
+        <div class="panel">
+            <h2>Settings</h2>
+
+            <div class="mode-group">
+                <label>Game Mode</label>
+                <div class="mode-btns" id="mode-btns">
+                    <button class="mode-btn active" data-mode="ai">vs AI</button>
+                    <button class="mode-btn" data-mode="local">2 Player</button>
+                </div>
+            </div>
+
+            <div class="mode-group" id="difficulty-group">
+                <label>AI Difficulty</label>
+                <div class="mode-btns" id="diff-btns">
+                    <button class="mode-btn" data-diff="easy">Easy</button>
+                    <button class="mode-btn active" data-diff="medium">Medium</button>
+                    <button class="mode-btn" data-diff="hard">Hard</button>
+                </div>
+            </div>
+
+            <h2>Score</h2>
+            <div class="scoreboard">
+                <div class="score-row active-turn" id="score-p1">
+                    <span class="score-disc red"></span>
+                    <span class="score-name" id="p1-name">Player</span>
+                    <span class="score-val" id="p1-score">0</span>
+                </div>
+                <div class="score-row" id="score-p2">
+                    <span class="score-disc yellow"></span>
+                    <span class="score-name" id="p2-name">AI</span>
+                    <span class="score-val" id="p2-score">0</span>
+                </div>
+                <div class="draws-row">Draws: <span id="draws">0</span></div>
+            </div>
+
+            <h2>Actions</h2>
+            <div class="actions">
+                <button class="btn" id="btn-undo" disabled>Undo Move</button>
+                <button class="btn btn-primary" id="btn-new">New Game</button>
+                <button class="btn" id="btn-reset">Reset Scores</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="engine.js"></script>
+    <script src="renderer.js"></script>
+    <script>
+    'use strict';
+
+    const CF = window.ConnectFour;
+    const R = window.ConnectFourRenderer;
+
+    /* ── State ─────────────────────────────────────── */
+    let board;
+    let currentPlayer;
+    let gameOver;
+    let moveHistory;   // array of { col, row, player }
+    let mode = 'ai';   // 'ai' | 'local'
+    let difficulty = 'medium';
+    let scores = { p1: 0, p2: 0, draws: 0 };
+    let locked = false; // locked during animation / AI think
+
+    const $ = (s) => document.querySelector(s);
+    const $$ = (s) => document.querySelectorAll(s);
+
+    /* ── Init ──────────────────────────────────────── */
+    function init() {
+        R.init($('#game-canvas'));
+        newGame();
+        bindEvents();
+    }
+
+    function newGame() {
+        board = CF.createBoard();
+        currentPlayer = CF.P1;
+        gameOver = false;
+        moveHistory = [];
+        locked = false;
+        R.stopWinAnimation();
+        R.setHoverCol(-1);
+        R.drawBoard(board);
+        updateUI();
+        $('#btn-undo').disabled = true;
+    }
+
+    /* ── Events ────────────────────────────────────── */
+    function bindEvents() {
+        const canvas = $('#game-canvas');
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (locked || gameOver) { R.setHoverCol(-1); return; }
+            if (mode === 'ai' && currentPlayer === CF.P2) { R.setHoverCol(-1); return; }
+            const col = R.getColFromX(e.offsetX);
+            R.setHoverCol(col);
+            R.drawBoard(board);
+            R.drawHoverDisc(board, col, currentPlayer);
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            R.setHoverCol(-1);
+            if (!gameOver) R.drawBoard(board);
+        });
+
+        canvas.addEventListener('click', (e) => {
+            if (locked || gameOver) return;
+            if (mode === 'ai' && currentPlayer === CF.P2) return;
+            const col = R.getColFromX(e.offsetX);
+            if (col < 0 || CF.isColumnFull(board, col)) return;
+            playMove(col);
+        });
+
+        // Touch support
+        canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            if (locked || gameOver) return;
+            if (mode === 'ai' && currentPlayer === CF.P2) return;
+            const touch = e.changedTouches[0];
+            const rect = canvas.getBoundingClientRect();
+            const col = R.getColFromX(touch.clientX - rect.left);
+            if (col < 0 || CF.isColumnFull(board, col)) return;
+            playMove(col);
+        });
+
+        // Mode buttons
+        $$('#mode-btns .mode-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                $$('#mode-btns .mode-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                mode = btn.dataset.mode;
+                $('#difficulty-group').style.display = mode === 'ai' ? '' : 'none';
+                $('#p1-name').textContent = 'Player 1';
+                $('#p2-name').textContent = mode === 'ai' ? 'AI' : 'Player 2';
+                resetScores();
+                newGame();
+            });
+        });
+
+        // Difficulty buttons
+        $$('#diff-btns .mode-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                $$('#diff-btns .mode-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                difficulty = btn.dataset.diff;
+                newGame();
+            });
+        });
+
+        $('#btn-undo').addEventListener('click', undoMove);
+        $('#btn-new').addEventListener('click', newGame);
+        $('#btn-reset').addEventListener('click', () => { resetScores(); newGame(); });
+    }
+
+    /* ── Move logic ────────────────────────────────── */
+    function playMove(col) {
+        locked = true;
+        const player = currentPlayer;
+        const row = CF.dropPiece(board, col, player);
+        if (row < 0) { locked = false; return; }
+
+        moveHistory.push({ col, row, player });
+        R.setHoverCol(-1);
+
+        // Undo the physical placement so animation can draw it
+        board[row][col] = CF.EMPTY;
+
+        R.animateDrop(board, col, row, player, () => {
+            // Piece is now placed by animateDrop's completion
+            afterMove(player);
+        });
+    }
+
+    function afterMove(player) {
+        const winCells = CF.checkWin(board, player);
+        if (winCells) {
+            gameOver = true;
+            locked = true;
+            if (player === CF.P1) scores.p1++;
+            else scores.p2++;
+            R.startWinAnimation(board, winCells);
+            updateUI();
+            return;
+        }
+
+        if (CF.isBoardFull(board)) {
+            gameOver = true;
+            locked = true;
+            scores.draws++;
+            updateUI();
+            return;
+        }
+
+        // Switch turn
+        currentPlayer = currentPlayer === CF.P1 ? CF.P2 : CF.P1;
+        locked = false;
+        updateUI();
+        $('#btn-undo').disabled = moveHistory.length === 0;
+
+        // AI turn
+        if (mode === 'ai' && currentPlayer === CF.P2 && !gameOver) {
+            locked = true;
+            updateUI();
+            setTimeout(() => {
+                const aiCol = CF.getAIMove(board, CF.P2, difficulty);
+                playMove(aiCol);
+            }, 300);
+        }
+    }
+
+    /* ── Undo ──────────────────────────────────────── */
+    function undoMove() {
+        if (moveHistory.length === 0 || gameOver || locked) return;
+
+        // In AI mode, undo both AI + player move
+        if (mode === 'ai') {
+            // If it is currently the player's turn, the last move was AI
+            if (currentPlayer === CF.P1 && moveHistory.length >= 2) {
+                // Undo AI move
+                const aiMove = moveHistory.pop();
+                board[aiMove.row][aiMove.col] = CF.EMPTY;
+                // Undo player move
+                const pMove = moveHistory.pop();
+                board[pMove.row][pMove.col] = CF.EMPTY;
+                currentPlayer = CF.P1;
+            } else if (currentPlayer === CF.P2) {
+                // AI is thinking — shouldn't get here, but handle it
+                return;
+            } else if (moveHistory.length === 1) {
+                // Only one move (player's first move, AI hasn't gone yet — rare)
+                const m = moveHistory.pop();
+                board[m.row][m.col] = CF.EMPTY;
+                currentPlayer = CF.P1;
+            }
+        } else {
+            const m = moveHistory.pop();
+            board[m.row][m.col] = CF.EMPTY;
+            currentPlayer = m.player;
+        }
+
+        R.drawBoard(board);
+        updateUI();
+        $('#btn-undo').disabled = moveHistory.length === 0;
+    }
+
+    /* ── UI updates ────────────────────────────────── */
+    function updateUI() {
+        const statusEl = $('#status');
+        statusEl.className = 'status-bar';
+
+        if (gameOver) {
+            const lastMove = moveHistory[moveHistory.length - 1];
+            if (lastMove && CF.checkWin(board, lastMove.player)) {
+                const winnerName = getPlayerName(lastMove.player);
+                statusEl.textContent = winnerName + ' wins!';
+                statusEl.classList.add('win');
+            } else {
+                statusEl.textContent = 'Draw!';
+                statusEl.classList.add('draw');
+            }
+        } else {
+            const name = getPlayerName(currentPlayer);
+            const color = currentPlayer === CF.P1 ? 'Red' : 'Yellow';
+            if (mode === 'ai' && currentPlayer === CF.P2) {
+                statusEl.textContent = 'AI is thinking...';
+            } else {
+                statusEl.textContent = name + "'s turn (" + color + ')';
+            }
+        }
+
+        // Scores
+        $('#p1-score').textContent = scores.p1;
+        $('#p2-score').textContent = scores.p2;
+        $('#draws').textContent = scores.draws;
+
+        // Active turn indicator
+        $('#score-p1').classList.toggle('active-turn', currentPlayer === CF.P1 && !gameOver);
+        $('#score-p2').classList.toggle('active-turn', currentPlayer === CF.P2 && !gameOver);
+    }
+
+    function getPlayerName(player) {
+        if (player === CF.P1) return mode === 'local' ? 'Player 1' : 'Player';
+        return mode === 'ai' ? 'AI' : 'Player 2';
+    }
+
+    function resetScores() {
+        scores = { p1: 0, p2: 0, draws: 0 };
+        updateUI();
+    }
+
+    /* ── Boot ──────────────────────────────────────── */
+    init();
+    </script>
+</body>
+</html>
