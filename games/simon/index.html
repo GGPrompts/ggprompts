@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simon — Memory Pattern Game</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-dark: #0a0a0f;
+  --bg-surface: #12121a;
+  --bg-card: #1a1a28;
+  --simon-green: #00c853;
+  --simon-green-lit: #69f0ae;
+  --simon-green-glow: rgba(0, 200, 83, 0.6);
+  --simon-red: #ff1744;
+  --simon-red-lit: #ff6e80;
+  --simon-red-glow: rgba(255, 23, 68, 0.6);
+  --simon-yellow: #ffd600;
+  --simon-yellow-lit: #ffff52;
+  --simon-yellow-glow: rgba(255, 214, 0, 0.6);
+  --simon-blue: #2979ff;
+  --simon-blue-lit: #82b1ff;
+  --simon-blue-glow: rgba(41, 121, 255, 0.6);
+  --chrome: #c0c0c0;
+  --chrome-dark: #666;
+  --text-primary: #e8e4f0;
+  --text-dim: rgba(232, 228, 240, 0.5);
+  --font-display: 'Orbitron', monospace;
+  --font-body: 'Inter', sans-serif;
+  --ring-size: min(400px, 85vw);
+  --pad-gap: 6px;
+  --center-size: 30%;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg-dark);
+  color: var(--text-primary);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow-x: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Subtle radial ambient light */
+body::before {
+  content: '';
+  position: fixed;
+  top: -20%; left: -20%;
+  width: 140%; height: 140%;
+  background: radial-gradient(ellipse at 50% 40%, rgba(41, 121, 255, 0.04) 0%, transparent 60%),
+              radial-gradient(ellipse at 30% 70%, rgba(0, 200, 83, 0.03) 0%, transparent 50%),
+              radial-gradient(ellipse at 70% 60%, rgba(255, 23, 68, 0.03) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ==================== NAV ==================== */
+.nav-bar {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  background: rgba(10, 10, 15, 0.92);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 8px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.nav-bar a {
+  color: var(--text-dim);
+  text-decoration: none;
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  transition: color 0.2s;
+}
+.nav-bar a:hover { color: var(--text-primary); }
+.nav-sep { color: var(--text-dim); font-size: 0.7rem; }
+.nav-title { color: var(--text-primary); font-family: var(--font-display); font-size: 0.8rem; letter-spacing: 3px; }
+
+/* ==================== LAYOUT ==================== */
+.game-wrap {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 60px 20px 40px;
+  gap: 24px;
+}
+
+/* ==================== SCORE DISPLAY ==================== */
+.score-bar {
+  display: flex;
+  gap: 32px;
+  align-items: center;
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  letter-spacing: 2px;
+}
+.score-label { color: var(--text-dim); font-size: 0.65rem; text-transform: uppercase; }
+.score-value {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  min-width: 2ch;
+  text-align: center;
+}
+.score-item { text-align: center; }
+
+/* ==================== SIMON BOARD ==================== */
+.simon-board {
+  position: relative;
+  width: var(--ring-size);
+  height: var(--ring-size);
+  border-radius: 50%;
+  background: var(--bg-card);
+  box-shadow: 0 0 60px rgba(0, 0, 0, 0.5), inset 0 0 30px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+
+/* Four quadrant pads using CSS clip-path */
+.simon-pad {
+  position: absolute;
+  width: 50%;
+  height: 50%;
+  cursor: pointer;
+  transition: filter 0.08s, transform 0.08s;
+  will-change: filter, transform, box-shadow;
+}
+.simon-pad:active:not(.disabled) {
+  transform: scale(0.97);
+}
+
+/* Pad positions */
+.simon-pad[data-color="green"] {
+  top: var(--pad-gap);
+  left: var(--pad-gap);
+  width: calc(50% - var(--pad-gap) - var(--pad-gap) / 2);
+  height: calc(50% - var(--pad-gap) - var(--pad-gap) / 2);
+  border-radius: 100% 0 0 0;
+  background: var(--simon-green);
+}
+.simon-pad[data-color="red"] {
+  top: var(--pad-gap);
+  right: var(--pad-gap);
+  width: calc(50% - var(--pad-gap) - var(--pad-gap) / 2);
+  height: calc(50% - var(--pad-gap) - var(--pad-gap) / 2);
+  border-radius: 0 100% 0 0;
+  background: var(--simon-red);
+}
+.simon-pad[data-color="yellow"] {
+  bottom: var(--pad-gap);
+  left: var(--pad-gap);
+  width: calc(50% - var(--pad-gap) - var(--pad-gap) / 2);
+  height: calc(50% - var(--pad-gap) - var(--pad-gap) / 2);
+  border-radius: 0 0 0 100%;
+  background: var(--simon-yellow);
+}
+.simon-pad[data-color="blue"] {
+  bottom: var(--pad-gap);
+  right: var(--pad-gap);
+  width: calc(50% - var(--pad-gap) - var(--pad-gap) / 2);
+  height: calc(50% - var(--pad-gap) - var(--pad-gap) / 2);
+  border-radius: 0 0 100% 0;
+  background: var(--simon-blue);
+}
+
+/* Dim state (default) */
+.simon-pad {
+  filter: brightness(0.45);
+}
+
+/* Lit state */
+.simon-pad.lit {
+  filter: brightness(1.2) saturate(1.3);
+}
+.simon-pad[data-color="green"].lit {
+  background: var(--simon-green-lit);
+  box-shadow: 0 0 40px var(--simon-green-glow), 0 0 80px var(--simon-green-glow), inset 0 0 20px rgba(255,255,255,0.15);
+}
+.simon-pad[data-color="red"].lit {
+  background: var(--simon-red-lit);
+  box-shadow: 0 0 40px var(--simon-red-glow), 0 0 80px var(--simon-red-glow), inset 0 0 20px rgba(255,255,255,0.15);
+}
+.simon-pad[data-color="yellow"].lit {
+  background: var(--simon-yellow-lit);
+  box-shadow: 0 0 40px var(--simon-yellow-glow), 0 0 80px var(--simon-yellow-glow), inset 0 0 20px rgba(255,255,255,0.15);
+}
+.simon-pad[data-color="blue"].lit {
+  background: var(--simon-blue-lit);
+  box-shadow: 0 0 40px var(--simon-blue-glow), 0 0 80px var(--simon-blue-glow), inset 0 0 20px rgba(255,255,255,0.15);
+}
+
+/* Disabled state during playback */
+.simon-pad.disabled {
+  cursor: default;
+  pointer-events: none;
+}
+
+/* Hover (only during input phase) */
+.simon-pad:not(.disabled):hover {
+  filter: brightness(0.65);
+}
+
+/* Center hub */
+.simon-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--center-size);
+  height: var(--center-size);
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: var(--bg-dark);
+  border: 3px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.6);
+}
+.simon-center-title {
+  font-family: var(--font-display);
+  font-size: clamp(0.6rem, 2.5vw, 0.9rem);
+  font-weight: 900;
+  letter-spacing: 4px;
+  color: var(--text-primary);
+  text-transform: uppercase;
+}
+.simon-center-round {
+  font-family: var(--font-display);
+  font-size: clamp(1.2rem, 5vw, 2rem);
+  font-weight: 900;
+  color: var(--simon-blue-lit);
+  margin-top: 2px;
+}
+
+/* ==================== CONTROLS ==================== */
+.controls {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.btn {
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  padding: 10px 24px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+.btn-start {
+  background: linear-gradient(135deg, rgba(0, 200, 83, 0.2), rgba(41, 121, 255, 0.2));
+  border-color: rgba(0, 200, 83, 0.3);
+}
+.btn-start:hover {
+  background: linear-gradient(135deg, rgba(0, 200, 83, 0.35), rgba(41, 121, 255, 0.35));
+  border-color: rgba(0, 200, 83, 0.5);
+  box-shadow: 0 0 20px rgba(0, 200, 83, 0.15);
+}
+
+.strict-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.7rem;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.strict-toggle input { display: none; }
+.strict-indicator {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: all 0.2s;
+}
+.strict-toggle input:checked + .strict-indicator {
+  background: var(--simon-red);
+  border-color: var(--simon-red);
+  box-shadow: 0 0 8px var(--simon-red-glow);
+}
+
+/* ==================== STATUS MESSAGE ==================== */
+.status {
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  min-height: 1.2em;
+  transition: color 0.3s;
+}
+.status.active { color: var(--simon-green-lit); }
+.status.warning { color: var(--simon-red-lit); }
+
+/* ==================== GAME OVER OVERLAY ==================== */
+.overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(10, 10, 15, 0.85);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  z-index: 200;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s;
+}
+.overlay.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+.overlay-title {
+  font-family: var(--font-display);
+  font-size: clamp(1.4rem, 5vw, 2.4rem);
+  font-weight: 900;
+  letter-spacing: 6px;
+  text-transform: uppercase;
+  background: linear-gradient(135deg, var(--simon-red-lit), var(--simon-yellow-lit));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.overlay-score {
+  font-family: var(--font-display);
+  font-size: 3rem;
+  font-weight: 900;
+  color: var(--text-primary);
+}
+.overlay-label {
+  font-size: 0.75rem;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.overlay-best {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  color: var(--simon-yellow);
+  letter-spacing: 2px;
+}
+
+/* ==================== KEYBOARD HINTS ==================== */
+.key-hints {
+  display: flex;
+  gap: 12px;
+  font-size: 0.65rem;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+}
+.key-hint kbd {
+  display: inline-block;
+  padding: 2px 6px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 3px;
+  font-family: var(--font-display);
+  font-size: 0.6rem;
+  margin-right: 4px;
+}
+
+/* ==================== RESPONSIVE ==================== */
+@media (max-width: 768px) {
+  :root {
+    --ring-size: min(320px, 80vw);
+    --pad-gap: 4px;
+  }
+  .score-bar { gap: 20px; }
+  .score-value { font-size: 1.3rem; }
+  .controls { gap: 10px; }
+  .btn { padding: 8px 16px; font-size: 0.65rem; }
+  .key-hints { display: none; }
+}
+
+@media (max-width: 400px) {
+  :root {
+    --ring-size: min(280px, 78vw);
+  }
+}
+</style>
+</head>
+<body>
+
+<!-- Nav -->
+<nav class="nav-bar">
+  <a href="../../index.html">Home</a>
+  <span class="nav-sep">/</span>
+  <a href="../index.html">Games</a>
+  <span class="nav-sep">/</span>
+  <span class="nav-title">Simon</span>
+</nav>
+
+<div class="game-wrap">
+
+  <!-- Scores -->
+  <div class="score-bar">
+    <div class="score-item">
+      <div class="score-label">Round</div>
+      <div class="score-value" id="round-display">--</div>
+    </div>
+    <div class="score-item">
+      <div class="score-label">Best</div>
+      <div class="score-value" id="best-display">0</div>
+    </div>
+  </div>
+
+  <!-- Simon Board -->
+  <div class="simon-board" id="simon-board">
+    <div class="simon-pad" data-color="green"></div>
+    <div class="simon-pad" data-color="red"></div>
+    <div class="simon-pad" data-color="yellow"></div>
+    <div class="simon-pad" data-color="blue"></div>
+    <div class="simon-center">
+      <div class="simon-center-title">Simon</div>
+      <div class="simon-center-round" id="center-round">--</div>
+    </div>
+  </div>
+
+  <!-- Status -->
+  <div class="status" id="status">Press Start to begin</div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <button class="btn btn-start" id="btn-start">Start</button>
+    <label class="strict-toggle">
+      <input type="checkbox" id="strict-check">
+      <span class="strict-indicator"></span>
+      Strict
+    </label>
+  </div>
+
+  <!-- Keyboard hints -->
+  <div class="key-hints">
+    <span><kbd>Q</kbd> Green</span>
+    <span><kbd>W</kbd> Red</span>
+    <span><kbd>A</kbd> Yellow</span>
+    <span><kbd>S</kbd> Blue</span>
+    <span><kbd>Space</kbd> Start</span>
+  </div>
+</div>
+
+<!-- Game Over Overlay -->
+<div class="overlay" id="overlay">
+  <div class="overlay-title">Game Over</div>
+  <div class="overlay-label">You reached round</div>
+  <div class="overlay-score" id="overlay-score">0</div>
+  <div class="overlay-best" id="overlay-best"></div>
+  <button class="btn btn-start" id="btn-restart">Play Again</button>
+</div>
+
+<script src="audio.js"></script>
+<script src="engine.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var pads = document.querySelectorAll('.simon-pad');
+  var roundDisplay = document.getElementById('round-display');
+  var bestDisplay = document.getElementById('best-display');
+  var centerRound = document.getElementById('center-round');
+  var statusEl = document.getElementById('status');
+  var btnStart = document.getElementById('btn-start');
+  var btnRestart = document.getElementById('btn-restart');
+  var strictCheck = document.getElementById('strict-check');
+  var overlay = document.getElementById('overlay');
+  var overlayScore = document.getElementById('overlay-score');
+  var overlayBest = document.getElementById('overlay-best');
+
+  var padMap = {};
+  pads.forEach(function (pad) {
+    padMap[pad.dataset.color] = pad;
+  });
+
+  /* Keyboard mapping */
+  var KEY_MAP = {
+    'q': 'green', 'Q': 'green',
+    'w': 'red',   'W': 'red',
+    'a': 'yellow', 'A': 'yellow',
+    's': 'blue',  'S': 'blue'
+  };
+
+  /* Initialize audio on first interaction */
+  var audioInited = false;
+  function ensureAudio() {
+    if (!audioInited) {
+      SimonAudio.init();
+      audioInited = true;
+    }
+  }
+
+  /* Light up a pad for a duration (ms) */
+  function lightUp(color, duration) {
+    var pad = padMap[color];
+    if (!pad) return;
+    pad.classList.add('lit');
+    setTimeout(function () {
+      pad.classList.remove('lit');
+    }, duration);
+  }
+
+  /* Set pads disabled/enabled */
+  function setPadsDisabled(disabled) {
+    pads.forEach(function (pad) {
+      if (disabled) {
+        pad.classList.add('disabled');
+      } else {
+        pad.classList.remove('disabled');
+      }
+    });
+  }
+
+  /* Phase change handler */
+  function onPhaseChange(phase) {
+    if (phase === 'playback') {
+      setPadsDisabled(true);
+      statusEl.textContent = 'Watch the pattern...';
+      statusEl.className = 'status';
+    } else if (phase === 'input') {
+      setPadsDisabled(false);
+      statusEl.textContent = 'Your turn!';
+      statusEl.className = 'status active';
+    } else if (phase === 'gameover') {
+      setPadsDisabled(true);
+      statusEl.textContent = 'Game over!';
+      statusEl.className = 'status warning';
+    }
+  }
+
+  /* Init engine */
+  SimonEngine.init({
+    onLightUp: lightUp,
+    onRoundUpdate: function (round) {
+      roundDisplay.textContent = round;
+      centerRound.textContent = round;
+    },
+    onHighScore: function (score) {
+      bestDisplay.textContent = score;
+    },
+    onGameOver: function (round) {
+      overlayScore.textContent = round;
+      var best = parseInt(bestDisplay.textContent || '0', 10);
+      if (round >= best) {
+        overlayBest.textContent = 'New best score!';
+        overlayBest.style.color = 'var(--simon-yellow-lit)';
+      } else {
+        overlayBest.textContent = 'Best: ' + best;
+        overlayBest.style.color = '';
+      }
+      setTimeout(function () {
+        overlay.classList.add('visible');
+      }, 1200);
+    },
+    onPhaseChange: onPhaseChange
+  });
+
+  function startGame() {
+    ensureAudio();
+    overlay.classList.remove('visible');
+    SimonEngine.setStrict(strictCheck.checked);
+    SimonEngine.startGame();
+  }
+
+  /* Click handlers for pads */
+  pads.forEach(function (pad) {
+    pad.addEventListener('mousedown', function (e) {
+      e.preventDefault();
+      ensureAudio();
+      SimonEngine.playerInput(pad.dataset.color);
+    });
+    pad.addEventListener('touchstart', function (e) {
+      e.preventDefault();
+      ensureAudio();
+      SimonEngine.playerInput(pad.dataset.color);
+    }, { passive: false });
+  });
+
+  /* Buttons */
+  btnStart.addEventListener('click', startGame);
+  btnRestart.addEventListener('click', startGame);
+
+  /* Keyboard support */
+  document.addEventListener('keydown', function (e) {
+    if (e.key === ' ' || e.key === 'Enter') {
+      e.preventDefault();
+      if (SimonEngine.getPhase() === 'idle' || SimonEngine.getPhase() === 'gameover') {
+        startGame();
+      }
+      return;
+    }
+    var color = KEY_MAP[e.key];
+    if (color && SimonEngine.getPhase() === 'input') {
+      ensureAudio();
+      SimonEngine.playerInput(color);
+    }
+  });
+})();
+</script>
+</body>
+</html>
