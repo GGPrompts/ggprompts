@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Laser Grid — Music Video</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="video-base-styles.css">
+    <style>
+        :root {
+            --vid-bg: #020208;
+            --vid-bg-rgb: 2,2,8;
+            --vid-font: 'Orbitron', sans-serif;
+            --vid-accent: #ff2060;
+            --vid-accent-r: 255;
+            --vid-accent-g: 32;
+            --vid-accent-b: 96;
+            --vid-title-min: 22px;
+            --vid-title-max: 52px;
+            --vid-title-weight: 900;
+            --vid-sub-min: 11px;
+            --vid-sub-vw: 1.8vw;
+            --vid-sub-max: 16px;
+            --vid-back-font: 'Orbitron', sans-serif;
+        }
+        .play-sub { letter-spacing: 0.2em; }
+    </style>
+</head>
+<body>
+    <a href="music-videos/index.html" class="back-link">&#8592; Music Videos</a>
+    <canvas id="viz-canvas"></canvas>
+    <div class="play-overlay" id="play-overlay">
+        <div class="play-title">Laser Grid</div>
+        <div class="play-sub">techno dance at 138 bpm</div>
+        <div class="play-btn"></div>
+    </div>
+
+    <script src="../audio-tracker/playback-engine.js"></script>
+    <script src="engine.js"></script>
+    <script src="video-utils.js"></script>
+    <script src="base-renderer.js"></script>
+    <script>
+    // ── Laser Grid Video Renderer ──────────────────────────────────
+    (function() {
+        "use strict";
+
+        var W = 0, H = 0;
+        var analysis = null;
+        var beatPulse = 0, flashAlpha = 0;
+
+        // ── Palette ──
+        var BG = '#020208';
+        var MAGENTA = '#ff2060';
+        var CYAN = '#00e5ff';
+        var GREEN = '#00ff88';
+        var PURPLE = '#aa44ff';
+        var YELLOW = '#ffdd00';
+        var WHITE = '#ffffff';
+
+        // Section colors: Am=magenta, F=cyan, G=green, Dm=purple
+        var SECTION_COLORS = [MAGENTA, CYAN, GREEN, PURPLE];
+
+        // ── State ──
+        var gridPhase = 0;
+        var elapsed = 0;
+        var lastSeqIndex = -1;
+        var sectionMood = 'intro';
+        var introFade = 0;
+        var titleAlpha = 0;
+        var titleTarget = 0;
+
+        // Lasers
+        var lasers = [];
+        var MAX_LASERS = 12;
+
+        // Particles
+        var particles = [];
+        var MAX_PARTICLES = 80;
+
+        // Geometric shapes
+        var shapes = [];
+        var MAX_SHAPES = 8;
+
+        // Grid parameters
+        var horizonY = 0;
+        var gridBottom = 0;
+
+        // Acid waveform
+        var wavePhase = 0;
+
+        // Color cycling
+        var colorIndex = 0;
+        var activeColor = MAGENTA;
+        var nextColor = CYAN;
+        var colorBlend = 0;
+
+        function currentColor() {
+            var c1 = hexToRgb(activeColor);
+            var c2 = hexToRgb(nextColor);
+            var t = clamp01(colorBlend);
+            var r = Math.round(lerp(c1.r, c2.r, t));
+            var g = Math.round(lerp(c1.g, c2.g, t));
+            var b = Math.round(lerp(c1.b, c2.b, t));
+            return 'rgb(' + r + ',' + g + ',' + b + ')';
+        }
+
+        function currentColorAlpha(a) {
+            var c1 = hexToRgb(activeColor);
+            var c2 = hexToRgb(nextColor);
+            var t = clamp01(colorBlend);
+            var r = Math.round(lerp(c1.r, c2.r, t));
+            var g = Math.round(lerp(c1.g, c2.g, t));
+            var b = Math.round(lerp(c1.b, c2.b, t));
+            return 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')';
+        }
+
+        function mapSection(seqIdx) {
+            if (seqIdx <= 1) return 'intro';
+            if (seqIdx === 2) return 'build';
+            if (seqIdx <= 4) return 'drop';
+            if (seqIdx === 5) return 'breakdown';
+            if (seqIdx === 6) return 'build';
+            if (seqIdx <= 8) return 'drop';
+            if (seqIdx === 9) return 'breakdown';
+            if (seqIdx === 10) return 'drop';
+            return 'outro';
+        }
+
+        // ── Laser management ──
+        function spawnLaser(energy) {
+            if (lasers.length >= MAX_LASERS) return;
+            var angle = rand(-Math.PI * 0.4, Math.PI * 0.4);
+            var side = Math.random() < 0.5 ? 0 : 1; // 0=left, 1=right
+            var speed = rand(0.3, 1.2);
+            var col = pickRandom(SECTION_COLORS);
+            lasers.push({
+                x: side === 0 ? rand(0, W * 0.3) : rand(W * 0.7, W),
+                y: rand(0, H * 0.4),
+                angle: angle,
+                rotSpeed: rand(-0.8, 0.8),
+                length: rand(W * 0.3, W * 0.8),
+                width: rand(1.5, 3),
+                color: col,
+                alpha: 0.6 + energy * 0.4,
+                life: rand(1.5, 4),
+                age: 0
+            });
+        }
+
+        // ── Particle management ──
+        function spawnParticle(x, y, color) {
+            if (particles.length >= MAX_PARTICLES) {
+                particles.shift();
+            }
+            particles.push({
+                x: x, y: y,
+                vx: rand(-80, 80),
+                vy: rand(-120, -20),
+                color: color || activeColor,
+                alpha: 1,
+                life: rand(0.5, 1.5),
+                age: 0,
+                size: rand(1, 3)
+            });
+        }
+
+        // ── Shape management ──
+        function spawnShape() {
+            if (shapes.length >= MAX_SHAPES) return;
+            var sides = pickRandom([3, 4, 5, 6]);
+            shapes.push({
+                x: rand(W * 0.15, W * 0.85),
+                y: rand(H * 0.1, H * 0.5),
+                radius: rand(20, 80),
+                sides: sides,
+                rotation: rand(0, Math.PI * 2),
+                rotSpeed: rand(-1, 1),
+                color: pickRandom(SECTION_COLORS),
+                alpha: 0,
+                targetAlpha: 0.5,
+                life: rand(2, 5),
+                age: 0,
+                pulsePhase: rand(0, Math.PI * 2)
+            });
+        }
+
+        // ── Init ──
+        function init(ctx, w, h, anal) {
+            W = w; H = h; analysis = anal;
+            beatPulse = 0; flashAlpha = 0;
+            elapsed = 0;
+            lastSeqIndex = -1;
+            sectionMood = 'intro';
+            introFade = 0;
+            titleAlpha = 0;
+            gridPhase = 0;
+            lasers = [];
+            particles = [];
+            shapes = [];
+            colorIndex = 0;
+            activeColor = MAGENTA;
+            nextColor = CYAN;
+            colorBlend = 0;
+            horizonY = H * 0.4;
+            gridBottom = H;
+            wavePhase = 0;
+        }
+
+        function resize(w, h) {
+            W = w; H = h;
+            horizonY = H * 0.4;
+            gridBottom = H;
+        }
+
+        // ── Drawing functions ──
+
+        function drawBackground(ctx, energy) {
+            // Dark gradient background
+            var grad = ctx.createLinearGradient(0, 0, 0, H);
+            grad.addColorStop(0, '#020208');
+            grad.addColorStop(0.4, '#050515');
+            grad.addColorStop(1, '#0a0a20');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, W, H);
+
+            // Ambient glow at horizon
+            var glowAlpha = 0.08 + energy * 0.12 + beatPulse * 0.06;
+            var glowGrad = ctx.createRadialGradient(W / 2, horizonY, 0, W / 2, horizonY, W * 0.6);
+            glowGrad.addColorStop(0, currentColorAlpha(glowAlpha));
+            glowGrad.addColorStop(1, 'rgba(2,2,8,0)');
+            ctx.fillStyle = glowGrad;
+            ctx.fillRect(0, 0, W, H);
+        }
+
+        function drawGrid(ctx, energy, speed) {
+            var vpX = W / 2;
+            var vpY = horizonY;
+            var gridH = gridBottom - vpY;
+
+            ctx.save();
+
+            // Horizontal lines (perspective)
+            var numHLines = 20;
+            var lineColor = currentColor();
+            for (var i = 0; i < numHLines; i++) {
+                var t = (i + gridPhase) / numHLines;
+                var perspT = Math.pow(t, 2.5);
+                var y = vpY + perspT * gridH;
+                if (y > gridBottom) continue;
+
+                var spread = perspT * W * 0.8;
+                var lx = vpX - spread;
+                var rx = vpX + spread;
+
+                var lineAlpha = perspT * (0.1 + energy * 0.15 + beatPulse * 0.1);
+                ctx.strokeStyle = currentColorAlpha(Math.min(lineAlpha, 0.6));
+                ctx.lineWidth = 1 + perspT * 2;
+                ctx.beginPath();
+                ctx.moveTo(lx, y);
+                ctx.lineTo(rx, y);
+                ctx.stroke();
+            }
+
+            // Vertical lines radiating from vanishing point
+            var numVLines = 16;
+            for (var j = 0; j < numVLines; j++) {
+                var frac = j / (numVLines - 1);
+                var bottomX = W * (-0.3 + frac * 1.6);
+
+                var vAlpha = 0.06 + energy * 0.08 + beatPulse * 0.04;
+                ctx.strokeStyle = currentColorAlpha(Math.min(vAlpha, 0.4));
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(vpX, vpY);
+                ctx.lineTo(bottomX, gridBottom);
+                ctx.stroke();
+            }
+
+            // Horizon glow line
+            ctx.strokeStyle = currentColor();
+            ctx.lineWidth = 1.5 + beatPulse * 3;
+            ctx.shadowColor = currentColor();
+            ctx.shadowBlur = 10 + beatPulse * 20 + energy * 10;
+            ctx.beginPath();
+            ctx.moveTo(0, vpY);
+            ctx.lineTo(W, vpY);
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            ctx.restore();
+        }
+
+        function drawLasers(ctx, dt) {
+            ctx.save();
+            for (var i = lasers.length - 1; i >= 0; i--) {
+                var l = lasers[i];
+                l.age += dt;
+                l.angle += l.rotSpeed * dt;
+
+                var fadeIn = Math.min(1, l.age * 4);
+                var fadeOut = Math.max(0, 1 - (l.age / l.life));
+                var a = l.alpha * fadeIn * fadeOut;
+
+                if (l.age >= l.life) {
+                    lasers.splice(i, 1);
+                    continue;
+                }
+
+                var endX = l.x + Math.cos(l.angle) * l.length;
+                var endY = l.y + Math.sin(l.angle) * l.length;
+
+                // Glow
+                ctx.strokeStyle = l.color;
+                ctx.lineWidth = l.width + 4;
+                ctx.globalAlpha = a * 0.2;
+                ctx.shadowColor = l.color;
+                ctx.shadowBlur = 15;
+                ctx.beginPath();
+                ctx.moveTo(l.x, l.y);
+                ctx.lineTo(endX, endY);
+                ctx.stroke();
+
+                // Core beam
+                ctx.lineWidth = l.width;
+                ctx.globalAlpha = a;
+                ctx.shadowBlur = 8;
+                ctx.beginPath();
+                ctx.moveTo(l.x, l.y);
+                ctx.lineTo(endX, endY);
+                ctx.stroke();
+            }
+            ctx.shadowBlur = 0;
+            ctx.globalAlpha = 1;
+            ctx.restore();
+        }
+
+        function drawShapes(ctx, dt) {
+            ctx.save();
+            for (var i = shapes.length - 1; i >= 0; i--) {
+                var s = shapes[i];
+                s.age += dt;
+                s.rotation += s.rotSpeed * dt;
+
+                var fadeIn = Math.min(1, s.age * 2);
+                var fadeOut = Math.max(0, 1 - (s.age / s.life));
+                s.alpha = s.targetAlpha * fadeIn * fadeOut;
+
+                if (s.age >= s.life) {
+                    shapes.splice(i, 1);
+                    continue;
+                }
+
+                var pulse = 1 + beatPulse * 0.3 * Math.sin(s.pulsePhase + elapsed * 2);
+                var r = s.radius * pulse;
+
+                ctx.strokeStyle = s.color;
+                ctx.lineWidth = 2;
+                ctx.globalAlpha = s.alpha;
+                ctx.shadowColor = s.color;
+                ctx.shadowBlur = 10;
+
+                ctx.beginPath();
+                for (var j = 0; j <= s.sides; j++) {
+                    var angle = s.rotation + (j / s.sides) * Math.PI * 2;
+                    var px = s.x + Math.cos(angle) * r;
+                    var py = s.y + Math.sin(angle) * r;
+                    if (j === 0) ctx.moveTo(px, py);
+                    else ctx.lineTo(px, py);
+                }
+                ctx.closePath();
+                ctx.stroke();
+            }
+            ctx.shadowBlur = 0;
+            ctx.globalAlpha = 1;
+            ctx.restore();
+        }
+
+        function drawParticles(ctx, dt) {
+            for (var i = particles.length - 1; i >= 0; i--) {
+                var p = particles[i];
+                p.age += dt;
+                p.x += p.vx * dt;
+                p.y += p.vy * dt;
+                p.vy += 60 * dt; // gravity
+                p.alpha = Math.max(0, 1 - p.age / p.life);
+
+                if (p.age >= p.life) {
+                    particles.splice(i, 1);
+                    continue;
+                }
+
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = p.alpha * 0.8;
+                ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+            }
+            ctx.globalAlpha = 1;
+        }
+
+        function drawWaveform(ctx, energy) {
+            if (energy < 0.1) return;
+            ctx.save();
+
+            var waveY = H * 0.25;
+            var waveW = W * 0.6;
+            var startX = (W - waveW) / 2;
+            var amp = 15 + energy * 25 + beatPulse * 10;
+            var freq = 0.03 + energy * 0.02;
+
+            ctx.strokeStyle = currentColorAlpha(0.3 + energy * 0.3);
+            ctx.lineWidth = 2;
+            ctx.shadowColor = currentColor();
+            ctx.shadowBlur = 8;
+            ctx.beginPath();
+            for (var x = 0; x < waveW; x += 2) {
+                var xFrac = x / waveW;
+                var envelope = Math.sin(xFrac * Math.PI);
+                var y = waveY + Math.sin(x * freq + wavePhase) * amp * envelope;
+                if (x === 0) ctx.moveTo(startX + x, y);
+                else ctx.lineTo(startX + x, y);
+            }
+            ctx.stroke();
+
+            ctx.shadowBlur = 0;
+            ctx.restore();
+        }
+
+        function drawTitle(ctx) {
+            if (titleAlpha < 0.01) return;
+            ctx.save();
+            ctx.textBaseline = 'middle';
+            ctx.textAlign = 'center';
+
+            var fontSize = Math.max(16, Math.min(W * 0.07, 72));
+            ctx.font = '900 ' + fontSize + 'px "Orbitron", sans-serif';
+
+            // Outer glow
+            ctx.globalAlpha = titleAlpha * 0.3;
+            ctx.shadowColor = MAGENTA;
+            ctx.shadowBlur = 60;
+            ctx.fillStyle = MAGENTA;
+            ctx.fillText('LASER GRID', W / 2, H * 0.15);
+
+            // Core
+            ctx.globalAlpha = titleAlpha;
+            ctx.shadowColor = CYAN;
+            ctx.shadowBlur = 20;
+            ctx.fillStyle = CYAN;
+            ctx.fillText('LASER GRID', W / 2, H * 0.15);
+
+            // White overlay
+            ctx.shadowBlur = 0;
+            ctx.globalAlpha = titleAlpha * 0.85;
+            ctx.fillStyle = WHITE;
+            ctx.fillText('LASER GRID', W / 2, H * 0.15);
+
+            ctx.restore();
+        }
+
+        function drawKickFlash(ctx) {
+            if (flashAlpha < 0.005) return;
+            ctx.save();
+            ctx.globalAlpha = flashAlpha;
+            ctx.fillStyle = WHITE;
+            ctx.fillRect(0, 0, W, H);
+            ctx.restore();
+        }
+
+        function drawVignette(ctx) {
+            var vigGrad = ctx.createRadialGradient(W/2, H/2, W*0.15, W/2, H/2, W*0.85);
+            vigGrad.addColorStop(0, 'rgba(2,2,8,0)');
+            vigGrad.addColorStop(1, 'rgba(2,2,8,' + (0.55 + beatPulse * 0.1) + ')');
+            ctx.fillStyle = vigGrad;
+            ctx.fillRect(0, 0, W, H);
+        }
+
+        function drawBorderPulse(ctx) {
+            if (beatPulse < 0.15 || sectionMood !== 'drop') return;
+            ctx.save();
+            ctx.globalAlpha = beatPulse * 0.15;
+            ctx.strokeStyle = currentColor();
+            ctx.lineWidth = 3;
+            ctx.shadowColor = currentColor();
+            ctx.shadowBlur = 20;
+            ctx.strokeRect(0, 0, W, H);
+            ctx.shadowBlur = 0;
+            ctx.restore();
+        }
+
+        // ── Main render ──
+        function render(frameData) {
+            var ctx = frameData.ctx;
+            var dt = frameData.dt || 1/60;
+            var cursor = frameData.cursor;
+            beatPulse = frameData.beatPulse;
+
+            // Background
+            ctx.fillStyle = BG;
+            ctx.fillRect(0, 0, W, H);
+
+            if (!cursor) {
+                drawBackground(ctx, 0);
+                drawGrid(ctx, 0, 0);
+                return;
+            }
+
+            var seqIdx = cursor.seqIndex;
+            var energy = analysis ? (analysis.energy[cursor.timelineIndex] || 0) : 0;
+            elapsed = cursor.elapsed;
+
+            // ── Section transitions ──
+            var newSection = mapSection(seqIdx);
+            if (seqIdx !== lastSeqIndex) {
+                var oldSection = sectionMood;
+                sectionMood = newSection;
+
+                // Color change on section transitions
+                if (sectionMood === 'drop' && oldSection !== 'drop') {
+                    flashAlpha = 0.2;
+                    colorIndex = (colorIndex + 1) % SECTION_COLORS.length;
+                    activeColor = nextColor;
+                    nextColor = SECTION_COLORS[colorIndex];
+                    colorBlend = 0;
+                    // Burst of shapes
+                    for (var si = 0; si < 3; si++) spawnShape();
+                }
+                if (sectionMood === 'build') {
+                    flashAlpha = 0.08;
+                }
+                if (sectionMood === 'breakdown') {
+                    activeColor = nextColor;
+                    colorIndex = (colorIndex + 1) % SECTION_COLORS.length;
+                    nextColor = SECTION_COLORS[colorIndex];
+                    colorBlend = 0;
+                }
+                lastSeqIndex = seqIdx;
+            }
+
+            // ── Smooth color transition ──
+            colorBlend = Math.min(1, colorBlend + dt * 0.5);
+
+            // ── Intro fade ──
+            if (sectionMood === 'intro') {
+                introFade = Math.min(1, introFade + dt * 0.4);
+            } else {
+                introFade = 1;
+            }
+
+            // ── Title ──
+            titleTarget = (sectionMood === 'drop') ? 1 : 0;
+            titleAlpha = lerpExp(titleAlpha, titleTarget, 4, dt);
+
+            // ── Grid speed ──
+            var gridSpeed;
+            switch (sectionMood) {
+                case 'intro': gridSpeed = 0.15 + introFade * 0.15; break;
+                case 'build': gridSpeed = 0.6 + energy * 0.6; break;
+                case 'drop': gridSpeed = 1.2 + energy * 0.8; break;
+                case 'breakdown': gridSpeed = 0.2; break;
+                case 'outro': gridSpeed = 0.3 * Math.max(0, 1 - (elapsed - 75) * 0.1); break;
+                default: gridSpeed = 0.8;
+            }
+            gridPhase = (gridPhase + gridSpeed * dt * 0.8) % 1;
+
+            // ── Waveform ──
+            wavePhase += (2 + energy * 6) * dt;
+
+            // ── Beat effects ──
+            if (frameData.beatChanged) {
+                if (sectionMood === 'drop') {
+                    spawnLaser(energy);
+                    if (energy > 0.3) {
+                        flashAlpha = Math.max(flashAlpha, 0.02 + energy * 0.04);
+                    }
+                    // Particles from grid intersection points
+                    for (var pi = 0; pi < 3; pi++) {
+                        spawnParticle(
+                            rand(W * 0.2, W * 0.8),
+                            rand(horizonY, H * 0.8),
+                            currentColor()
+                        );
+                    }
+                    if (Math.random() < 0.3) spawnShape();
+                }
+                if (sectionMood === 'build') {
+                    if (Math.random() < 0.5) spawnLaser(energy);
+                    spawnParticle(rand(W * 0.3, W * 0.7), H * 0.5, currentColor());
+                }
+                if (sectionMood === 'breakdown') {
+                    // Subtle particles floating up
+                    spawnParticle(rand(W * 0.3, W * 0.7), H * 0.7, currentColor());
+                }
+            }
+
+            flashAlpha *= Math.exp(-5 * dt);
+
+            // ── Draw scene ──
+            drawBackground(ctx, energy);
+            drawGrid(ctx, energy, gridSpeed);
+
+            if (sectionMood === 'drop' || sectionMood === 'build') {
+                drawLasers(ctx, dt);
+                drawShapes(ctx, dt);
+            } else {
+                // Still update/draw existing ones, just don't spawn new
+                drawLasers(ctx, dt);
+                drawShapes(ctx, dt);
+            }
+
+            drawWaveform(ctx, energy);
+            drawParticles(ctx, dt);
+            drawTitle(ctx);
+            drawVignette(ctx);
+            drawBorderPulse(ctx);
+            drawKickFlash(ctx);
+
+            // ── Outro fade to black ──
+            if (sectionMood === 'outro') {
+                var outroProgress = Math.min(1, (elapsed - 75) * 0.15);
+                if (outroProgress > 0) {
+                    ctx.save();
+                    ctx.globalAlpha = clamp01(outroProgress);
+                    ctx.fillStyle = '#000';
+                    ctx.fillRect(0, 0, W, H);
+                    ctx.restore();
+                }
+            }
+        }
+
+        BaseRenderer('laser-grid-video', 'Laser Grid', {
+            beatDecay: 8,
+            init: init,
+            render: render,
+            resize: resize
+        });
+    })();
+
+    // ── Page bootstrap ──
+    (function() {
+        var canvas = document.getElementById('viz-canvas');
+        var overlay = document.getElementById('play-overlay');
+
+        Visualizer.init(canvas);
+        Visualizer.setRenderer('laser-grid-video');
+
+        function loadAndPlay(json) {
+            Visualizer.loadSong(json);
+            Visualizer.play();
+        }
+
+        function fetchSong() {
+            var url = '../audio-tracker/songs/laser-grid.json';
+            if (window.fetch && location.protocol !== 'file:') {
+                return fetch(url).then(function(r) { return r.json(); });
+            }
+            return new Promise(function(resolve, reject) {
+                var xhr = new XMLHttpRequest();
+                xhr.open('GET', url, true);
+                xhr.onload = function() {
+                    if (xhr.status === 200 || xhr.status === 0) {
+                        resolve(JSON.parse(xhr.responseText));
+                    } else {
+                        reject(new Error('XHR failed: ' + xhr.status));
+                    }
+                };
+                xhr.onerror = function() { reject(new Error('XHR error')); };
+                xhr.send();
+            });
+        }
+
+        overlay.addEventListener('click', function() {
+            overlay.classList.add('hidden');
+            fetchSong().then(loadAndPlay).catch(function(err) {
+                console.error('Failed to load song:', err);
+                overlay.classList.remove('hidden');
+            });
+        });
+
+        if (new URLSearchParams(window.location.search).get('autoplay') === '1') {
+            overlay.click();
+        }
+
+        canvas.addEventListener('click', function() {
+            if (overlay.classList.contains('hidden')) {
+                if (Visualizer.isPlaying()) {
+                    Visualizer.pause();
+                } else if (Visualizer.isPaused()) {
+                    Visualizer.resume();
+                } else {
+                    Visualizer.play();
+                }
+            }
+        });
+    })();
+    </script>
+</body>
+</html>
