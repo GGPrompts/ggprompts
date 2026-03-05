@@ -3,6 +3,7 @@
 Master mapping of all 195 style guides and their usage across tech guides and stories.
 
 **Used:** 68 styles · **Available:** 127 styles
+**Used:** 66 styles · **Available:** 129 styles
 
 | Style | Tech Guide | Story |
 |-------|-----------|-------|
@@ -172,6 +173,7 @@ Master mapping of all 195 style guides and their usage across tech guides and st
 | solarpunk | Ansible | |
 | stained-glass | PKI & Certificates | |
 | steampunk | Redis | |
+| steampunk | Zig | |
 | streamline-moderne | | The Express |
 | suprematism | | |
 | surrealism | | |
