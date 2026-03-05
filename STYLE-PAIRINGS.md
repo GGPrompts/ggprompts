@@ -2,7 +2,7 @@
 
 Master mapping of all 195 style guides and their usage across tech guides and stories.
 
-**Used:** 69 styles · **Available:** 126 styles
+**Used:** 70 styles · **Available:** 125 styles
 
 | Style | Tech Guide | Story |
 |-------|-----------|-------|
@@ -40,7 +40,7 @@ Master mapping of all 195 style guides and their usage across tech guides and st
 | circuit-board | Vim / Neovim | |
 | civic | Security & Compliance | |
 | claymorphism | | |
-| clockwork-horologist | | |
+| clockwork-horologist | Makefiles | |
 | coastal-cottage | | |
 | color-field | | |
 | comic-book | | |
@@ -80,7 +80,7 @@ Master mapping of all 195 style guides and their usage across tech guides and st
 | fauvism | | |
 | federal-night | Rationalization & Decommissioning | |
 | film-grain | FFmpeg | The First Reel |
-| fire-and-heat | | |
+| fire-and-heat | Redis | |
 | frutiger-aero | VS Code | |
 | futurism | CI/CD Pipelines | |
 | gaming-esports | | |
@@ -171,8 +171,7 @@ Master mapping of all 195 style guides and their usage across tech guides and st
 | sketch | AI Context Management | The First Line |
 | solarpunk | Ansible | |
 | stained-glass | PKI & Certificates | |
-| steampunk | Redis | |
-| steampunk | Zig | |
+| steampunk | Zig, Makefiles | |
 | streamline-moderne | | The Express |
 | suprematism | | |
 | surrealism | | |
