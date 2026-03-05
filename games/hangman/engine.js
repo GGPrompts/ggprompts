@@ -205,9 +205,15 @@
 
   /* ===== WHEEL DRAWING (Canvas) ===== */
   function drawWheel(canvas) {
+    const dpr = window.devicePixelRatio || 1;
     const ctx = canvas.getContext('2d');
-    const w = canvas.width;
-    const h = canvas.height;
+    const logW = canvas.offsetWidth;
+    const logH = canvas.offsetHeight;
+    canvas.width = logW * dpr;
+    canvas.height = logH * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const w = logW;
+    const h = logH;
     ctx.clearRect(0, 0, w, h);
 
     const cx = w / 2;
@@ -490,9 +496,10 @@
   function renderGallows() {
     const canvas = document.getElementById('gallows-canvas');
     if (canvas) {
-      canvas.width = canvas.offsetWidth * (window.devicePixelRatio || 1);
-      canvas.height = canvas.offsetHeight * (window.devicePixelRatio || 1);
-      canvas.getContext('2d').scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = canvas.offsetWidth * dpr;
+      canvas.height = canvas.offsetHeight * dpr;
+      canvas.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
       drawGallows(canvas);
     }
   }
@@ -543,9 +550,6 @@
 
     const wheelCanvas = document.getElementById('wheel-canvas');
     if (wheelCanvas) {
-      wheelCanvas.width = wheelCanvas.offsetWidth * (window.devicePixelRatio || 1);
-      wheelCanvas.height = wheelCanvas.offsetHeight * (window.devicePixelRatio || 1);
-      wheelCanvas.getContext('2d').scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
       drawWheel(wheelCanvas);
     }
 

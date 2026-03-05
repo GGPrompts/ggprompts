@@ -27,15 +27,18 @@ window.MahjongEngine = (() => {
     currentLayoutId = layoutId || 'turtle';
     const positions = getLayout(currentLayoutId);
     const tiles = generateTileSet();
-    shuffle(tiles);
 
-    board = positions.map((pos, i) => ({
-      ...tiles[i],
-      col: pos.col,
-      row: pos.row,
-      layer: pos.layer,
-      removed: false,
-    }));
+    // Shuffle until at least one matching pair of free tiles exists
+    do {
+      shuffle(tiles);
+      board = positions.map((pos, i) => ({
+        ...tiles[i],
+        col: pos.col,
+        row: pos.row,
+        layer: pos.layer,
+        removed: false,
+      }));
+    } while (getAvailablePairs().length === 0);
 
     selected = null;
     moveHistory = [];
@@ -210,13 +213,14 @@ window.MahjongEngine = (() => {
       return face;
     });
 
-    shuffle(faces);
-
-    // Reassign faces to positions — clear old face keys first to avoid stale props
-    remaining.forEach((t, i) => {
-      for (const k of FACE_KEYS) delete t[k];
-      Object.assign(t, faces[i]);
-    });
+    // Shuffle until at least one matching pair of free tiles exists
+    do {
+      shuffle(faces);
+      remaining.forEach((t, i) => {
+        for (const k of FACE_KEYS) delete t[k];
+        Object.assign(t, faces[i]);
+      });
+    } while (getAvailablePairs().length === 0);
 
     selected = null;
     moveCount++;

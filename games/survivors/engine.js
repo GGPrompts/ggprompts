@@ -12,16 +12,16 @@ const Audio = (() => {
   let musicGain = null;
   let ambientOsc = null;
   let ambientFilter = null;
-  let muted = false;
+  let muted = localStorage.getItem('survivors-muted') === 'true';
 
   function init() {
     if(actx) return;
     actx = new (window.AudioContext || window.webkitAudioContext)();
     masterGain = actx.createGain();
-    masterGain.gain.value = 0.4;
+    masterGain.gain.value = muted ? 0 : 0.4;
     masterGain.connect(actx.destination);
     musicGain = actx.createGain();
-    musicGain.gain.value = 0.04;
+    musicGain.gain.value = muted ? 0 : 0.04;
     musicGain.connect(actx.destination);
     startAmbient();
   }
@@ -157,8 +157,11 @@ const Audio = (() => {
     muted = !muted;
     if(masterGain) masterGain.gain.value = muted ? 0 : 0.4;
     if(musicGain) musicGain.gain.value = muted ? 0 : 0.04;
+    localStorage.setItem('survivors-muted', muted);
     return muted;
   }
+
+  function isMuted() { return muted; }
 
   function setMusicVolume(v) {
     if(musicGain && !muted) musicGain.gain.value = v;
@@ -261,7 +264,7 @@ const Audio = (() => {
     musicLoaded = false;
   }
 
-  return { init, note, noise, weaponSound, hitSound, deathSound, gemSound, levelUpSound, bossWarning, heartbeat, damageTaken, dashSound, updateAmbient, toggleMute, setMusicVolume, getMusicGain, victoryFanfare, lootSound, overclockSound, bloodRitualSound, naturesVeilSound, singularityRiftSound, singularityCollapseSound, loadMusic, startMusic, stopMusic };
+  return { init, note, noise, weaponSound, hitSound, deathSound, gemSound, levelUpSound, bossWarning, heartbeat, damageTaken, dashSound, updateAmbient, toggleMute, isMuted, setMusicVolume, getMusicGain, victoryFanfare, lootSound, overclockSound, bloodRitualSound, naturesVeilSound, singularityRiftSound, singularityCollapseSound, loadMusic, startMusic, stopMusic };
 })();
 
 // ============================================================
@@ -1952,6 +1955,8 @@ function updateHUD() {
   document.getElementById('hud-time').textContent = `${mins}:${secs.toString().padStart(2,'0')}`;
   document.getElementById('hud-kills').textContent = `Kills: ${kills}`;
   document.getElementById('hud-wave').textContent = `Wave ${waveNum}`;
+  const muteEl = document.getElementById('hud-mute');
+  if(muteEl) muteEl.style.display = Audio.isMuted() ? '' : 'none';
   document.getElementById('xp-bar').style.width = `${(xp/xpToNext)*100}%`;
   document.getElementById('hp-bar').style.width = `${(player.hp/player.maxHp)*100}%`;
 }

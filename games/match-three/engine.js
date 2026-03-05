@@ -17,6 +17,7 @@ window.MatchEngine = (function () {
   let gameOver = false;
   let onUpdate = null;    // callback(event, data)
   let animQueue = [];     // queued animation events
+  const MAX_CASCADE = 10; // safety limit to prevent infinite chain reactions
 
   /* --- Helpers --- */
   function uid() { return nextId++; }
@@ -279,7 +280,7 @@ window.MatchEngine = (function () {
     }
 
     movesLeft--;
-    combo = 0;
+    combo = 0;          // reset cascade counter for new move
     emit('swap', { r1, c1, r2, c2 });
     return true;
   }
@@ -287,8 +288,10 @@ window.MatchEngine = (function () {
   /* --- Cascade loop (called after swap) --- */
   async function cascade() {
     let hadMatch = true;
-    while (hadMatch) {
+    let cascadeDepth = 0;
+    while (hadMatch && cascadeDepth < MAX_CASCADE) {
       hadMatch = processMatches();
+      cascadeDepth++;
       if (hadMatch) {
         await delay(300);
         applyGravity();

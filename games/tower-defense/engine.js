@@ -2404,16 +2404,24 @@
     var gx = pos.x;
     var gy = pos.y;
 
+    var canPlace = Map.canBuild(mouseGridCol, mouseGridRow);
+    var cost = T.cost || 0;
+    var affordable = gold >= cost;
+    var valid = canPlace && affordable;
+
     ctx.save();
-    ctx.globalAlpha = 0.5;
+    ctx.globalAlpha = valid ? 0.5 : 0.3;
     T.drawTower(ctx, gx, gy, CELL, 1, time);
     ctx.globalAlpha = 1;
 
-    // Show range
+    // Show range circle — green if valid, red if blocked
     var range = T.range * CELL;
+    var rangeColor = valid ? hexToRgb(T.color) : '255,80,80';
     ctx.beginPath();
     ctx.arc(gx, gy, range, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(' + hexToRgb(T.color) + ',0.25)';
+    ctx.fillStyle = 'rgba(' + rangeColor + ',0.06)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(' + rangeColor + ',0.3)';
     ctx.lineWidth = 1;
     ctx.setLineDash([4, 4]);
     ctx.stroke();

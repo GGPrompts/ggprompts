@@ -526,6 +526,17 @@
     </div>
 </div>
 
+<!-- PAUSE SCREEN -->
+<div class="overlay hidden" id="pause-screen">
+    <div class="overlay-box metal-panel">
+        <h2>Paused</h2>
+        <p>Press Space to resume</p>
+        <div class="controls">
+            <button class="btn" id="btn-resume">Resume</button>
+        </div>
+    </div>
+</div>
+
 <script>
 (() => {
     'use strict';
@@ -572,6 +583,7 @@
         queue: [],
         start: null,    // { x, y, dir } — dir = which side steam enters from
         flowing: false,
+        paused: false,
         gameOver: false,
         filledPipes: 0,
         crossBonus: 0,
@@ -989,7 +1001,7 @@
     /* ── PLACEMENT ─────────────────────────────────────────── */
 
     function onCellClick(x, y) {
-        if (S.gameOver) return;
+        if (S.gameOver || S.paused) return;
         const cell = S.grid[y][x];
 
         // Cannot place on blocked cells
@@ -1035,6 +1047,7 @@
         updateTimer();
 
         S.countdownId = setInterval(() => {
+            if (S.paused) return;
             S.countdownSec--;
             sfx('tick');
             updateTimer();
@@ -1120,6 +1133,7 @@
 
         const id = setInterval(() => {
             if (S.gameOver) { clearInterval(id); return; }
+            if (S.paused) return;
 
             progress += step / S.flowSpeed;
             if (progress > 1) progress = 1;
@@ -1176,9 +1190,12 @@
         const ny = y + DY[exitDir];
         const nextEnter = OPP[exitDir];
 
-        setTimeout(() => {
-            if (!S.gameOver) flowIntoCell(nx, ny, nextEnter);
-        }, 80);
+        function delayedFlow() {
+            if (S.gameOver) return;
+            if (S.paused) { setTimeout(delayedFlow, 50); return; }
+            flowIntoCell(nx, ny, nextEnter);
+        }
+        setTimeout(delayedFlow, 80);
     }
 
     function endGame() {
@@ -1232,8 +1249,10 @@
         S.filledPipes = 0;
         S.crossBonus = 0;
         S.flowing = false;
+        S.paused = false;
         S.gameOver = false;
         S.queue = [];
+        $('pause-screen').classList.add('hidden');
         S.minPipes = Math.min(4 + level * 2, 20);
         S.flowSpeed = Math.max(200, 800 - (level - 1) * 80);
 
@@ -1315,6 +1334,27 @@
             S.countdownId = null;
             S.countdownSec = 0;
             beginFlow();
+        }
+    });
+
+    // Pause / resume
+    function togglePause() {
+        if (S.gameOver) return;
+        // Don't pause if start screen or result screen is showing
+        if (!$('start-screen').classList.contains('hidden')) return;
+        if (!$('gameover-screen').classList.contains('hidden')) return;
+        if (!$('level-screen').classList.contains('hidden')) return;
+
+        S.paused = !S.paused;
+        $('pause-screen').classList.toggle('hidden', !S.paused);
+    }
+
+    $('btn-resume').addEventListener('click', togglePause);
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === ' ' || e.code === 'Space') {
+            e.preventDefault();
+            togglePause();
         }
     });
 

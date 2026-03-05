@@ -65,7 +65,7 @@
     // Pre-turn buffer
     let preTurnBuffer = null;
     let preTurnTimer = 0;
-    const PRE_TURN_WINDOW = 0.15; // seconds
+    const PRE_TURN_WINDOW = 0.25; // seconds
 
     // Callbacks for UI updates
     let onScoreUpdate = null;

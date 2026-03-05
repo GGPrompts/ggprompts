@@ -94,8 +94,8 @@ window.UI = (function () {
             ` | LV: ${player.level} | XP: ${player.xp}/${player.xpNext}` +
             ` | Gold: ${player.gold}` +
             ` | Kills: ${player.kills}` +
-            (player.speedTurns > 0 ? ' | <span style="color:#0ff">FAST</span>' : '') +
-            (player.invisTurns > 0 ? ' | <span style="color:#aaf">INVIS</span>' : '');
+            (player.speedTurns > 0 ? ' <span class="buff-badge buff-speed">FAST ' + player.speedTurns + 't</span>' : '') +
+            (player.invisTurns > 0 ? ' <span class="buff-badge buff-invis">INVIS ' + player.invisTurns + 't</span>' : '');
 
         floorEl.innerHTML =
             `Floor ${player.dungeon}/10 | ${wpn} | ${arm} | Turn ${player.turns}` +
