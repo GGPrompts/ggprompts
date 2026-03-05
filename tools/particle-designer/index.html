@@ -412,6 +412,85 @@ html, body {
 .modal textarea:focus { border-color: var(--border-focus); outline: none; }
 .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
 
+/* Blend Presets */
+#blend-panel {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+#blend-panel .section-header {
+  display: flex;
+  align-items: center;
+  padding: 7px 10px;
+  background: rgba(255,255,255,0.02);
+  cursor: pointer;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-bright);
+  letter-spacing: 0.5px;
+}
+#blend-panel .section-header .arrow {
+  font-size: 10px;
+  transition: transform 0.2s;
+  color: var(--text-dim);
+}
+#blend-panel.collapsed .blend-body { display: none; }
+#blend-panel.collapsed .arrow { transform: rotate(-90deg); }
+.blend-body {
+  padding: 8px 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.blend-body select {
+  flex: 1;
+  font-family: var(--font-display);
+  font-size: 12px;
+  padding: 3px 6px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--text);
+}
+.blend-body select:focus { border-color: var(--border-focus); outline: none; }
+.blend-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.blend-slider-row label {
+  font-size: 12px;
+  color: var(--text);
+  min-width: 40px;
+  flex-shrink: 0;
+}
+.blend-slider-row input[type="range"] {
+  flex: 1;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--bg-input);
+  border-radius: 2px;
+  outline: none;
+}
+.blend-slider-row input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent2);
+  cursor: pointer;
+  border: 2px solid var(--bg);
+}
+.blend-slider-row .val {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--accent2);
+  min-width: 36px;
+  text-align: right;
+}
+
 /* Fullscreen screensaver mode */
 #app.screensaver #header,
 #app.screensaver #panel {
@@ -1292,6 +1371,109 @@ function clearActivePreset() {
   document.querySelectorAll('.preset-chip').forEach(c => c.classList.remove('active'));
 }
 
+// ===== BLEND PRESETS =====
+
+function buildBlendPanel() {
+  const panel = document.getElementById('panel');
+  const existing = document.getElementById('blend-panel');
+  if (existing) existing.remove();
+
+  const sec = document.createElement('div');
+  sec.id = 'blend-panel';
+
+  const presetNames = Object.keys(presets);
+  const options = presetNames.map(n => `<option value="${n}">${n}</option>`).join('');
+
+  sec.innerHTML = `
+    <div class="section-header"><span class="arrow">&#9660;</span>Blend Presets</div>
+    <div class="blend-body">
+      <div class="ctrl-row"><label style="font-size:12px;color:var(--text);min-width:50px">Preset A</label><select id="blendA">${options}</select></div>
+      <div class="ctrl-row"><label style="font-size:12px;color:var(--text);min-width:50px">Preset B</label><select id="blendB">${options.replace(`value="${presetNames[1]}"`, `value="${presetNames[1]}" selected`)}</select></div>
+      <div class="blend-slider-row">
+        <label>Mix</label>
+        <input type="range" id="blendSlider" min="0" max="100" value="50">
+        <span class="val" id="blendVal">50%</span>
+      </div>
+      <button class="btn btn-sm" id="blendApply" style="align-self:stretch;text-align:center">Apply Blend</button>
+    </div>
+  `;
+
+  sec.querySelector('.section-header').addEventListener('click', () => sec.classList.toggle('collapsed'));
+
+  // Default select B to second preset
+  const selB = sec.querySelector('#blendB');
+  if (presetNames.length > 1) selB.value = presetNames[1];
+
+  panel.insertBefore(sec, panel.firstChild);
+
+  const slider = sec.querySelector('#blendSlider');
+  const valEl = sec.querySelector('#blendVal');
+  slider.addEventListener('input', () => {
+    valEl.textContent = slider.value + '%';
+  });
+
+  sec.querySelector('#blendApply').addEventListener('click', () => {
+    const a = presets[sec.querySelector('#blendA').value];
+    const b = presets[sec.querySelector('#blendB').value];
+    if (!a || !b) return;
+    const t = parseInt(slider.value) / 100;
+    settings = blendSettings(a, b, t);
+    particles = [];
+    emitAccum = 0;
+    burstTimer = 0;
+    clearActivePreset();
+    buildPanel();
+    buildBlendPanel();
+  });
+}
+
+function blendSettings(a, b, t) {
+  const result = JSON.parse(JSON.stringify(a));
+
+  // Lerp all numeric emitter params
+  for (const key of Object.keys(a.emitter)) {
+    if (typeof a.emitter[key] === 'number' && typeof b.emitter[key] === 'number') {
+      result.emitter[key] = a.emitter[key] + (b.emitter[key] - a.emitter[key]) * t;
+    }
+  }
+  // Lerp all numeric particle params
+  for (const key of Object.keys(a.particle)) {
+    if (typeof a.particle[key] === 'number' && typeof b.particle[key] === 'number') {
+      result.particle[key] = a.particle[key] + (b.particle[key] - a.particle[key]) * t;
+    }
+  }
+  // Lerp numeric visual params
+  for (const key of ['sizeStart', 'sizeEnd', 'sizeCurve', 'opacityStart', 'opacityEnd', 'opacityCurve']) {
+    if (typeof a.visual[key] === 'number' && typeof b.visual[key] === 'number') {
+      result.visual[key] = a.visual[key] + (b.visual[key] - a.visual[key]) * t;
+    }
+  }
+  // Use A's non-numeric values when t < 0.5, B's when t >= 0.5
+  result.emitter.burst = t < 0.5 ? a.emitter.burst : b.emitter.burst;
+  result.visual.blendMode = t < 0.5 ? a.visual.blendMode : b.visual.blendMode;
+  result.visual.shape = t < 0.5 ? a.visual.shape : b.visual.shape;
+
+  // Blend color stops: sample both gradients at uniform positions
+  const numStops = Math.max(a.visual.colorStops.length, b.visual.colorStops.length);
+  const blendedStops = [];
+  for (let i = 0; i < numStops; i++) {
+    const pos = numStops === 1 ? 0 : i / (numStops - 1);
+    const colA = sampleGradient(a.visual.colorStops, pos);
+    const colB = sampleGradient(b.visual.colorStops, pos);
+    blendedStops.push({
+      pos,
+      color: rgbToHex(
+        Math.round(colA.r + (colB.r - colA.r) * t),
+        Math.round(colA.g + (colB.g - colA.g) * t),
+        Math.round(colA.b + (colB.b - colA.b) * t)
+      )
+    });
+  }
+  result.visual.colorStops = blendedStops;
+
+  return result;
+}
+
 // ===== IMPORT / EXPORT =====
 
 document.getElementById('btn-export').addEventListener('click', () => {
@@ -1537,6 +1719,7 @@ function init() {
   resizeCanvas();
   buildPresets();
   applyPreset('fire');
+  buildBlendPanel();
   requestAnimationFrame(tick);
 }
 

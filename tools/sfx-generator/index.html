@@ -911,7 +911,9 @@
     }
 
     // ── Waveform visualization ───────────────────────────────────────
-    function drawWaveform() {
+    var cachedSamples = null;
+
+    function drawWaveform(skipSynth) {
         var canvas = $waveformCanvas;
         var dpr = window.devicePixelRatio || 1;
         var rect = canvas.getBoundingClientRect();
@@ -936,10 +938,13 @@
         ctx.lineTo(w, h / 2);
         ctx.stroke();
 
-        // Synthesize
-        var result = SFXEngine.synthesize(currentParams);
-        var samples = result.samples;
-        if (samples.length === 0) return;
+        // Synthesize (skip if using cached samples during playhead animation)
+        if (!skipSynth) {
+            var result = SFXEngine.synthesize(currentParams);
+            cachedSamples = result.samples;
+        }
+        var samples = cachedSamples;
+        if (!samples || samples.length === 0) return;
 
         // Draw waveform
         ctx.strokeStyle = "rgba(0, 229, 255, 0.8)";
@@ -985,10 +990,57 @@
         ctx.stroke();
     }
 
+    // ── Playback position indicator ─────────────────────────────────
+    var playheadRAF = null;
+    var playStartTime = 0;
+    var playDuration = 0;
+
+    function drawPlayhead() {
+        if (!playStartTime || !playDuration) return;
+        var elapsed = (performance.now() - playStartTime) / 1000;
+        var progress = elapsed / playDuration;
+
+        if (progress >= 1) {
+            // Playback finished — redraw waveform without playhead
+            playStartTime = 0;
+            drawWaveform();
+            return;
+        }
+
+        // Redraw waveform (skip re-synthesis) then overlay the playhead line
+        drawWaveform(true);
+        var canvas = $waveformCanvas;
+        var dpr = window.devicePixelRatio || 1;
+        var rect = canvas.getBoundingClientRect();
+        var ctx = canvas.getContext("2d");
+        ctx.save();
+        ctx.scale(dpr, dpr);
+        var x = progress * rect.width;
+        ctx.strokeStyle = "rgba(0, 229, 255, 0.9)";
+        ctx.lineWidth = 2;
+        ctx.shadowColor = "rgba(0, 229, 255, 0.6)";
+        ctx.shadowBlur = 6;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, rect.height);
+        ctx.stroke();
+        ctx.restore();
+
+        playheadRAF = requestAnimationFrame(drawPlayhead);
+    }
+
     // ── Play sound with debounce ─────────────────────────────────────
     function playSound() {
+        // Cancel any existing playhead animation
+        if (playheadRAF) cancelAnimationFrame(playheadRAF);
+
+        var result = SFXEngine.synthesize(currentParams);
+        playDuration = result.samples.length / result.sampleRate;
         SFXEngine.play(currentParams);
         drawWaveform();
+
+        playStartTime = performance.now();
+        playheadRAF = requestAnimationFrame(drawPlayhead);
     }
 
     function debouncedPlay() {

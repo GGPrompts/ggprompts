@@ -1523,37 +1523,44 @@
         state._starting = false;
         if (!state.active) return;
 
-        // Cleanup custom timers
+        // Cleanup custom timers immediately
         if (state.audioData && state.audioData.cleanup) {
             state.audioData.cleanup();
         }
 
-        // Stop all sources
-        if (state.audioData && state.audioData.sources) {
-            state.audioData.sources.forEach(function(s) {
-                try { s.stop(); } catch(e) {}
-                try { s.disconnect(); } catch(e) {}
-            });
+        // Ramp gain to near-zero over 200ms to avoid audio pop
+        var gain = state.gainNode;
+        var audioData = state.audioData;
+        if (gain && audioCtx) {
+            var now = audioCtx.currentTime;
+            gain.gain.setValueAtTime(gain.gain.value, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
         }
 
-        // Disconnect all intermediate nodes
-        if (state.audioData && state.audioData.nodes) {
-            state.audioData.nodes.forEach(function(n) {
-                try { n.disconnect(); } catch(e) {}
-            });
-        }
-
-        // Disconnect channel gain
-        if (state.gainNode) {
-            try { state.gainNode.disconnect(); } catch(e) {}
-        }
-
+        // Mark inactive immediately so UI updates
         state.active = false;
         state.gainNode = null;
         state.audioData = null;
-
         updateChannelUI(id);
         updatePlayButton();
+
+        // After ramp completes, disconnect and stop everything
+        setTimeout(function() {
+            if (audioData && audioData.sources) {
+                audioData.sources.forEach(function(s) {
+                    try { s.stop(); } catch(e) {}
+                    try { s.disconnect(); } catch(e) {}
+                });
+            }
+            if (audioData && audioData.nodes) {
+                audioData.nodes.forEach(function(n) {
+                    try { n.disconnect(); } catch(e) {}
+                });
+            }
+            if (gain) {
+                try { gain.disconnect(); } catch(e) {}
+            }
+        }, 250);
     }
 
     function updateChannelGain(id) {
