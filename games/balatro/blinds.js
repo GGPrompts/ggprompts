@@ -59,4 +59,106 @@
   };
 
   B.blindTypeName = t => ['Small Blind','Big Blind','Boss Blind'][t] || '?';
+
+  // Apply boss blind effects when entering a new blind
+  B.applyBossBlindOnEntry = state => {
+    const blind = state.roundState.currentBlind;
+    if (!blind.bossEffect) return;
+    const eff = blind.bossEffect;
+
+    switch (eff.effect) {
+      case 'doubleScore':
+        // Wall doubles target score - already applied in getBlind, but
+        // we double again here for clarity (getBlind sets 2x base, so target is correct)
+        break;
+      case 'reduceHandSize':
+        state.bossHandSizeReduction = eff.value || 1;
+        break;
+      case 'oneHand':
+        // Needle: only 1 hand allowed - reduce hands remaining
+        state.roundState.handsRemaining = 1;
+        break;
+      case 'faceDown':
+        // The House: first hand drawn face down
+        state.hand.forEach(c => { c.faceDown = true; });
+        state._houseFirstHand = true;
+        break;
+      case 'randomFaceDown':
+        // The Wheel: 1 in 7 cards drawn face down
+        state.hand.forEach(c => {
+          if (Math.random() < 1/7) c.faceDown = true;
+        });
+        break;
+      case 'faceCardsFaceDown':
+        // The Mark: all face cards drawn face down
+        state.hand.forEach(c => {
+          if (c.rank >= 11 && c.rank <= 13) c.faceDown = true;
+        });
+        break;
+      case 'debuffSuit':
+        // Head/Club/Window: debuff all cards of given suit
+        state.hand.forEach(c => {
+          if (c.suit === eff.suit) c.debuffed = true;
+        });
+        break;
+    }
+  };
+
+  // Apply boss blind effects on cards drawn mid-round
+  B.applyBossBlindOnDraw = (state, newCards) => {
+    const blind = state.roundState.currentBlind;
+    if (!blind.bossEffect) return;
+    const eff = blind.bossEffect;
+
+    switch (eff.effect) {
+      case 'randomFaceDown':
+        newCards.forEach(c => {
+          if (Math.random() < 1/7) c.faceDown = true;
+        });
+        break;
+      case 'faceCardsFaceDown':
+        newCards.forEach(c => {
+          if (c.rank >= 11 && c.rank <= 13) c.faceDown = true;
+        });
+        break;
+      case 'debuffSuit':
+        newCards.forEach(c => {
+          if (c.suit === eff.suit) c.debuffed = true;
+        });
+        break;
+    }
+  };
+
+  // Apply The Ox penalty: playing a #4 sets money to $0
+  B.applyOxPenalty = (state, playedCards) => {
+    const blind = state.roundState.currentBlind;
+    if (!blind.bossEffect || blind.bossEffect.effect !== 'oxPenalty') return false;
+    for (const c of playedCards) {
+      if (c.rank === 4) {
+        state.roundState.money = 0;
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // Apply The Serpent: draw only 3 cards after play/discard
+  B.isSerpentActive = state => {
+    const blind = state.roundState.currentBlind;
+    return blind.bossEffect && blind.bossEffect.effect === 'draw3';
+  };
+
+  // Apply The Pillar: previously played cards are debuffed
+  B.applyPillarDebuff = (state, playedCards) => {
+    const blind = state.roundState.currentBlind;
+    if (!blind.bossEffect || blind.bossEffect.effect !== 'debuffPlayed') return;
+    if (!state._pillarPlayed) state._pillarPlayed = new Set();
+    for (const c of playedCards) {
+      state._pillarPlayed.add(c.id);
+    }
+    // Debuff any cards in hand that were previously played
+    state.hand.forEach(c => {
+      if (state._pillarPlayed.has(c.id)) c.debuffed = true;
+    });
+  };
 })();

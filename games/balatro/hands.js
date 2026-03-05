@@ -69,32 +69,83 @@
     return cards.map(c => c.rank);
   }
 
+  // Check if Four Fingers joker is active
+  function hasFourFingers() {
+    const state = B.gameState;
+    if (!state) return false;
+    return state.jokers.some(j => j.id === 'four_fingers');
+  }
+
   function isFlush(cards) {
     if (cards.length === 0) return false;
+    // Four Fingers: flushes need only 4 cards of same suit
+    if (hasFourFingers() && cards.length >= 4) {
+      const suitCounts = {};
+      for (const c of cards) suitCounts[c.suit] = (suitCounts[c.suit] || 0) + 1;
+      return Object.values(suitCounts).some(count => count >= 4);
+    }
     const s = cards[0].suit;
     return cards.every(c => c.suit === s);
   }
 
   function isStraight(cards) {
-    if (cards.length !== 5) return false;
-    const ranks = getRanks(cards).sort((a,b) => a - b);
-    // Regular straight
-    let straight = true;
-    for (let i = 1; i < ranks.length; i++) {
-      if (ranks[i] !== ranks[i-1] + 1) { straight = false; break; }
+    // Four Fingers: straights need only 4 consecutive
+    if (hasFourFingers() && cards.length >= 4) {
+      return isStraightWithMin(cards, 4);
     }
-    if (straight) return true;
-    // Wheel: A-2-3-4-5
-    if (ranks[0]===1 && ranks[1]===2 && ranks[2]===3 && ranks[3]===4 && ranks[4]===5) return true;
-    // Broadway: 10-J-Q-K-A
-    if (ranks[0]===1 && ranks[1]===10 && ranks[2]===11 && ranks[3]===12 && ranks[4]===13) return true;
+    if (cards.length !== 5) return false;
+    return isStraightWithMin(cards, 5);
+  }
+
+  function isStraightWithMin(cards, minRun) {
+    const ranks = [...new Set(getRanks(cards))].sort((a,b) => a - b);
+    if (ranks.length < minRun) return false;
+
+    // Check for consecutive run of minRun
+    for (let i = 0; i <= ranks.length - minRun; i++) {
+      let consecutive = true;
+      for (let j = 1; j < minRun; j++) {
+        if (ranks[i + j] !== ranks[i] + j) { consecutive = false; break; }
+      }
+      if (consecutive) return true;
+    }
+
+    // Ace-low: A-2-3-4(-5)
+    if (ranks.includes(1)) {
+      const lowRanks = ranks.filter(r => r <= 5 || r === 1);
+      const withAceLow = [1, ...lowRanks.filter(r => r !== 1)].sort((a,b) => a - b);
+      if (withAceLow.length >= minRun) {
+        for (let i = 0; i <= withAceLow.length - minRun; i++) {
+          let consecutive = true;
+          for (let j = 1; j < minRun; j++) {
+            if (withAceLow[i + j] !== withAceLow[i] + j) { consecutive = false; break; }
+          }
+          if (consecutive) return true;
+        }
+      }
+    }
+
+    // Ace-high: ...-Q-K-A (treat A as 14)
+    if (ranks.includes(1)) {
+      const highRanks = ranks.map(r => r === 1 ? 14 : r).sort((a,b) => a - b);
+      for (let i = 0; i <= highRanks.length - minRun; i++) {
+        let consecutive = true;
+        for (let j = 1; j < minRun; j++) {
+          if (highRanks[i + j] !== highRanks[i] + j) { consecutive = false; break; }
+        }
+        if (consecutive) return true;
+      }
+    }
+
     return false;
   }
 
   function isRoyalFlush(cards) {
     if (!isStraight(cards) || !isFlush(cards)) return false;
-    const ranks = getRanks(cards).sort((a,b) => a - b);
-    return ranks[0]===1 && ranks[1]===10 && ranks[2]===11 && ranks[3]===12 && ranks[4]===13;
+    const ranks = new Set(getRanks(cards));
+    // Must contain Ace and at least 10-J-Q or J-Q-K
+    if (!ranks.has(1)) return false;
+    return ranks.has(13) && ranks.has(12) && ranks.has(11) && (ranks.has(10) || hasFourFingers());
   }
 
   function isFourOfKind(cards) {
@@ -151,10 +202,18 @@
     // For < 5 cards, check what we can detect
     const counts = rankCounts(cards);
     const vals = Object.values(counts);
+    const flush = isFlush(cards);
+    const straight = isStraight(cards);
 
     let type = HIGH_CARD;
-    if (vals.includes(4)) type = FOUR_OF_KIND;
+
+    // Check for flush + straight combos first (Four Fingers enables 4-card)
+    if (flush && straight && isRoyalFlush(cards)) type = ROYAL_FLUSH;
+    else if (flush && straight) type = STRAIGHT_FLUSH;
+    else if (vals.includes(4)) type = FOUR_OF_KIND;
     else if (vals.includes(3) && vals.includes(2)) type = FULL_HOUSE;
+    else if (flush) type = FLUSH;
+    else if (straight) type = STRAIGHT;
     else if (vals.includes(3)) type = THREE_OF_KIND;
     else if (vals.filter(v => v === 2).length === 2) type = TWO_PAIR;
     else if (vals.includes(2)) type = PAIR;

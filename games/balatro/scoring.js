@@ -16,8 +16,9 @@
       finalScore: 0,
     };
 
-    // Per-card scoring
+    // Per-card scoring (skip debuffed cards)
     for (const card of playedCards) {
+      if (card.debuffed) continue;
       const rankChips = B.rankChipValue(card.rank);
 
       // Enhancement chip bonuses
@@ -64,9 +65,10 @@
       }
     }
 
-    // Multiplicative pass (Glass, Polychrome)
+    // Multiplicative pass (Glass, Polychrome) - skip debuffed
     let multMultiplier = 1.0;
     for (const card of playedCards) {
+      if (card.debuffed) continue;
       if (card.enhancement === E.GLASS) {
         multMultiplier *= 2.0;
         calc.multMods.push('x2 (Glass)');

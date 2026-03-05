@@ -52,7 +52,7 @@
   };
 
   B.getRandomJoker = (maxRarity = UNCOMMON) => {
-    const available = B.allJokers.filter(j => (j.rarity || 0) <= maxRarity && !j.passive);
+    const available = B.allJokers.filter(j => (j.rarity || 0) <= maxRarity);
     if (!available.length) return null;
     const j = available[Math.floor(Math.random() * available.length)];
     return { ...j, counter: 0 };
@@ -131,7 +131,15 @@
         }
         break;
       case MULT_PERCENTAGE:
-        if (joker.value > 100) {
+        if (joker.condition === 'emptySlots' && B.gameState) {
+          const maxJ = B.getMaxJokers ? B.getMaxJokers() : 5;
+          const emptySlots = maxJ - B.gameState.jokers.length;
+          if (emptySlots > 0) {
+            const multiplier = 1 + emptySlots;
+            calc.totalMult = Math.floor(calc.totalMult * multiplier);
+            calc.multMods.push(`x${multiplier} (${joker.name} - ${emptySlots} empty)`);
+          }
+        } else if (joker.value > 100) {
           calc.totalMult = Math.floor(calc.totalMult * joker.value / 100);
           calc.multMods.push(`x${(joker.value/100).toFixed(2)} (${joker.name})`);
         }

@@ -18,13 +18,44 @@
   const STARTING_DISCARDS = 3;
   const STARTING_MONEY = 4;
   const HAND_SIZE = 8;
-  const MAX_JOKERS = 5;
+  let MAX_JOKERS = 5;
   const MAX_PLAY = 5;
   const MAX_ANTE = 8; // Win condition
+  let MAX_CONSUMABLES = 2;
 
   B.MAX_JOKERS = MAX_JOKERS;
   B.MAX_PLAY = MAX_PLAY;
   B.HAND_SIZE = HAND_SIZE;
+  B.MAX_CONSUMABLES = MAX_CONSUMABLES;
+
+  // Get effective max jokers (accounting for vouchers)
+  B.getMaxJokers = () => {
+    const state = B.gameState;
+    let max = 5;
+    if (state && state.ownedVouchers && state.ownedVouchers.includes('blank')) max++;
+    return max;
+  };
+
+  // Get effective max consumables (accounting for vouchers)
+  B.getMaxConsumables = () => {
+    const state = B.gameState;
+    let max = 2;
+    if (state && state.ownedVouchers && state.ownedVouchers.includes('crystal_ball')) max++;
+    return max;
+  };
+
+  // Run statistics tracking
+  B.runStats = {
+    handsPlayed: 0,
+    totalChipsEarned: 0,
+    bestHandScore: 0,
+    bestHandType: null,
+    blindsCleared: 0,
+    moneyEarned: 0,
+    moneySpent: 0,
+    jokersAcquired: 0,
+    consumablesUsed: 0,
+  };
 
   B.newGame = () => {
     const deck = B.shuffle(B.newDeck());
@@ -34,13 +65,28 @@
     // Reset hand levels
     B.handLevels = [1,1,1,1,1,1,1,1,1,1];
 
+    // Reset run stats
+    B.runStats = {
+      handsPlayed: 0,
+      totalChipsEarned: 0,
+      bestHandScore: 0,
+      bestHandType: null,
+      blindsCleared: 0,
+      moneyEarned: 0,
+      moneySpent: 0,
+      jokersAcquired: 1,
+      consumablesUsed: 0,
+    };
+
     const state = {
       phase: PHASE_SELECT_CARDS,
       deck,
+      discardPile: [], // discard pile for recycling
       hand,
       playedCards: [],
       jokers: starterJoker ? [starterJoker] : [],
       consumables: [], // tarot/planet cards held
+      ownedVouchers: [],
       roundState: {
         ante: 1,
         blindProgress: 0, // 0=small, 1=big, 2=boss
@@ -71,8 +117,31 @@
     const state = B.gameState;
     let size = HAND_SIZE;
     if (state && state.bossHandSizeReduction) size -= state.bossHandSizeReduction;
-    // Voucher bonuses could increase this
     return Math.max(size, 1);
+  };
+
+  // Helper: draw cards from deck, reshuffling discard pile if needed
+  B.drawCards = (state, count) => {
+    const drawn = [];
+    for (let i = 0; i < count; i++) {
+      if (state.deck.length === 0) {
+        // Reshuffle discard pile into draw pile
+        if (state.discardPile && state.discardPile.length > 0) {
+          state.deck = B.shuffle([...state.discardPile]);
+          // Clear enhancements/flags from recycled cards
+          state.deck.forEach(c => {
+            c.selected = false;
+            c.faceDown = false;
+            c.debuffed = false;
+          });
+          state.discardPile = [];
+        } else {
+          break; // No cards left at all
+        }
+      }
+      drawn.push(state.deck.pop());
+    }
+    return drawn;
   };
 
   B.toggleCardSelection = index => {
@@ -100,6 +169,7 @@
     } else if (selected.length === 5) {
       state.currentHandInfo = B.evaluateHand(selected);
     } else {
+      // With Four Fingers, 4-card flushes/straights are valid
       state.currentHandInfo = B.evaluatePartialHand(selected);
     }
   };
@@ -146,27 +216,63 @@
     // Calculate score
     const scoreCalc = B.calculateScore(handInfo, selected, state.jokers);
 
-    // Remove played cards from hand
+    // Filter out debuffed cards from scoring (they contribute 0)
+    const scoringCards = selected.filter(c => !c.debuffed);
+
+    // Remove played cards from hand, put them in discard pile
     const selectedIds = new Set(selected.map(c => c.id));
+    const removedCards = state.hand.filter(c => selectedIds.has(c.id));
     state.hand = state.hand.filter(c => !selectedIds.has(c.id));
 
-    // Apply glass destruction
-    state.hand = B.applyGlassDestruction(state.hand, selected);
+    // Apply glass destruction (glass cards are destroyed, not discarded)
+    const glassDestroyed = new Set();
+    for (const c of removedCards) {
+      if (c.enhancement === B.Enhancement.GLASS) {
+        glassDestroyed.add(c.id);
+      }
+    }
+    // Non-glass played cards go to discard pile
+    if (!state.discardPile) state.discardPile = [];
+    for (const c of removedCards) {
+      if (!glassDestroyed.has(c.id)) {
+        state.discardPile.push(c);
+      }
+    }
+
+    // Apply The Ox penalty
+    if (B.applyOxPenalty) B.applyOxPenalty(state, selected);
+
+    // Apply The Pillar debuff
+    if (B.applyPillarDebuff) B.applyPillarDebuff(state, selected);
 
     // Boss blind: The Hook discards random cards after play
     if (blind.bossEffect && blind.bossEffect.effect === 'discardRandom') {
       const n = blind.bossEffect.value || 2;
       for (let i = 0; i < n && state.hand.length > 0; i++) {
         const idx = Math.floor(Math.random() * state.hand.length);
-        state.hand.splice(idx, 1);
+        const discarded = state.hand.splice(idx, 1);
+        state.discardPile.push(...discarded);
       }
     }
 
-    // Draw back to hand size
-    const effectiveSize = B.getEffectiveHandSize();
-    while (state.hand.length < effectiveSize && state.deck.length > 0) {
-      state.hand.push(state.deck.pop());
+    // The House: reveal cards after first hand
+    if (state._houseFirstHand) {
+      state.hand.forEach(c => { c.faceDown = false; });
+      state._houseFirstHand = false;
     }
+
+    // Draw back to hand size (Serpent overrides to 3)
+    const effectiveSize = B.getEffectiveHandSize();
+    const drawTarget = B.isSerpentActive && B.isSerpentActive(state)
+      ? Math.min(3, effectiveSize - state.hand.length)
+      : effectiveSize - state.hand.length;
+
+    const newCards = B.drawCards(state, Math.max(0, drawTarget));
+
+    // Apply boss blind effects on newly drawn cards
+    if (B.applyBossBlindOnDraw) B.applyBossBlindOnDraw(state, newCards);
+
+    state.hand.push(...newCards);
 
     // Apply sorting
     if (state.sortMode === SORT_SUIT) state.hand = B.sortBySuit(state.hand);
@@ -176,6 +282,14 @@
     state.roundState.currentScore += scoreCalc.finalScore;
     state.roundState.handsRemaining--;
     state.lastScore = scoreCalc;
+
+    // Track stats
+    B.runStats.handsPlayed++;
+    B.runStats.totalChipsEarned += scoreCalc.finalScore;
+    if (scoreCalc.finalScore > B.runStats.bestHandScore) {
+      B.runStats.bestHandScore = scoreCalc.finalScore;
+      B.runStats.bestHandType = handInfo.type;
+    }
 
     // Check win/loss
     if (state.roundState.currentScore >= state.roundState.targetScore) {
@@ -196,15 +310,22 @@
     if (selected.length === 0) return false;
     if (state.roundState.discardsRemaining <= 0) return false;
 
-    // Remove selected cards
+    // Remove selected cards and put them in discard pile
     const selectedIds = new Set(selected.map(c => c.id));
+    const discarded = state.hand.filter(c => selectedIds.has(c.id));
     state.hand = state.hand.filter(c => !selectedIds.has(c.id));
+    if (!state.discardPile) state.discardPile = [];
+    state.discardPile.push(...discarded);
 
-    // Draw replacements
+    // Draw replacements (Serpent overrides to 3)
     const effectiveSize = B.getEffectiveHandSize();
-    while (state.hand.length < effectiveSize && state.deck.length > 0) {
-      state.hand.push(state.deck.pop());
-    }
+    const drawTarget = B.isSerpentActive && B.isSerpentActive(state)
+      ? Math.min(3, effectiveSize - state.hand.length)
+      : effectiveSize - state.hand.length;
+
+    const newCards = B.drawCards(state, Math.max(0, drawTarget));
+    if (B.applyBossBlindOnDraw) B.applyBossBlindOnDraw(state, newCards);
+    state.hand.push(...newCards);
 
     state.roundState.discardsRemaining--;
 
@@ -221,14 +342,21 @@
     if (!state) return;
 
     // Award money
-    state.roundState.money += state.roundState.currentBlind.reward;
+    const reward = state.roundState.currentBlind.reward;
+    state.roundState.money += reward;
+    B.runStats.moneyEarned += reward;
+    B.runStats.blindsCleared++;
 
     // Gold card earnings
-    state.roundState.money += B.calculateGoldEarnings(state.hand);
+    const goldEarnings = B.calculateGoldEarnings(state.hand);
+    state.roundState.money += goldEarnings;
+    B.runStats.moneyEarned += goldEarnings;
 
-    // Interest: $1 per $5, max $5
-    const interest = Math.min(5, Math.floor(state.roundState.money / 5));
+    // Interest: $1 per $5, max cap (default $5, Seed Money voucher raises to $25)
+    const interestCap = (state.ownedVouchers && state.ownedVouchers.includes('seed_money')) ? 25 : 5;
+    const interest = Math.min(interestCap, Math.floor(state.roundState.money / 5));
     state.roundState.money += interest;
+    B.runStats.moneyEarned += interest;
 
     // Advance blind progress
     state.roundState.blindProgress++;
@@ -250,34 +378,63 @@
 
     // Reset for new blind
     state.roundState.currentScore = 0;
-    state.roundState.handsRemaining = STARTING_HANDS;
-    state.roundState.discardsRemaining = STARTING_DISCARDS;
+    let hands = STARTING_HANDS;
+    let discards = STARTING_DISCARDS;
+    // Voucher: Grabber gives +1 hand per round
+    if (state.ownedVouchers && state.ownedVouchers.includes('grabber')) hands++;
+    // Voucher: Wasteful gives +1 discard per round
+    if (state.ownedVouchers && state.ownedVouchers.includes('wasteful')) discards++;
+    state.roundState.handsRemaining = hands;
+    state.roundState.discardsRemaining = discards;
     state.handTypesPlayed = [];
     state.firstHandType = null;
     state.bossHandSizeReduction = 0;
+    state._houseFirstHand = false;
+    state._pillarPlayed = null;
 
-    // Boss blind hand size reduction
-    if (state.roundState.currentBlind.bossEffect &&
-        state.roundState.currentBlind.bossEffect.effect === 'reduceHandSize') {
-      state.bossHandSizeReduction = state.roundState.currentBlind.bossEffect.value || 1;
-    }
+    // Put current hand cards into discard pile, then reshuffle everything
+    if (!state.discardPile) state.discardPile = [];
+    state.discardPile.push(...state.hand);
+    state.hand = [];
 
-    // Reshuffle deck if needed
-    if (state.deck.length < HAND_SIZE) {
-      state.deck = B.shuffle(B.newDeck());
-    }
+    // Reshuffle: combine deck and discard pile
+    const allCards = [...state.deck, ...state.discardPile];
+    allCards.forEach(c => { c.selected = false; c.faceDown = false; c.debuffed = false; });
+    state.deck = B.shuffle(allCards);
+    state.discardPile = [];
 
     // Deal new hand
-    state.hand = [];
     const effectiveSize = B.getEffectiveHandSize();
-    while (state.hand.length < effectiveSize && state.deck.length > 0) {
-      state.hand.push(state.deck.pop());
-    }
+    state.hand = B.drawCards(state, effectiveSize);
+
+    // Apply boss blind entry effects (face down, debuffs, etc.)
+    if (B.applyBossBlindOnEntry) B.applyBossBlindOnEntry(state);
 
     if (state.sortMode === SORT_SUIT) state.hand = B.sortBySuit(state.hand);
     else if (state.sortMode === SORT_RANK) state.hand = B.sortByRank(state.hand);
 
     state.phase = PHASE_SHOP;
+  };
+
+  // Use a consumable (tarot card) from the player's inventory
+  B.useConsumable = index => {
+    const state = B.gameState;
+    if (!state) return false;
+    if (index < 0 || index >= state.consumables.length) return false;
+
+    const tarot = state.consumables[index];
+    const selected = state.hand.filter(c => c.selected);
+
+    const ok = B.useTarotCard(tarot, selected, state);
+    if (!ok) return false;
+
+    state.consumables.splice(index, 1);
+    B.runStats.consumablesUsed++;
+
+    // Deselect all cards after using tarot
+    state.hand.forEach(c => { c.selected = false; });
+    state.currentHandInfo = null;
+    return { name: tarot.name };
   };
 
   B.skipShop = () => {
@@ -303,13 +460,16 @@
     try {
       localStorage.setItem('balatro_save', JSON.stringify({
         deck: state.deck,
+        discardPile: state.discardPile || [],
         hand: state.hand,
         jokers: state.jokers,
         consumables: state.consumables,
+        ownedVouchers: state.ownedVouchers || [],
         roundState: state.roundState,
         sortMode: state.sortMode,
         handLevels: B.handLevels,
         phase: state.phase,
+        runStats: B.runStats,
       }));
     } catch(e) { /* ignore */ }
   };
@@ -321,13 +481,17 @@
 
       B.handLevels = data.handLevels || [1,1,1,1,1,1,1,1,1,1];
 
+      if (data.runStats) B.runStats = data.runStats;
+
       const state = {
         phase: data.phase || PHASE_SELECT_CARDS,
         deck: data.deck,
+        discardPile: data.discardPile || [],
         hand: data.hand,
         playedCards: [],
         jokers: data.jokers || [],
         consumables: data.consumables || [],
+        ownedVouchers: data.ownedVouchers || [],
         roundState: data.roundState,
         sortMode: data.sortMode || SORT_RANK,
         currentHandInfo: null,
