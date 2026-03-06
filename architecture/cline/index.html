@@ -280,6 +280,7 @@
             padding: var(--space-5);
             margin: var(--space-4) 0;
             overflow-x: auto;
+            position: relative;
         }
         .diagram-container .mermaid {
             display: flex;
@@ -292,6 +293,142 @@
             text-transform: uppercase;
             letter-spacing: 0.08em;
             margin-bottom: var(--space-3);
+        }
+
+        /* === Fullscreen Overlay === */
+        .diagram-expand-btn {
+            position: absolute;
+            top: var(--space-1);
+            right: var(--space-1);
+            background: var(--bg-surface);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-sm);
+            color: var(--text-tertiary);
+            padding: 6px 8px;
+            cursor: pointer;
+            font-size: 0.7rem;
+            font-family: var(--font-mono);
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            transition: all var(--transition-fast);
+            z-index: 2;
+        }
+        .diagram-expand-btn:hover {
+            color: var(--cline-teal);
+            border-color: var(--cline-teal);
+            background: var(--bg-surface-hover);
+        }
+        .diagram-expand-btn svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        .fs-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            background: var(--bg-deep);
+            display: none;
+            flex-direction: column;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+        .fs-overlay.active { opacity: 1; }
+
+        .fs-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: var(--space-1) var(--space-3);
+            background: var(--bg-elevated);
+            border-bottom: 2px solid var(--border-accent);
+            flex-shrink: 0;
+        }
+        .fs-toolbar-title {
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+        .fs-controls {
+            display: flex;
+            gap: var(--space-1);
+            align-items: center;
+        }
+        .fs-btn {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-sm);
+            color: var(--text-secondary);
+            padding: 6px 12px;
+            cursor: pointer;
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            transition: all var(--transition-fast);
+        }
+        .fs-btn:hover {
+            color: var(--cline-teal);
+            border-color: var(--cline-teal);
+        }
+        .fs-zoom-label {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+            min-width: 48px;
+            text-align: center;
+        }
+        .fs-close {
+            background: none;
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-sm);
+            color: var(--text-secondary);
+            padding: 6px 12px;
+            cursor: pointer;
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            transition: all var(--transition-fast);
+        }
+        .fs-close:hover {
+            color: var(--cline-red);
+            border-color: var(--cline-red);
+        }
+
+        .fs-viewport {
+            flex: 1;
+            overflow: hidden;
+            cursor: grab;
+            position: relative;
+        }
+        .fs-viewport:active { cursor: grabbing; }
+        .fs-content {
+            position: absolute;
+            top: 0;
+            left: 0;
+            transform-origin: 0 0;
+        }
+        .fs-content svg {
+            max-width: none !important;
+            height: auto !important;
+        }
+
+        .fs-hint {
+            position: absolute;
+            bottom: var(--space-2);
+            left: 50%;
+            transform: translateX(-50%);
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            color: var(--text-tertiary);
+            background: var(--bg-elevated);
+            padding: 4px 12px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border-subtle);
+            pointer-events: none;
+            opacity: 0.7;
         }
 
         /* === Code Blocks === */
@@ -1207,10 +1344,28 @@ graph LR
     </p>
 </footer>
 
-<script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
-<script>
+<div class="fs-overlay" id="fsOverlay">
+    <div class="fs-toolbar">
+        <span class="fs-toolbar-title" id="fsTitle">Diagram</span>
+        <div class="fs-controls">
+            <button class="fs-btn" id="fsZoomOut" title="Zoom out">-</button>
+            <span class="fs-zoom-label" id="fsZoomLabel">100%</span>
+            <button class="fs-btn" id="fsZoomIn" title="Zoom in">+</button>
+            <button class="fs-btn" id="fsFit" title="Fit to screen">Fit</button>
+            <button class="fs-close" id="fsClose" title="Close (Esc)">Close</button>
+        </div>
+    </div>
+    <div class="fs-viewport" id="fsViewport">
+        <div class="fs-content" id="fsContent"></div>
+        <div class="fs-hint">Scroll to zoom &middot; Drag to pan &middot; Esc to close</div>
+    </div>
+</div>
+
+<script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+
     mermaid.initialize({
-        startOnLoad: true,
+        startOnLoad: false,
         theme: 'dark',
         themeVariables: {
             primaryColor: '#1c2030',
@@ -1242,8 +1397,194 @@ graph LR
             activationBkgColor: '#1c2030',
             sequenceNumberColor: '#0f1117'
         },
-        flowchart: { curve: 'basis', padding: 20 },
+        flowchart: { curve: 'basis', padding: 20, useMaxWidth: false },
         sequence: { mirrorActors: false, messageMargin: 40 }
+    });
+
+    // Wait for mermaid to render, then add expand buttons
+    mermaid.run().then(() => {
+        const expandIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`;
+
+        document.querySelectorAll('.diagram-container').forEach(container => {
+            const btn = document.createElement('button');
+            btn.className = 'diagram-expand-btn';
+            btn.innerHTML = expandIcon + ' Expand';
+            btn.addEventListener('click', () => openFullscreen(container));
+            container.appendChild(btn);
+        });
+    });
+
+    // Fullscreen state
+    const overlay = document.getElementById('fsOverlay');
+    const viewport = document.getElementById('fsViewport');
+    const content = document.getElementById('fsContent');
+    const zoomLabel = document.getElementById('fsZoomLabel');
+    const titleEl = document.getElementById('fsTitle');
+    let zoom = 1;
+    let panX = 0, panY = 0;
+    let isDragging = false;
+    let dragStartX, dragStartY, panStartX, panStartY;
+
+    function openFullscreen(container) {
+        const label = container.querySelector('.diagram-label');
+        titleEl.textContent = label ? label.textContent : 'Diagram';
+
+        const svg = container.querySelector('svg');
+        if (!svg) return;
+
+        content.innerHTML = '';
+        content.appendChild(svg.cloneNode(true));
+
+        zoom = 1;
+        panX = 0;
+        panY = 0;
+        content.style.transform = 'translate(0px, 0px) scale(1)';
+
+        overlay.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                overlay.classList.add('active');
+                fitToViewport();
+            });
+        });
+    }
+
+    function closeFullscreen() {
+        overlay.classList.remove('active');
+        setTimeout(() => {
+            overlay.style.display = 'none';
+            content.innerHTML = '';
+        }, 200);
+        document.body.style.overflow = '';
+    }
+
+    function fitToViewport() {
+        const svg = content.querySelector('svg');
+        if (!svg) return;
+
+        const vw = viewport.clientWidth;
+        const vh = viewport.clientHeight;
+        const padding = 48;
+
+        const rect = svg.getBoundingClientRect();
+        const currentZoom = zoom || 1;
+        const svgW = rect.width / currentZoom;
+        const svgH = rect.height / currentZoom;
+
+        const w = svgW > 0 ? svgW : (svg.viewBox?.baseVal?.width || 800);
+        const h = svgH > 0 ? svgH : (svg.viewBox?.baseVal?.height || 400);
+
+        const scaleX = (vw - padding * 2) / w;
+        const scaleY = (vh - padding * 2) / h;
+        zoom = Math.min(scaleX, scaleY, 2);
+        zoom = Math.max(zoom, 0.1);
+
+        panX = (vw - w * zoom) / 2;
+        panY = (vh - h * zoom) / 2;
+
+        updateTransform();
+    }
+
+    function updateTransform() {
+        content.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+        zoomLabel.textContent = Math.round(zoom * 100) + '%';
+    }
+
+    // Zoom controls
+    document.getElementById('fsZoomIn').addEventListener('click', () => {
+        const vw = viewport.clientWidth / 2;
+        const vh = viewport.clientHeight / 2;
+        zoomAt(vw, vh, 1.3);
+    });
+    document.getElementById('fsZoomOut').addEventListener('click', () => {
+        const vw = viewport.clientWidth / 2;
+        const vh = viewport.clientHeight / 2;
+        zoomAt(vw, vh, 1 / 1.3);
+    });
+    document.getElementById('fsFit').addEventListener('click', fitToViewport);
+    document.getElementById('fsClose').addEventListener('click', closeFullscreen);
+
+    // Scroll to zoom
+    viewport.addEventListener('wheel', e => {
+        e.preventDefault();
+        const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+        const rect = viewport.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+        zoomAt(mx, my, factor);
+    }, { passive: false });
+
+    function zoomAt(mx, my, factor) {
+        const newZoom = Math.min(Math.max(zoom * factor, 0.05), 8);
+        const ratio = newZoom / zoom;
+        panX = mx - ratio * (mx - panX);
+        panY = my - ratio * (my - panY);
+        zoom = newZoom;
+        updateTransform();
+    }
+
+    // Drag to pan
+    viewport.addEventListener('mousedown', e => {
+        isDragging = true;
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
+        panStartX = panX;
+        panStartY = panY;
+    });
+    window.addEventListener('mousemove', e => {
+        if (!isDragging) return;
+        panX = panStartX + (e.clientX - dragStartX);
+        panY = panStartY + (e.clientY - dragStartY);
+        updateTransform();
+    });
+    window.addEventListener('mouseup', () => { isDragging = false; });
+
+    // Touch support
+    let lastTouchDist = 0;
+    viewport.addEventListener('touchstart', e => {
+        if (e.touches.length === 1) {
+            isDragging = true;
+            dragStartX = e.touches[0].clientX;
+            dragStartY = e.touches[0].clientY;
+            panStartX = panX;
+            panStartY = panY;
+        } else if (e.touches.length === 2) {
+            isDragging = false;
+            lastTouchDist = Math.hypot(
+                e.touches[1].clientX - e.touches[0].clientX,
+                e.touches[1].clientY - e.touches[0].clientY
+            );
+        }
+    }, { passive: true });
+    viewport.addEventListener('touchmove', e => {
+        e.preventDefault();
+        if (e.touches.length === 1 && isDragging) {
+            panX = panStartX + (e.touches[0].clientX - dragStartX);
+            panY = panStartY + (e.touches[0].clientY - dragStartY);
+            updateTransform();
+        } else if (e.touches.length === 2) {
+            const dist = Math.hypot(
+                e.touches[1].clientX - e.touches[0].clientX,
+                e.touches[1].clientY - e.touches[0].clientY
+            );
+            if (lastTouchDist > 0) {
+                const mid = {
+                    x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+                    y: (e.touches[0].clientY + e.touches[1].clientY) / 2
+                };
+                const rect = viewport.getBoundingClientRect();
+                zoomAt(mid.x - rect.left, mid.y - rect.top, dist / lastTouchDist);
+            }
+            lastTouchDist = dist;
+        }
+    }, { passive: false });
+    viewport.addEventListener('touchend', () => { isDragging = false; lastTouchDist = 0; });
+
+    // Escape to close
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') closeFullscreen();
     });
 </script>
 

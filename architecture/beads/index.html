@@ -503,6 +503,10 @@
             transition: all var(--transition-fast);
             z-index: 2;
         }
+        .diagram-expand-btn svg {
+            width: 14px;
+            height: 14px;
+        }
         .diagram-expand-btn:hover {
             color: var(--bead-amber);
             border-color: var(--bead-amber);
@@ -711,7 +715,6 @@
 
         <div class="diagram-container">
             <div class="diagram-label">System Architecture</div>
-            <button class="diagram-expand-btn" onclick="openFullscreen(this)">Expand</button>
             <div class="mermaid">
 graph TB
     subgraph Consumers["Consumers"]
@@ -813,7 +816,6 @@ graph TB
 
         <div class="diagram-container">
             <div class="diagram-label">Entity Relationship Model</div>
-            <button class="diagram-expand-btn" onclick="openFullscreen(this)">Expand</button>
             <div class="mermaid">
 erDiagram
     ISSUES {
@@ -942,7 +944,6 @@ erDiagram
 
         <div class="diagram-container">
             <div class="diagram-label">Dolt Data Flow</div>
-            <button class="diagram-expand-btn" onclick="openFullscreen(this)">Expand</button>
             <div class="mermaid">
 flowchart LR
     subgraph Write["Write Path"]
@@ -1030,7 +1031,6 @@ flowchart LR
 
         <div class="diagram-container">
             <div class="diagram-label">Core Command Tree</div>
-            <button class="diagram-expand-btn" onclick="openFullscreen(this)">Expand</button>
             <div class="mermaid">
 graph TD
     BD["bd"]
@@ -1113,7 +1113,6 @@ graph TD
 
         <div class="diagram-container">
             <div class="diagram-label">Phase Lifecycle</div>
-            <button class="diagram-expand-btn" onclick="openFullscreen(this)">Expand</button>
             <div class="mermaid">
 stateDiagram-v2
     [*] --> Proto: bd mol create --proto
@@ -1190,7 +1189,6 @@ stateDiagram-v2
 
         <div class="diagram-container">
             <div class="diagram-label">Adaptive ID Scaling</div>
-            <button class="diagram-expand-btn" onclick="openFullscreen(this)">Expand</button>
             <div class="mermaid">
 graph LR
     subgraph Small["0-500 Issues"]
@@ -1258,7 +1256,6 @@ graph LR
 
         <div class="diagram-container">
             <div class="diagram-label">Git Workflow Modes</div>
-            <button class="diagram-expand-btn" onclick="openFullscreen(this)">Expand</button>
             <div class="mermaid">
 flowchart TB
     subgraph Maintainer["Maintainer Mode"]
@@ -1327,7 +1324,6 @@ flowchart TB
 
         <div class="diagram-container">
             <div class="diagram-label">Agent Execution Loop</div>
-            <button class="diagram-expand-btn" onclick="openFullscreen(this)">Expand</button>
             <div class="mermaid">
 flowchart TD
     START["Session Start"] --> PRIME["bd prime<br/>(inject 1-2k tokens context)"]
@@ -1432,7 +1428,6 @@ flowchart TD
 
         <div class="diagram-container">
             <div class="diagram-label">FlushManager Architecture</div>
-            <button class="diagram-expand-btn" onclick="openFullscreen(this)">Expand</button>
             <div class="mermaid">
 flowchart LR
     subgraph Channels["Buffered Channels"]
@@ -1515,7 +1510,6 @@ flowchart LR
 
         <div class="diagram-container">
             <div class="diagram-label">Repository Layout</div>
-            <button class="diagram-expand-btn" onclick="openFullscreen(this)">Expand</button>
             <div class="mermaid">
 graph TD
     ROOT["github.com/steveyegge/beads"]
@@ -1664,11 +1658,11 @@ graph TD
     <div class="fs-toolbar">
         <span class="fs-toolbar-title" id="fsTitle">Diagram</span>
         <div class="fs-controls">
-            <button class="fs-btn" onclick="fsZoom(-0.2)">-</button>
+            <button class="fs-btn" id="fsZoomOut" title="Zoom out">-</button>
             <span class="fs-zoom-label" id="fsZoomLabel">100%</span>
-            <button class="fs-btn" onclick="fsZoom(0.2)">+</button>
-            <button class="fs-btn" onclick="fsReset()">Reset</button>
-            <button class="fs-close" onclick="closeFullscreen()">Close [Esc]</button>
+            <button class="fs-btn" id="fsZoomIn" title="Zoom in">+</button>
+            <button class="fs-btn" id="fsFit" title="Fit to screen">Fit</button>
+            <button class="fs-close" id="fsClose" title="Close (Esc)">Close [Esc]</button>
         </div>
     </div>
     <div class="fs-viewport" id="fsViewport">
@@ -1676,8 +1670,8 @@ graph TD
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
-<script>
+<script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
     mermaid.initialize({
         startOnLoad: true,
         theme: 'dark',
@@ -1708,60 +1702,199 @@ graph TD
             labelBoxBorderColor: '#484f58',
             labelTextColor: '#e6edf3'
         },
-        flowchart: { curve: 'basis', padding: 16 },
+        flowchart: {
+            curve: 'basis',
+            padding: 16,
+            useMaxWidth: false
+        },
         er: { fontSize: 12 }
     });
 
-    /* Fullscreen diagram viewer */
-    let fsScale = 1, fsPanX = 0, fsPanY = 0, fsDragging = false, fsStartX, fsStartY;
+    // Wait for mermaid to render, then add expand buttons
+    mermaid.run().then(() => {
+        const expandIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`;
 
-    function openFullscreen(btn) {
-        const container = btn.closest('.diagram-container');
+        document.querySelectorAll('.diagram-container').forEach(container => {
+            const btn = document.createElement('button');
+            btn.className = 'diagram-expand-btn';
+            btn.innerHTML = expandIcon + ' Expand';
+            btn.addEventListener('click', () => openFullscreen(container));
+            container.appendChild(btn);
+        });
+    });
+
+    // Fullscreen state
+    const overlay = document.getElementById('fsOverlay');
+    const viewport = document.getElementById('fsViewport');
+    const content = document.getElementById('fsContent');
+    const zoomLabel = document.getElementById('fsZoomLabel');
+    const titleEl = document.getElementById('fsTitle');
+    let zoom = 1;
+    let panX = 0, panY = 0;
+    let isDragging = false;
+    let dragStartX, dragStartY, panStartX, panStartY;
+
+    function openFullscreen(container) {
         const label = container.querySelector('.diagram-label');
+        titleEl.textContent = label ? label.textContent : 'Diagram';
+
         const svg = container.querySelector('svg');
         if (!svg) return;
 
-        document.getElementById('fsTitle').textContent = label ? label.textContent : 'Diagram';
-        const content = document.getElementById('fsContent');
         content.innerHTML = '';
         content.appendChild(svg.cloneNode(true));
 
-        const overlay = document.getElementById('fsOverlay');
-        overlay.style.display = 'flex';
-        requestAnimationFrame(() => overlay.classList.add('active'));
+        zoom = 1;
+        panX = 0;
+        panY = 0;
+        content.style.transform = 'translate(0px, 0px) scale(1)';
 
-        fsScale = 1; fsPanX = 0; fsPanY = 0;
-        updateFsTransform();
+        overlay.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                overlay.classList.add('active');
+                fitToViewport();
+            });
+        });
     }
 
     function closeFullscreen() {
-        const overlay = document.getElementById('fsOverlay');
         overlay.classList.remove('active');
-        setTimeout(() => { overlay.style.display = 'none'; }, 200);
+        setTimeout(() => {
+            overlay.style.display = 'none';
+            content.innerHTML = '';
+        }, 200);
+        document.body.style.overflow = '';
     }
 
-    function fsZoom(delta) {
-        fsScale = Math.max(0.2, Math.min(5, fsScale + delta));
-        updateFsTransform();
+    function fitToViewport() {
+        const svg = content.querySelector('svg');
+        if (!svg) return;
+
+        const vw = viewport.clientWidth;
+        const vh = viewport.clientHeight;
+        const padding = 48;
+
+        const rect = svg.getBoundingClientRect();
+        const currentZoom = zoom || 1;
+        const svgW = rect.width / currentZoom;
+        const svgH = rect.height / currentZoom;
+
+        const w = svgW > 0 ? svgW : (svg.viewBox?.baseVal?.width || 800);
+        const h = svgH > 0 ? svgH : (svg.viewBox?.baseVal?.height || 400);
+
+        const scaleX = (vw - padding * 2) / w;
+        const scaleY = (vh - padding * 2) / h;
+        zoom = Math.min(scaleX, scaleY, 2);
+        zoom = Math.max(zoom, 0.1);
+
+        panX = (vw - w * zoom) / 2;
+        panY = (vh - h * zoom) / 2;
+
+        updateTransform();
     }
 
-    function fsReset() {
-        fsScale = 1; fsPanX = 0; fsPanY = 0;
-        updateFsTransform();
+    function updateTransform() {
+        content.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+        zoomLabel.textContent = Math.round(zoom * 100) + '%';
     }
 
-    function updateFsTransform() {
-        document.getElementById('fsContent').style.transform =
-            `translate(${fsPanX}px, ${fsPanY}px) scale(${fsScale})`;
-        document.getElementById('fsZoomLabel').textContent = Math.round(fsScale * 100) + '%';
+    // Zoom controls
+    document.getElementById('fsZoomIn').addEventListener('click', () => {
+        const vw = viewport.clientWidth / 2;
+        const vh = viewport.clientHeight / 2;
+        zoomAt(vw, vh, 1.3);
+    });
+    document.getElementById('fsZoomOut').addEventListener('click', () => {
+        const vw = viewport.clientWidth / 2;
+        const vh = viewport.clientHeight / 2;
+        zoomAt(vw, vh, 1 / 1.3);
+    });
+    document.getElementById('fsFit').addEventListener('click', fitToViewport);
+    document.getElementById('fsClose').addEventListener('click', closeFullscreen);
+
+    // Scroll to zoom
+    viewport.addEventListener('wheel', e => {
+        e.preventDefault();
+        const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+        const rect = viewport.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+        zoomAt(mx, my, factor);
+    }, { passive: false });
+
+    function zoomAt(mx, my, factor) {
+        const newZoom = Math.min(Math.max(zoom * factor, 0.05), 8);
+        const ratio = newZoom / zoom;
+        panX = mx - ratio * (mx - panX);
+        panY = my - ratio * (my - panY);
+        zoom = newZoom;
+        updateTransform();
     }
 
-    const viewport = document.getElementById('fsViewport');
-    viewport.addEventListener('mousedown', e => { fsDragging = true; fsStartX = e.clientX - fsPanX; fsStartY = e.clientY - fsPanY; });
-    window.addEventListener('mousemove', e => { if (!fsDragging) return; fsPanX = e.clientX - fsStartX; fsPanY = e.clientY - fsStartY; updateFsTransform(); });
-    window.addEventListener('mouseup', () => { fsDragging = false; });
-    viewport.addEventListener('wheel', e => { e.preventDefault(); fsZoom(e.deltaY > 0 ? -0.1 : 0.1); }, { passive: false });
-    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeFullscreen(); });
+    // Drag to pan
+    viewport.addEventListener('mousedown', e => {
+        isDragging = true;
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
+        panStartX = panX;
+        panStartY = panY;
+    });
+    window.addEventListener('mousemove', e => {
+        if (!isDragging) return;
+        panX = panStartX + (e.clientX - dragStartX);
+        panY = panStartY + (e.clientY - dragStartY);
+        updateTransform();
+    });
+    window.addEventListener('mouseup', () => { isDragging = false; });
+
+    // Touch support
+    let lastTouchDist = 0;
+    viewport.addEventListener('touchstart', e => {
+        if (e.touches.length === 1) {
+            isDragging = true;
+            dragStartX = e.touches[0].clientX;
+            dragStartY = e.touches[0].clientY;
+            panStartX = panX;
+            panStartY = panY;
+        } else if (e.touches.length === 2) {
+            isDragging = false;
+            lastTouchDist = Math.hypot(
+                e.touches[1].clientX - e.touches[0].clientX,
+                e.touches[1].clientY - e.touches[0].clientY
+            );
+        }
+    }, { passive: true });
+    viewport.addEventListener('touchmove', e => {
+        e.preventDefault();
+        if (e.touches.length === 1 && isDragging) {
+            panX = panStartX + (e.touches[0].clientX - dragStartX);
+            panY = panStartY + (e.touches[0].clientY - dragStartY);
+            updateTransform();
+        } else if (e.touches.length === 2) {
+            const dist = Math.hypot(
+                e.touches[1].clientX - e.touches[0].clientX,
+                e.touches[1].clientY - e.touches[0].clientY
+            );
+            if (lastTouchDist > 0) {
+                const mid = {
+                    x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+                    y: (e.touches[0].clientY + e.touches[1].clientY) / 2
+                };
+                const rect = viewport.getBoundingClientRect();
+                zoomAt(mid.x - rect.left, mid.y - rect.top, dist / lastTouchDist);
+            }
+            lastTouchDist = dist;
+        }
+    }, { passive: false });
+    viewport.addEventListener('touchend', () => { isDragging = false; lastTouchDist = 0; });
+
+    // Escape to close
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') closeFullscreen();
+    });
 </script>
 
 </body>
