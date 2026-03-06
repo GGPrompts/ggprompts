@@ -1,0 +1,1740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Redis Architecture Map — Architecture Guide</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* === Typography (Infrared / Thermal) === */
+            --font-display: 'Orbitron', sans-serif;
+            --font-body: 'Rajdhani', sans-serif;
+            --font-mono: 'Share Tech Mono', monospace;
+
+            /* === Spacing === */
+            --space-xs: 4px;
+            --space-sm: 8px;
+            --space-md: 16px;
+            --space-lg: 24px;
+            --space-xl: 32px;
+            --space-2xl: 48px;
+            --space-3xl: 64px;
+
+            /* === Thermal Spectrum === */
+            --temp-freezing: #1a0030;
+            --temp-cold: #2d1b69;
+            --temp-cool: #1e3a8a;
+            --temp-warm: #22c55e;
+            --temp-hot: #eab308;
+            --temp-hotter: #f97316;
+            --temp-searing: #ef4444;
+            --temp-critical: #dc2626;
+            --temp-whiteout: #fef3c7;
+
+            /* === Core Palette === */
+            --void: #0a0010;
+            --void-light: #0f0018;
+            --panel: #120822;
+            --panel-light: #1a0f30;
+            --panel-lighter: #22143d;
+
+            /* === Mapped Vars === */
+            --bg-base: var(--void);
+            --bg-elevated: #0f0018;
+            --bg-card: var(--panel-light);
+            --bg-card-hover: var(--panel-lighter);
+            --bg-muted: #08000e;
+
+            /* === Text === */
+            --text-primary: #c4b5fd;
+            --text-bright: #e9e0ff;
+            --text-secondary: #9d8cc4;
+            --text-tertiary: #6b5a8e;
+            --text-link: #6366f1;
+            --text-link-hover: #818cf8;
+
+            /* === Accents === */
+            --accent-cold: #6366f1;
+            --accent-cool: #3b82f6;
+            --accent-neutral: #14b8a6;
+            --accent-warm: #f59e0b;
+            --accent-hot: #ef4444;
+            --reticle: rgba(34, 197, 94, 0.7);
+
+            /* === Domain Colors === */
+            --domain-memory: #ef4444;
+            --domain-persist: #f59e0b;
+            --domain-cluster: #6366f1;
+            --domain-repl: #14b8a6;
+            --domain-streams: #22c55e;
+            --domain-lua: #eab308;
+            --domain-modules: #3b82f6;
+            --domain-pubsub: #d946ef;
+
+            /* === Borders === */
+            --border-subtle: rgba(99, 102, 241, 0.12);
+            --border-default: rgba(99, 102, 241, 0.25);
+            --border-strong: rgba(99, 102, 241, 0.4);
+
+            /* === Radius === */
+            --radius-sm: 2px;
+            --radius-md: 4px;
+            --radius: 6px;
+            --radius-lg: 10px;
+
+            /* === Shadows === */
+            --shadow-sm: 0 1px 3px rgba(10, 0, 16, 0.5);
+            --shadow-md: 0 4px 12px rgba(10, 0, 16, 0.6);
+            --shadow-lg: 0 8px 30px rgba(10, 0, 16, 0.7);
+
+            /* === Transitions === */
+            --transition-fast: 0.15s ease;
+            --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* === Reset === */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { font-size: 17px; scroll-behavior: smooth; scroll-padding-top: 52px; }
+
+        body {
+            font-family: var(--font-body);
+            font-size: 1rem;
+            line-height: 1.6;
+            color: var(--text-primary);
+            background: var(--bg-base);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* === Back Link === */
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-sm);
+            padding: var(--space-md) var(--space-xl);
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.85rem;
+            letter-spacing: 0.02em;
+            transition: color var(--transition-fast);
+        }
+        .back-link::before { content: '\2190'; }
+        .back-link:hover { color: var(--text-link); }
+
+        /* === Hero === */
+        .hero {
+            background: linear-gradient(135deg, var(--void) 0%, #1a0020 30%, #2a0015 60%, var(--panel) 100%);
+            padding: var(--space-3xl) var(--space-xl) var(--space-2xl);
+            border-bottom: 1px solid var(--border-default);
+            position: relative;
+            overflow: hidden;
+        }
+        .hero::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 600px 400px at 20% 50%, rgba(239, 68, 68, 0.08), transparent),
+                radial-gradient(ellipse 500px 300px at 80% 30%, rgba(245, 158, 11, 0.06), transparent);
+            pointer-events: none;
+        }
+        .hero-inner {
+            max-width: 1120px;
+            margin: 0 auto;
+            position: relative;
+        }
+        .hero h1 {
+            font-family: var(--font-display);
+            font-size: 2.4rem;
+            font-weight: 700;
+            line-height: 1.15;
+            margin-bottom: var(--space-md);
+            background: linear-gradient(135deg, var(--temp-whiteout) 0%, var(--temp-searing) 50%, var(--temp-hotter) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .hero .tagline {
+            font-size: 1.15rem;
+            color: var(--text-secondary);
+            max-width: 640px;
+            line-height: 1.5;
+        }
+        .hero .meta {
+            margin-top: var(--space-lg);
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-md);
+        }
+        .meta-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-xs);
+            padding: var(--space-xs) var(--space-sm);
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-sm);
+            font-size: 0.78rem;
+            font-family: var(--font-mono);
+            color: var(--text-secondary);
+            letter-spacing: 0.02em;
+        }
+        .meta-badge .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        /* === Sticky Jump Nav === */
+        .jump-nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: var(--bg-muted);
+            border-bottom: 1px solid var(--border-default);
+            display: flex;
+            justify-content: center;
+            gap: 0;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            white-space: nowrap;
+            padding: 0 var(--space-md);
+        }
+        .jump-nav a {
+            display: inline-block;
+            padding: var(--space-sm) var(--space-md);
+            color: var(--text-tertiary);
+            text-decoration: none;
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+            border-bottom: 2px solid transparent;
+            transition: all var(--transition-fast);
+        }
+        .jump-nav a:hover {
+            color: var(--temp-searing);
+            border-bottom-color: var(--temp-searing);
+        }
+
+        /* === Container === */
+        .container {
+            max-width: 1120px;
+            margin: 0 auto;
+            padding: var(--space-2xl) var(--space-xl);
+        }
+
+        /* === Section === */
+        .section {
+            margin-bottom: var(--space-3xl);
+            scroll-margin-top: 52px;
+        }
+        .section-header {
+            display: flex;
+            align-items: baseline;
+            gap: var(--space-md);
+            margin-bottom: var(--space-xl);
+            padding-bottom: var(--space-md);
+            border-bottom: 1px solid var(--border-default);
+        }
+        .section-number {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--temp-searing);
+            font-weight: 500;
+        }
+        .section-title {
+            font-family: var(--font-display);
+            font-size: 1.6rem;
+            font-weight: 700;
+        }
+        .section-description {
+            color: var(--text-secondary);
+            margin-bottom: var(--space-xl);
+            max-width: 720px;
+            line-height: 1.65;
+        }
+
+        /* === Subsection === */
+        .subsection { margin-bottom: var(--space-xl); }
+        .subsection-title {
+            font-family: var(--font-display);
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: var(--space-md);
+            color: var(--text-bright);
+        }
+        .subsection p {
+            color: var(--text-secondary);
+            margin-bottom: var(--space-md);
+            line-height: 1.65;
+        }
+
+        /* === Diagram Container === */
+        .diagram-container {
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-lg);
+            padding: var(--space-xl);
+            margin: var(--space-lg) 0;
+            overflow-x: auto;
+            position: relative;
+        }
+        .diagram-container .mermaid {
+            display: flex;
+            justify-content: center;
+        }
+        .diagram-label {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: var(--space-md);
+        }
+
+        /* === Mermaid Overrides === */
+        .diagram-container .mermaid svg {
+            max-width: 100%;
+            height: auto;
+        }
+
+        /* === Info Cards === */
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: var(--space-lg);
+            margin: var(--space-lg) 0;
+        }
+        .info-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius);
+            padding: var(--space-lg);
+            transition: all var(--transition);
+        }
+        .info-card:hover {
+            border-color: var(--border-strong);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+        .info-card h4 {
+            font-family: var(--font-display);
+            font-size: 0.95rem;
+            font-weight: 600;
+            margin-bottom: var(--space-sm);
+            color: var(--temp-hot);
+        }
+        .info-card p {
+            font-size: 0.88rem;
+            color: var(--text-secondary);
+            line-height: 1.55;
+        }
+        .info-card .card-meta {
+            margin-top: var(--space-md);
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+        }
+
+        /* === Domain Badges === */
+        .component-badge {
+            display: inline-block;
+            padding: 2px var(--space-sm);
+            border-radius: var(--radius-sm);
+            font-size: 0.72rem;
+            font-weight: 600;
+            font-family: var(--font-mono);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .badge-memory { background: rgba(239, 68, 68, 0.15); color: var(--domain-memory); border: 1px solid rgba(239, 68, 68, 0.3); }
+        .badge-persist { background: rgba(245, 158, 11, 0.15); color: var(--domain-persist); border: 1px solid rgba(245, 158, 11, 0.3); }
+        .badge-cluster { background: rgba(99, 102, 241, 0.15); color: var(--domain-cluster); border: 1px solid rgba(99, 102, 241, 0.3); }
+        .badge-repl { background: rgba(20, 184, 166, 0.15); color: var(--domain-repl); border: 1px solid rgba(20, 184, 166, 0.3); }
+        .badge-streams { background: rgba(34, 197, 94, 0.15); color: var(--domain-streams); border: 1px solid rgba(34, 197, 94, 0.3); }
+        .badge-lua { background: rgba(234, 179, 8, 0.15); color: var(--domain-lua); border: 1px solid rgba(234, 179, 8, 0.3); }
+        .badge-modules { background: rgba(59, 130, 246, 0.15); color: var(--domain-modules); border: 1px solid rgba(59, 130, 246, 0.3); }
+        .badge-pubsub { background: rgba(217, 70, 239, 0.15); color: var(--domain-pubsub); border: 1px solid rgba(217, 70, 239, 0.3); }
+
+        /* === Tables === */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.88rem;
+            margin: var(--space-lg) 0;
+        }
+        .data-table th {
+            text-align: left;
+            padding: var(--space-sm) var(--space-md);
+            background: var(--bg-card);
+            border-bottom: 2px solid var(--border-strong);
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-tertiary);
+            font-weight: 500;
+        }
+        .data-table td {
+            padding: var(--space-sm) var(--space-md);
+            border-bottom: 1px solid var(--border-subtle);
+            vertical-align: top;
+        }
+        .data-table tr:hover td { background: var(--bg-card-hover); }
+
+        /* === Callout === */
+        .callout {
+            background: var(--bg-card);
+            border-left: 3px solid var(--accent-hot);
+            border-radius: 0 var(--radius) var(--radius) 0;
+            padding: var(--space-lg);
+            margin: var(--space-lg) 0;
+        }
+        .callout.callout-warm { border-left-color: var(--accent-warm); }
+        .callout.callout-cool { border-left-color: var(--accent-cool); }
+        .callout.callout-neutral { border-left-color: var(--accent-neutral); }
+        .callout .callout-title {
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--temp-searing);
+            margin-bottom: var(--space-sm);
+            font-weight: 500;
+        }
+        .callout.callout-warm .callout-title { color: var(--accent-warm); }
+        .callout.callout-cool .callout-title { color: var(--accent-cool); }
+        .callout.callout-neutral .callout-title { color: var(--accent-neutral); }
+        .callout p {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            line-height: 1.55;
+        }
+
+        /* === Stat Row === */
+        .stat-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: var(--space-lg);
+            margin: var(--space-xl) 0;
+        }
+        .stat-item {
+            text-align: center;
+            padding: var(--space-lg);
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius);
+        }
+        .stat-value {
+            font-family: var(--font-display);
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--temp-hot);
+        }
+        .stat-label {
+            font-size: 0.78rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-top: var(--space-xs);
+        }
+
+        /* === Status Indicators === */
+        .status-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+        .status-stable { background: var(--temp-warm); }
+        .status-active { background: var(--temp-hot); }
+        .status-new { background: var(--accent-cool); }
+        .status-experimental { background: var(--domain-pubsub); }
+
+        /* === Acronym Grid === */
+        .acronym-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 0;
+        }
+        .acronym-item {
+            display: flex;
+            gap: var(--space-md);
+            padding: var(--space-sm) var(--space-md);
+            border-bottom: 1px solid var(--border-subtle);
+            font-size: 0.85rem;
+        }
+        .acronym-item:hover { background: var(--bg-card); }
+        .acronym-key {
+            font-family: var(--font-mono);
+            font-weight: 500;
+            color: var(--temp-searing);
+            min-width: 70px;
+        }
+        .acronym-val { color: var(--text-secondary); }
+
+        /* === Fullscreen Overlay === */
+        .diagram-expand-btn {
+            position: absolute;
+            top: var(--space-sm);
+            right: var(--space-sm);
+            background: var(--bg-card);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-sm);
+            color: var(--text-tertiary);
+            padding: 6px 8px;
+            cursor: pointer;
+            font-size: 0.7rem;
+            font-family: var(--font-mono);
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            transition: all var(--transition-fast);
+            z-index: 2;
+        }
+        .diagram-expand-btn:hover {
+            color: var(--text-link);
+            border-color: var(--text-link);
+            background: var(--bg-card-hover);
+        }
+        .diagram-expand-btn svg { width: 14px; height: 14px; }
+
+        .fs-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            background: var(--bg-base);
+            display: none;
+            flex-direction: column;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+        .fs-overlay.active { opacity: 1; }
+        .fs-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: var(--space-sm) var(--space-lg);
+            background: var(--bg-muted);
+            border-bottom: 1px solid var(--border-default);
+            flex-shrink: 0;
+        }
+        .fs-toolbar-title {
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+        .fs-controls { display: flex; gap: var(--space-sm); align-items: center; }
+        .fs-btn {
+            background: var(--bg-card);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-sm);
+            color: var(--text-secondary);
+            padding: 6px 12px;
+            cursor: pointer;
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            transition: all var(--transition-fast);
+        }
+        .fs-btn:hover { color: var(--text-link); border-color: var(--text-link); }
+        .fs-zoom-label {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+            min-width: 48px;
+            text-align: center;
+        }
+        .fs-close {
+            background: none;
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-sm);
+            color: var(--text-secondary);
+            padding: 6px 12px;
+            cursor: pointer;
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            transition: all var(--transition-fast);
+        }
+        .fs-close:hover { color: var(--temp-searing); border-color: var(--temp-searing); }
+        .fs-viewport { flex: 1; overflow: hidden; cursor: grab; position: relative; }
+        .fs-viewport:active { cursor: grabbing; }
+        .fs-content { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
+        .fs-content svg { max-width: none !important; height: auto !important; }
+        .fs-hint {
+            position: absolute;
+            bottom: var(--space-md);
+            left: 50%;
+            transform: translateX(-50%);
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            color: var(--text-tertiary);
+            background: var(--bg-muted);
+            padding: 4px 12px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border-subtle);
+            pointer-events: none;
+            opacity: 0.7;
+        }
+
+        /* === Footer === */
+        .site-footer {
+            border-top: 1px solid var(--border-default);
+            padding: var(--space-xl);
+            text-align: center;
+            color: var(--text-tertiary);
+            font-size: 0.82rem;
+        }
+        .site-footer a { color: var(--text-link); text-decoration: none; }
+
+        /* === Responsive === */
+        @media (max-width: 768px) {
+            html { font-size: 16px; }
+            .hero h1 { font-size: 1.8rem; }
+            .hero { padding: var(--space-2xl) var(--space-md) var(--space-xl); }
+            .section-title { font-size: 1.3rem; }
+            .card-grid { grid-template-columns: 1fr; }
+            .stat-row { grid-template-columns: repeat(2, 1fr); }
+            .acronym-grid { grid-template-columns: 1fr; }
+            .container { padding: var(--space-xl) var(--space-md); }
+            .diagram-container { padding: var(--space-md); margin-left: calc(-1 * var(--space-md)); margin-right: calc(-1 * var(--space-md)); border-radius: 0; border-left: 0; border-right: 0; }
+        }
+    </style>
+</head>
+<body>
+    <a href="../index.html" class="back-link">Architecture Maps</a>
+
+    <!-- Hero -->
+    <header class="hero">
+        <div class="hero-inner">
+            <h1>Redis Internals</h1>
+            <p class="tagline">Interactive architecture map of Redis's internal subsystems &mdash; single-threaded event loop, memory management, RDB/AOF persistence, cluster gossip protocol, replication, streams, Lua scripting, modules, and pub/sub.</p>
+            <div class="meta">
+                <span class="meta-badge"><span class="dot" style="background:var(--temp-searing)"></span> Open Source (BSD)</span>
+                <span class="meta-badge">Since 2009</span>
+                <span class="meta-badge">Single-Threaded Event Loop</span>
+                <span class="meta-badge">In-Memory Data Store</span>
+                <span class="meta-badge">10+ Data Structures</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Jump Nav -->
+    <nav class="jump-nav">
+        <a href="#overview">Overview</a>
+        <a href="#event-loop">Event Loop</a>
+        <a href="#memory">Memory</a>
+        <a href="#data-structures">Data Structures</a>
+        <a href="#persistence">Persistence</a>
+        <a href="#replication">Replication</a>
+        <a href="#cluster">Cluster</a>
+        <a href="#pubsub">Pub/Sub</a>
+        <a href="#streams">Streams</a>
+        <a href="#lua">Lua Scripting</a>
+        <a href="#modules">Modules</a>
+        <a href="#glossary">Glossary</a>
+    </nav>
+
+    <div class="container">
+
+        <!-- 01. Overview -->
+        <section class="section" id="overview">
+            <div class="section-header">
+                <span class="section-number">01</span>
+                <h2 class="section-title">Architecture Overview</h2>
+            </div>
+            <p class="section-description">Redis is an in-memory data structure store used as a database, cache, message broker, and streaming engine. Its single-threaded event loop processes commands sequentially, eliminating lock contention and delivering sub-millisecond latency at millions of operations per second.</p>
+
+            <div class="stat-row">
+                <div class="stat-item">
+                    <div class="stat-value">1M+</div>
+                    <div class="stat-label">Ops/sec (single node)</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">&lt;1ms</div>
+                    <div class="stat-label">Avg Latency</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">10+</div>
+                    <div class="stat-label">Data Structures</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">16384</div>
+                    <div class="stat-label">Hash Slots (Cluster)</div>
+                </div>
+            </div>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Redis High-Level Architecture</div>
+                <pre class="mermaid">
+graph TD
+    CLIENT["Client<br/>(RESP Protocol)"] --> EVENTLOOP["Event Loop<br/>(ae library)"]
+    EVENTLOOP --> CMDPROC["Command<br/>Processor"]
+    CMDPROC --> DS["Data Structures<br/>(dict, ziplist, skiplist...)"]
+    DS --> MEM["Memory<br/>Manager (jemalloc)"]
+    CMDPROC --> PERSIST["Persistence<br/>(RDB + AOF)"]
+    CMDPROC --> REPL["Replication<br/>Engine"]
+    CMDPROC --> PUBSUB["Pub/Sub<br/>Engine"]
+    CMDPROC --> LUA["Lua<br/>Scripting"]
+    CMDPROC --> MODULES["Module<br/>API"]
+    REPL --> REPLICA["Replica<br/>Nodes"]
+    EVENTLOOP --> CLUSTER["Cluster Bus<br/>(Gossip)"]
+
+    style CLIENT fill:#22143d,stroke:#6366f1,color:#e9e0ff
+    style EVENTLOOP fill:#2a0015,stroke:#ef4444,color:#fef3c7
+    style CMDPROC fill:#1a0f30,stroke:#f59e0b,color:#fef3c7
+    style DS fill:#1a0f30,stroke:#ef4444,color:#fef3c7
+    style MEM fill:#1a0f30,stroke:#dc2626,color:#fef3c7
+    style PERSIST fill:#1a0f30,stroke:#f59e0b,color:#fef3c7
+    style REPL fill:#1a0f30,stroke:#14b8a6,color:#e9e0ff
+    style PUBSUB fill:#1a0f30,stroke:#d946ef,color:#e9e0ff
+    style LUA fill:#1a0f30,stroke:#eab308,color:#fef3c7
+    style MODULES fill:#1a0f30,stroke:#3b82f6,color:#e9e0ff
+    style REPLICA fill:#22143d,stroke:#14b8a6,color:#e9e0ff
+    style CLUSTER fill:#1a0f30,stroke:#6366f1,color:#e9e0ff
+                </pre>
+            </div>
+        </section>
+
+        <!-- 02. Event Loop -->
+        <section class="section" id="event-loop">
+            <div class="section-header">
+                <span class="section-number">02</span>
+                <h2 class="section-title">Event Loop &amp; Threading Model</h2>
+            </div>
+            <p class="section-description">Redis uses a single-threaded event loop built on its own <code>ae</code> library, which wraps epoll (Linux), kqueue (macOS/BSD), or select. The main thread handles all command processing. Since Redis 6.0, I/O threads can be enabled to parallelize network read/write, but command execution remains single-threaded.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Event Loop Processing Cycle</div>
+                <pre class="mermaid">
+graph LR
+    AE["ae Event<br/>Loop"] --> FE["File Events<br/>(socket I/O)"]
+    AE --> TE["Time Events<br/>(serverCron)"]
+    FE --> READ["Read Query<br/>Buffer"]
+    READ --> PARSE["Parse RESP<br/>Protocol"]
+    PARSE --> LOOKUP["Command<br/>Lookup Table"]
+    LOOKUP --> EXEC["Execute<br/>Command"]
+    EXEC --> WRITE["Write Reply<br/>Buffer"]
+    WRITE --> AE
+    TE --> CRON["serverCron<br/>(100ms default)"]
+    CRON --> BG["Background<br/>Tasks"]
+
+    style AE fill:#2a0015,stroke:#ef4444,color:#fef3c7
+    style FE fill:#1a0f30,stroke:#f97316,color:#fef3c7
+    style TE fill:#1a0f30,stroke:#f97316,color:#fef3c7
+    style READ fill:#22143d,stroke:#6366f1,color:#e9e0ff
+    style PARSE fill:#22143d,stroke:#6366f1,color:#e9e0ff
+    style LOOKUP fill:#22143d,stroke:#6366f1,color:#e9e0ff
+    style EXEC fill:#1a0f30,stroke:#ef4444,color:#fef3c7
+    style WRITE fill:#22143d,stroke:#6366f1,color:#e9e0ff
+    style CRON fill:#1a0f30,stroke:#eab308,color:#fef3c7
+    style BG fill:#22143d,stroke:#14b8a6,color:#e9e0ff
+                </pre>
+            </div>
+
+            <div class="callout callout-warm">
+                <div class="callout-title">I/O Threading (Redis 6.0+)</div>
+                <p>With <code>io-threads</code> enabled, the main thread distributes pending client reads/writes to a pool of I/O threads. Each I/O thread handles network serialization in parallel, but command execution still occurs on the main thread. This preserves atomicity guarantees while improving throughput on multi-core machines under high network load.</p>
+            </div>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>File Events</h4>
+                    <p>Socket accept, read, and write handlers. Each connected client has a query buffer and reply buffer managed by the event loop. Readable events trigger command parsing; writable events flush response buffers.</p>
+                    <div class="card-meta">networking.c, ae.c</div>
+                </div>
+                <div class="info-card">
+                    <h4>Time Events</h4>
+                    <p>The <code>serverCron</code> function fires every 100ms (configurable via <code>hz</code>). It handles: active key expiration sampling, client timeout checks, replication heartbeats, cluster pings, lazy-free tasks, and memory defragmentation.</p>
+                    <div class="card-meta">server.c:serverCron()</div>
+                </div>
+                <div class="info-card">
+                    <h4>Background Threads</h4>
+                    <p>Three background threads (BIO) handle slow tasks: closing file descriptors, fsyncing AOF, and lazy-freeing large objects. These never touch the main data dictionary, avoiding contention.</p>
+                    <div class="card-meta">bio.c (BIO_CLOSE_FILE, BIO_AOF_FSYNC, BIO_LAZY_FREE)</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 03. Memory Management -->
+        <section class="section" id="memory">
+            <div class="section-header">
+                <span class="section-number">03</span>
+                <h2 class="section-title">Memory Management</h2>
+            </div>
+            <p class="section-description">Redis stores all data in memory, using jemalloc as the default allocator. Memory efficiency is critical: Redis employs compact encodings, shared integer objects, and multiple eviction policies to manage its memory footprint. The <code>maxmemory</code> directive sets an upper bound, and eviction policies determine what happens when it is reached.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Memory Layout &amp; Eviction Flow</div>
+                <pre class="mermaid">
+graph TD
+    ALLOC["jemalloc<br/>Allocator"] --> DICT["Main Dict<br/>(hash table)"]
+    ALLOC --> EXPIRES["Expires Dict<br/>(TTL tracking)"]
+    ALLOC --> OBJ["redisObject<br/>(type+encoding+ptr)"]
+    OBJ --> STR["SDS Strings"]
+    OBJ --> LIST["Listpacks /<br/>Quicklists"]
+    OBJ --> HASH["Listpacks /<br/>Hash Tables"]
+    OBJ --> ZSET["Listpacks /<br/>Skiplists"]
+    OBJ --> SET["Listpacks /<br/>Hash Tables"]
+
+    subgraph Eviction["Eviction Pipeline"]
+        CHECK["maxmemory<br/>Check"] --> POLICY["Eviction<br/>Policy"]
+        POLICY --> LRU["LRU / LFU<br/>Approximation"]
+        POLICY --> TTL["Volatile-TTL<br/>Shortest TTL"]
+        POLICY --> RAND["Random<br/>Sampling"]
+        LRU --> EVICT["Free Key"]
+        TTL --> EVICT
+        RAND --> EVICT
+    end
+
+    DICT --> CHECK
+
+    style ALLOC fill:#2a0015,stroke:#dc2626,color:#fef3c7
+    style DICT fill:#1a0f30,stroke:#ef4444,color:#fef3c7
+    style EXPIRES fill:#1a0f30,stroke:#f97316,color:#fef3c7
+    style OBJ fill:#22143d,stroke:#f59e0b,color:#fef3c7
+    style STR fill:#22143d,stroke:#6366f1,color:#e9e0ff
+    style LIST fill:#22143d,stroke:#6366f1,color:#e9e0ff
+    style HASH fill:#22143d,stroke:#6366f1,color:#e9e0ff
+    style ZSET fill:#22143d,stroke:#6366f1,color:#e9e0ff
+    style SET fill:#22143d,stroke:#6366f1,color:#e9e0ff
+    style CHECK fill:#1a0f30,stroke:#dc2626,color:#fef3c7
+    style POLICY fill:#1a0f30,stroke:#ef4444,color:#fef3c7
+    style LRU fill:#22143d,stroke:#f97316,color:#fef3c7
+    style TTL fill:#22143d,stroke:#f97316,color:#fef3c7
+    style RAND fill:#22143d,stroke:#f97316,color:#fef3c7
+    style EVICT fill:#2a0015,stroke:#dc2626,color:#fef3c7
+                </pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Eviction Policies</h3>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Policy</th>
+                            <th>Scope</th>
+                            <th>Algorithm</th>
+                            <th>Use Case</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>allkeys-lru</code></td>
+                            <td>All keys</td>
+                            <td>Approximated LRU (sampling)</td>
+                            <td>General-purpose cache</td>
+                        </tr>
+                        <tr>
+                            <td><code>allkeys-lfu</code></td>
+                            <td>All keys</td>
+                            <td>Approximated LFU (counter decay)</td>
+                            <td>Frequency-biased cache</td>
+                        </tr>
+                        <tr>
+                            <td><code>volatile-lru</code></td>
+                            <td>Keys with TTL</td>
+                            <td>Approximated LRU</td>
+                            <td>Mixed persistent + cache</td>
+                        </tr>
+                        <tr>
+                            <td><code>volatile-ttl</code></td>
+                            <td>Keys with TTL</td>
+                            <td>Shortest remaining TTL</td>
+                            <td>Time-sensitive data</td>
+                        </tr>
+                        <tr>
+                            <td><code>noeviction</code></td>
+                            <td>N/A</td>
+                            <td>Returns OOM error</td>
+                            <td>Database (no data loss)</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="callout">
+                <div class="callout-title">LRU Approximation</div>
+                <p>Redis does not maintain a true LRU linked list. Instead, each key's <code>redisObject</code> stores a 24-bit clock field (LRU mode) or an 8-bit logarithmic frequency counter + 16-bit decrement time (LFU mode). On eviction, Redis samples <code>maxmemory-samples</code> random keys (default 5) and evicts the best candidate. Increasing the sample size improves approximation quality at the cost of CPU.</p>
+            </div>
+        </section>
+
+        <!-- 04. Data Structures -->
+        <section class="section" id="data-structures">
+            <div class="section-header">
+                <span class="section-number">04</span>
+                <h2 class="section-title">Data Structures &amp; Encodings</h2>
+            </div>
+            <p class="section-description">Every Redis value is wrapped in a <code>redisObject</code> (16 bytes: type, encoding, LRU/LFU clock, refcount, pointer). Each logical type supports multiple internal encodings that Redis switches between automatically based on element count and size thresholds.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Type-to-Encoding Mapping</div>
+                <pre class="mermaid">
+graph LR
+    STRING["STRING"] --> INT["int<br/>(integer value)"]
+    STRING --> EMBSTR["embstr<br/>(&le; 44 bytes)"]
+    STRING --> RAW["raw<br/>(SDS)"]
+
+    LISTT["LIST"] --> LP1["listpack<br/>(&le; 128 elements)"]
+    LISTT --> QL["quicklist<br/>(linked listpacks)"]
+
+    SETT["SET"] --> LP2["listpack<br/>(&le; 128 elements)"]
+    SETT --> INTSET["intset<br/>(all integers)"]
+    SETT --> HT1["hashtable"]
+
+    HASHT["HASH"] --> LP3["listpack<br/>(&le; 128 fields)"]
+    HASHT --> HT2["hashtable"]
+
+    ZSETT["ZSET"] --> LP4["listpack<br/>(&le; 128 elements)"]
+    ZSETT --> SKIP["skiplist +<br/>hashtable"]
+
+    style STRING fill:#2a0015,stroke:#ef4444,color:#fef3c7
+    style LISTT fill:#2a0015,stroke:#f97316,color:#fef3c7
+    style SETT fill:#2a0015,stroke:#eab308,color:#fef3c7
+    style HASHT fill:#2a0015,stroke:#22c55e,color:#fef3c7
+    style ZSETT fill:#2a0015,stroke:#6366f1,color:#e9e0ff
+    style INT fill:#22143d,stroke:#ef4444,color:#fef3c7
+    style EMBSTR fill:#22143d,stroke:#ef4444,color:#fef3c7
+    style RAW fill:#22143d,stroke:#ef4444,color:#fef3c7
+    style LP1 fill:#22143d,stroke:#f97316,color:#fef3c7
+    style QL fill:#22143d,stroke:#f97316,color:#fef3c7
+    style LP2 fill:#22143d,stroke:#eab308,color:#fef3c7
+    style INTSET fill:#22143d,stroke:#eab308,color:#fef3c7
+    style HT1 fill:#22143d,stroke:#eab308,color:#fef3c7
+    style LP3 fill:#22143d,stroke:#22c55e,color:#fef3c7
+    style HT2 fill:#22143d,stroke:#22c55e,color:#fef3c7
+    style LP4 fill:#22143d,stroke:#6366f1,color:#e9e0ff
+    style SKIP fill:#22143d,stroke:#6366f1,color:#e9e0ff
+                </pre>
+            </div>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>SDS (Simple Dynamic String)</h4>
+                    <p>Redis's string type. Binary-safe with O(1) length lookup, pre-allocated capacity to reduce realloc calls, and five header sizes (sdshdr5 through sdshdr64) chosen by string length to minimize overhead.</p>
+                    <div class="card-meta"><span class="component-badge badge-memory">core</span> sds.c</div>
+                </div>
+                <div class="info-card">
+                    <h4>Listpack</h4>
+                    <p>Compact, sequential, memory-efficient encoding for small collections. Replaced ziplist in Redis 7.0. Entries are variable-length encoded inline with no per-entry pointers, yielding excellent cache locality.</p>
+                    <div class="card-meta"><span class="component-badge badge-memory">core</span> listpack.c</div>
+                </div>
+                <div class="info-card">
+                    <h4>Skip List</h4>
+                    <p>Probabilistic data structure backing sorted sets. O(log N) search, insert, and delete. Each node has a randomized tower of forward pointers (up to 32 levels). Used alongside a dict for O(1) score lookup by member.</p>
+                    <div class="card-meta"><span class="component-badge badge-memory">core</span> t_zset.c</div>
+                </div>
+                <div class="info-card">
+                    <h4>Dict (Hash Table)</h4>
+                    <p>Incrementally-rehashing hash table. Maintains two tables; during rehash, each operation migrates a bucket from the old table to the new one. This spreads resize cost across many commands rather than a single blocking pause.</p>
+                    <div class="card-meta"><span class="component-badge badge-memory">core</span> dict.c</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 05. Persistence -->
+        <section class="section" id="persistence">
+            <div class="section-header">
+                <span class="section-number">05</span>
+                <h2 class="section-title">Persistence: RDB &amp; AOF</h2>
+            </div>
+            <p class="section-description">Redis offers two complementary persistence mechanisms. RDB creates point-in-time snapshots as compact binary files. AOF logs every write operation for replay-based recovery. Since Redis 7.0, a hybrid AOF format combines both for faster restarts with minimal data loss.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Persistence Pipeline</div>
+                <pre class="mermaid">
+graph TD
+    CMD["Write<br/>Command"] --> AOF_BUF["AOF<br/>Buffer"]
+    CMD --> DIRTY["Dirty Counter<br/>(+1)"]
+
+    AOF_BUF --> FSYNC{"fsync<br/>Policy"}
+    FSYNC -->|always| EVERY["fsync every<br/>write"]
+    FSYNC -->|everysec| SEC["fsync every<br/>1 second"]
+    FSYNC -->|no| OS["OS decides<br/>when to flush"]
+    EVERY --> AOF_FILE["AOF File<br/>(appendonly.aof)"]
+    SEC --> AOF_FILE
+    OS --> AOF_FILE
+
+    DIRTY --> BGSAVE{"BGSAVE<br/>Trigger"}
+    BGSAVE --> FORK["fork()"]
+    FORK --> CHILD["Child Process<br/>Writes RDB"]
+    CHILD --> RDB_FILE["RDB File<br/>(dump.rdb)"]
+    FORK --> COW["Copy-on-Write<br/>Parent continues"]
+
+    subgraph Rewrite["AOF Rewrite (BGREWRITEAOF)"]
+        RWFORK["fork()"] --> RWCHILD["Child rewrites<br/>AOF from memory"]
+        RWCHILD --> NEWFILE["New AOF<br/>File"]
+    end
+
+    AOF_FILE -.-> RWFORK
+
+    style CMD fill:#2a0015,stroke:#ef4444,color:#fef3c7
+    style AOF_BUF fill:#1a0f30,stroke:#f59e0b,color:#fef3c7
+    style DIRTY fill:#1a0f30,stroke:#f97316,color:#fef3c7
+    style FSYNC fill:#22143d,stroke:#eab308,color:#fef3c7
+    style EVERY fill:#22143d,stroke:#22c55e,color:#fef3c7
+    style SEC fill:#22143d,stroke:#22c55e,color:#fef3c7
+    style OS fill:#22143d,stroke:#6366f1,color:#e9e0ff
+    style AOF_FILE fill:#1a0f30,stroke:#f59e0b,color:#fef3c7
+    style BGSAVE fill:#22143d,stroke:#dc2626,color:#fef3c7
+    style FORK fill:#1a0f30,stroke:#dc2626,color:#fef3c7
+    style CHILD fill:#22143d,stroke:#ef4444,color:#fef3c7
+    style RDB_FILE fill:#1a0f30,stroke:#ef4444,color:#fef3c7
+    style COW fill:#22143d,stroke:#14b8a6,color:#e9e0ff
+    style RWFORK fill:#1a0f30,stroke:#f59e0b,color:#fef3c7
+    style RWCHILD fill:#22143d,stroke:#f59e0b,color:#fef3c7
+    style NEWFILE fill:#1a0f30,stroke:#eab308,color:#fef3c7
+                </pre>
+            </div>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>RDB Snapshots</h4>
+                    <p>Binary dump of the entire dataset. Triggered by <code>save</code> rules (e.g., "900 1" = snapshot if 1+ key changed in 900 seconds) or manual BGSAVE. Uses fork() + copy-on-write for non-blocking background saves. Compact and fast to load.</p>
+                    <div class="card-meta"><span class="component-badge badge-persist">rdb</span> rdb.c</div>
+                </div>
+                <div class="info-card">
+                    <h4>AOF (Append-Only File)</h4>
+                    <p>Sequential log of every write command in RESP format. Three fsync policies trade off durability vs. throughput. AOF rewrite (BGREWRITEAOF) compacts the log by generating the minimal set of commands from current memory state.</p>
+                    <div class="card-meta"><span class="component-badge badge-persist">aof</span> aof.c</div>
+                </div>
+                <div class="info-card">
+                    <h4>Hybrid AOF (7.0+)</h4>
+                    <p>Multi-part AOF: a base RDB snapshot plus incremental AOF diffs. On restart, Redis loads the RDB portion first (fast binary load), then replays only the incremental commands. Combines RDB speed with AOF durability.</p>
+                    <div class="card-meta"><span class="component-badge badge-persist">hybrid</span> aof.c</div>
+                </div>
+            </div>
+
+            <div class="callout callout-warm">
+                <div class="callout-title">Copy-on-Write Hazard</div>
+                <p>When BGSAVE or BGREWRITEAOF forks, the child shares the parent's memory pages via COW. If the workload is write-heavy during the fork, the parent's page modifications trigger COW page copies, potentially doubling memory usage briefly. Operators monitor <code>INFO persistence</code> for <code>latest_fork_usec</code> and <code>rdb_last_cow_size</code> to detect this.</p>
+            </div>
+        </section>
+
+        <!-- 06. Replication -->
+        <section class="section" id="replication">
+            <div class="section-header">
+                <span class="section-number">06</span>
+                <h2 class="section-title">Replication</h2>
+            </div>
+            <p class="section-description">Redis uses asynchronous, leader-based replication. A single primary accepts writes and propagates them to one or more replicas. Full synchronization sends an RDB snapshot; partial resynchronization uses a replication backlog buffer to send only missed commands after brief disconnections.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Replication Handshake &amp; Data Flow</div>
+                <pre class="mermaid">
+sequenceDiagram
+    participant R as Replica
+    participant P as Primary
+
+    R->>P: PING
+    P->>R: PONG
+    R->>P: AUTH password
+    P->>R: OK
+    R->>P: REPLCONF listening-port 6380
+    R->>P: REPLCONF capa eof psync2
+    P->>R: OK
+    R->>P: PSYNC replid offset
+    alt Full Resync
+        P->>R: +FULLRESYNC replid offset
+        P->>R: RDB snapshot (bulk transfer)
+        P->>R: Buffered writes during RDB
+    else Partial Resync
+        P->>R: +CONTINUE
+        P->>R: Backlog commands since offset
+    end
+    loop Steady State
+        P->>R: Command stream (async)
+        R->>P: REPLCONF ACK offset
+    end
+                </pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Replication Backlog</h3>
+                <p>The primary maintains a fixed-size circular buffer (<code>repl-backlog-size</code>, default 1MB) of recent write commands. When a replica reconnects, it sends its last known replication offset. If that offset is still in the backlog, Redis performs a partial resync (PSYNC), sending only the missed commands. If the offset has been overwritten, a full resync is triggered.</p>
+            </div>
+
+            <div class="callout callout-neutral">
+                <div class="callout-title">Diskless Replication</div>
+                <p>With <code>repl-diskless-sync yes</code>, the primary streams the RDB directly to replica sockets without writing to disk first. The child process created by fork() serializes the dataset into the socket. This is beneficial when disk I/O is the bottleneck but network bandwidth is available.</p>
+            </div>
+        </section>
+
+        <!-- 07. Cluster -->
+        <section class="section" id="cluster">
+            <div class="section-header">
+                <span class="section-number">07</span>
+                <h2 class="section-title">Cluster &amp; Gossip Protocol</h2>
+            </div>
+            <p class="section-description">Redis Cluster provides automatic data sharding across multiple nodes with built-in failover. The keyspace is divided into 16,384 hash slots distributed across primaries. Nodes communicate via a binary gossip protocol on a dedicated cluster bus port (data port + 10000).</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Cluster Topology &amp; Hash Slot Distribution</div>
+                <pre class="mermaid">
+graph TD
+    subgraph Shard1["Shard 1 (Slots 0-5460)"]
+        P1["Primary A"]
+        R1A["Replica A1"]
+        R1B["Replica A2"]
+        P1 --> R1A
+        P1 --> R1B
+    end
+
+    subgraph Shard2["Shard 2 (Slots 5461-10922)"]
+        P2["Primary B"]
+        R2A["Replica B1"]
+        P2 --> R2A
+    end
+
+    subgraph Shard3["Shard 3 (Slots 10923-16383)"]
+        P3["Primary C"]
+        R3A["Replica C1"]
+        P3 --> R3A
+    end
+
+    P1 <--->|"Gossip<br/>(cluster bus)"| P2
+    P2 <--->|"Gossip<br/>(cluster bus)"| P3
+    P1 <--->|"Gossip<br/>(cluster bus)"| P3
+
+    CLIENT2["Client"] -->|"CRC16(key)<br/>mod 16384"| REDIRECT{"Slot<br/>Routing"}
+    REDIRECT -->|"slots 0-5460"| P1
+    REDIRECT -->|"slots 5461-10922"| P2
+    REDIRECT -->|"slots 10923-16383"| P3
+
+    style P1 fill:#2a0015,stroke:#ef4444,color:#fef3c7
+    style P2 fill:#2a0015,stroke:#ef4444,color:#fef3c7
+    style P3 fill:#2a0015,stroke:#ef4444,color:#fef3c7
+    style R1A fill:#22143d,stroke:#14b8a6,color:#e9e0ff
+    style R1B fill:#22143d,stroke:#14b8a6,color:#e9e0ff
+    style R2A fill:#22143d,stroke:#14b8a6,color:#e9e0ff
+    style R3A fill:#22143d,stroke:#14b8a6,color:#e9e0ff
+    style CLIENT2 fill:#22143d,stroke:#6366f1,color:#e9e0ff
+    style REDIRECT fill:#1a0f30,stroke:#f59e0b,color:#fef3c7
+                </pre>
+            </div>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Gossip Protocol &amp; Failure Detection</div>
+                <pre class="mermaid">
+graph LR
+    NODE_A["Node A"] -->|"PING (random node)"| NODE_B["Node B"]
+    NODE_B -->|"PONG + gossip data"| NODE_A
+    NODE_A -->|"PING"| NODE_C["Node C"]
+
+    subgraph FailureDetect["Failure Detection"]
+        PFAIL["PFAIL<br/>(local suspicion)"] --> GOSSIP_SPREAD["Gossip spreads<br/>PFAIL flags"]
+        GOSSIP_SPREAD --> MAJORITY["Majority of<br/>primaries agree?"]
+        MAJORITY -->|Yes| FAIL["FAIL<br/>(cluster-wide)"]
+        FAIL --> FAILOVER["Replica<br/>Promotion"]
+    end
+
+    NODE_A -.-> PFAIL
+
+    style NODE_A fill:#1a0f30,stroke:#6366f1,color:#e9e0ff
+    style NODE_B fill:#1a0f30,stroke:#6366f1,color:#e9e0ff
+    style NODE_C fill:#1a0f30,stroke:#6366f1,color:#e9e0ff
+    style PFAIL fill:#22143d,stroke:#f97316,color:#fef3c7
+    style GOSSIP_SPREAD fill:#22143d,stroke:#eab308,color:#fef3c7
+    style MAJORITY fill:#1a0f30,stroke:#f59e0b,color:#fef3c7
+    style FAIL fill:#2a0015,stroke:#dc2626,color:#fef3c7
+    style FAILOVER fill:#1a0f30,stroke:#14b8a6,color:#e9e0ff
+                </pre>
+            </div>
+
+            <div class="callout callout-cool">
+                <div class="callout-title">MOVED &amp; ASK Redirections</div>
+                <p>When a client sends a command to the wrong node, it receives a <code>-MOVED slot host:port</code> redirect for permanently migrated slots, or <code>-ASK slot host:port</code> during active slot migration. Smart clients cache the slot-to-node mapping and update it on redirections, minimizing hops.</p>
+            </div>
+        </section>
+
+        <!-- 08. Pub/Sub -->
+        <section class="section" id="pubsub">
+            <div class="section-header">
+                <span class="section-number">08</span>
+                <h2 class="section-title">Pub/Sub</h2>
+            </div>
+            <p class="section-description">Redis Pub/Sub provides fire-and-forget message broadcasting. Publishers send messages to channels; all subscribed clients receive them in real-time. Messages are not persisted or buffered: if no subscriber is listening, the message is lost. Since Redis 7.0, sharded pub/sub routes messages by hash slot for cluster-aware broadcasting.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Pub/Sub Message Flow</div>
+                <pre class="mermaid">
+graph TD
+    PUB["Publisher<br/>PUBLISH channel msg"] --> SERVER["Redis<br/>Server"]
+    SERVER --> CH["Channel<br/>Subscription Dict"]
+    SERVER --> PAT["Pattern<br/>Subscription List"]
+    CH --> SUB1["Subscriber 1<br/>(exact match)"]
+    CH --> SUB2["Subscriber 2<br/>(exact match)"]
+    PAT --> SUB3["Subscriber 3<br/>(glob pattern)"]
+
+    subgraph Sharded["Sharded Pub/Sub (7.0+)"]
+        SPUB["SPUBLISH<br/>channel msg"] --> SLOT_NODE["Node owning<br/>CRC16(channel) slot"]
+        SLOT_NODE --> SSUB1["Shard<br/>Subscriber 1"]
+        SLOT_NODE --> SSUB2["Shard<br/>Subscriber 2"]
+    end
+
+    style PUB fill:#1a0f30,stroke:#d946ef,color:#e9e0ff
+    style SERVER fill:#2a0015,stroke:#ef4444,color:#fef3c7
+    style CH fill:#22143d,stroke:#d946ef,color:#e9e0ff
+    style PAT fill:#22143d,stroke:#d946ef,color:#e9e0ff
+    style SUB1 fill:#22143d,stroke:#6366f1,color:#e9e0ff
+    style SUB2 fill:#22143d,stroke:#6366f1,color:#e9e0ff
+    style SUB3 fill:#22143d,stroke:#6366f1,color:#e9e0ff
+    style SPUB fill:#1a0f30,stroke:#14b8a6,color:#e9e0ff
+    style SLOT_NODE fill:#1a0f30,stroke:#f59e0b,color:#fef3c7
+    style SSUB1 fill:#22143d,stroke:#14b8a6,color:#e9e0ff
+    style SSUB2 fill:#22143d,stroke:#14b8a6,color:#e9e0ff
+                </pre>
+            </div>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>Channel Subscriptions</h4>
+                    <p>Stored in a dict mapping channel name to a linked list of subscribing clients. SUBSCRIBE and UNSUBSCRIBE add/remove entries. PUBLISH iterates the list and writes the message to each client's output buffer.</p>
+                    <div class="card-meta"><span class="component-badge badge-pubsub">pubsub</span> pubsub.c</div>
+                </div>
+                <div class="info-card">
+                    <h4>Pattern Subscriptions</h4>
+                    <p>PSUBSCRIBE registers glob patterns (e.g., <code>news.*</code>). On PUBLISH, Redis checks all patterns against the channel name using <code>stringmatchlen()</code>. Pattern matching is O(N) in the number of patterns.</p>
+                    <div class="card-meta"><span class="component-badge badge-pubsub">pubsub</span> util.c</div>
+                </div>
+                <div class="info-card">
+                    <h4>Sharded Pub/Sub</h4>
+                    <p>SSUBSCRIBE/SPUBLISH route messages to the cluster node owning the channel's hash slot. Unlike global pub/sub, messages only cross nodes that own the relevant slot, reducing cluster bus traffic.</p>
+                    <div class="card-meta"><span class="component-badge badge-cluster">cluster</span> pubsub.c</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 09. Streams -->
+        <section class="section" id="streams">
+            <div class="section-header">
+                <span class="section-number">09</span>
+                <h2 class="section-title">Streams</h2>
+            </div>
+            <p class="section-description">Redis Streams (introduced in 5.0) provide an append-only log data structure with consumer groups, inspired by Apache Kafka. Unlike Pub/Sub, stream entries are persisted, acknowledged, and can be replayed. Each entry has a unique ID (timestamp-sequence) and contains field-value pairs.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Stream Consumer Group Architecture</div>
+                <pre class="mermaid">
+graph LR
+    PROD["Producer<br/>XADD"] --> STREAM["Stream<br/>(Radix Tree +<br/>Listpacks)"]
+
+    STREAM --> CG1["Consumer Group A<br/>(last-delivered-id)"]
+    STREAM --> CG2["Consumer Group B<br/>(last-delivered-id)"]
+
+    CG1 --> C1["Consumer 1<br/>XREADGROUP"]
+    CG1 --> C2["Consumer 2<br/>XREADGROUP"]
+    CG1 --> PEL1["PEL<br/>(Pending Entries)"]
+
+    C1 -->|XACK| PEL1
+    C2 -->|XACK| PEL1
+    PEL1 -->|timeout| XCLAIM["XCLAIM /<br/>XAUTOCLAIM"]
+
+    style PROD fill:#1a0f30,stroke:#22c55e,color:#fef3c7
+    style STREAM fill:#2a0015,stroke:#ef4444,color:#fef3c7
+    style CG1 fill:#1a0f30,stroke:#22c55e,color:#fef3c7
+    style CG2 fill:#1a0f30,stroke:#14b8a6,color:#e9e0ff
+    style C1 fill:#22143d,stroke:#6366f1,color:#e9e0ff
+    style C2 fill:#22143d,stroke:#6366f1,color:#e9e0ff
+    style PEL1 fill:#22143d,stroke:#f97316,color:#fef3c7
+    style XCLAIM fill:#22143d,stroke:#eab308,color:#fef3c7
+                </pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Stream Internals</h3>
+                <p>Internally, a stream is a radix tree where keys are entry IDs (128-bit: 64-bit ms timestamp + 64-bit sequence). Leaf nodes contain listpacks holding the actual field-value data. This structure provides efficient range queries (XRANGE) and trimming (XTRIM) with memory-efficient storage.</p>
+                <p>Each consumer group tracks a <code>last-delivered-id</code> and a Pending Entries List (PEL) implemented as a radix tree mapping entry IDs to consumer names and delivery timestamps. XACK removes entries from the PEL. XCLAIM and XAUTOCLAIM transfer unacknowledged entries to different consumers for failure recovery.</p>
+            </div>
+
+            <div class="callout callout-neutral">
+                <div class="callout-title">Streams vs. Pub/Sub vs. Lists</div>
+                <p>Pub/Sub: fire-and-forget, no persistence, fan-out. Lists: LPUSH/BRPOP gives queue semantics but no consumer groups or replay. Streams: persistent, replayable, consumer groups with acknowledgment, multiple independent readers, automatic ID assignment. Streams are the right choice for reliable message processing with at-least-once delivery.</p>
+            </div>
+        </section>
+
+        <!-- 10. Lua Scripting -->
+        <section class="section" id="lua">
+            <div class="section-header">
+                <span class="section-number">10</span>
+                <h2 class="section-title">Lua Scripting</h2>
+            </div>
+            <p class="section-description">Redis embeds a Lua 5.1 interpreter to execute server-side scripts atomically. A Lua script runs to completion without interleaving from other commands, enabling multi-key atomic operations without distributed locks. Since Redis 7.0, Functions provide a persistent, named, and replicable alternative to ad-hoc EVAL scripts.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Lua Execution Pipeline</div>
+                <pre class="mermaid">
+graph TD
+    CLIENT3["Client"] -->|"EVAL script<br/>numkeys keys args"| EVALCMD["EVAL<br/>Command"]
+    CLIENT3 -->|"EVALSHA sha1<br/>numkeys keys args"| EVALSHA["EVALSHA<br/>(cached script)"]
+    EVALSHA --> CACHE["Script Cache<br/>(dict: SHA1 &rarr; Lua function)"]
+    EVALCMD --> SHA["SHA1<br/>hash script"]
+    SHA --> CACHE
+    CACHE --> LUAVM["Lua 5.1 VM"]
+
+    LUAVM -->|"redis.call()"| CMDEXEC["Redis Command<br/>Execution"]
+    LUAVM -->|"redis.pcall()"| CMDEXEC
+    CMDEXEC --> RESP_REPLY["Reply to<br/>Lua"]
+    RESP_REPLY --> LUAVM
+    LUAVM --> RESULT["Return Value<br/>to Client"]
+
+    subgraph Functions["Functions (7.0+)"]
+        FCALL["FCALL name<br/>numkeys keys args"] --> LIB["Function<br/>Library"]
+        LIB --> LUAVM2["Lua VM<br/>(persistent)"]
+    end
+
+    style CLIENT3 fill:#22143d,stroke:#6366f1,color:#e9e0ff
+    style EVALCMD fill:#1a0f30,stroke:#eab308,color:#fef3c7
+    style EVALSHA fill:#1a0f30,stroke:#eab308,color:#fef3c7
+    style CACHE fill:#22143d,stroke:#f59e0b,color:#fef3c7
+    style SHA fill:#22143d,stroke:#f97316,color:#fef3c7
+    style LUAVM fill:#2a0015,stroke:#eab308,color:#fef3c7
+    style CMDEXEC fill:#1a0f30,stroke:#ef4444,color:#fef3c7
+    style RESP_REPLY fill:#22143d,stroke:#14b8a6,color:#e9e0ff
+    style RESULT fill:#22143d,stroke:#6366f1,color:#e9e0ff
+    style FCALL fill:#1a0f30,stroke:#eab308,color:#fef3c7
+    style LIB fill:#22143d,stroke:#f59e0b,color:#fef3c7
+    style LUAVM2 fill:#1a0f30,stroke:#eab308,color:#fef3c7
+                </pre>
+            </div>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>Atomicity Guarantee</h4>
+                    <p>While a Lua script executes, no other command can run. This provides transactional semantics without explicit MULTI/EXEC. However, long-running scripts block the server entirely, so a configurable timeout (<code>lua-time-limit</code>, default 5s) triggers a SCRIPT KILL option.</p>
+                    <div class="card-meta"><span class="component-badge badge-lua">lua</span> eval.c</div>
+                </div>
+                <div class="info-card">
+                    <h4>Script Caching</h4>
+                    <p>EVAL computes a SHA1 hash and caches the compiled Lua function. Subsequent calls via EVALSHA skip re-parsing. SCRIPT LOAD pre-caches scripts. The cache persists until SCRIPT FLUSH or server restart.</p>
+                    <div class="card-meta"><span class="component-badge badge-lua">lua</span> scripting.c</div>
+                </div>
+                <div class="info-card">
+                    <h4>Functions (7.0+)</h4>
+                    <p>Named, replicable function libraries loaded via FUNCTION LOAD. Unlike EVAL, functions are persisted to AOF and replicated to replicas. They support multiple named functions per library, flags for determinism control, and are the recommended replacement for EVAL in production.</p>
+                    <div class="card-meta"><span class="component-badge badge-lua">functions</span> functions.c</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 11. Module System -->
+        <section class="section" id="modules">
+            <div class="section-header">
+                <span class="section-number">11</span>
+                <h2 class="section-title">Module System</h2>
+            </div>
+            <p class="section-description">The Redis Module API (introduced in 4.0, significantly expanded since) allows loading shared-object plugins that extend Redis with new commands, data types, and capabilities. Modules have full access to Redis internals through a stable C API, enabling products like RediSearch, RedisJSON, RedisGraph, and RedisTimeSeries.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Module API Layers</div>
+                <pre class="mermaid">
+graph TD
+    MOD["Loaded Module<br/>(.so / .dylib)"] --> API["Module API<br/>(redismodule.h)"]
+
+    API --> CMDS["Custom<br/>Commands"]
+    API --> TYPES["Custom Data<br/>Types"]
+    API --> EVENTS["Event<br/>Notifications"]
+    API --> KEYSPACE["Keyspace<br/>Access"]
+    API --> THREADS["Thread-Safe<br/>Contexts"]
+    API --> FILTERS["Command<br/>Filters"]
+    API --> CLUSTER_API["Cluster<br/>Messages"]
+    API --> CONFIGS["Custom<br/>Configs"]
+
+    subgraph Notable["Notable Modules"]
+        SEARCH["RediSearch<br/>(full-text search)"]
+        JSON["RedisJSON<br/>(JSON documents)"]
+        TSDB["RedisTimeSeries<br/>(time-series data)"]
+        BLOOM["RedisBloom<br/>(probabilistic)"]
+    end
+
+    CMDS --> SEARCH
+    TYPES --> JSON
+    TYPES --> TSDB
+    TYPES --> BLOOM
+
+    style MOD fill:#1a0f30,stroke:#3b82f6,color:#e9e0ff
+    style API fill:#2a0015,stroke:#ef4444,color:#fef3c7
+    style CMDS fill:#22143d,stroke:#3b82f6,color:#e9e0ff
+    style TYPES fill:#22143d,stroke:#3b82f6,color:#e9e0ff
+    style EVENTS fill:#22143d,stroke:#3b82f6,color:#e9e0ff
+    style KEYSPACE fill:#22143d,stroke:#3b82f6,color:#e9e0ff
+    style THREADS fill:#22143d,stroke:#3b82f6,color:#e9e0ff
+    style FILTERS fill:#22143d,stroke:#3b82f6,color:#e9e0ff
+    style CLUSTER_API fill:#22143d,stroke:#3b82f6,color:#e9e0ff
+    style CONFIGS fill:#22143d,stroke:#3b82f6,color:#e9e0ff
+    style SEARCH fill:#22143d,stroke:#22c55e,color:#fef3c7
+    style JSON fill:#22143d,stroke:#f59e0b,color:#fef3c7
+    style TSDB fill:#22143d,stroke:#f97316,color:#fef3c7
+    style BLOOM fill:#22143d,stroke:#d946ef,color:#e9e0ff
+                </pre>
+            </div>
+
+            <div class="callout callout-cool">
+                <div class="callout-title">Module API Capabilities</div>
+                <p>Modules can: register new commands with custom ACL categories, define new data types with RDB save/load callbacks, subscribe to keyspace notifications, create background threads with thread-safe contexts, intercept commands via filters, send/receive custom cluster bus messages, register custom configuration parameters, and block clients waiting for async operations. The API surface has grown to 400+ functions.</p>
+            </div>
+        </section>
+
+        <!-- 12. Glossary -->
+        <section class="section" id="glossary">
+            <div class="section-header">
+                <span class="section-number">12</span>
+                <h2 class="section-title">Glossary &amp; Acronyms</h2>
+            </div>
+            <p class="section-description">Key terms and acronyms used throughout this architecture map.</p>
+
+            <div class="acronym-grid">
+                <div class="acronym-item">
+                    <span class="acronym-key">ACL</span>
+                    <span class="acronym-val">Access Control List (user permissions)</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">AOF</span>
+                    <span class="acronym-val">Append-Only File (write log persistence)</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">BIO</span>
+                    <span class="acronym-val">Background I/O threads (fsync, close, lazy-free)</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">COW</span>
+                    <span class="acronym-val">Copy-on-Write (fork memory sharing)</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">CRC16</span>
+                    <span class="acronym-val">Hash function for cluster slot assignment</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">LFU</span>
+                    <span class="acronym-val">Least Frequently Used (eviction policy)</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">LRU</span>
+                    <span class="acronym-val">Least Recently Used (eviction policy)</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">OOM</span>
+                    <span class="acronym-val">Out of Memory</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">PEL</span>
+                    <span class="acronym-val">Pending Entries List (stream consumer tracking)</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">PFAIL</span>
+                    <span class="acronym-val">Possible Failure (local node suspicion)</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">PSYNC</span>
+                    <span class="acronym-val">Partial Synchronization (replication protocol)</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">RDB</span>
+                    <span class="acronym-val">Redis Database (binary snapshot format)</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">RESP</span>
+                    <span class="acronym-val">Redis Serialization Protocol (client wire format)</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">SDS</span>
+                    <span class="acronym-val">Simple Dynamic String (binary-safe string type)</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">SHA1</span>
+                    <span class="acronym-val">Secure Hash Algorithm 1 (script caching key)</span>
+                </div>
+                <div class="acronym-item">
+                    <span class="acronym-key">TTL</span>
+                    <span class="acronym-val">Time to Live (key expiration)</span>
+                </div>
+            </div>
+        </section>
+
+    </div>
+
+    <footer class="site-footer">
+        <p>Compiled from Redis official documentation, redis.io source code comments, and "Redis in Action" by Josiah Carlson</p>
+        <p style="margin-top:var(--space-sm)"><a href="../index.html">Back to Architecture Maps</a></p>
+    </footer>
+
+    <!-- Fullscreen overlay -->
+    <div class="fs-overlay" id="fsOverlay">
+        <div class="fs-toolbar">
+            <span class="fs-toolbar-title" id="fsTitle">Diagram</span>
+            <div class="fs-controls">
+                <button class="fs-btn" id="fsZoomOut" title="Zoom out">-</button>
+                <span class="fs-zoom-label" id="fsZoomLabel">100%</span>
+                <button class="fs-btn" id="fsZoomIn" title="Zoom in">+</button>
+                <button class="fs-btn" id="fsFit" title="Fit to screen">Fit</button>
+                <button class="fs-close" id="fsClose" title="Close (Esc)">Close</button>
+            </div>
+        </div>
+        <div class="fs-viewport" id="fsViewport">
+            <div class="fs-content" id="fsContent"></div>
+            <div class="fs-hint">Scroll to zoom &middot; Drag to pan &middot; Esc to close</div>
+        </div>
+    </div>
+
+    <!-- Mermaid.js -->
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'dark',
+            themeVariables: {
+                darkMode: true,
+                background: '#0f0018',
+                primaryColor: '#1a0f30',
+                primaryTextColor: '#e9e0ff',
+                primaryBorderColor: '#ef4444',
+                secondaryColor: '#22143d',
+                secondaryTextColor: '#c4b5fd',
+                secondaryBorderColor: '#6366f1',
+                tertiaryColor: '#0a0010',
+                tertiaryTextColor: '#e9e0ff',
+                lineColor: '#6366f1',
+                textColor: '#e9e0ff',
+                mainBkg: '#1a0f30',
+                nodeBorder: '#ef4444',
+                clusterBkg: '#0a0010',
+                clusterBorder: '#22143d',
+                titleColor: '#e9e0ff',
+                edgeLabelBackground: '#0f0018',
+                nodeTextColor: '#e9e0ff',
+                actorTextColor: '#e9e0ff',
+                actorBkg: '#1a0f30',
+                actorBorder: '#ef4444',
+                labelBoxBkgColor: '#0f0018',
+                labelBoxBorderColor: '#22143d',
+                labelTextColor: '#e9e0ff',
+                loopTextColor: '#c4b5fd',
+                noteBkgColor: '#22143d',
+                noteTextColor: '#e9e0ff',
+                noteBorderColor: '#ef4444',
+                fontFamily: "'Rajdhani', sans-serif",
+                fontSize: '14px',
+                signalColor: '#6366f1',
+                sequenceNumberColor: '#fef3c7',
+                sectionBkgColor: '#1a0f30',
+                altSectionBkgColor: '#0f0018',
+                sectionBkgColor2: '#0a0010',
+                taskBkgColor: '#22143d',
+                taskTextColor: '#e9e0ff',
+                taskBorderColor: '#ef4444',
+                activeTaskBkgColor: '#ef4444',
+                activeTaskBorderColor: '#dc2626',
+                doneTaskBkgColor: '#1a0f30',
+                gridColor: '#22143d',
+                todayLineColor: '#eab308'
+            },
+            flowchart: {
+                htmlLabels: true,
+                curve: 'basis',
+                padding: 16,
+                nodeSpacing: 30,
+                rankSpacing: 50,
+                useMaxWidth: false
+            },
+            sequence: {
+                actorMargin: 50,
+                messageMargin: 40
+            }
+        });
+
+        // Wait for mermaid to render, then add expand buttons
+        mermaid.run().then(() => {
+            const expandIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`;
+
+            document.querySelectorAll('.diagram-container').forEach(container => {
+                const btn = document.createElement('button');
+                btn.className = 'diagram-expand-btn';
+                btn.innerHTML = expandIcon + ' Expand';
+                btn.addEventListener('click', () => openFullscreen(container));
+                container.appendChild(btn);
+            });
+        });
+
+        // Fullscreen state
+        const overlay = document.getElementById('fsOverlay');
+        const viewport = document.getElementById('fsViewport');
+        const content = document.getElementById('fsContent');
+        const zoomLabel = document.getElementById('fsZoomLabel');
+        const titleEl = document.getElementById('fsTitle');
+        let zoom = 1;
+        let panX = 0, panY = 0;
+        let isDragging = false;
+        let dragStartX, dragStartY, panStartX, panStartY;
+
+        function openFullscreen(container) {
+            const label = container.querySelector('.diagram-label');
+            titleEl.textContent = label ? label.textContent : 'Diagram';
+
+            const svg = container.querySelector('svg');
+            if (!svg) return;
+
+            content.innerHTML = '';
+            content.appendChild(svg.cloneNode(true));
+
+            zoom = 1;
+            panX = 0;
+            panY = 0;
+            content.style.transform = 'translate(0px, 0px) scale(1)';
+
+            overlay.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    overlay.classList.add('active');
+                    fitToViewport();
+                });
+            });
+        }
+
+        function closeFullscreen() {
+            overlay.classList.remove('active');
+            setTimeout(() => {
+                overlay.style.display = 'none';
+                content.innerHTML = '';
+            }, 200);
+            document.body.style.overflow = '';
+        }
+
+        function fitToViewport() {
+            const svg = content.querySelector('svg');
+            if (!svg) return;
+
+            const vw = viewport.clientWidth;
+            const vh = viewport.clientHeight;
+            const padding = 48;
+
+            const rect = svg.getBoundingClientRect();
+            const currentZoom = zoom || 1;
+            const svgW = rect.width / currentZoom;
+            const svgH = rect.height / currentZoom;
+
+            const w = svgW > 0 ? svgW : (svg.viewBox?.baseVal?.width || 800);
+            const h = svgH > 0 ? svgH : (svg.viewBox?.baseVal?.height || 400);
+
+            const scaleX = (vw - padding * 2) / w;
+            const scaleY = (vh - padding * 2) / h;
+            zoom = Math.min(scaleX, scaleY, 2);
+            zoom = Math.max(zoom, 0.1);
+
+            panX = (vw - w * zoom) / 2;
+            panY = (vh - h * zoom) / 2;
+
+            updateTransform();
+        }
+
+        function updateTransform() {
+            content.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+            zoomLabel.textContent = Math.round(zoom * 100) + '%';
+        }
+
+        // Zoom controls
+        document.getElementById('fsZoomIn').addEventListener('click', () => {
+            const vw = viewport.clientWidth / 2;
+            const vh = viewport.clientHeight / 2;
+            zoomAt(vw, vh, 1.3);
+        });
+        document.getElementById('fsZoomOut').addEventListener('click', () => {
+            const vw = viewport.clientWidth / 2;
+            const vh = viewport.clientHeight / 2;
+            zoomAt(vw, vh, 1 / 1.3);
+        });
+        document.getElementById('fsFit').addEventListener('click', fitToViewport);
+        document.getElementById('fsClose').addEventListener('click', closeFullscreen);
+
+        // Scroll to zoom
+        viewport.addEventListener('wheel', e => {
+            e.preventDefault();
+            const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+            const rect = viewport.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+            zoomAt(mx, my, factor);
+        }, { passive: false });
+
+        function zoomAt(mx, my, factor) {
+            const newZoom = Math.min(Math.max(zoom * factor, 0.05), 8);
+            const ratio = newZoom / zoom;
+            panX = mx - ratio * (mx - panX);
+            panY = my - ratio * (my - panY);
+            zoom = newZoom;
+            updateTransform();
+        }
+
+        // Drag to pan
+        viewport.addEventListener('mousedown', e => {
+            isDragging = true;
+            dragStartX = e.clientX;
+            dragStartY = e.clientY;
+            panStartX = panX;
+            panStartY = panY;
+        });
+        window.addEventListener('mousemove', e => {
+            if (!isDragging) return;
+            panX = panStartX + (e.clientX - dragStartX);
+            panY = panStartY + (e.clientY - dragStartY);
+            updateTransform();
+        });
+        window.addEventListener('mouseup', () => { isDragging = false; });
+
+        // Touch support
+        let lastTouchDist = 0;
+        viewport.addEventListener('touchstart', e => {
+            if (e.touches.length === 1) {
+                isDragging = true;
+                dragStartX = e.touches[0].clientX;
+                dragStartY = e.touches[0].clientY;
+                panStartX = panX;
+                panStartY = panY;
+            } else if (e.touches.length === 2) {
+                isDragging = false;
+                lastTouchDist = Math.hypot(
+                    e.touches[1].clientX - e.touches[0].clientX,
+                    e.touches[1].clientY - e.touches[0].clientY
+                );
+            }
+        }, { passive: true });
+        viewport.addEventListener('touchmove', e => {
+            e.preventDefault();
+            if (e.touches.length === 1 && isDragging) {
+                panX = panStartX + (e.touches[0].clientX - dragStartX);
+                panY = panStartY + (e.touches[0].clientY - dragStartY);
+                updateTransform();
+            } else if (e.touches.length === 2) {
+                const dist = Math.hypot(
+                    e.touches[1].clientX - e.touches[0].clientX,
+                    e.touches[1].clientY - e.touches[0].clientY
+                );
+                if (lastTouchDist > 0) {
+                    const mid = {
+                        x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+                        y: (e.touches[0].clientY + e.touches[1].clientY) / 2
+                    };
+                    const rect = viewport.getBoundingClientRect();
+                    zoomAt(mid.x - rect.left, mid.y - rect.top, dist / lastTouchDist);
+                }
+                lastTouchDist = dist;
+            }
+        }, { passive: false });
+        viewport.addEventListener('touchend', () => { isDragging = false; lastTouchDist = 0; });
+
+        // Escape to close
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') closeFullscreen();
+        });
+    </script>
+</body>
+</html>
