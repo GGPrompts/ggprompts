@@ -61,7 +61,7 @@ Master mapping of all 195 style guides and their usage across tech guides and st
 | cyberpunk | Docker | The Network |
 | dadaism | | |
 | dark-academia | | The Forbidden Library |
-| data-visualization | | |
+| data-visualization | DuckDB | |
 | dark-folio | Claude Code | |
 | dark-mode-material | | |
 | darkroom | | The Decisive Moment |
