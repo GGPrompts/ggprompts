@@ -1,0 +1,1301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSON Formatter &amp; Validator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --font-mono: 'JetBrains Mono', monospace;
+            --font-sans: 'Inter', -apple-system, sans-serif;
+
+            --bg: #0c0c14;
+            --bg-panel: #14141e;
+            --bg-input: #1a1a28;
+            --bg-hover: #222236;
+            --bg-active: #2c2c48;
+            --border: #2a2a40;
+            --border-focus: #3b82f6;
+            --text: #e4e4f0;
+            --text-secondary: #9898b0;
+            --text-muted: #5e5e78;
+            --accent: #3b82f6;
+            --accent-hover: #60a5fa;
+            --accent-dim: rgba(59, 130, 246, 0.15);
+            --danger: #ef4444;
+            --danger-dim: rgba(239, 68, 68, 0.12);
+            --success: #22c55e;
+            --success-dim: rgba(34, 197, 94, 0.12);
+            --warning: #f59e0b;
+
+            /* JSON syntax colors */
+            --json-key: #93c5fd;
+            --json-string: #86efac;
+            --json-number: #fbbf24;
+            --json-bool: #c084fc;
+            --json-null: #f87171;
+            --json-bracket: #9898b0;
+
+            --radius: 6px;
+            --radius-lg: 10px;
+            --shadow: 0 2px 8px rgba(0,0,0,0.4);
+            --transition: 150ms ease;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: var(--font-sans);
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ── Header ───────────────────────────────────── */
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 0.75rem 1.5rem;
+            background: var(--bg-panel);
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .header .back {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.85rem;
+            transition: color var(--transition);
+        }
+        .header .back:hover { color: var(--accent); }
+
+        .header h1 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .header h1 .icon {
+            color: var(--accent);
+            font-family: var(--font-mono);
+            font-weight: 700;
+        }
+
+        .header .status {
+            margin-left: auto;
+            font-size: 0.8rem;
+            font-weight: 500;
+            padding: 4px 12px;
+            border-radius: 20px;
+            transition: all var(--transition);
+        }
+        .status-valid {
+            color: var(--success);
+            background: var(--success-dim);
+        }
+        .status-invalid {
+            color: var(--danger);
+            background: var(--danger-dim);
+        }
+        .status-empty {
+            color: var(--text-muted);
+            background: rgba(94, 94, 120, 0.12);
+        }
+
+        /* ── Toolbar ──────────────────────────────────── */
+        .toolbar {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1.5rem;
+            background: var(--bg-panel);
+            border-bottom: 1px solid var(--border);
+            flex-wrap: wrap;
+            flex-shrink: 0;
+        }
+
+        .toolbar .sep {
+            width: 1px;
+            height: 24px;
+            background: var(--border);
+            margin: 0 0.25rem;
+        }
+
+        .btn {
+            font-family: var(--font-sans);
+            font-size: 0.8rem;
+            font-weight: 500;
+            padding: 6px 14px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: var(--bg-input);
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all var(--transition);
+            white-space: nowrap;
+        }
+        .btn:hover {
+            background: var(--bg-hover);
+            color: var(--text);
+            border-color: var(--text-muted);
+        }
+        .btn-primary {
+            background: var(--accent);
+            color: #fff;
+            border-color: var(--accent);
+        }
+        .btn-primary:hover {
+            background: var(--accent-hover);
+            border-color: var(--accent-hover);
+            color: #fff;
+        }
+        .btn-danger {
+            color: var(--danger);
+        }
+        .btn-danger:hover {
+            background: var(--danger-dim);
+            border-color: var(--danger);
+        }
+
+        .btn-group {
+            display: flex;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+        }
+        .btn-group .btn {
+            border: none;
+            border-radius: 0;
+            border-right: 1px solid var(--border);
+        }
+        .btn-group .btn:last-child { border-right: none; }
+        .btn-group .btn.active {
+            background: var(--accent-dim);
+            color: var(--accent);
+        }
+
+        .indent-select {
+            font-family: var(--font-sans);
+            font-size: 0.8rem;
+            padding: 5px 8px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: var(--bg-input);
+            color: var(--text-secondary);
+            cursor: pointer;
+        }
+        .indent-select:focus { outline: none; border-color: var(--accent); }
+
+        .toolbar-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* ── Main Layout ──────────────────────────────── */
+        .main {
+            display: flex;
+            flex: 1;
+            min-height: 0;
+        }
+
+        /* ── Input Panel ──────────────────────────────── */
+        .panel {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-width: 0;
+        }
+        .panel-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: var(--bg-panel);
+            border-bottom: 1px solid var(--border);
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+            flex-shrink: 0;
+        }
+        .panel-header .panel-actions {
+            margin-left: auto;
+            display: flex;
+            gap: 0.4rem;
+        }
+        .panel-header .btn { font-size: 0.72rem; padding: 3px 10px; }
+
+        .input-area {
+            flex: 1;
+            position: relative;
+            display: flex;
+            min-height: 0;
+        }
+
+        #json-input {
+            width: 100%;
+            height: 100%;
+            resize: none;
+            border: none;
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            line-height: 1.6;
+            padding: 1rem;
+            outline: none;
+            tab-size: 2;
+        }
+        #json-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        /* Drop zone overlay */
+        .drop-overlay {
+            display: none;
+            position: absolute;
+            inset: 0;
+            background: rgba(59, 130, 246, 0.08);
+            border: 2px dashed var(--accent);
+            border-radius: var(--radius);
+            z-index: 10;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            color: var(--accent);
+            font-weight: 600;
+            pointer-events: none;
+        }
+        .drop-overlay.active { display: flex; }
+
+        /* ── Divider ──────────────────────────────────── */
+        .divider {
+            width: 1px;
+            background: var(--border);
+            flex-shrink: 0;
+        }
+
+        /* ── Output Panel ─────────────────────────────── */
+        .output-area {
+            flex: 1;
+            overflow: auto;
+            min-height: 0;
+        }
+
+        /* Formatted view */
+        .formatted-output {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            line-height: 1.6;
+            padding: 1rem;
+            white-space: pre;
+            overflow-x: auto;
+        }
+        .formatted-output .json-key { color: var(--json-key); }
+        .formatted-output .json-string { color: var(--json-string); }
+        .formatted-output .json-number { color: var(--json-number); }
+        .formatted-output .json-bool { color: var(--json-bool); }
+        .formatted-output .json-null { color: var(--json-null); }
+        .formatted-output .json-bracket { color: var(--json-bracket); }
+        .formatted-output .json-colon { color: var(--text-muted); }
+        .formatted-output .json-comma { color: var(--text-muted); }
+
+        /* Search highlight */
+        .formatted-output .search-match {
+            background: rgba(251, 191, 36, 0.3);
+            border-radius: 2px;
+            outline: 1px solid rgba(251, 191, 36, 0.5);
+        }
+        .formatted-output .search-match-active {
+            background: rgba(251, 191, 36, 0.6);
+            outline: 2px solid var(--warning);
+        }
+
+        /* Tree view */
+        .tree-view {
+            padding: 0.75rem 1rem;
+            font-family: var(--font-mono);
+            font-size: 0.82rem;
+            line-height: 1.5;
+        }
+        .tree-node {
+            padding-left: 1.25rem;
+            position: relative;
+        }
+        .tree-row {
+            display: flex;
+            align-items: baseline;
+            gap: 0.4rem;
+            padding: 2px 4px;
+            border-radius: 3px;
+            cursor: default;
+        }
+        .tree-row:hover {
+            background: var(--bg-hover);
+        }
+        .tree-toggle {
+            cursor: pointer;
+            color: var(--text-muted);
+            user-select: none;
+            width: 1em;
+            display: inline-block;
+            text-align: center;
+            flex-shrink: 0;
+        }
+        .tree-toggle:hover { color: var(--accent); }
+        .tree-key { color: var(--json-key); }
+        .tree-string { color: var(--json-string); }
+        .tree-number { color: var(--json-number); }
+        .tree-bool { color: var(--json-bool); }
+        .tree-null { color: var(--json-null); }
+        .tree-bracket { color: var(--text-muted); font-size: 0.78rem; }
+        .tree-type { color: var(--text-muted); font-size: 0.7rem; font-style: italic; }
+        .tree-children { overflow: hidden; }
+        .tree-children.collapsed { display: none; }
+
+        /* ── Error Panel ──────────────────────────────── */
+        .error-panel {
+            display: none;
+            padding: 0.75rem 1rem;
+            background: var(--danger-dim);
+            border-top: 1px solid rgba(239, 68, 68, 0.3);
+            font-family: var(--font-mono);
+            font-size: 0.82rem;
+            color: var(--danger);
+            line-height: 1.5;
+            flex-shrink: 0;
+        }
+        .error-panel.visible { display: block; }
+        .error-panel .error-title {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+        .error-panel .error-detail {
+            color: #fca5a5;
+        }
+        .error-panel .error-line {
+            margin-top: 0.5rem;
+            padding: 0.5rem;
+            background: rgba(0,0,0,0.3);
+            border-radius: var(--radius);
+            overflow-x: auto;
+            white-space: pre;
+        }
+        .error-panel .error-pointer {
+            color: var(--danger);
+            font-weight: 700;
+        }
+
+        /* ── Search Bar ───────────────────────────────── */
+        .search-bar {
+            display: none;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.4rem 1rem;
+            background: var(--bg-panel);
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+        .search-bar.visible { display: flex; }
+
+        .search-bar input {
+            flex: 1;
+            font-family: var(--font-mono);
+            font-size: 0.82rem;
+            padding: 5px 10px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: var(--bg-input);
+            color: var(--text);
+            outline: none;
+        }
+        .search-bar input:focus { border-color: var(--accent); }
+        .search-bar .search-count {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            white-space: nowrap;
+            min-width: 60px;
+        }
+        .search-bar .btn { font-size: 0.72rem; padding: 4px 8px; }
+
+        /* ── Stats Bar ────────────────────────────────── */
+        .stats-bar {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            padding: 0.4rem 1.5rem;
+            background: var(--bg-panel);
+            border-top: 1px solid var(--border);
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            flex-shrink: 0;
+        }
+        .stats-bar span { white-space: nowrap; }
+        .stats-bar .stat-label { margin-right: 0.3rem; }
+
+        /* ── File Upload ──────────────────────────────── */
+        #file-input { display: none; }
+
+        /* ── Toast ────────────────────────────────────── */
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: var(--bg-active);
+            color: var(--text);
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-size: 0.82rem;
+            font-weight: 500;
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            opacity: 0;
+            transition: all 300ms ease;
+            z-index: 100;
+            pointer-events: none;
+        }
+        .toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* ── Empty State ──────────────────────────────── */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--text-muted);
+            gap: 0.75rem;
+            padding: 2rem;
+            text-align: center;
+        }
+        .empty-state .empty-icon {
+            font-size: 3rem;
+            opacity: 0.4;
+        }
+        .empty-state p {
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+        .empty-state .shortcut {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            background: var(--bg-input);
+            padding: 2px 8px;
+            border-radius: 4px;
+            border: 1px solid var(--border);
+        }
+
+        /* ── Responsive ───────────────────────────────── */
+        @media (max-width: 768px) {
+            .main {
+                flex-direction: column;
+            }
+            .divider {
+                width: auto;
+                height: 1px;
+            }
+            .panel { min-height: 35vh; }
+            .toolbar { padding: 0.5rem 0.75rem; }
+            .header { padding: 0.6rem 0.75rem; }
+            .stats-bar { padding: 0.4rem 0.75rem; gap: 0.75rem; flex-wrap: wrap; }
+            .toolbar .sep { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <a href="../index.html" class="back">&larr; Tools</a>
+        <h1><span class="icon">{ }</span> JSON Formatter</h1>
+        <span id="status" class="status status-empty">Empty</span>
+    </div>
+
+    <div class="toolbar">
+        <button class="btn btn-primary" onclick="formatJSON()" title="Format (Ctrl+Shift+F)">Format</button>
+        <button class="btn" onclick="minifyJSON()" title="Minify (Ctrl+Shift+M)">Minify</button>
+        <div class="sep"></div>
+        <span class="toolbar-label">Indent:</span>
+        <select id="indent-size" class="indent-select" onchange="formatJSON()">
+            <option value="2" selected>2 spaces</option>
+            <option value="4">4 spaces</option>
+            <option value="tab">Tab</option>
+        </select>
+        <div class="sep"></div>
+        <div class="btn-group">
+            <button class="btn active" id="view-formatted" onclick="switchView('formatted')">Formatted</button>
+            <button class="btn" id="view-tree" onclick="switchView('tree')">Tree</button>
+        </div>
+        <div class="sep"></div>
+        <button class="btn" onclick="toggleSearch()" title="Search (Ctrl+F)">Search</button>
+        <button class="btn" onclick="sortKeys()" title="Sort keys alphabetically">Sort Keys</button>
+        <div class="sep"></div>
+        <button class="btn" onclick="copyOutput()" title="Copy (Ctrl+Shift+C)">Copy</button>
+        <button class="btn" onclick="document.getElementById('file-input').click()">Upload</button>
+        <button class="btn" onclick="loadSample()">Sample</button>
+        <button class="btn btn-danger" onclick="clearAll()">Clear</button>
+    </div>
+
+    <input type="file" id="file-input" accept=".json,.jsonl,.geojson,.txt" onchange="handleFile(event)">
+
+    <div class="main">
+        <!-- Input Panel -->
+        <div class="panel">
+            <div class="panel-header">
+                Input
+                <div class="panel-actions">
+                    <button class="btn" onclick="pasteFromClipboard()">Paste</button>
+                </div>
+            </div>
+            <div class="input-area" id="input-area">
+                <textarea id="json-input" placeholder="Paste or type JSON here, or drop a .json file..." spellcheck="false"></textarea>
+                <div class="drop-overlay" id="drop-overlay">Drop JSON file here</div>
+            </div>
+            <div class="error-panel" id="error-panel">
+                <div class="error-title">Syntax Error</div>
+                <div class="error-detail" id="error-detail"></div>
+                <div class="error-line" id="error-line"></div>
+            </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Output Panel -->
+        <div class="panel">
+            <div class="panel-header">
+                Output
+                <div class="panel-actions">
+                    <button class="btn" onclick="copyOutput()">Copy</button>
+                    <button class="btn" onclick="downloadJSON()">Download</button>
+                </div>
+            </div>
+            <div class="search-bar" id="search-bar">
+                <input type="text" id="search-input" placeholder="Search keys or values..." oninput="performSearch()">
+                <span class="search-count" id="search-count"></span>
+                <button class="btn" onclick="searchPrev()" title="Previous">&uarr;</button>
+                <button class="btn" onclick="searchNext()" title="Next">&darr;</button>
+                <button class="btn" onclick="toggleSearch()">Close</button>
+            </div>
+            <div class="output-area" id="output-area">
+                <div class="empty-state" id="empty-state">
+                    <div class="empty-icon">{ }</div>
+                    <p>Paste JSON in the input panel<br>or drop a file to get started</p>
+                    <p><span class="shortcut">Ctrl+Shift+F</span> to format &middot; <span class="shortcut">Ctrl+Shift+M</span> to minify</p>
+                </div>
+                <div class="formatted-output" id="formatted-output" style="display:none;"></div>
+                <div class="tree-view" id="tree-view" style="display:none;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="stats-bar">
+        <span><span class="stat-label">Size:</span> <span id="stat-size">0 B</span></span>
+        <span><span class="stat-label">Lines:</span> <span id="stat-lines">0</span></span>
+        <span><span class="stat-label">Keys:</span> <span id="stat-keys">0</span></span>
+        <span><span class="stat-label">Depth:</span> <span id="stat-depth">0</span></span>
+        <span><span class="stat-label">Type:</span> <span id="stat-type">-</span></span>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+    (function() {
+        'use strict';
+
+        // ── State ──────────────────────────────────────
+        let parsedJSON = null;
+        let currentView = 'formatted';
+        let searchMatches = [];
+        let searchIndex = -1;
+        let debounceTimer = null;
+
+        const $ = id => document.getElementById(id);
+        const input = $('json-input');
+
+        // ── Input Handling ─────────────────────────────
+        input.addEventListener('input', () => {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(validateAndRender, 200);
+        });
+
+        // Tab key inserts tab/spaces
+        input.addEventListener('keydown', e => {
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                const indent = $('indent-size').value === 'tab' ? '\t' : ' '.repeat(+$('indent-size').value || 2);
+                const start = input.selectionStart;
+                const end = input.selectionEnd;
+                input.value = input.value.substring(0, start) + indent + input.value.substring(end);
+                input.selectionStart = input.selectionEnd = start + indent.length;
+                validateAndRender();
+            }
+        });
+
+        // ── Drag and Drop ──────────────────────────────
+        const inputArea = $('input-area');
+        const dropOverlay = $('drop-overlay');
+
+        inputArea.addEventListener('dragover', e => {
+            e.preventDefault();
+            dropOverlay.classList.add('active');
+        });
+        inputArea.addEventListener('dragleave', e => {
+            if (!inputArea.contains(e.relatedTarget)) {
+                dropOverlay.classList.remove('active');
+            }
+        });
+        inputArea.addEventListener('drop', e => {
+            e.preventDefault();
+            dropOverlay.classList.remove('active');
+            const file = e.dataTransfer.files[0];
+            if (file) readFile(file);
+        });
+
+        // ── File Upload ────────────────────────────────
+        window.handleFile = function(e) {
+            const file = e.target.files[0];
+            if (file) readFile(file);
+            e.target.value = '';
+        };
+
+        function readFile(file) {
+            const reader = new FileReader();
+            reader.onload = e => {
+                input.value = e.target.result;
+                validateAndRender();
+                showToast('File loaded: ' + file.name);
+            };
+            reader.readAsText(file);
+        }
+
+        // ── Validation & Rendering ─────────────────────
+        function validateAndRender() {
+            const raw = input.value.trim();
+            const errorPanel = $('error-panel');
+            const statusEl = $('status');
+
+            if (!raw) {
+                parsedJSON = null;
+                errorPanel.classList.remove('visible');
+                statusEl.className = 'status status-empty';
+                statusEl.textContent = 'Empty';
+                showEmpty();
+                updateStats(raw);
+                return;
+            }
+
+            try {
+                parsedJSON = JSON.parse(raw);
+                errorPanel.classList.remove('visible');
+                statusEl.className = 'status status-valid';
+                statusEl.textContent = 'Valid JSON';
+                renderOutput();
+                updateStats(raw);
+            } catch (err) {
+                parsedJSON = null;
+                statusEl.className = 'status status-invalid';
+                statusEl.textContent = 'Invalid';
+                showError(err, raw);
+                showEmpty();
+                updateStats(raw);
+            }
+        }
+
+        function showError(err, raw) {
+            const panel = $('error-panel');
+            const detail = $('error-detail');
+            const lineEl = $('error-line');
+            panel.classList.add('visible');
+
+            const msg = err.message;
+            detail.textContent = msg;
+
+            // Try to extract position
+            const posMatch = msg.match(/position\s+(\d+)/i);
+            if (posMatch) {
+                const pos = parseInt(posMatch[1]);
+                const before = raw.substring(Math.max(0, pos - 30), pos);
+                const after = raw.substring(pos, pos + 30);
+                lineEl.innerHTML = escapeHTML(before) +
+                    '<span class="error-pointer">&block;</span>' +
+                    escapeHTML(after);
+            } else {
+                lineEl.textContent = '';
+            }
+        }
+
+        function showEmpty() {
+            $('empty-state').style.display = 'flex';
+            $('formatted-output').style.display = 'none';
+            $('tree-view').style.display = 'none';
+        }
+
+        function renderOutput() {
+            $('empty-state').style.display = 'none';
+            if (currentView === 'formatted') {
+                renderFormatted();
+            } else {
+                renderTree();
+            }
+        }
+
+        // ── Formatted View ─────────────────────────────
+        function renderFormatted() {
+            $('formatted-output').style.display = 'block';
+            $('tree-view').style.display = 'none';
+            if (parsedJSON === null) return;
+
+            const indent = getIndent();
+            const jsonStr = JSON.stringify(parsedJSON, null, indent);
+            $('formatted-output').innerHTML = syntaxHighlight(jsonStr);
+
+            if ($('search-bar').classList.contains('visible')) {
+                performSearch();
+            }
+        }
+
+        function syntaxHighlight(json) {
+            const escaped = escapeHTML(json);
+            return escaped.replace(
+                /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+                function(match) {
+                    let cls = 'json-number';
+                    if (/^"/.test(match)) {
+                        if (/:$/.test(match)) {
+                            cls = 'json-key';
+                            // Remove the colon from the span, add it outside
+                            return '<span class="' + cls + '">' + match.slice(0, -1) + '</span><span class="json-colon">:</span>';
+                        } else {
+                            cls = 'json-string';
+                        }
+                    } else if (/true|false/.test(match)) {
+                        cls = 'json-bool';
+                    } else if (/null/.test(match)) {
+                        cls = 'json-null';
+                    }
+                    return '<span class="' + cls + '">' + match + '</span>';
+                }
+            );
+        }
+
+        // ── Tree View ──────────────────────────────────
+        function renderTree() {
+            $('tree-view').style.display = 'block';
+            $('formatted-output').style.display = 'none';
+            if (parsedJSON === null) return;
+
+            const container = $('tree-view');
+            container.innerHTML = '';
+            container.appendChild(buildTreeNode(parsedJSON, null, 0));
+        }
+
+        function buildTreeNode(value, key, depth) {
+            const frag = document.createDocumentFragment();
+
+            if (value !== null && typeof value === 'object') {
+                const isArray = Array.isArray(value);
+                const entries = isArray ? value.map((v, i) => [i, v]) : Object.entries(value);
+                const bracket = isArray ? ['[', ']'] : ['{', '}'];
+
+                const row = document.createElement('div');
+                row.className = 'tree-row';
+
+                const toggle = document.createElement('span');
+                toggle.className = 'tree-toggle';
+                toggle.textContent = '\u25BC';
+                row.appendChild(toggle);
+
+                if (key !== null) {
+                    const keySpan = document.createElement('span');
+                    keySpan.className = typeof key === 'number' ? 'tree-number' : 'tree-key';
+                    keySpan.textContent = typeof key === 'number' ? key + ':' : '"' + key + '":';
+                    row.appendChild(keySpan);
+                    row.appendChild(document.createTextNode(' '));
+                }
+
+                const bracketSpan = document.createElement('span');
+                bracketSpan.className = 'tree-bracket';
+                bracketSpan.textContent = bracket[0];
+                row.appendChild(bracketSpan);
+
+                const typeSpan = document.createElement('span');
+                typeSpan.className = 'tree-type';
+                typeSpan.textContent = ' ' + entries.length + (isArray ? ' items' : ' keys');
+                row.appendChild(typeSpan);
+
+                frag.appendChild(row);
+
+                const children = document.createElement('div');
+                children.className = 'tree-children tree-node';
+
+                for (const [k, v] of entries) {
+                    children.appendChild(buildTreeNode(v, k, depth + 1));
+                }
+
+                // Closing bracket
+                const closeRow = document.createElement('div');
+                closeRow.className = 'tree-row';
+                const closeBracket = document.createElement('span');
+                closeBracket.className = 'tree-bracket';
+                closeBracket.textContent = bracket[1];
+                closeRow.appendChild(closeBracket);
+                children.appendChild(closeRow);
+
+                frag.appendChild(children);
+
+                // Toggle behavior
+                toggle.addEventListener('click', () => {
+                    const collapsed = children.classList.toggle('collapsed');
+                    toggle.textContent = collapsed ? '\u25B6' : '\u25BC';
+                    typeSpan.textContent = collapsed
+                        ? ' ' + bracket[0] + '...' + bracket[1] + ' ' + entries.length + (isArray ? ' items' : ' keys')
+                        : ' ' + entries.length + (isArray ? ' items' : ' keys');
+                });
+
+                // Collapse deep nodes
+                if (depth > 2) {
+                    children.classList.add('collapsed');
+                    toggle.textContent = '\u25B6';
+                    typeSpan.textContent = ' ' + bracket[0] + '...' + bracket[1] + ' ' + entries.length + (isArray ? ' items' : ' keys');
+                }
+            } else {
+                const row = document.createElement('div');
+                row.className = 'tree-row';
+
+                const spacer = document.createElement('span');
+                spacer.style.width = '1em';
+                spacer.style.display = 'inline-block';
+                row.appendChild(spacer);
+
+                if (key !== null) {
+                    const keySpan = document.createElement('span');
+                    keySpan.className = typeof key === 'number' ? 'tree-number' : 'tree-key';
+                    keySpan.textContent = typeof key === 'number' ? key + ':' : '"' + key + '":';
+                    row.appendChild(keySpan);
+                    row.appendChild(document.createTextNode(' '));
+                }
+
+                const valSpan = document.createElement('span');
+                if (value === null) {
+                    valSpan.className = 'tree-null';
+                    valSpan.textContent = 'null';
+                } else if (typeof value === 'boolean') {
+                    valSpan.className = 'tree-bool';
+                    valSpan.textContent = String(value);
+                } else if (typeof value === 'number') {
+                    valSpan.className = 'tree-number';
+                    valSpan.textContent = String(value);
+                } else {
+                    valSpan.className = 'tree-string';
+                    valSpan.textContent = '"' + value + '"';
+                }
+                row.appendChild(valSpan);
+
+                frag.appendChild(row);
+            }
+
+            const wrapper = document.createElement('div');
+            wrapper.className = 'tree-node';
+            wrapper.appendChild(frag);
+            return wrapper;
+        }
+
+        // ── View Switching ─────────────────────────────
+        window.switchView = function(view) {
+            currentView = view;
+            $('view-formatted').classList.toggle('active', view === 'formatted');
+            $('view-tree').classList.toggle('active', view === 'tree');
+            if (parsedJSON !== null) renderOutput();
+        };
+
+        // ── Format / Minify / Sort ─────────────────────
+        window.formatJSON = function() {
+            const raw = input.value.trim();
+            if (!raw) return;
+            try {
+                const obj = JSON.parse(raw);
+                input.value = JSON.stringify(obj, null, getIndent());
+                validateAndRender();
+            } catch (e) {
+                // already shown as error
+            }
+        };
+
+        window.minifyJSON = function() {
+            const raw = input.value.trim();
+            if (!raw) return;
+            try {
+                const obj = JSON.parse(raw);
+                input.value = JSON.stringify(obj);
+                validateAndRender();
+            } catch (e) {
+                // already shown as error
+            }
+        };
+
+        window.sortKeys = function() {
+            if (!parsedJSON) return;
+            const sorted = deepSortKeys(parsedJSON);
+            input.value = JSON.stringify(sorted, null, getIndent());
+            validateAndRender();
+            showToast('Keys sorted alphabetically');
+        };
+
+        function deepSortKeys(obj) {
+            if (Array.isArray(obj)) {
+                return obj.map(deepSortKeys);
+            }
+            if (obj !== null && typeof obj === 'object') {
+                const sorted = {};
+                for (const key of Object.keys(obj).sort()) {
+                    sorted[key] = deepSortKeys(obj[key]);
+                }
+                return sorted;
+            }
+            return obj;
+        }
+
+        // ── Search ─────────────────────────────────────
+        window.toggleSearch = function() {
+            const bar = $('search-bar');
+            bar.classList.toggle('visible');
+            if (bar.classList.contains('visible')) {
+                $('search-input').focus();
+            } else {
+                $('search-input').value = '';
+                searchMatches = [];
+                searchIndex = -1;
+                $('search-count').textContent = '';
+                if (parsedJSON !== null && currentView === 'formatted') renderFormatted();
+            }
+        };
+
+        window.performSearch = function() {
+            const query = $('search-input').value.trim().toLowerCase();
+            if (!query || currentView !== 'formatted') {
+                searchMatches = [];
+                searchIndex = -1;
+                $('search-count').textContent = query ? 'Switch to Formatted' : '';
+                return;
+            }
+
+            const el = $('formatted-output');
+            const text = el.textContent;
+            searchMatches = [];
+            let idx = 0;
+            const lowerText = text.toLowerCase();
+            while ((idx = lowerText.indexOf(query, idx)) !== -1) {
+                searchMatches.push(idx);
+                idx += query.length;
+            }
+
+            searchIndex = searchMatches.length > 0 ? 0 : -1;
+            $('search-count').textContent = searchMatches.length > 0
+                ? (searchIndex + 1) + ' / ' + searchMatches.length
+                : 'No matches';
+
+            highlightSearchMatches(query);
+        };
+
+        function highlightSearchMatches(query) {
+            if (!parsedJSON) return;
+            const indent = getIndent();
+            const jsonStr = JSON.stringify(parsedJSON, null, indent);
+            let html = syntaxHighlight(jsonStr);
+
+            // Strip existing tags to get plain text positions
+            const plainText = html.replace(/<[^>]+>/g, '');
+
+            if (searchMatches.length === 0) return;
+
+            // Rebuild with search highlights over the syntax-highlighted HTML
+            // Simpler approach: re-render with mark tags in the plain JSON, then syntax highlight
+            const el = $('formatted-output');
+
+            // We highlight by injecting marks into escaped JSON
+            const escaped = escapeHTML(jsonStr);
+            const lower = escaped.toLowerCase();
+            const qLower = escapeHTML(query).toLowerCase();
+            let result = '';
+            let pos = 0;
+            let matchIdx = 0;
+
+            while (pos < escaped.length) {
+                const found = lower.indexOf(qLower, pos);
+                if (found === -1) {
+                    result += escaped.substring(pos);
+                    break;
+                }
+                result += escaped.substring(pos, found);
+                const cls = matchIdx === searchIndex ? 'search-match search-match-active' : 'search-match';
+                result += '<mark class="' + cls + '">' + escaped.substring(found, found + qLower.length) + '</mark>';
+                pos = found + qLower.length;
+                matchIdx++;
+            }
+
+            // Now syntax-highlight the result (marks will be treated as text, so we do a simpler approach)
+            // Actually let's just set innerHTML with marks and syntax colors separately
+            // Best approach: syntax highlight first, then wrap search hits
+            el.innerHTML = syntaxHighlight(jsonStr);
+
+            // Use TreeWalker to find and highlight text nodes
+            highlightTextNodes(el, query.toLowerCase(), searchIndex);
+        }
+
+        function highlightTextNodes(root, query, activeIdx) {
+            const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null, false);
+            const textNodes = [];
+            while (walker.nextNode()) textNodes.push(walker.currentNode);
+
+            let globalIdx = 0;
+            let matchCount = 0;
+
+            for (const node of textNodes) {
+                const text = node.textContent;
+                const lower = text.toLowerCase();
+                let idx = lower.indexOf(query);
+                if (idx === -1) continue;
+
+                const frag = document.createDocumentFragment();
+                let lastEnd = 0;
+
+                while (idx !== -1) {
+                    if (idx > lastEnd) {
+                        frag.appendChild(document.createTextNode(text.substring(lastEnd, idx)));
+                    }
+                    const mark = document.createElement('mark');
+                    mark.className = matchCount === activeIdx ? 'search-match search-match-active' : 'search-match';
+                    mark.textContent = text.substring(idx, idx + query.length);
+                    frag.appendChild(mark);
+                    matchCount++;
+                    lastEnd = idx + query.length;
+                    idx = lower.indexOf(query, lastEnd);
+                }
+
+                if (lastEnd < text.length) {
+                    frag.appendChild(document.createTextNode(text.substring(lastEnd)));
+                }
+
+                node.parentNode.replaceChild(frag, node);
+            }
+
+            // Scroll to active match
+            const active = root.querySelector('.search-match-active');
+            if (active) active.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        }
+
+        window.searchNext = function() {
+            if (searchMatches.length === 0) return;
+            searchIndex = (searchIndex + 1) % searchMatches.length;
+            $('search-count').textContent = (searchIndex + 1) + ' / ' + searchMatches.length;
+            const query = $('search-input').value.trim().toLowerCase();
+            renderFormatted();
+            highlightTextNodes($('formatted-output'), query, searchIndex);
+        };
+
+        window.searchPrev = function() {
+            if (searchMatches.length === 0) return;
+            searchIndex = (searchIndex - 1 + searchMatches.length) % searchMatches.length;
+            $('search-count').textContent = (searchIndex + 1) + ' / ' + searchMatches.length;
+            const query = $('search-input').value.trim().toLowerCase();
+            renderFormatted();
+            highlightTextNodes($('formatted-output'), query, searchIndex);
+        };
+
+        // ── Copy / Download / Paste ────────────────────
+        window.copyOutput = function() {
+            if (!parsedJSON) return;
+            const indent = getIndent();
+            const text = JSON.stringify(parsedJSON, null, indent);
+            navigator.clipboard.writeText(text).then(() => showToast('Copied to clipboard'));
+        };
+
+        window.downloadJSON = function() {
+            if (!parsedJSON) return;
+            const indent = getIndent();
+            const text = JSON.stringify(parsedJSON, null, indent);
+            const blob = new Blob([text], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'formatted.json';
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('Downloaded formatted.json');
+        };
+
+        window.pasteFromClipboard = function() {
+            navigator.clipboard.readText().then(text => {
+                input.value = text;
+                validateAndRender();
+                showToast('Pasted from clipboard');
+            }).catch(() => {
+                input.focus();
+                showToast('Use Ctrl+V to paste');
+            });
+        };
+
+        window.clearAll = function() {
+            input.value = '';
+            parsedJSON = null;
+            $('error-panel').classList.remove('visible');
+            $('status').className = 'status status-empty';
+            $('status').textContent = 'Empty';
+            showEmpty();
+            updateStats('');
+        };
+
+        window.loadSample = function() {
+            input.value = JSON.stringify({
+                "name": "JSON Formatter",
+                "version": "1.0.0",
+                "description": "A tool for formatting, validating, and exploring JSON data",
+                "features": [
+                    "Real-time validation",
+                    "Syntax highlighting",
+                    "Tree view",
+                    "Key/value search",
+                    "Format & minify"
+                ],
+                "config": {
+                    "indent": 2,
+                    "sortKeys": false,
+                    "theme": "dark"
+                },
+                "stats": {
+                    "users": 42000,
+                    "rating": 4.8,
+                    "isOpenSource": true,
+                    "license": null
+                },
+                "tags": ["json", "formatter", "developer-tool"],
+                "metadata": {
+                    "created": "2024-01-15T10:30:00Z",
+                    "updated": "2024-12-01T08:00:00Z",
+                    "author": {
+                        "name": "Dev Tools Inc.",
+                        "email": "hello@devtools.io",
+                        "social": {
+                            "github": "devtools-inc",
+                            "twitter": "@devtools"
+                        }
+                    }
+                }
+            }, null, 2);
+            validateAndRender();
+            showToast('Sample JSON loaded');
+        };
+
+        // ── Stats ──────────────────────────────────────
+        function updateStats(raw) {
+            const size = new Blob([raw]).size;
+            $('stat-size').textContent = formatSize(size);
+            $('stat-lines').textContent = raw ? raw.split('\n').length : 0;
+
+            if (parsedJSON !== null) {
+                const keyCount = countKeys(parsedJSON);
+                const depth = measureDepth(parsedJSON);
+                const type = Array.isArray(parsedJSON) ? 'Array[' + parsedJSON.length + ']'
+                    : (parsedJSON !== null && typeof parsedJSON === 'object') ? 'Object{' + Object.keys(parsedJSON).length + '}'
+                    : typeof parsedJSON;
+                $('stat-keys').textContent = keyCount;
+                $('stat-depth').textContent = depth;
+                $('stat-type').textContent = type;
+            } else {
+                $('stat-keys').textContent = '-';
+                $('stat-depth').textContent = '-';
+                $('stat-type').textContent = '-';
+            }
+        }
+
+        function countKeys(obj) {
+            if (obj === null || typeof obj !== 'object') return 0;
+            let count = 0;
+            if (Array.isArray(obj)) {
+                for (const item of obj) count += countKeys(item);
+            } else {
+                const keys = Object.keys(obj);
+                count += keys.length;
+                for (const k of keys) count += countKeys(obj[k]);
+            }
+            return count;
+        }
+
+        function measureDepth(obj, d) {
+            d = d || 0;
+            if (obj === null || typeof obj !== 'object') return d;
+            let max = d + 1;
+            const values = Array.isArray(obj) ? obj : Object.values(obj);
+            for (const v of values) {
+                max = Math.max(max, measureDepth(v, d + 1));
+            }
+            return max;
+        }
+
+        function formatSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+
+        // ── Keyboard Shortcuts ─────────────────────────
+        document.addEventListener('keydown', e => {
+            if (e.ctrlKey && e.shiftKey && e.key === 'F') {
+                e.preventDefault();
+                formatJSON();
+            } else if (e.ctrlKey && e.shiftKey && e.key === 'M') {
+                e.preventDefault();
+                minifyJSON();
+            } else if (e.ctrlKey && e.shiftKey && e.key === 'C') {
+                e.preventDefault();
+                copyOutput();
+            } else if (e.ctrlKey && !e.shiftKey && e.key === 'f') {
+                e.preventDefault();
+                toggleSearch();
+            }
+        });
+
+        $('search-input').addEventListener('keydown', e => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                if (e.shiftKey) searchPrev(); else searchNext();
+            } else if (e.key === 'Escape') {
+                toggleSearch();
+            }
+        });
+
+        // ── Helpers ────────────────────────────────────
+        function getIndent() {
+            const val = $('indent-size').value;
+            return val === 'tab' ? '\t' : parseInt(val);
+        }
+
+        function escapeHTML(str) {
+            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        function showToast(msg) {
+            const t = $('toast');
+            t.textContent = msg;
+            t.classList.add('show');
+            clearTimeout(t._timer);
+            t._timer = setTimeout(() => t.classList.remove('show'), 2000);
+        }
+    })();
+    </script>
+</body>
+</html>
