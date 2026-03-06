@@ -1,0 +1,1560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Claude Code Architecture Map -- Architecture Guide</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* === Typography (Terminal / Developer) === */
+            --font-display: 'Space Grotesk', sans-serif;
+            --font-heading: 'Inter', sans-serif;
+            --font-body: 'Inter', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+
+            /* === Spacing (4px base) === */
+            --space-1: 4px;
+            --space-2: 8px;
+            --space-3: 12px;
+            --space-4: 16px;
+            --space-5: 24px;
+            --space-6: 32px;
+            --space-7: 48px;
+            --space-8: 64px;
+
+            /* === Background Layers (Terminal Dark) === */
+            --bg-deep: #0c0c10;
+            --bg-base: #111116;
+            --bg-elevated: #18181f;
+            --bg-surface: #1e1e28;
+            --bg-surface-hover: #262633;
+            --bg-card: #16161e;
+            --bg-muted: #0a0a0e;
+
+            /* === Anthropic Brand Colors === */
+            --claude-orange: #d97706;
+            --claude-amber: #f59e0b;
+            --claude-warm: #fbbf24;
+            --claude-cream: #fef3c7;
+            --claude-brown: #92400e;
+
+            /* === Accent Colors === */
+            --accent-teal: #2dd4bf;
+            --accent-blue: #60a5fa;
+            --accent-purple: #a78bfa;
+            --accent-rose: #fb7185;
+            --accent-green: #4ade80;
+            --accent-yellow: #fbbf24;
+            --accent-cyan: #22d3ee;
+            --accent-indigo: #818cf8;
+
+            /* === Text Colors === */
+            --text-primary: #e8e8ee;
+            --text-secondary: #9898ac;
+            --text-tertiary: #5a5a70;
+            --text-link: var(--claude-amber);
+            --text-link-hover: var(--claude-warm);
+
+            /* === Glow Effects === */
+            --glow-amber: 0 0 20px rgba(245, 158, 11, 0.3), 0 0 40px rgba(245, 158, 11, 0.15);
+            --glow-teal: 0 0 20px rgba(45, 212, 191, 0.3), 0 0 40px rgba(45, 212, 191, 0.15);
+            --glow-purple: 0 0 20px rgba(167, 139, 250, 0.3), 0 0 40px rgba(167, 139, 250, 0.15);
+
+            /* === Borders === */
+            --border-subtle: rgba(255, 255, 255, 0.05);
+            --border-default: rgba(255, 255, 255, 0.08);
+            --border-strong: rgba(255, 255, 255, 0.15);
+            --border-accent: rgba(245, 158, 11, 0.3);
+
+            /* === Border Radius === */
+            --radius-sm: 4px;
+            --radius-md: 8px;
+            --radius: 8px;
+            --radius-lg: 12px;
+
+            /* === Shadows === */
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+            --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+            --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.6);
+
+            /* === Transitions === */
+            --transition-fast: 0.15s ease;
+            --transition: 0.3s ease;
+        }
+
+        /* === Reset === */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { font-size: 17px; scroll-behavior: smooth; scroll-padding-top: 52px; }
+
+        body {
+            font-family: var(--font-body);
+            font-size: 1rem;
+            line-height: 1.65;
+            color: var(--text-primary);
+            background: var(--bg-base);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* === Back Link === */
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-2);
+            padding: var(--space-4) var(--space-6);
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.82rem;
+            font-family: var(--font-mono);
+            letter-spacing: 0.02em;
+            transition: color var(--transition-fast);
+        }
+        .back-link::before { content: '\2190'; }
+        .back-link:hover { color: var(--claude-amber); }
+
+        /* === Hero === */
+        .hero {
+            background: linear-gradient(135deg, #0c0a08 0%, var(--bg-base) 40%, #0e0c14 100%);
+            padding: var(--space-8) var(--space-6) var(--space-7);
+            border-bottom: 1px solid var(--border-default);
+            position: relative;
+            overflow: hidden;
+        }
+        .hero::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 600px 400px at 20% 50%, rgba(217, 119, 6, 0.06), transparent),
+                radial-gradient(ellipse 500px 300px at 80% 30%, rgba(167, 139, 250, 0.04), transparent);
+            pointer-events: none;
+        }
+        .hero::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--claude-orange), var(--claude-amber), var(--accent-teal), transparent);
+            opacity: 0.5;
+        }
+        .hero-inner {
+            max-width: 1120px;
+            margin: 0 auto;
+            position: relative;
+        }
+        .hero h1 {
+            font-family: var(--font-display);
+            font-size: 2.4rem;
+            font-weight: 700;
+            line-height: 1.15;
+            margin-bottom: var(--space-4);
+            letter-spacing: -0.02em;
+            background: linear-gradient(135deg, var(--claude-amber), var(--accent-teal));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .hero .tagline {
+            font-family: var(--font-body);
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            max-width: 680px;
+            line-height: 1.6;
+        }
+        .hero .meta {
+            margin-top: var(--space-5);
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-3);
+        }
+        .meta-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: var(--space-1) var(--space-3);
+            background: rgba(245, 158, 11, 0.08);
+            border: 1px solid rgba(245, 158, 11, 0.2);
+            border-radius: var(--radius-sm);
+            font-size: 0.75rem;
+            font-family: var(--font-mono);
+            color: var(--text-secondary);
+            letter-spacing: 0.02em;
+        }
+        .meta-badge .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        /* === Sticky Jump Nav === */
+        .jump-nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: var(--bg-muted);
+            border-bottom: 1px solid var(--border-default);
+            display: flex;
+            justify-content: center;
+            gap: 0;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            white-space: nowrap;
+            padding: 0 var(--space-3);
+        }
+        .jump-nav a {
+            display: inline-block;
+            padding: var(--space-3) var(--space-4);
+            color: var(--text-tertiary);
+            text-decoration: none;
+            font-size: 0.72rem;
+            font-weight: 600;
+            font-family: var(--font-mono);
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+            border-bottom: 2px solid transparent;
+            transition: all var(--transition-fast);
+        }
+        .jump-nav a:hover {
+            color: var(--claude-amber);
+            border-bottom-color: var(--claude-amber);
+        }
+
+        /* === Container === */
+        .container {
+            max-width: 1120px;
+            margin: 0 auto;
+            padding: var(--space-7) var(--space-6);
+        }
+
+        /* === Sections === */
+        .section {
+            margin-bottom: var(--space-8);
+            scroll-margin-top: 52px;
+        }
+        .section-header {
+            display: flex;
+            align-items: baseline;
+            gap: var(--space-4);
+            margin-bottom: var(--space-5);
+            padding-bottom: var(--space-3);
+            border-bottom: 1px solid var(--border-default);
+        }
+        .section-number {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--claude-amber);
+            letter-spacing: 0.05em;
+            opacity: 0.7;
+        }
+        .section-title {
+            font-family: var(--font-display);
+            font-size: 1.5rem;
+            font-weight: 600;
+            letter-spacing: -0.01em;
+        }
+        .section-description {
+            color: var(--text-secondary);
+            margin-bottom: var(--space-5);
+            max-width: 800px;
+            line-height: 1.7;
+        }
+
+        /* === Mermaid Diagrams === */
+        .diagram-container {
+            background: var(--bg-card);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-lg);
+            padding: var(--space-5);
+            margin-bottom: var(--space-5);
+            overflow-x: auto;
+        }
+        .diagram-label {
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            font-weight: 500;
+            color: var(--claude-amber);
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            margin-bottom: var(--space-4);
+            opacity: 0.8;
+        }
+        .mermaid {
+            display: flex;
+            justify-content: center;
+        }
+
+        /* === Card Grid === */
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: var(--space-4);
+            margin-bottom: var(--space-5);
+        }
+        .info-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-md);
+            padding: var(--space-5);
+            transition: border-color var(--transition-fast);
+        }
+        .info-card:hover {
+            border-color: var(--border-strong);
+        }
+        .info-card h4 {
+            font-family: var(--font-display);
+            font-size: 0.95rem;
+            font-weight: 600;
+            margin-bottom: var(--space-2);
+            color: var(--text-primary);
+        }
+        .info-card p {
+            font-size: 0.88rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+        .card-meta {
+            margin-top: var(--space-3);
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-2);
+        }
+
+        /* === Tech Badges === */
+        .tech-badge {
+            display: inline-block;
+            padding: 2px 10px;
+            font-size: 0.7rem;
+            font-family: var(--font-mono);
+            font-weight: 500;
+            border-radius: var(--radius-sm);
+            letter-spacing: 0.02em;
+        }
+        .tech-ts { background: rgba(96, 165, 250, 0.12); color: var(--accent-blue); border: 1px solid rgba(96, 165, 250, 0.25); }
+        .tech-node { background: rgba(74, 222, 128, 0.12); color: var(--accent-green); border: 1px solid rgba(74, 222, 128, 0.25); }
+        .tech-shell { background: rgba(251, 191, 36, 0.12); color: var(--accent-yellow); border: 1px solid rgba(251, 191, 36, 0.25); }
+        .tech-api { background: rgba(167, 139, 250, 0.12); color: var(--accent-purple); border: 1px solid rgba(167, 139, 250, 0.25); }
+        .tech-mcp { background: rgba(45, 212, 191, 0.12); color: var(--accent-teal); border: 1px solid rgba(45, 212, 191, 0.25); }
+        .tech-security { background: rgba(251, 113, 133, 0.12); color: var(--accent-rose); border: 1px solid rgba(251, 113, 133, 0.25); }
+        .tech-model { background: rgba(217, 119, 6, 0.12); color: var(--claude-amber); border: 1px solid rgba(217, 119, 6, 0.25); }
+
+        /* === Callouts === */
+        .callout {
+            background: rgba(245, 158, 11, 0.05);
+            border: 1px solid rgba(245, 158, 11, 0.15);
+            border-left: 3px solid var(--claude-amber);
+            border-radius: var(--radius-md);
+            padding: var(--space-4) var(--space-5);
+            margin-bottom: var(--space-5);
+        }
+        .callout-title {
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: var(--claude-amber);
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+            margin-bottom: var(--space-2);
+        }
+        .callout p {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            line-height: 1.65;
+        }
+        .callout-teal {
+            background: rgba(45, 212, 191, 0.05);
+            border-color: rgba(45, 212, 191, 0.15);
+            border-left-color: var(--accent-teal);
+        }
+        .callout-teal .callout-title { color: var(--accent-teal); }
+        .callout-rose {
+            background: rgba(251, 113, 133, 0.05);
+            border-color: rgba(251, 113, 133, 0.15);
+            border-left-color: var(--accent-rose);
+        }
+        .callout-rose .callout-title { color: var(--accent-rose); }
+
+        /* === Data Tables === */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: var(--space-5);
+            font-size: 0.88rem;
+        }
+        .data-table th {
+            background: var(--bg-card);
+            padding: var(--space-3) var(--space-4);
+            text-align: left;
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            border-bottom: 2px solid var(--border-default);
+        }
+        .data-table td {
+            padding: var(--space-3) var(--space-4);
+            border-bottom: 1px solid var(--border-subtle);
+            color: var(--text-secondary);
+        }
+        .data-table tr:hover td { background: rgba(255, 255, 255, 0.02); }
+        .data-table code {
+            font-family: var(--font-mono);
+            font-size: 0.82rem;
+            background: var(--bg-surface);
+            padding: 1px 6px;
+            border-radius: 3px;
+            color: var(--accent-teal);
+        }
+
+        /* === Subsection === */
+        .subsection {
+            margin-bottom: var(--space-5);
+        }
+        .subsection-title {
+            font-family: var(--font-display);
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: var(--space-3);
+            color: var(--text-primary);
+        }
+        .subsection p {
+            color: var(--text-secondary);
+            line-height: 1.7;
+            margin-bottom: var(--space-3);
+        }
+
+        /* === Terminal-style code blocks === */
+        .terminal-block {
+            background: #0a0a0e;
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-md);
+            padding: var(--space-4) var(--space-5);
+            margin-bottom: var(--space-5);
+            font-family: var(--font-mono);
+            font-size: 0.82rem;
+            line-height: 1.7;
+            overflow-x: auto;
+            color: var(--text-secondary);
+        }
+        .terminal-block .prompt { color: var(--accent-teal); }
+        .terminal-block .comment { color: var(--text-tertiary); font-style: italic; }
+        .terminal-block .flag { color: var(--claude-amber); }
+        .terminal-block .string { color: var(--accent-green); }
+
+        /* === Footer === */
+        .footer {
+            text-align: center;
+            padding: var(--space-7) var(--space-6);
+            border-top: 1px solid var(--border-default);
+            color: var(--text-tertiary);
+            font-size: 0.82rem;
+        }
+        .footer a {
+            color: var(--claude-amber);
+            text-decoration: none;
+        }
+        .footer a:hover { text-decoration: underline; }
+
+        /* === Flow list === */
+        .flow-list {
+            list-style: none;
+            margin-bottom: var(--space-5);
+        }
+        .flow-list li {
+            position: relative;
+            padding: var(--space-3) 0 var(--space-3) var(--space-7);
+            color: var(--text-secondary);
+            font-size: 0.92rem;
+            line-height: 1.6;
+            border-left: 2px solid var(--border-default);
+        }
+        .flow-list li::before {
+            content: attr(data-step);
+            position: absolute;
+            left: -13px;
+            top: var(--space-3);
+            width: 24px;
+            height: 24px;
+            background: var(--bg-base);
+            border: 2px solid var(--claude-amber);
+            border-radius: 50%;
+            font-family: var(--font-mono);
+            font-size: 0.68rem;
+            font-weight: 700;
+            color: var(--claude-amber);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .flow-list li strong { color: var(--text-primary); }
+
+        /* === Responsive === */
+        @media (max-width: 768px) {
+            html { font-size: 15px; }
+            .hero { padding: var(--space-6) var(--space-4) var(--space-5); }
+            .hero h1 { font-size: 1.7rem; }
+            .container { padding: var(--space-5) var(--space-4); }
+            .card-grid { grid-template-columns: 1fr; }
+            .section-header { flex-direction: column; gap: var(--space-2); }
+            .jump-nav a { padding: var(--space-2) var(--space-3); font-size: 0.68rem; }
+            .data-table { font-size: 0.82rem; }
+            .data-table th, .data-table td { padding: var(--space-2) var(--space-3); }
+        }
+    </style>
+</head>
+<body>
+    <a href="../" class="back-link">Architecture Maps</a>
+
+    <!-- ================================================================ -->
+    <!-- HERO -->
+    <!-- ================================================================ -->
+    <header class="hero">
+        <div class="hero-inner">
+            <h1>Claude Code</h1>
+            <p class="tagline">Anthropic's agentic terminal coding tool. An AI agent that reads your codebase, edits files, runs commands, and manages development workflows -- all from a single conversation loop powered by Claude models.</p>
+            <div class="meta">
+                <span class="meta-badge"><span class="dot" style="background:var(--accent-blue)"></span> TypeScript / Node.js</span>
+                <span class="meta-badge"><span class="dot" style="background:var(--claude-amber)"></span> 112k+ Stars</span>
+                <span class="meta-badge"><span class="dot" style="background:var(--accent-teal)"></span> MCP Protocol</span>
+                <span class="meta-badge"><span class="dot" style="background:var(--accent-purple)"></span> Agentic Loop</span>
+                <span class="meta-badge"><span class="dot" style="background:var(--accent-green)"></span> Open Source</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- ================================================================ -->
+    <!-- JUMP NAV -->
+    <!-- ================================================================ -->
+    <nav class="jump-nav">
+        <a href="#overview">Overview</a>
+        <a href="#agent-loop">Agent Loop</a>
+        <a href="#tools">Tools</a>
+        <a href="#subagents">Subagents</a>
+        <a href="#context">Context</a>
+        <a href="#permissions">Permissions</a>
+        <a href="#hooks">Hooks</a>
+        <a href="#mcp">MCP</a>
+        <a href="#memory">Memory</a>
+        <a href="#surfaces">Surfaces</a>
+    </nav>
+
+    <!-- ================================================================ -->
+    <!-- CONTENT -->
+    <!-- ================================================================ -->
+    <div class="container">
+
+        <!-- 01 - OVERVIEW -->
+        <section id="overview" class="section">
+            <div class="section-header">
+                <span class="section-number">01</span>
+                <h2 class="section-title">System Overview</h2>
+            </div>
+
+            <p class="section-description">Claude Code is an agentic harness around Anthropic's Claude models. It provides tools, context management, permissions, and an execution environment that turns a language model into a capable coding agent. The system runs locally in a terminal with no build step, connecting to the Anthropic API for model inference.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">High-Level Architecture</div>
+                <pre class="mermaid">
+graph TB
+    subgraph User["Developer Environment"]
+        TERM["Terminal CLI"]
+        VSCODE["VS Code Extension"]
+        JETBRAINS["JetBrains Plugin"]
+        DESKTOP["Desktop App"]
+        WEB["Web / claude.ai"]
+    end
+
+    subgraph Core["Claude Code Core"]
+        HARNESS["Agentic Harness<br/>(TypeScript / Node.js)"]
+        LOOP["Agent Loop<br/>(gather / act / verify)"]
+        TOOLS["Tool System<br/>(Read, Edit, Bash...)"]
+        PERMS["Permission Engine"]
+        CTX["Context Manager"]
+        HOOKS["Hooks Engine"]
+    end
+
+    subgraph External["External Services"]
+        API["Anthropic API<br/>(Claude Models)"]
+        MCP_SERVERS["MCP Servers<br/>(stdio / http / sse)"]
+        GIT["Git / GitHub"]
+        FS["Local Filesystem"]
+    end
+
+    TERM --> HARNESS
+    VSCODE --> HARNESS
+    JETBRAINS --> HARNESS
+    DESKTOP --> HARNESS
+    WEB --> HARNESS
+    HARNESS --> LOOP
+    LOOP --> TOOLS
+    LOOP --> CTX
+    TOOLS --> PERMS
+    TOOLS --> FS
+    TOOLS --> GIT
+    TOOLS --> MCP_SERVERS
+    LOOP --> API
+    HARNESS --> HOOKS
+
+    style TERM fill:#1e1e28,stroke:#f59e0b,color:#e8e8ee
+    style VSCODE fill:#1e1e28,stroke:#60a5fa,color:#e8e8ee
+    style JETBRAINS fill:#1e1e28,stroke:#60a5fa,color:#e8e8ee
+    style DESKTOP fill:#1e1e28,stroke:#60a5fa,color:#e8e8ee
+    style WEB fill:#1e1e28,stroke:#60a5fa,color:#e8e8ee
+    style HARNESS fill:#16161e,stroke:#f59e0b,color:#e8e8ee
+    style LOOP fill:#16161e,stroke:#d97706,color:#e8e8ee
+    style TOOLS fill:#16161e,stroke:#2dd4bf,color:#e8e8ee
+    style PERMS fill:#16161e,stroke:#fb7185,color:#e8e8ee
+    style CTX fill:#16161e,stroke:#a78bfa,color:#e8e8ee
+    style HOOKS fill:#16161e,stroke:#fbbf24,color:#e8e8ee
+    style API fill:#16161e,stroke:#f59e0b,color:#e8e8ee
+    style MCP_SERVERS fill:#16161e,stroke:#2dd4bf,color:#e8e8ee
+    style GIT fill:#16161e,stroke:#4ade80,color:#e8e8ee
+    style FS fill:#16161e,stroke:#4ade80,color:#e8e8ee
+                </pre>
+            </div>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>TypeScript + Node.js</h4>
+                    <p>Core runtime built on Node.js 18+. The CLI, agent loop, tool system, and all orchestration logic are TypeScript. Distributed via native installer, Homebrew, WinGet, or npm.</p>
+                    <div class="card-meta"><span class="tech-badge tech-ts">TypeScript</span><span class="tech-badge tech-node">Node.js</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Shell + Python</h4>
+                    <p>Installation scripts (47% Shell, 29% Python in repo). Cross-platform installers for macOS, Linux, WSL, and Windows. Python for tooling and testing infrastructure.</p>
+                    <div class="card-meta"><span class="tech-badge tech-shell">Shell</span><span class="tech-badge tech-api">Python</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Claude Models</h4>
+                    <p>Powered by Anthropic's Claude model family -- Sonnet for speed, Opus for deep reasoning, Haiku for lightweight subagent tasks. Extended thinking and adaptive reasoning for complex decisions.</p>
+                    <div class="card-meta"><span class="tech-badge tech-model">Sonnet</span><span class="tech-badge tech-model">Opus</span><span class="tech-badge tech-model">Haiku</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Zero Build Step</h4>
+                    <p>No compilation required. Works directly in the terminal. GitHub Pages-deployable for the open source repo. Plugin system uses standard JSON and Markdown files.</p>
+                    <div class="card-meta"><span class="tech-badge tech-shell">CLI</span><span class="tech-badge tech-mcp">MCP</span></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 02 - AGENT LOOP -->
+        <section id="agent-loop" class="section">
+            <div class="section-header">
+                <span class="section-number">02</span>
+                <h2 class="section-title">The Agentic Loop</h2>
+            </div>
+
+            <p class="section-description">The core of Claude Code is a three-phase agentic loop: gather context, take action, and verify results. The loop runs continuously until the task is complete, with Claude choosing which tools to invoke at each step based on what it learned from the previous step. The user can interrupt at any point to steer direction.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Agent Loop Lifecycle</div>
+                <pre class="mermaid">
+graph LR
+    USER["User Prompt"] --> GATHER
+    GATHER["1. Gather Context<br/>(Read, Grep, Glob, Web)"]
+    GATHER --> REASON["Claude Model<br/>(Reasoning + Planning)"]
+    REASON --> ACTION["2. Take Action<br/>(Edit, Write, Bash)"]
+    ACTION --> VERIFY["3. Verify Results<br/>(Run tests, check output)"]
+    VERIFY --> |"Not done"| GATHER
+    VERIFY --> |"Complete"| RESULT["Return to User"]
+    USER -.-> |"Interrupt"| REASON
+
+    style USER fill:#1e1e28,stroke:#f59e0b,color:#e8e8ee
+    style GATHER fill:#16161e,stroke:#60a5fa,color:#e8e8ee
+    style REASON fill:#16161e,stroke:#a78bfa,color:#e8e8ee
+    style ACTION fill:#16161e,stroke:#2dd4bf,color:#e8e8ee
+    style VERIFY fill:#16161e,stroke:#4ade80,color:#e8e8ee
+    style RESULT fill:#1e1e28,stroke:#f59e0b,color:#e8e8ee
+                </pre>
+            </div>
+
+            <ol class="flow-list">
+                <li data-step="1"><strong>Gather Context.</strong> Claude reads files, searches the codebase with Grep/Glob, fetches web documentation, and explores the project structure. It builds an understanding of the relevant code before acting.</li>
+                <li data-step="2"><strong>Take Action.</strong> Based on its understanding, Claude edits files, creates new files, runs shell commands, or delegates to subagents. Each tool call returns output that feeds into the next reasoning step.</li>
+                <li data-step="3"><strong>Verify Results.</strong> Claude runs tests, checks compiler output, reviews its own changes, and confirms the task is complete. If verification fails, it loops back to gather more context or try a different approach.</li>
+                <li data-step="4"><strong>Course Correct.</strong> The loop is self-healing. Claude chains dozens of tool calls together, adjusting strategy based on errors, test failures, or new information discovered along the way.</li>
+            </ol>
+
+            <div class="callout">
+                <div class="callout-title">Extended Thinking</div>
+                <p>Claude Code supports extended thinking, giving the model space to reason through complex problems step-by-step before responding. Opus 4.6 uses adaptive reasoning, dynamically allocating thinking tokens based on effort level (low, medium, high). The "ultrathink" keyword forces maximum reasoning depth for a single turn.</p>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Execution Modes</h3>
+                <p>The agent loop operates in several modes depending on context:</p>
+            </div>
+
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Mode</th>
+                        <th>Behavior</th>
+                        <th>Use Case</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>Interactive</code></td>
+                        <td>Full agentic loop with permission prompts</td>
+                        <td>Normal terminal usage</td>
+                    </tr>
+                    <tr>
+                        <td><code>Print (-p)</code></td>
+                        <td>Single query, outputs response, exits</td>
+                        <td>CI/CD pipelines, scripts</td>
+                    </tr>
+                    <tr>
+                        <td><code>Plan Mode</code></td>
+                        <td>Read-only tools; produces a plan without changes</td>
+                        <td>Complex architectural decisions</td>
+                    </tr>
+                    <tr>
+                        <td><code>Auto-Accept</code></td>
+                        <td>File edits auto-approved; commands still prompt</td>
+                        <td>Trusted iterative coding</td>
+                    </tr>
+                    <tr>
+                        <td><code>Bypass Perms</code></td>
+                        <td>All permission checks skipped</td>
+                        <td>Containers / isolated VMs only</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- 03 - TOOLS -->
+        <section id="tools" class="section">
+            <div class="section-header">
+                <span class="section-number">03</span>
+                <h2 class="section-title">Tool System</h2>
+            </div>
+
+            <p class="section-description">Tools are what make Claude Code agentic. Without tools, Claude can only respond with text. Each tool use returns information that feeds back into the loop. Tools fall into five categories: file operations, search, execution, web access, and code intelligence.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Tool Categories and Data Flow</div>
+                <pre class="mermaid">
+graph TD
+    MODEL["Claude Model<br/>(tool_use response)"]
+
+    subgraph FileOps["File Operations"]
+        READ["Read<br/>(view files, images, PDFs)"]
+        EDIT["Edit<br/>(diff-based patches)"]
+        WRITE["Write<br/>(create / overwrite)"]
+        MV["MultiEdit<br/>(batch operations)"]
+    end
+
+    subgraph Search["Search & Discovery"]
+        GLOB["Glob<br/>(file pattern matching)"]
+        GREP["Grep<br/>(content search, regex)"]
+        LS["LS<br/>(directory listing)"]
+    end
+
+    subgraph Exec["Execution"]
+        BASH["Bash<br/>(shell commands)"]
+    end
+
+    subgraph Web["Web Access"]
+        FETCH["WebFetch<br/>(URL content)"]
+        WSEARCH["WebSearch<br/>(web queries)"]
+    end
+
+    subgraph Agent["Orchestration"]
+        TASK["Agent<br/>(spawn subagents)"]
+        ASK["AskUserQuestion"]
+    end
+
+    MODEL --> FileOps
+    MODEL --> Search
+    MODEL --> Exec
+    MODEL --> Web
+    MODEL --> Agent
+
+    style MODEL fill:#16161e,stroke:#f59e0b,color:#e8e8ee
+    style READ fill:#1e1e28,stroke:#60a5fa,color:#e8e8ee
+    style EDIT fill:#1e1e28,stroke:#2dd4bf,color:#e8e8ee
+    style WRITE fill:#1e1e28,stroke:#2dd4bf,color:#e8e8ee
+    style MV fill:#1e1e28,stroke:#2dd4bf,color:#e8e8ee
+    style GLOB fill:#1e1e28,stroke:#a78bfa,color:#e8e8ee
+    style GREP fill:#1e1e28,stroke:#a78bfa,color:#e8e8ee
+    style LS fill:#1e1e28,stroke:#a78bfa,color:#e8e8ee
+    style BASH fill:#1e1e28,stroke:#fb7185,color:#e8e8ee
+    style FETCH fill:#1e1e28,stroke:#818cf8,color:#e8e8ee
+    style WSEARCH fill:#1e1e28,stroke:#818cf8,color:#e8e8ee
+    style TASK fill:#1e1e28,stroke:#fbbf24,color:#e8e8ee
+    style ASK fill:#1e1e28,stroke:#fbbf24,color:#e8e8ee
+                </pre>
+            </div>
+
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Tool</th>
+                        <th>Permission Level</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>Read</code></td>
+                        <td>Read-only (no prompt)</td>
+                        <td>View files, images, PDFs, notebooks. Supports line ranges.</td>
+                    </tr>
+                    <tr>
+                        <td><code>Edit</code></td>
+                        <td>File modification (prompts)</td>
+                        <td>Diff-based file patching with before/after matching.</td>
+                    </tr>
+                    <tr>
+                        <td><code>Write</code></td>
+                        <td>File modification (prompts)</td>
+                        <td>Create new files or overwrite existing ones completely.</td>
+                    </tr>
+                    <tr>
+                        <td><code>MultiEdit</code></td>
+                        <td>File modification (prompts)</td>
+                        <td>Batch multiple edits to a single file in one operation.</td>
+                    </tr>
+                    <tr>
+                        <td><code>Bash</code></td>
+                        <td>Command execution (prompts)</td>
+                        <td>Run any shell command. Subject to sandbox restrictions.</td>
+                    </tr>
+                    <tr>
+                        <td><code>Glob</code></td>
+                        <td>Read-only (no prompt)</td>
+                        <td>Find files by glob patterns (e.g. **/*.ts).</td>
+                    </tr>
+                    <tr>
+                        <td><code>Grep</code></td>
+                        <td>Read-only (no prompt)</td>
+                        <td>Search file contents with regex. Respects .gitignore.</td>
+                    </tr>
+                    <tr>
+                        <td><code>LS</code></td>
+                        <td>Read-only (no prompt)</td>
+                        <td>List directory contents with metadata.</td>
+                    </tr>
+                    <tr>
+                        <td><code>WebFetch</code></td>
+                        <td>Prompts for new domains</td>
+                        <td>Fetch and process web page content.</td>
+                    </tr>
+                    <tr>
+                        <td><code>WebSearch</code></td>
+                        <td>Prompts for new domains</td>
+                        <td>Search the web for information.</td>
+                    </tr>
+                    <tr>
+                        <td><code>Agent</code></td>
+                        <td>Inherits from parent</td>
+                        <td>Spawn subagents with isolated context windows.</td>
+                    </tr>
+                    <tr>
+                        <td><code>AskUserQuestion</code></td>
+                        <td>N/A</td>
+                        <td>Prompt the user for clarification or input.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="callout callout-teal">
+                <div class="callout-title">MCP Tool Search</div>
+                <p>When many MCP servers are connected, tool definitions can consume significant context. Claude Code automatically enables Tool Search when MCP tool descriptions exceed 10% of the context window, dynamically loading tools on-demand instead of preloading all of them. This keeps the context lean while maintaining access to hundreds of external tools.</p>
+            </div>
+        </section>
+
+        <!-- 04 - SUBAGENTS -->
+        <section id="subagents" class="section">
+            <div class="section-header">
+                <span class="section-number">04</span>
+                <h2 class="section-title">Subagents</h2>
+            </div>
+
+            <p class="section-description">Subagents are specialized AI assistants that run in their own isolated context windows. Each has a custom system prompt, specific tool access, and independent permissions. Claude delegates tasks to subagents to preserve context in the main conversation and enforce constraints.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Subagent Architecture</div>
+                <pre class="mermaid">
+graph TD
+    MAIN["Main Conversation<br/>(Full Context Window)"]
+
+    subgraph Builtin["Built-in Subagents"]
+        EXPLORE["Explore<br/>(Haiku, Read-only)"]
+        PLAN["Plan<br/>(Inherited Model, Read-only)"]
+        GENERAL["General-Purpose<br/>(Inherited Model, All Tools)"]
+        BASH_AGENT["Bash Agent<br/>(Inherited Model)"]
+    end
+
+    subgraph Custom["Custom Subagents"]
+        REVIEW["Code Reviewer<br/>(.claude/agents/)"]
+        DEBUG["Debugger<br/>(~/.claude/agents/)"]
+        DATA["Data Scientist<br/>(Plugin agents/)"]
+    end
+
+    MAIN --> |"delegate"| EXPLORE
+    MAIN --> |"delegate"| PLAN
+    MAIN --> |"delegate"| GENERAL
+    MAIN --> |"delegate"| BASH_AGENT
+    MAIN --> |"delegate"| REVIEW
+    MAIN --> |"delegate"| DEBUG
+    MAIN --> |"delegate"| DATA
+
+    EXPLORE --> |"summary"| MAIN
+    PLAN --> |"plan"| MAIN
+    GENERAL --> |"result"| MAIN
+    BASH_AGENT --> |"output"| MAIN
+    REVIEW --> |"feedback"| MAIN
+    DEBUG --> |"fix"| MAIN
+    DATA --> |"analysis"| MAIN
+
+    style MAIN fill:#16161e,stroke:#f59e0b,color:#e8e8ee
+    style EXPLORE fill:#1e1e28,stroke:#22d3ee,color:#e8e8ee
+    style PLAN fill:#1e1e28,stroke:#a78bfa,color:#e8e8ee
+    style GENERAL fill:#1e1e28,stroke:#60a5fa,color:#e8e8ee
+    style BASH_AGENT fill:#1e1e28,stroke:#fb7185,color:#e8e8ee
+    style REVIEW fill:#1e1e28,stroke:#4ade80,color:#e8e8ee
+    style DEBUG fill:#1e1e28,stroke:#fbbf24,color:#e8e8ee
+    style DATA fill:#1e1e28,stroke:#818cf8,color:#e8e8ee
+                </pre>
+            </div>
+
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Subagent</th>
+                        <th>Model</th>
+                        <th>Tools</th>
+                        <th>Purpose</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>Explore</code></td>
+                        <td>Haiku (fast)</td>
+                        <td>Read-only</td>
+                        <td>Quick codebase search and analysis. Thoroughness levels: quick, medium, very thorough.</td>
+                    </tr>
+                    <tr>
+                        <td><code>Plan</code></td>
+                        <td>Inherited</td>
+                        <td>Read-only</td>
+                        <td>Research agent for Plan Mode. Gathers context to formulate implementation plans.</td>
+                    </tr>
+                    <tr>
+                        <td><code>General-Purpose</code></td>
+                        <td>Inherited</td>
+                        <td>All tools</td>
+                        <td>Complex multi-step tasks requiring both exploration and modification.</td>
+                    </tr>
+                    <tr>
+                        <td><code>Bash</code></td>
+                        <td>Inherited</td>
+                        <td>Bash</td>
+                        <td>Running terminal commands in a separate context.</td>
+                    </tr>
+                    <tr>
+                        <td><code>Custom</code></td>
+                        <td>Configurable</td>
+                        <td>Configurable</td>
+                        <td>User-defined via Markdown + YAML frontmatter. Project, user, or plugin scope.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="callout">
+                <div class="callout-title">Key Constraint</div>
+                <p>Subagents cannot spawn other subagents. This prevents infinite nesting. Each subagent runs in complete isolation with its own fresh context window, system prompt, and tool access. Subagents can be run in foreground (blocking) or background (concurrent), and support automatic compaction at ~95% context capacity.</p>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Custom Subagent Configuration</h3>
+                <p>Custom subagents are defined as Markdown files with YAML frontmatter. They can be scoped to a project (<code>.claude/agents/</code>), user (<code>~/.claude/agents/</code>), passed via CLI (<code>--agents</code> JSON flag), or bundled with plugins. Key configuration fields include <code>tools</code>, <code>disallowedTools</code>, <code>model</code> (sonnet/opus/haiku/inherit), <code>permissionMode</code>, <code>hooks</code>, <code>skills</code>, <code>mcpServers</code>, <code>memory</code> scope, and <code>isolation: worktree</code> for git worktree isolation.</p>
+            </div>
+        </section>
+
+        <!-- 05 - CONTEXT MANAGEMENT -->
+        <section id="context" class="section">
+            <div class="section-header">
+                <span class="section-number">05</span>
+                <h2 class="section-title">Context Management</h2>
+            </div>
+
+            <p class="section-description">Claude's context window holds conversation history, file contents, command outputs, CLAUDE.md instructions, loaded skills, and system prompts. As work progresses, context fills up. Claude Code manages this automatically through compaction, ensuring the agent can handle long multi-step workflows without losing critical information.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Context Window Layout</div>
+                <pre class="mermaid">
+graph TD
+    subgraph CW["Context Window"]
+        SYS["System Prompt<br/>(instructions, tool defs)"]
+        CLAUDE_MD["CLAUDE.md Files<br/>(project, user, managed)"]
+        RULES["Rules Files<br/>(.claude/rules/*.md)"]
+        AUTO_MEM["Auto Memory<br/>(first 200 lines of MEMORY.md)"]
+        SKILLS_D["Skill Descriptions<br/>(loaded at start)"]
+        MCP_DEFS["MCP Tool Definitions<br/>(all connected servers)"]
+        CONV["Conversation History<br/>(messages + tool results)"]
+    end
+
+    subgraph Compact["Compaction Pipeline"]
+        TRIGGER["Auto-Compact Trigger<br/>(~95% capacity)"]
+        CLEAR["Clear Old Tool Outputs"]
+        SUMMARIZE["Summarize Conversation"]
+        RELOAD["Re-inject CLAUDE.md<br/>(from disk, fresh)"]
+    end
+
+    CW --> |"fills up"| TRIGGER
+    TRIGGER --> CLEAR
+    CLEAR --> SUMMARIZE
+    SUMMARIZE --> RELOAD
+
+    style SYS fill:#1e1e28,stroke:#f59e0b,color:#e8e8ee
+    style CLAUDE_MD fill:#1e1e28,stroke:#2dd4bf,color:#e8e8ee
+    style RULES fill:#1e1e28,stroke:#2dd4bf,color:#e8e8ee
+    style AUTO_MEM fill:#1e1e28,stroke:#4ade80,color:#e8e8ee
+    style SKILLS_D fill:#1e1e28,stroke:#a78bfa,color:#e8e8ee
+    style MCP_DEFS fill:#1e1e28,stroke:#818cf8,color:#e8e8ee
+    style CONV fill:#1e1e28,stroke:#60a5fa,color:#e8e8ee
+    style TRIGGER fill:#16161e,stroke:#fb7185,color:#e8e8ee
+    style CLEAR fill:#16161e,stroke:#fb7185,color:#e8e8ee
+    style SUMMARIZE fill:#16161e,stroke:#fb7185,color:#e8e8ee
+    style RELOAD fill:#16161e,stroke:#fb7185,color:#e8e8ee
+                </pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Compaction Strategy</h3>
+                <p>When the context window approaches capacity, Claude Code automatically compacts. Older tool outputs are cleared first, then the conversation is summarized. CLAUDE.md files are always re-read from disk after compaction -- they fully survive the process. Conversation-only instructions that were not written to CLAUDE.md will be lost. The <code>/compact</code> command triggers manual compaction with an optional focus (e.g., <code>/compact focus on the API changes</code>). The auto-compact threshold defaults to ~95% but can be overridden via <code>CLAUDE_AUTOCOMPACT_PCT_OVERRIDE</code>.</p>
+            </div>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>Session Persistence</h4>
+                    <p>Each conversation is saved locally with full message history. Resume with <code>--continue</code> (most recent) or <code>--resume</code> (by name/picker). Fork with <code>--fork-session</code> to branch without affecting the original.</p>
+                    <div class="card-meta"><span class="tech-badge tech-shell">Sessions</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Checkpoints</h4>
+                    <p>Before every file edit, Claude Code snapshots the current contents. Press <code>Esc</code> twice to rewind to a previous state. Checkpoints are local to the session, separate from git.</p>
+                    <div class="card-meta"><span class="tech-badge tech-security">Safety</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Skills (On-Demand)</h4>
+                    <p>Skills load into context only when invoked, not at startup. This keeps the context lean. Subagents can preload skills via the <code>skills</code> frontmatter field.</p>
+                    <div class="card-meta"><span class="tech-badge tech-api">Skills</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Subagent Isolation</h4>
+                    <p>Each subagent gets its own fresh context window. Their work stays isolated, only a summary returns to the main conversation. This prevents context bloat from verbose operations.</p>
+                    <div class="card-meta"><span class="tech-badge tech-mcp">Isolation</span></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 06 - PERMISSIONS -->
+        <section id="permissions" class="section">
+            <div class="section-header">
+                <span class="section-number">06</span>
+                <h2 class="section-title">Permission Model</h2>
+            </div>
+
+            <p class="section-description">Claude Code uses a tiered permission system that balances power and safety. Read-only tools run without prompts. File modifications and shell commands require approval. Permissions can be configured with allow/deny rules using glob patterns, scoped from organization-wide managed policies down to per-session overrides.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Permission Evaluation Flow</div>
+                <pre class="mermaid">
+graph TD
+    TOOL_CALL["Tool Call<br/>(e.g. Bash, Edit)"]
+    PRE_HOOK["PreToolUse Hooks<br/>(optional override)"]
+    DENY_CHECK{"Deny Rules?"}
+    ASK_CHECK{"Ask Rules?"}
+    ALLOW_CHECK{"Allow Rules?"}
+    SANDBOX{"Sandbox Check<br/>(OS-level enforcement)"}
+    PROMPT["Prompt User<br/>(approve/deny/always)"]
+    EXECUTE["Execute Tool"]
+    BLOCK["Block Execution"]
+
+    TOOL_CALL --> PRE_HOOK
+    PRE_HOOK --> |"hook approves"| EXECUTE
+    PRE_HOOK --> |"hook blocks"| BLOCK
+    PRE_HOOK --> |"no decision"| DENY_CHECK
+    DENY_CHECK --> |"match"| BLOCK
+    DENY_CHECK --> |"no match"| ASK_CHECK
+    ASK_CHECK --> |"match"| PROMPT
+    ASK_CHECK --> |"no match"| ALLOW_CHECK
+    ALLOW_CHECK --> |"match"| SANDBOX
+    ALLOW_CHECK --> |"no match"| PROMPT
+    SANDBOX --> EXECUTE
+    PROMPT --> |"approved"| EXECUTE
+    PROMPT --> |"denied"| BLOCK
+
+    style TOOL_CALL fill:#1e1e28,stroke:#f59e0b,color:#e8e8ee
+    style PRE_HOOK fill:#1e1e28,stroke:#fbbf24,color:#e8e8ee
+    style DENY_CHECK fill:#16161e,stroke:#fb7185,color:#e8e8ee
+    style ASK_CHECK fill:#16161e,stroke:#818cf8,color:#e8e8ee
+    style ALLOW_CHECK fill:#16161e,stroke:#4ade80,color:#e8e8ee
+    style SANDBOX fill:#16161e,stroke:#22d3ee,color:#e8e8ee
+    style PROMPT fill:#1e1e28,stroke:#a78bfa,color:#e8e8ee
+    style EXECUTE fill:#1e1e28,stroke:#4ade80,color:#e8e8ee
+    style BLOCK fill:#1e1e28,stroke:#fb7185,color:#e8e8ee
+                </pre>
+            </div>
+
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Tool Type</th>
+                        <th>Examples</th>
+                        <th>Approval Required</th>
+                        <th>"Don't Ask Again"</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Read-only</td>
+                        <td>Read, Grep, Glob, LS</td>
+                        <td>No</td>
+                        <td>N/A</td>
+                    </tr>
+                    <tr>
+                        <td>File modification</td>
+                        <td>Edit, Write, MultiEdit</td>
+                        <td>Yes</td>
+                        <td>Until session end</td>
+                    </tr>
+                    <tr>
+                        <td>Bash commands</td>
+                        <td>Shell execution</td>
+                        <td>Yes</td>
+                        <td>Permanently per project + command</td>
+                    </tr>
+                    <tr>
+                        <td>Web access</td>
+                        <td>WebFetch, WebSearch</td>
+                        <td>Per new domain</td>
+                        <td>Per domain</td>
+                    </tr>
+                    <tr>
+                        <td>MCP tools</td>
+                        <td>External server tools</td>
+                        <td>Per server config</td>
+                        <td>Per server</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Settings Precedence</h3>
+                <p>Rules are evaluated in order: <strong>deny &rarr; ask &rarr; allow</strong>. The first matching rule wins. Settings cascade from five levels: (1) Managed settings (highest, cannot be overridden), (2) CLI arguments, (3) Local project settings (<code>.claude/settings.local.json</code>), (4) Shared project settings (<code>.claude/settings.json</code>), and (5) User settings (<code>~/.claude/settings.json</code>). If a tool is denied at any level, no other level can allow it.</p>
+            </div>
+
+            <div class="callout callout-rose">
+                <div class="callout-title">OS-Level Sandboxing</div>
+                <p>Beyond the permission system, Claude Code offers native sandboxing using OS-level primitives: Seatbelt on macOS, bubblewrap on Linux/WSL2. The sandbox enforces filesystem isolation (write access restricted to working directory by default) and network isolation (only approved domains via proxy). This provides defense-in-depth against prompt injection -- even if an attacker manipulates Claude's reasoning, the sandbox prevents filesystem and network exfiltration.</p>
+            </div>
+        </section>
+
+        <!-- 07 - HOOKS -->
+        <section id="hooks" class="section">
+            <div class="section-header">
+                <span class="section-number">07</span>
+                <h2 class="section-title">Hooks System</h2>
+            </div>
+
+            <p class="section-description">Hooks are user-defined shell commands, HTTP endpoints, or LLM prompts that execute automatically at specific points in Claude Code's lifecycle. They enable automation, validation, and custom workflows without modifying the core agent.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Hook Lifecycle Events</div>
+                <pre class="mermaid">
+graph LR
+    subgraph Session["Session Lifecycle"]
+        INIT["SessionStart"]
+        STOP_S["SessionStop"]
+    end
+
+    subgraph Instructions["Context Loading"]
+        IL["InstructionsLoaded"]
+    end
+
+    subgraph Tools["Tool Lifecycle"]
+        PRE["PreToolUse<br/>(can approve/deny)"]
+        POST["PostToolUse"]
+    end
+
+    subgraph Agent["Agent Events"]
+        NOTIFY["Notification<br/>(permission, idle, auth)"]
+        A_START["SubagentStart"]
+        A_STOP["SubagentStop"]
+        HALT["Stop"]
+    end
+
+    subgraph WT["Worktree"]
+        WTC["WorktreeCreate"]
+        WTR["WorktreeRemove"]
+    end
+
+    INIT --> IL
+    IL --> PRE
+    PRE --> POST
+    POST --> PRE
+    POST --> HALT
+    HALT --> STOP_S
+
+    style INIT fill:#1e1e28,stroke:#4ade80,color:#e8e8ee
+    style STOP_S fill:#1e1e28,stroke:#fb7185,color:#e8e8ee
+    style IL fill:#1e1e28,stroke:#a78bfa,color:#e8e8ee
+    style PRE fill:#1e1e28,stroke:#f59e0b,color:#e8e8ee
+    style POST fill:#1e1e28,stroke:#2dd4bf,color:#e8e8ee
+    style NOTIFY fill:#1e1e28,stroke:#818cf8,color:#e8e8ee
+    style A_START fill:#1e1e28,stroke:#60a5fa,color:#e8e8ee
+    style A_STOP fill:#1e1e28,stroke:#60a5fa,color:#e8e8ee
+    style HALT fill:#1e1e28,stroke:#fbbf24,color:#e8e8ee
+    style WTC fill:#1e1e28,stroke:#22d3ee,color:#e8e8ee
+    style WTR fill:#1e1e28,stroke:#22d3ee,color:#e8e8ee
+                </pre>
+            </div>
+
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Event</th>
+                        <th>Matcher Input</th>
+                        <th>Fires When</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>SessionStart</code></td>
+                        <td>(none)</td>
+                        <td>Session begins</td>
+                    </tr>
+                    <tr>
+                        <td><code>PreToolUse</code></td>
+                        <td>Tool name</td>
+                        <td>Before any tool executes. Exit 2 blocks the call.</td>
+                    </tr>
+                    <tr>
+                        <td><code>PostToolUse</code></td>
+                        <td>Tool name</td>
+                        <td>After a tool completes. Can trigger linting, formatting.</td>
+                    </tr>
+                    <tr>
+                        <td><code>Notification</code></td>
+                        <td>Type string</td>
+                        <td>Claude needs attention (permission, idle, auth).</td>
+                    </tr>
+                    <tr>
+                        <td><code>SubagentStart/Stop</code></td>
+                        <td>Agent name</td>
+                        <td>Subagent begins or completes execution.</td>
+                    </tr>
+                    <tr>
+                        <td><code>Stop</code></td>
+                        <td>(none)</td>
+                        <td>Agent finishes its response.</td>
+                    </tr>
+                    <tr>
+                        <td><code>InstructionsLoaded</code></td>
+                        <td>(none)</td>
+                        <td>CLAUDE.md and rules files are loaded into context.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="callout">
+                <div class="callout-title">Hook Types</div>
+                <p>Hooks can be shell commands (receive JSON on stdin, return decisions via exit codes), HTTP endpoints (POST request with JSON body), or LLM prompts (evaluated by a model). PreToolUse hooks can override the permission system by approving (exit 0) or blocking (exit 2) tool calls. Hooks are configured in <code>settings.json</code> or in subagent frontmatter, and can be scoped with matchers (regex patterns matching tool names or event types).</p>
+            </div>
+        </section>
+
+        <!-- 08 - MCP -->
+        <section id="mcp" class="section">
+            <div class="section-header">
+                <span class="section-number">08</span>
+                <h2 class="section-title">MCP Integration</h2>
+            </div>
+
+            <p class="section-description">The Model Context Protocol (MCP) is an open standard for connecting AI tools to external data sources. Claude Code acts as both an MCP client (consuming tools from servers) and can serve as an MCP server itself. MCP enables Claude to query databases, update issue trackers, read design docs, and interact with any API.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">MCP Server Topology</div>
+                <pre class="mermaid">
+graph LR
+    CC["Claude Code<br/>(MCP Client)"]
+
+    subgraph Local["Local Servers (stdio)"]
+        DB["Database Server<br/>(PostgreSQL, SQLite)"]
+        FS_SRV["Filesystem Server"]
+        CUSTOM["Custom Script<br/>(npx / python)"]
+    end
+
+    subgraph Remote["Remote Servers (HTTP/SSE)"]
+        GITHUB["GitHub MCP"]
+        SENTRY["Sentry MCP"]
+        NOTION["Notion MCP"]
+        SLACK_S["Slack MCP"]
+        JIRA["Jira MCP"]
+    end
+
+    subgraph Managed["Managed / Plugin"]
+        PLUGIN_MCP["Plugin MCP Servers<br/>(auto-lifecycle)"]
+        MANAGED_MCP["managed-mcp.json<br/>(IT-deployed)"]
+    end
+
+    CC --> DB
+    CC --> FS_SRV
+    CC --> CUSTOM
+    CC --> GITHUB
+    CC --> SENTRY
+    CC --> NOTION
+    CC --> SLACK_S
+    CC --> JIRA
+    CC --> PLUGIN_MCP
+    CC --> MANAGED_MCP
+
+    style CC fill:#16161e,stroke:#f59e0b,color:#e8e8ee
+    style DB fill:#1e1e28,stroke:#4ade80,color:#e8e8ee
+    style FS_SRV fill:#1e1e28,stroke:#4ade80,color:#e8e8ee
+    style CUSTOM fill:#1e1e28,stroke:#4ade80,color:#e8e8ee
+    style GITHUB fill:#1e1e28,stroke:#60a5fa,color:#e8e8ee
+    style SENTRY fill:#1e1e28,stroke:#60a5fa,color:#e8e8ee
+    style NOTION fill:#1e1e28,stroke:#60a5fa,color:#e8e8ee
+    style SLACK_S fill:#1e1e28,stroke:#60a5fa,color:#e8e8ee
+    style JIRA fill:#1e1e28,stroke:#60a5fa,color:#e8e8ee
+    style PLUGIN_MCP fill:#1e1e28,stroke:#a78bfa,color:#e8e8ee
+    style MANAGED_MCP fill:#1e1e28,stroke:#fb7185,color:#e8e8ee
+                </pre>
+            </div>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>Three Transports</h4>
+                    <p><strong>stdio</strong> for local process servers, <strong>HTTP</strong> (Streamable HTTP, recommended) for cloud services, and <strong>SSE</strong> (Server-Sent Events, deprecated) for legacy integrations. Configured via <code>claude mcp add</code>.</p>
+                    <div class="card-meta"><span class="tech-badge tech-mcp">stdio</span><span class="tech-badge tech-mcp">HTTP</span><span class="tech-badge tech-mcp">SSE</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Three Scopes</h4>
+                    <p><strong>Local</strong> (default, stored in <code>~/.claude.json</code> per project), <strong>Project</strong> (shared via <code>.mcp.json</code> in repo), and <strong>User</strong> (global in <code>~/.claude.json</code>). Precedence: local > project > user.</p>
+                    <div class="card-meta"><span class="tech-badge tech-shell">Scopes</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>OAuth 2.0 Auth</h4>
+                    <p>Remote HTTP servers support OAuth 2.0 authentication. Tokens are stored securely in the system keychain (macOS) or credentials file. Fixed callback ports and pre-configured credentials supported.</p>
+                    <div class="card-meta"><span class="tech-badge tech-security">OAuth</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Claude as MCP Server</h4>
+                    <p><code>claude mcp serve</code> exposes Claude Code's tools (Read, Edit, LS, etc.) as an MCP server for other applications like Claude Desktop to consume.</p>
+                    <div class="card-meta"><span class="tech-badge tech-model">Server Mode</span></div>
+                </div>
+            </div>
+
+            <div class="callout callout-teal">
+                <div class="callout-title">Managed MCP Configuration</div>
+                <p>Organizations can deploy a <code>managed-mcp.json</code> file to system-wide directories for exclusive control over MCP servers, or use <code>allowedMcpServers</code> / <code>deniedMcpServers</code> in managed settings for policy-based restrictions. This enables IT administrators to control which external services Claude Code can access across the organization.</p>
+            </div>
+        </section>
+
+        <!-- 09 - MEMORY -->
+        <section id="memory" class="section">
+            <div class="section-header">
+                <span class="section-number">09</span>
+                <h2 class="section-title">Memory System</h2>
+            </div>
+
+            <p class="section-description">Claude Code has two complementary memory systems. CLAUDE.md files are instructions you write that are loaded at the start of every session. Auto memory is notes Claude writes itself, capturing learnings like build commands, debugging insights, and code patterns across sessions.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Memory Hierarchy</div>
+                <pre class="mermaid">
+graph TD
+    subgraph Written["Written by You (CLAUDE.md)"]
+        MANAGED_MD["Managed Policy<br/>(/Library/.../CLAUDE.md)"]
+        PROJECT_MD["Project<br/>(./CLAUDE.md)"]
+        USER_MD["User<br/>(~/.claude/CLAUDE.md)"]
+        LOCAL_MD["Local<br/>(./CLAUDE.local.md)"]
+        RULES["Rules Files<br/>(.claude/rules/*.md)"]
+    end
+
+    subgraph Auto["Written by Claude (Auto Memory)"]
+        MEMORY_MD["MEMORY.md<br/>(first 200 lines loaded)"]
+        TOPIC_FILES["Topic Files<br/>(debugging.md, patterns.md)"]
+    end
+
+    subgraph SubMem["Subagent Memory"]
+        USER_MEM["User Scope<br/>(~/.claude/agent-memory/)"]
+        PROJ_MEM["Project Scope<br/>(.claude/agent-memory/)"]
+    end
+
+    MANAGED_MD --> SESSION["Session Context"]
+    PROJECT_MD --> SESSION
+    USER_MD --> SESSION
+    LOCAL_MD --> SESSION
+    RULES --> SESSION
+    MEMORY_MD --> SESSION
+    TOPIC_FILES -.-> |"on demand"| SESSION
+
+    style MANAGED_MD fill:#1e1e28,stroke:#fb7185,color:#e8e8ee
+    style PROJECT_MD fill:#1e1e28,stroke:#2dd4bf,color:#e8e8ee
+    style USER_MD fill:#1e1e28,stroke:#60a5fa,color:#e8e8ee
+    style LOCAL_MD fill:#1e1e28,stroke:#a78bfa,color:#e8e8ee
+    style RULES fill:#1e1e28,stroke:#2dd4bf,color:#e8e8ee
+    style MEMORY_MD fill:#1e1e28,stroke:#4ade80,color:#e8e8ee
+    style TOPIC_FILES fill:#1e1e28,stroke:#4ade80,color:#e8e8ee
+    style USER_MEM fill:#1e1e28,stroke:#fbbf24,color:#e8e8ee
+    style PROJ_MEM fill:#1e1e28,stroke:#fbbf24,color:#e8e8ee
+    style SESSION fill:#16161e,stroke:#f59e0b,color:#e8e8ee
+                </pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">CLAUDE.md Loading</h3>
+                <p>Claude Code walks up the directory tree from the working directory, loading CLAUDE.md and CLAUDE.local.md at each level. Subdirectory CLAUDE.md files load on demand when Claude reads files in those directories. The <code>@path</code> import syntax allows CLAUDE.md files to reference external files (README, package.json, etc.), which are expanded at load time. Maximum import depth is five hops.</p>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Path-Scoped Rules</h3>
+                <p>Rules in <code>.claude/rules/</code> can be scoped to specific file paths using YAML frontmatter with a <code>paths</code> field supporting glob patterns. For example, a rule with <code>paths: ["src/api/**/*.ts"]</code> only applies when Claude works with files matching that pattern. Rules without a <code>paths</code> field apply unconditionally.</p>
+            </div>
+
+            <div class="callout">
+                <div class="callout-title">Auto Memory Details</div>
+                <p>Auto memory is stored at <code>~/.claude/projects/&lt;project&gt;/memory/</code>. The first 200 lines of <code>MEMORY.md</code> are loaded at the start of every session. Content beyond line 200 is not loaded. Claude keeps MEMORY.md concise by moving detailed notes into separate topic files, which are read on demand. All worktrees within the same git repository share one auto memory directory.</p>
+            </div>
+        </section>
+
+        <!-- 10 - SURFACES -->
+        <section id="surfaces" class="section">
+            <div class="section-header">
+                <span class="section-number">10</span>
+                <h2 class="section-title">Surfaces & Environments</h2>
+            </div>
+
+            <p class="section-description">Claude Code runs identically across multiple surfaces -- the agentic loop, tools, and capabilities are the same everywhere. What changes is where the code executes and how you interact with it. All surfaces share CLAUDE.md files, settings, and MCP server configurations.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Execution Environments</div>
+                <pre class="mermaid">
+graph TB
+    subgraph Surfaces["User Interfaces"]
+        CLI["Terminal CLI<br/>(full-featured)"]
+        VS["VS Code Extension<br/>(inline diffs, @-mentions)"]
+        JB["JetBrains Plugin<br/>(interactive diffs)"]
+        DESK["Desktop App<br/>(standalone, visual diffs)"]
+        WEBUI["Web (claude.ai/code)<br/>(no local setup)"]
+        REMOTE["Remote Control<br/>(browser UI, local exec)"]
+    end
+
+    subgraph Integrations["CI/CD & Chat"]
+        GH_ACTIONS["GitHub Actions<br/>(PR review, triage)"]
+        GITLAB["GitLab CI/CD"]
+        SLACK_INT["Slack<br/>(@Claude mentions)"]
+        CHROME_INT["Chrome Extension<br/>(web debugging)"]
+    end
+
+    subgraph Environments["Execution Contexts"]
+        LOCAL["Local Machine<br/>(full filesystem access)"]
+        CLOUD["Cloud VMs<br/>(Anthropic-managed)"]
+        CONTAINER["Containers<br/>(sandboxed, CI)"]
+    end
+
+    CLI --> LOCAL
+    VS --> LOCAL
+    JB --> LOCAL
+    DESK --> LOCAL
+    WEBUI --> CLOUD
+    REMOTE --> LOCAL
+    GH_ACTIONS --> CONTAINER
+    GITLAB --> CONTAINER
+    SLACK_INT --> CLOUD
+
+    style CLI fill:#1e1e28,stroke:#f59e0b,color:#e8e8ee
+    style VS fill:#1e1e28,stroke:#60a5fa,color:#e8e8ee
+    style JB fill:#1e1e28,stroke:#60a5fa,color:#e8e8ee
+    style DESK fill:#1e1e28,stroke:#a78bfa,color:#e8e8ee
+    style WEBUI fill:#1e1e28,stroke:#2dd4bf,color:#e8e8ee
+    style REMOTE fill:#1e1e28,stroke:#818cf8,color:#e8e8ee
+    style GH_ACTIONS fill:#1e1e28,stroke:#4ade80,color:#e8e8ee
+    style GITLAB fill:#1e1e28,stroke:#4ade80,color:#e8e8ee
+    style SLACK_INT fill:#1e1e28,stroke:#fbbf24,color:#e8e8ee
+    style CHROME_INT fill:#1e1e28,stroke:#22d3ee,color:#e8e8ee
+    style LOCAL fill:#16161e,stroke:#f59e0b,color:#e8e8ee
+    style CLOUD fill:#16161e,stroke:#2dd4bf,color:#e8e8ee
+    style CONTAINER fill:#16161e,stroke:#fb7185,color:#e8e8ee
+                </pre>
+            </div>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>Terminal CLI</h4>
+                    <p>The full-featured interface. Edit files, run commands, manage entire projects from the command line. Supports piping (<code>cat file | claude -p</code>), scripting, and Unix composability.</p>
+                    <div class="card-meta"><span class="tech-badge tech-shell">Terminal</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>IDE Extensions</h4>
+                    <p>VS Code and JetBrains plugins provide inline diffs, @-mentions for file context, plan review UI, and conversation history. Same engine, visual diff review.</p>
+                    <div class="card-meta"><span class="tech-badge tech-ts">VS Code</span><span class="tech-badge tech-ts">JetBrains</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Web & Desktop</h4>
+                    <p>Run Claude Code in the browser with no local setup, or use the standalone desktop app for visual diff review. Sessions move between surfaces via <code>/teleport</code> and <code>/desktop</code>.</p>
+                    <div class="card-meta"><span class="tech-badge tech-mcp">Cross-Surface</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>CI/CD & Automation</h4>
+                    <p>GitHub Actions and GitLab CI/CD for automated PR review and issue triage. Slack integration for <code>@Claude</code> mentions that produce pull requests. Print mode (<code>-p</code>) for headless scripting.</p>
+                    <div class="card-meta"><span class="tech-badge tech-node">CI/CD</span><span class="tech-badge tech-api">Slack</span></div>
+                </div>
+            </div>
+
+            <div class="callout">
+                <div class="callout-title">Plugin System</div>
+                <p>Claude Code supports plugins that bundle custom skills, subagents, MCP servers, hooks, and commands into distributable packages. Plugins are installed from marketplaces and activated per project. They provide automatic MCP server lifecycle management, agent definitions, and tool extensions without manual configuration.</p>
+            </div>
+        </section>
+
+    </div>
+
+    <!-- ================================================================ -->
+    <!-- FOOTER -->
+    <!-- ================================================================ -->
+    <footer class="footer">
+        <p>Claude Code Architecture Map &mdash; built from <a href="https://github.com/anthropics/claude-code" target="_blank">github.com/anthropics/claude-code</a> and <a href="https://code.claude.com/docs/en/overview" target="_blank">code.claude.com/docs</a></p>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'dark',
+            themeVariables: {
+                darkMode: true,
+                background: '#16161e',
+                primaryColor: '#1e1e28',
+                primaryTextColor: '#e8e8ee',
+                primaryBorderColor: '#f59e0b',
+                lineColor: '#5a5a70',
+                secondaryColor: '#1e1e28',
+                tertiaryColor: '#16161e',
+                fontFamily: '"Inter", sans-serif',
+                fontSize: '13px'
+            },
+            flowchart: {
+                htmlLabels: true,
+                curve: 'basis',
+                padding: 15,
+                nodeSpacing: 30,
+                rankSpacing: 40
+            }
+        });
+    </script>
+</body>
+</html>
