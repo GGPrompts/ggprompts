@@ -15,7 +15,7 @@ Follow the full conventions in `techguides/CLAUDE.md`. The guide must be self-co
 
 1. Parse the argument: the first word is the topic (e.g., "xterm.js"), optional second word is the style name (e.g., "celtic").
 2. If no style was specified:
-   - Read `STYLE-PAIRINGS.md` to see which styles are available (empty Tech Guide column) vs already used
+   - Read the **Style Guide Catalog** table in `README.md` to see which styles are available (empty Tech Guide column) vs already used
    - Suggest 3-4 unused styles that thematically fit the topic
    - Ask the user to pick one
 3. Read the chosen style's HTML file from `styles/{name}.html` to extract the design system (CSS variables, fonts, color palette, component patterns).
@@ -58,6 +58,6 @@ Use 4-5 sequential **opus** subagents, each writing a portion of the guide:
    - **Tier 3 — Infrastructure & Ops**: Server/deployment/architecture
 3. Add matching `.card-{style-name}` CSS with colors from the style's palette.
 4. Update the guide count in the index header if present.
-5. Update `STYLE-PAIRINGS.md` — add the tech guide name in the Tech Guide column for the chosen style.
+5. Update the **Style Guide Catalog** table in `README.md` — add the tech guide name in the Tech Guide column for the chosen style.
 6. Commit with message: `Add {Topic} tech guide ({style-name} style)`
 7. Push using: `git config --global credential.helper store && echo "https://GGPrompts:$(gh auth token --user GGPrompts)@github.com" > ~/.git-credentials && git push origin main`

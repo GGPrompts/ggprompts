@@ -14,7 +14,7 @@ Follow the full conventions in `styles/CLAUDE.md`. The guide must be self-contai
 ## Phase 0 — Plan (interactive)
 
 1. Parse the argument as the aesthetic name (e.g., "steampunk", "memphis", "ukiyo-e").
-2. Check `STYLE-PAIRINGS.md` and `styles/{name}.html` — if the style already exists, inform the user.
+2. Check the **Style Guide Catalog** table in `README.md` and `styles/{name}.html` — if the style already exists, inform the user.
 3. Read `styles/CLAUDE.md` for the template and conventions.
 4. Read 1-2 existing style guides to match structure and depth — pick ones with a similar vibe.
 5. Propose a design direction:
@@ -52,6 +52,6 @@ Use 2-3 sequential **opus** subagents:
 
 1. Read `/index.html` (the master project index) to understand the card format.
 2. Add a themed card with class `.card-{name}` and matching CSS that reflects the new style's palette.
-3. Add the new style to `STYLE-PAIRINGS.md` (new row, both columns empty).
+3. Add the new style to the **Style Guide Catalog** table in `README.md` (new row, both columns empty).
 4. Commit with message: `Add {name} style guide`
 5. Push using: `git config --global credential.helper store && echo "https://GGPrompts:$(gh auth token --user GGPrompts)@github.com" > ~/.git-credentials && git push origin main`

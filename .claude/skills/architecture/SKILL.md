@@ -23,7 +23,7 @@ Architecture maps can cover three types of subjects:
 
 1. Parse the argument: the main subject, and an optional style name.
 2. If no style was specified:
-   - Read `STYLE-PAIRINGS.md` to see which styles are available
+   - Read the **Style Guide Catalog** table in `README.md` to see which styles are available
    - Suggest 3-4 unused styles that thematically fit the subject (e.g., `blueprint` for infrastructure, `federal-night` for government, `circuit-board` for tech)
    - Ask the user to pick one
 3. Read the chosen style's HTML file from `styles/{name}.html` to extract the design system (CSS variables, fonts, color palette).
@@ -133,5 +133,5 @@ One **opus** subagent reads the complete file and:
 
 - Template: `architecture/va-oit/index.html` (Federal Night style, ~1200 lines)
 - Style guides: `styles/{name}.html`
-- Available styles: `STYLE-PAIRINGS.md`
+- Available styles: **Style Guide Catalog** table in `README.md`
 - Mermaid docs: https://mermaid.js.org/syntax/flowchart.html

@@ -1,8 +1,56 @@
-# Style Guide Pairings
+# The Compendium of Digital Curiosities
 
-Master mapping of all 195 style guides and their usage across tech guides and stories.
+A collection of **204 CSS design systems**, **41 interactive stories**, **62 tech guides**, **50 browser games**, a **chiptune music studio**, **44 creative tools**, and a **daily AI newspaper** — all built with vanilla HTML, CSS, and JavaScript. No frameworks. No build step. Just open a file in your browser.
 
-**Used:** 70 styles · **Available:** 125 styles
+**[Browse the live site](https://ggprompts.github.io/htmlstyleguides/)**
+
+---
+
+## What's Inside
+
+### Style Guides (204)
+Each style guide is a self-contained HTML file showcasing a complete CSS design system: color palette, typography, spacing, buttons, forms, cards, alerts, and more. Every design is unique — from cherry blossoms to brutalism, dark academia to solarpunk.
+
+Every guide defines its full design system in CSS variables (`:root {}`), making it easy to extract and reuse.
+
+### Interactive Stories (41)
+Educational narratives that pair style guide aesthetics with historical content. Each story has 10-15 scenes with branching choices, keyboard navigation, and real historical facts woven into the progression. Some include audio narration.
+
+### Tech Guides (62)
+Styled developer cheat-sheets for tools like Git, Docker, Python, Rust, and more. Each guide has sticky navigation, 8-12 sections, and code examples — all wrapped in a curated visual design.
+
+### Browser Games (50)
+Standalone arcade and strategy games — Asteroids, Checkers, casino games, roguelikes, and more. Pure JavaScript physics and game logic with shared audio and theme engines.
+
+### Music Studio
+A FamiTracker-inspired chiptune sequencer with 78+ songs, a virtual cathedral organ, and 75+ canvas-rendered music videos with beat-synced animations.
+
+### Creative Tools (44)
+Interactive editors including a stick figure animation studio (with IK solver and GIF export), an HTML presentation viewer/editor, CSS grid playground, color blindness simulator, font pairing tool, ASCII art editor, and more.
+
+### Architecture Maps (32)
+Interactive system architecture diagrams for open source projects and tech platforms.
+
+### The AI Dispatch
+A newspaper-themed daily AI news publication with self-contained broadsheet editions.
+
+---
+
+## Use These Styles in Your Projects
+
+Every style guide in this repo is a ready-made design system that AI tools can read directly. To apply any style to your own project, just tell Claude (or any LLM):
+
+> **"Look at https://github.com/GGPrompts/htmlstyleguides/blob/main/styles/cherry-blossom.html and apply that design system to my project"**
+
+That's it. The AI will read the CSS variables, typography, color palette, and component patterns — then apply them to whatever you're building.
+
+Browse the [live site](https://ggprompts.github.io/htmlstyleguides/) to find a style you like, then point your AI at the raw file.
+
+---
+
+## Style Guide Catalog
+
+Every style has a unique aesthetic. Some are paired with tech guides and stories that use their design system. **75 paired** / **129 available** for new content.
 
 | Style | Tech Guide | Story |
 |-------|-----------|-------|
@@ -11,12 +59,12 @@ Master mapping of all 195 style guides and their usage across tech guides and st
 | air-traffic-control | Networking Fundamentals | |
 | anatomical-illustration | | |
 | apothecary | | |
-| ascii-art | | |
 | aquarium | | |
 | architectural | PostgreSQL & MySQL, Software Architecture | |
 | arctic | | |
 | art-deco | Linux Distributions | The Jazz Age |
 | art-nouveau | | Belle Epoque |
+| ascii-art | | |
 | astronomical | | |
 | atlas-console | Monitoring & Observability | |
 | aurora-borealis | Elixir | |
@@ -27,26 +75,30 @@ Master mapping of all 195 style guides and their usage across tech guides and st
 | bento-grid | | |
 | blackletter-fraktur | | |
 | blueprint | Kubernetes | |
+| brutalist-concrete-plant | | |
 | brutalist-typography | | |
 | brutalist-web | systemd | The Concrete Dream |
 | bubbles | | |
 | byzantine | Active Directory & IAM | |
+| carnival-fairground | | |
 | casino-vegas | | |
 | cassette-futurism | htmx | |
+| cassette-liner-notes | | |
 | celtic | Go | |
 | chalkboard | | |
 | cherry-blossom | | |
+| chindogu | | |
 | chinese-porcelain | Cloud Platforms | |
 | circuit-board | Vim / Neovim | |
 | civic | Security & Compliance | |
 | claymorphism | | |
 | clockwork-horologist | Makefiles | |
 | coastal-cottage | | |
-| color-field | | |
-| comic-book | | |
 | codex-terminal-2031 | | |
 | coffee | Java | The Bean |
 | coffee-shop | | |
+| color-field | | |
+| comic-book | | |
 | concrete-brutalist | | |
 | constructivism | Terraform | |
 | copper-verdigris | Rust | Liberty |
@@ -61,10 +113,11 @@ Master mapping of all 195 style guides and their usage across tech guides and st
 | cyberpunk | Docker | The Network |
 | dadaism | | |
 | dark-academia | | The Forbidden Library |
-| data-visualization | DuckDB | |
 | dark-folio | Claude Code | |
 | dark-mode-material | | |
 | darkroom | | The Decisive Moment |
+| data-bento | | |
+| data-visualization | DuckDB | |
 | day-of-the-dead | | |
 | de-stijl | HTML & CSS, Programming Languages | |
 | deep-sea-bioluminescence | GraphQL | |
@@ -116,6 +169,7 @@ Master mapping of all 195 style guides and their usage across tech guides and st
 | mac-os-classic | | |
 | macrame | | |
 | manga | | |
+| manuscript-illumination | | |
 | marble-gold | Engineering Excellence | |
 | maximalism | | |
 | mayan-aztec | | |
@@ -128,6 +182,7 @@ Master mapping of all 195 style guides and their usage across tech guides and st
 | mozarts-study | | |
 | mughal | | |
 | mushroom-mycelium | | |
+| nautical-maritime-flags | | |
 | neo-void | | |
 | neon-brutal | | The Strip |
 | neubrutalism | | |
@@ -165,11 +220,12 @@ Master mapping of all 195 style guides and their usage across tech guides and st
 | rts-hud | Terminal Emulators | The Ladder |
 | russian-propaganda | | |
 | scandi-cozy | | |
-| silent-film | | |
-| slavic-folk-art | | |
 | seasonal-scroll | | |
+| silent-film | | |
 | sketch | AI Context Management | The First Line |
+| slavic-folk-art | | |
 | solarpunk | Ansible | |
+| soviet-space-program | | |
 | stained-glass | PKI & Certificates | |
 | steampunk | Zig, Makefiles | |
 | streamline-moderne | | The Express |
@@ -181,6 +237,7 @@ Master mapping of all 195 style guides and their usage across tech guides and st
 | synthwave | Termux | |
 | talavera | | |
 | terminal-2031 | | |
+| terracotta-adobe | | |
 | terrazzo-atelier | | |
 | thai-temple | | |
 | tibetan-buddhist | | |
@@ -201,3 +258,31 @@ Master mapping of all 195 style guides and their usage across tech guides and st
 | witchcore | | |
 | y2k | | |
 | zine-punk | | |
+
+---
+
+## Project Structure
+
+```
+/
+├── styles/          # 204 CSS design system showcases
+├── stories/         # 41 interactive educational stories
+├── techguides/      # 62 styled developer reference docs
+├── games/           # 50 browser games
+├── music/           # Chiptune studio, sequencer, visualizer
+├── tools/           # 44 creative tools and editors
+├── architecture/    # 32 interactive architecture maps
+├── news/            # The AI Dispatch — daily AI news
+└── index.html       # Main navigation
+```
+
+## Tech Stack
+
+- **HTML, CSS, JavaScript** — that's it
+- **Google Fonts** — the only external dependency
+- **GitHub Pages** — deployed with zero configuration
+- No frameworks. No bundlers. No npm. Every file works by opening it in a browser.
+
+## License
+
+This project is open source. All code is available for reference, learning, and reuse.

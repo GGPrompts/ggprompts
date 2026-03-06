@@ -137,7 +137,7 @@ Each tech guide uses a style guide's aesthetic. When creating a new guide:
 3. Style all components (code blocks, tables, alerts) to match the aesthetic
 4. Note the style pairing in the index card's "kicker" label
 
-See `/STYLE-PAIRINGS.md` for the full mapping of which styles are used and which are available.
+See the **Style Guide Catalog** table in `/README.md` for the full mapping of which styles are used and which are available.
 
 ## Naming Convention
 

@@ -14,7 +14,7 @@ Follow the full conventions in `stories/CLAUDE.md`. The story must be self-conta
 ## Phase 0 — Plan (interactive)
 
 1. Parse the argument: first word is the style name, optional remaining words hint at the topic.
-2. Read `STYLE-PAIRINGS.md` to confirm the style is available (empty Story column) and see what's already taken.
+2. Read the **Style Guide Catalog** table in `README.md` to confirm the style is available (empty Story column) and see what's already taken.
 3. Read the chosen style's HTML file from `styles/{name}.html` to extract the design system.
 4. Read `stories/CLAUDE.md` for the template and conventions.
 4. Read 1 existing story to match structure — skim for the STORY data format, engine pattern, and component mapping.
@@ -55,6 +55,6 @@ Use 3-4 sequential **opus** subagents:
 1. Write a research brief to `stories/briefs/{style-name}-brief.md` documenting the historical facts, story arc, and component mapping.
 2. Read `stories/index.html` to understand the card format.
 3. Add a card for the new story with: scene count, ending count, style name, title, description.
-4. Update `STYLE-PAIRINGS.md` — add the story title in the Story column for the chosen style.
+4. Update the **Style Guide Catalog** table in `README.md` — add the story title in the Story column for the chosen style.
 5. Commit with message: `Add {title} interactive story ({style-name} style)`
 6. Push using: `git config --global credential.helper store && echo "https://GGPrompts:$(gh auth token --user GGPrompts)@github.com" > ~/.git-credentials && git push origin main`
