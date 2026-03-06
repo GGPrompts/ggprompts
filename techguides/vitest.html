@@ -1,0 +1,2032 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vitest — Tech Guide</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Bungee+Shade&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        /* ================================================================
+           GL1TCH_ART DESIGN SYSTEM — VITEST TECH GUIDE
+           Chromatic aberration, scan lines, corrupted data aesthetics
+           Paired with: glitch-art style guide
+        ================================================================ */
+
+        :root {
+            /* GLITCH PALETTE */
+            --red: #ff0040;
+            --red-glow: rgba(255, 0, 64, 0.6);
+            --green: #00ff41;
+            --green-glow: rgba(0, 255, 65, 0.6);
+            --blue: #0080ff;
+            --blue-glow: rgba(0, 128, 255, 0.6);
+            --cyan: #00e5ff;
+            --cyan-glow: rgba(0, 229, 255, 0.5);
+            --magenta: #ff00ff;
+            --magenta-glow: rgba(255, 0, 255, 0.5);
+            --white: #e8e8e8;
+            --yellow: #ffee00;
+
+            /* VITEST BRAND ACCENT */
+            --vitest-green: #729b1b;
+            --vitest-yellow: #fcc72b;
+
+            /* BACKGROUNDS */
+            --bg-void: #000000;
+            --bg-primary: #0a0a0c;
+            --bg-secondary: #111115;
+            --bg-elevated: #1a1a20;
+            --bg-surface: #222228;
+            --bg-corrupted: #0d0b10;
+
+            /* TEXT */
+            --text-primary: #d0d0d8;
+            --text-secondary: #888890;
+            --text-muted: #555560;
+            --text-error: var(--red);
+
+            /* BORDERS */
+            --border-dim: rgba(255, 255, 255, 0.08);
+            --border-glitch: rgba(255, 0, 64, 0.3);
+            --border-active: var(--cyan);
+
+            /* TYPOGRAPHY */
+            --font-display: 'Bungee Shade', sans-serif;
+            --font-body: 'Space Mono', monospace;
+            --font-mono: 'Share Tech Mono', monospace;
+
+            /* SPACING */
+            --space-xs: 4px;
+            --space-sm: 8px;
+            --space-md: 16px;
+            --space-lg: 32px;
+            --space-xl: 48px;
+            --space-2xl: 64px;
+            --space-3xl: 96px;
+
+            /* EFFECTS */
+            --aberration-offset: 3px;
+            --scanline-opacity: 0.06;
+
+            /* TRANSITIONS */
+            --transition-fast: 0.1s ease;
+            --transition-base: 0.25s ease;
+        }
+
+        /* --- ANIMATIONS --- */
+        @keyframes glitch-clip {
+            0% { clip-path: inset(40% 0 61% 0); }
+            5% { clip-path: inset(10% 0 85% 0); }
+            10% { clip-path: inset(80% 0 5% 0); }
+            15% { clip-path: inset(25% 0 58% 0); }
+            20% { clip-path: inset(62% 0 12% 0); }
+            25% { clip-path: inset(5% 0 90% 0); }
+            30% { clip-path: inset(70% 0 15% 0); }
+            35% { clip-path: inset(15% 0 72% 0); }
+            40% { clip-path: inset(88% 0 2% 0); }
+            45% { clip-path: inset(33% 0 50% 0); }
+            50% { clip-path: inset(55% 0 30% 0); }
+            100% { clip-path: inset(42% 0 53% 0); }
+        }
+
+        @keyframes scanline {
+            0% { transform: translateY(-100%); }
+            100% { transform: translateY(100vh); }
+        }
+
+        @keyframes flicker {
+            0%, 100% { opacity: 1; }
+            92% { opacity: 1; }
+            93% { opacity: 0.8; }
+            94% { opacity: 1; }
+            96% { opacity: 0.9; }
+            97% { opacity: 1; }
+        }
+
+        @keyframes chromatic-shift {
+            0%, 100% { text-shadow: -1px 0 var(--red), 1px 0 var(--cyan); }
+            25% { text-shadow: -2px 0 var(--red), 2px 0 var(--cyan); }
+            50% { text-shadow: -1px 0 var(--red), 1px 0 var(--blue); }
+            75% { text-shadow: -3px 0 var(--magenta), 2px 0 var(--cyan); }
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 5px var(--cyan-glow); }
+            50% { box-shadow: 0 0 20px var(--cyan-glow), 0 0 40px rgba(0, 229, 255, 0.15); }
+        }
+
+        /* --- RESET --- */
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            font-size: 16px;
+            scroll-behavior: smooth;
+            scroll-padding-top: 56px;
+        }
+
+        body {
+            font-family: var(--font-body);
+            font-size: 0.9rem;
+            line-height: 1.7;
+            color: var(--text-primary);
+            background: var(--bg-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+            position: relative;
+            animation: flicker 8s infinite;
+        }
+
+        /* --- SCANLINE OVERLAY --- */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                rgba(0, 0, 0, var(--scanline-opacity)) 2px,
+                rgba(0, 0, 0, var(--scanline-opacity)) 4px
+            );
+            pointer-events: none;
+            z-index: 9999;
+        }
+
+        /* --- LAYOUT --- */
+        .container {
+            max-width: 1060px;
+            margin: 0 auto;
+            padding: var(--space-lg);
+            position: relative;
+            z-index: 1;
+        }
+
+        /* --- BACK LINK --- */
+        .back-link {
+            display: inline-block;
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            letter-spacing: 0.1em;
+            color: var(--text-secondary);
+            text-decoration: none;
+            margin-bottom: var(--space-lg);
+            transition: var(--transition-fast);
+            text-transform: uppercase;
+        }
+
+        .back-link::before {
+            content: '< ';
+            color: var(--cyan);
+        }
+
+        .back-link:hover {
+            color: var(--cyan);
+            text-shadow: 0 0 8px var(--cyan-glow);
+        }
+
+        /* --- HEADER --- */
+        .header {
+            text-align: center;
+            padding: var(--space-2xl) 0 var(--space-3xl);
+            position: relative;
+        }
+
+        .header::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 10%;
+            right: 10%;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--cyan), var(--magenta), transparent);
+        }
+
+        .header-badge {
+            display: inline-block;
+            padding: var(--space-xs) var(--space-md);
+            border: 1px solid var(--green);
+            color: var(--green);
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            margin-bottom: var(--space-md);
+        }
+
+        .header h1 {
+            font-family: var(--font-display);
+            font-size: clamp(2rem, 6vw, 3.5rem);
+            color: var(--white);
+            letter-spacing: 0.05em;
+            line-height: 1.2;
+            position: relative;
+            animation: chromatic-shift 4s ease-in-out infinite;
+        }
+
+        .header h1::before,
+        .header h1::after {
+            content: attr(data-text);
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            overflow: hidden;
+        }
+
+        .header h1::before {
+            color: var(--red);
+            z-index: -1;
+            animation: glitch-clip 3s infinite linear alternate-reverse;
+            left: 2px;
+        }
+
+        .header h1::after {
+            color: var(--cyan);
+            z-index: -1;
+            animation: glitch-clip 2s infinite linear alternate-reverse;
+            left: -2px;
+        }
+
+        .tagline {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-top: var(--space-md);
+            letter-spacing: 0.05em;
+        }
+
+        .tagline span {
+            color: var(--yellow);
+        }
+
+        /* --- JUMP NAV --- */
+        .jump-nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            display: flex;
+            gap: var(--space-xs);
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            white-space: nowrap;
+            background: var(--bg-void);
+            border-top: 1px solid var(--border-dim);
+            border-bottom: 1px solid var(--border-dim);
+            padding: var(--space-sm) var(--space-md);
+            margin: 0 calc(-1 * var(--space-lg));
+            padding-left: var(--space-lg);
+            padding-right: var(--space-lg);
+            scrollbar-width: none;
+        }
+
+        .jump-nav::-webkit-scrollbar { display: none; }
+
+        .jump-nav a {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            text-decoration: none;
+            padding: var(--space-xs) var(--space-sm);
+            border: 1px solid transparent;
+            transition: var(--transition-fast);
+            flex-shrink: 0;
+        }
+
+        .jump-nav a:hover {
+            color: var(--cyan);
+            border-color: var(--cyan);
+            text-shadow: 0 0 8px var(--cyan-glow);
+        }
+
+        /* --- SECTIONS --- */
+        .section {
+            margin-top: var(--space-3xl);
+        }
+
+        .section-header {
+            display: flex;
+            align-items: baseline;
+            gap: var(--space-md);
+            margin-bottom: var(--space-xl);
+            padding-bottom: var(--space-md);
+            border-bottom: 1px solid var(--border-dim);
+            position: relative;
+        }
+
+        .section-header::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            width: 60px;
+            height: 1px;
+            background: var(--cyan);
+            box-shadow: 0 0 8px var(--cyan-glow);
+        }
+
+        .section-number {
+            font-family: var(--font-display);
+            font-size: 1.6rem;
+            color: var(--red);
+            text-shadow: -1px 0 var(--magenta), 1px 0 var(--cyan);
+            line-height: 1;
+        }
+
+        .section-title {
+            font-family: var(--font-body);
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--white);
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        .section-description {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            margin-bottom: var(--space-lg);
+            max-width: 700px;
+            line-height: 1.6;
+        }
+
+        /* --- SUBSECTIONS --- */
+        .subsection {
+            margin-bottom: var(--space-xl);
+        }
+
+        .subsection-title {
+            font-family: var(--font-body);
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--cyan);
+            margin-bottom: var(--space-md);
+            padding-left: var(--space-md);
+            border-left: 3px solid var(--magenta);
+        }
+
+        .subsection p {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            margin-bottom: var(--space-md);
+            line-height: 1.6;
+        }
+
+        /* --- CODE BLOCKS --- */
+        pre {
+            background: var(--bg-void);
+            border: 1px solid var(--border-dim);
+            border-left: 3px solid var(--green);
+            border-radius: 0;
+            padding: var(--space-md) var(--space-lg);
+            margin-bottom: var(--space-md);
+            overflow-x: auto;
+            position: relative;
+        }
+
+        pre::before {
+            content: attr(data-label);
+            position: absolute;
+            top: 0;
+            right: 0;
+            background: var(--bg-elevated);
+            color: var(--text-muted);
+            font-family: var(--font-mono);
+            font-size: 0.6rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            padding: 2px var(--space-sm);
+            border-bottom: 1px solid var(--border-dim);
+            border-left: 1px solid var(--border-dim);
+        }
+
+        pre code {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            line-height: 1.8;
+            color: var(--text-primary);
+        }
+
+        code {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+        }
+
+        p code, li code, td code {
+            background: var(--bg-elevated);
+            color: var(--cyan);
+            padding: 1px 6px;
+            border: 1px solid var(--border-dim);
+        }
+
+        /* Syntax highlighting hints */
+        .kw { color: var(--magenta); }
+        .fn { color: var(--cyan); }
+        .str { color: var(--green); }
+        .cm { color: var(--text-muted); }
+        .num { color: var(--yellow); }
+        .op { color: var(--red); }
+        .type { color: var(--blue); }
+
+        /* --- TABLES --- */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: var(--space-lg);
+            font-size: 0.8rem;
+        }
+
+        thead {
+            background: var(--bg-elevated);
+        }
+
+        th {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--cyan);
+            text-align: left;
+            padding: var(--space-sm) var(--space-md);
+            border-bottom: 2px solid var(--cyan);
+        }
+
+        td {
+            padding: var(--space-sm) var(--space-md);
+            border-bottom: 1px solid var(--border-dim);
+            color: var(--text-primary);
+            vertical-align: top;
+        }
+
+        tr:hover td {
+            background: rgba(0, 229, 255, 0.03);
+        }
+
+        /* --- COMMAND GRID --- */
+        .command-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: var(--space-md);
+            margin-bottom: var(--space-lg);
+        }
+
+        .command-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-dim);
+            padding: var(--space-md);
+            transition: var(--transition-base);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .command-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, var(--cyan), var(--magenta));
+            opacity: 0;
+            transition: var(--transition-base);
+        }
+
+        .command-card:hover {
+            border-color: var(--cyan);
+            box-shadow: 0 0 15px rgba(0, 229, 255, 0.1);
+        }
+
+        .command-card:hover::before {
+            opacity: 1;
+        }
+
+        .command-card h4 {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--yellow);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: var(--space-sm);
+        }
+
+        .command-card code {
+            display: block;
+            font-size: 0.78rem;
+            color: var(--green);
+            margin-bottom: var(--space-xs);
+            background: none;
+            border: none;
+            padding: 0;
+        }
+
+        .command-card p {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: var(--space-xs);
+        }
+
+        /* --- ALERTS --- */
+        .alert {
+            padding: var(--space-md) var(--space-lg);
+            margin-bottom: var(--space-lg);
+            border-left: 3px solid;
+            background: var(--bg-secondary);
+            font-size: 0.82rem;
+            line-height: 1.6;
+        }
+
+        .alert-info {
+            border-color: var(--cyan);
+            color: var(--text-primary);
+        }
+
+        .alert-info::before {
+            content: '[INFO] ';
+            color: var(--cyan);
+            font-family: var(--font-mono);
+            font-weight: 700;
+            font-size: 0.7rem;
+            letter-spacing: 0.1em;
+        }
+
+        .alert-warning {
+            border-color: var(--yellow);
+            color: var(--text-primary);
+        }
+
+        .alert-warning::before {
+            content: '[WARN] ';
+            color: var(--yellow);
+            font-family: var(--font-mono);
+            font-weight: 700;
+            font-size: 0.7rem;
+            letter-spacing: 0.1em;
+        }
+
+        .alert-danger {
+            border-color: var(--red);
+            color: var(--text-primary);
+        }
+
+        .alert-danger::before {
+            content: '[ERR!] ';
+            color: var(--red);
+            font-family: var(--font-mono);
+            font-weight: 700;
+            font-size: 0.7rem;
+            letter-spacing: 0.1em;
+        }
+
+        /* --- BADGES --- */
+        .badge {
+            display: inline-block;
+            font-family: var(--font-mono);
+            font-size: 0.6rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            padding: 2px 8px;
+            border: 1px solid;
+            vertical-align: middle;
+        }
+
+        .badge-pass {
+            color: var(--green);
+            border-color: var(--green);
+        }
+
+        .badge-fail {
+            color: var(--red);
+            border-color: var(--red);
+        }
+
+        .badge-skip {
+            color: var(--yellow);
+            border-color: var(--yellow);
+        }
+
+        .badge-new {
+            color: var(--cyan);
+            border-color: var(--cyan);
+        }
+
+        /* --- TWO COLUMN LAYOUT --- */
+        .two-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--space-lg);
+            margin-bottom: var(--space-lg);
+        }
+
+        /* --- FOOTER --- */
+        .site-footer {
+            margin-top: var(--space-3xl);
+            padding: var(--space-xl) 0;
+            border-top: 1px solid var(--border-dim);
+            text-align: center;
+            position: relative;
+        }
+
+        .site-footer::before {
+            content: '';
+            position: absolute;
+            top: -1px;
+            left: 20%;
+            right: 20%;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--magenta), var(--cyan), transparent);
+        }
+
+        .site-footer a {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-decoration: none;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            transition: var(--transition-fast);
+        }
+
+        .site-footer a:hover {
+            color: var(--cyan);
+            text-shadow: 0 0 8px var(--cyan-glow);
+        }
+
+        .site-footer .glitch-line {
+            font-family: var(--font-mono);
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            margin-top: var(--space-md);
+            opacity: 0.4;
+        }
+
+        /* --- LINKS --- */
+        a {
+            color: var(--cyan);
+            text-decoration: none;
+            transition: var(--transition-fast);
+        }
+
+        a:hover {
+            text-shadow: 0 0 8px var(--cyan-glow);
+        }
+
+        /* --- LISTS --- */
+        ul, ol {
+            padding-left: var(--space-lg);
+            margin-bottom: var(--space-md);
+        }
+
+        li {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: var(--space-xs);
+        }
+
+        li::marker {
+            color: var(--magenta);
+        }
+
+        /* --- FEATURE GRID --- */
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: var(--space-md);
+            margin-bottom: var(--space-lg);
+        }
+
+        .feature-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-dim);
+            padding: var(--space-md);
+        }
+
+        .feature-card .icon {
+            font-size: 1.4rem;
+            margin-bottom: var(--space-sm);
+        }
+
+        .feature-card h4 {
+            font-family: var(--font-body);
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: var(--white);
+            margin-bottom: var(--space-xs);
+        }
+
+        .feature-card p {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        /* --- RESPONSIVE --- */
+        @media (max-width: 768px) {
+            .container {
+                padding: var(--space-md);
+            }
+
+            .header {
+                padding: var(--space-xl) 0 var(--space-2xl);
+            }
+
+            .header h1 {
+                font-size: 1.8rem;
+            }
+
+            .section {
+                margin-top: var(--space-2xl);
+            }
+
+            .section-header {
+                flex-direction: column;
+                gap: var(--space-xs);
+            }
+
+            .section-title {
+                font-size: 1.1rem;
+            }
+
+            .two-col {
+                grid-template-columns: 1fr;
+            }
+
+            .command-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .feature-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .jump-nav {
+                margin: 0 calc(-1 * var(--space-md));
+                padding-left: var(--space-md);
+                padding-right: var(--space-md);
+            }
+
+            pre {
+                padding: var(--space-sm) var(--space-md);
+            }
+
+            pre code {
+                font-size: 0.72rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="index.html" class="back-link">Tech Guides</a>
+
+        <header class="header">
+            <div class="header-badge">blazing fast unit testing</div>
+            <h1 data-text="V1TEST">V1TEST</h1>
+            <p class="tagline">Vite-native testing framework // <span>describe &gt; test &gt; expect</span></p>
+        </header>
+
+        <!-- JUMP NAV -->
+        <nav class="jump-nav">
+            <a href="#cheatsheet">Cheat Sheet</a>
+            <a href="#setup">Setup</a>
+            <a href="#test-api">Test API</a>
+            <a href="#matchers">Matchers</a>
+            <a href="#mocking">Mocking</a>
+            <a href="#snapshots">Snapshots</a>
+            <a href="#async">Async</a>
+            <a href="#fixtures">Fixtures</a>
+            <a href="#coverage">Coverage</a>
+            <a href="#workspace">Workspace</a>
+            <a href="#browser">Browser Mode</a>
+            <a href="#vs-jest">vs Jest</a>
+        </nav>
+
+        <!-- ============================================================
+             01. CHEAT SHEET
+        ============================================================ -->
+        <section id="cheatsheet" class="section">
+            <div class="section-header">
+                <span class="section-number">01</span>
+                <h2 class="section-title">Quick Reference</h2>
+            </div>
+            <p class="section-description">The commands and patterns you will use every day with Vitest.</p>
+
+            <div class="command-grid">
+                <div class="command-card">
+                    <h4>Run tests</h4>
+                    <code>npx vitest</code>
+                    <code>npx vitest run</code>
+                    <p>Watch mode (default) or single run</p>
+                </div>
+                <div class="command-card">
+                    <h4>Run specific file</h4>
+                    <code>npx vitest src/utils.test.ts</code>
+                    <code>npx vitest -t "should add"</code>
+                    <p>By file path or test name pattern</p>
+                </div>
+                <div class="command-card">
+                    <h4>Coverage</h4>
+                    <code>npx vitest run --coverage</code>
+                    <p>Requires @vitest/coverage-v8 or -istanbul</p>
+                </div>
+                <div class="command-card">
+                    <h4>UI Dashboard</h4>
+                    <code>npx vitest --ui</code>
+                    <p>Browser-based test explorer at localhost</p>
+                </div>
+                <div class="command-card">
+                    <h4>Type checking</h4>
+                    <code>npx vitest typecheck</code>
+                    <p>Run type-level tests with expectTypeOf</p>
+                </div>
+                <div class="command-card">
+                    <h4>Benchmarks</h4>
+                    <code>npx vitest bench</code>
+                    <p>Run .bench.ts files for perf testing</p>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Minimal Test File</h3>
+<pre data-label="sum.test.ts"><code><span class="kw">import</span> { <span class="fn">describe</span>, <span class="fn">it</span>, <span class="fn">expect</span> } <span class="kw">from</span> <span class="str">'vitest'</span>
+<span class="kw">import</span> { <span class="fn">sum</span> } <span class="kw">from</span> <span class="str">'./sum'</span>
+
+<span class="fn">describe</span>(<span class="str">'sum'</span>, () <span class="op">=&gt;</span> {
+  <span class="fn">it</span>(<span class="str">'adds two numbers'</span>, () <span class="op">=&gt;</span> {
+    <span class="fn">expect</span>(<span class="fn">sum</span>(<span class="num">1</span>, <span class="num">2</span>)).<span class="fn">toBe</span>(<span class="num">3</span>)
+  })
+
+  <span class="fn">it</span>(<span class="str">'handles negatives'</span>, () <span class="op">=&gt;</span> {
+    <span class="fn">expect</span>(<span class="fn">sum</span>(<span class="op">-</span><span class="num">1</span>, <span class="num">1</span>)).<span class="fn">toBe</span>(<span class="num">0</span>)
+  })
+})</code></pre>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             02. SETUP
+        ============================================================ -->
+        <section id="setup" class="section">
+            <div class="section-header">
+                <span class="section-number">02</span>
+                <h2 class="section-title">Setup &amp; Configuration</h2>
+            </div>
+            <p class="section-description">Get Vitest running in your project. It shares your Vite config automatically.</p>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Installation</h3>
+<pre data-label="terminal"><code><span class="cm"># Install Vitest</span>
+npm install -D vitest
+
+<span class="cm"># With coverage support</span>
+npm install -D vitest @vitest/coverage-v8
+
+<span class="cm"># With UI dashboard</span>
+npm install -D vitest @vitest/ui
+
+<span class="cm"># With browser mode</span>
+npm install -D vitest @vitest/browser playwright</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">vitest.config.ts</h3>
+                <p>Vitest reads from <code>vite.config.ts</code> by default. Use a separate config for test-only settings:</p>
+<pre data-label="vitest.config.ts"><code><span class="kw">import</span> { <span class="fn">defineConfig</span> } <span class="kw">from</span> <span class="str">'vitest/config'</span>
+
+<span class="kw">export default</span> <span class="fn">defineConfig</span>({
+  <span class="type">test</span>: {
+    <span class="cm">// Global test settings</span>
+    globals: <span class="num">true</span>,           <span class="cm">// Use describe/it/expect without imports</span>
+    environment: <span class="str">'jsdom'</span>,    <span class="cm">// DOM environment for UI tests</span>
+    setupFiles: [<span class="str">'./test/setup.ts'</span>],
+    include: [<span class="str">'**/*.{test,spec}.{ts,tsx,js,jsx}'</span>],
+    exclude: [<span class="str">'node_modules'</span>, <span class="str">'dist'</span>, <span class="str">'e2e'</span>],
+
+    <span class="cm">// Coverage config</span>
+    coverage: {
+      provider: <span class="str">'v8'</span>,
+      reporter: [<span class="str">'text'</span>, <span class="str">'html'</span>, <span class="str">'lcov'</span>],
+      include: [<span class="str">'src/**/*.ts'</span>],
+      exclude: [<span class="str">'src/**/*.d.ts'</span>, <span class="str">'src/**/*.test.ts'</span>],
+      thresholds: {
+        lines: <span class="num">80</span>,
+        branches: <span class="num">80</span>,
+      },
+    },
+  },
+})</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Environment Options</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Environment</th>
+                            <th>Package</th>
+                            <th>Use Case</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>node</code></td>
+                            <td>Built-in</td>
+                            <td>Default. Server-side logic, utilities</td>
+                        </tr>
+                        <tr>
+                            <td><code>jsdom</code></td>
+                            <td><code>jsdom</code></td>
+                            <td>DOM testing (React, Vue, etc.)</td>
+                        </tr>
+                        <tr>
+                            <td><code>happy-dom</code></td>
+                            <td><code>happy-dom</code></td>
+                            <td>Faster DOM alternative to jsdom</td>
+                        </tr>
+                        <tr>
+                            <td><code>edge-runtime</code></td>
+                            <td><code>@edge-runtime/vm</code></td>
+                            <td>Vercel Edge, Cloudflare Workers</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div class="alert alert-info">Set per-file environment with a magic comment: <code>// @vitest-environment jsdom</code> at top of file.</div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">package.json Scripts</h3>
+<pre data-label="package.json"><code>{
+  <span class="str">"scripts"</span>: {
+    <span class="str">"test"</span>: <span class="str">"vitest"</span>,
+    <span class="str">"test:run"</span>: <span class="str">"vitest run"</span>,
+    <span class="str">"test:coverage"</span>: <span class="str">"vitest run --coverage"</span>,
+    <span class="str">"test:ui"</span>: <span class="str">"vitest --ui"</span>,
+    <span class="str">"test:watch"</span>: <span class="str">"vitest --watch"</span>
+  }
+}</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">TypeScript Setup</h3>
+                <p>Add Vitest types to your <code>tsconfig.json</code>:</p>
+<pre data-label="tsconfig.json"><code>{
+  <span class="str">"compilerOptions"</span>: {
+    <span class="str">"types"</span>: [<span class="str">"vitest/globals"</span>]
+  }
+}</code></pre>
+                <div class="alert alert-warning">Only needed when <code>globals: true</code> is set in config. Otherwise, import from <code>'vitest'</code> directly.</div>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             03. TEST API
+        ============================================================ -->
+        <section id="test-api" class="section">
+            <div class="section-header">
+                <span class="section-number">03</span>
+                <h2 class="section-title">Test API</h2>
+            </div>
+            <p class="section-description">The core building blocks: <code>describe</code>, <code>it</code>/<code>test</code>, lifecycle hooks, and test modifiers.</p>
+
+            <div class="subsection">
+                <h3 class="subsection-title">describe &amp; test</h3>
+<pre data-label="structure"><code><span class="kw">import</span> { <span class="fn">describe</span>, <span class="fn">it</span>, <span class="fn">test</span>, <span class="fn">expect</span> } <span class="kw">from</span> <span class="str">'vitest'</span>
+
+<span class="cm">// describe groups related tests</span>
+<span class="fn">describe</span>(<span class="str">'Calculator'</span>, () <span class="op">=&gt;</span> {
+  <span class="cm">// it() and test() are identical</span>
+  <span class="fn">it</span>(<span class="str">'adds numbers'</span>, () <span class="op">=&gt;</span> {
+    <span class="fn">expect</span>(<span class="num">1</span> <span class="op">+</span> <span class="num">1</span>).<span class="fn">toBe</span>(<span class="num">2</span>)
+  })
+
+  <span class="fn">test</span>(<span class="str">'subtracts numbers'</span>, () <span class="op">=&gt;</span> {
+    <span class="fn">expect</span>(<span class="num">5</span> <span class="op">-</span> <span class="num">3</span>).<span class="fn">toBe</span>(<span class="num">2</span>)
+  })
+
+  <span class="cm">// Nested describe blocks</span>
+  <span class="fn">describe</span>(<span class="str">'edge cases'</span>, () <span class="op">=&gt;</span> {
+    <span class="fn">it</span>(<span class="str">'handles Infinity'</span>, () <span class="op">=&gt;</span> {
+      <span class="fn">expect</span>(<span class="num">1</span> <span class="op">/</span> <span class="num">0</span>).<span class="fn">toBe</span>(Infinity)
+    })
+  })
+})</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Test Modifiers</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Modifier</th>
+                            <th>Behavior</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>it.skip()</code></td>
+                            <td>Skip this test</td>
+                        </tr>
+                        <tr>
+                            <td><code>it.only()</code></td>
+                            <td>Run only this test (in this file)</td>
+                        </tr>
+                        <tr>
+                            <td><code>it.todo()</code></td>
+                            <td>Placeholder for unwritten test</td>
+                        </tr>
+                        <tr>
+                            <td><code>it.fails()</code></td>
+                            <td>Expect test to fail (inverted assertion)</td>
+                        </tr>
+                        <tr>
+                            <td><code>it.concurrent()</code></td>
+                            <td>Run this test in parallel with others</td>
+                        </tr>
+                        <tr>
+                            <td><code>it.each(cases)()</code></td>
+                            <td>Parameterized test for multiple inputs</td>
+                        </tr>
+                        <tr>
+                            <td><code>it.skipIf(cond)()</code></td>
+                            <td>Conditionally skip</td>
+                        </tr>
+                        <tr>
+                            <td><code>it.runIf(cond)()</code></td>
+                            <td>Conditionally run</td>
+                        </tr>
+                        <tr>
+                            <td><code>describe.shuffle()</code></td>
+                            <td>Randomize test order in suite</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Parameterized Tests with each()</h3>
+<pre data-label="each"><code><span class="fn">it</span>.<span class="fn">each</span>([
+  [<span class="num">1</span>, <span class="num">1</span>, <span class="num">2</span>],
+  [<span class="num">2</span>, <span class="num">3</span>, <span class="num">5</span>],
+  [<span class="num">0</span>, <span class="num">0</span>, <span class="num">0</span>],
+])(<span class="str">'add(%i, %i) = %i'</span>, (a, b, expected) <span class="op">=&gt;</span> {
+  <span class="fn">expect</span>(<span class="fn">add</span>(a, b)).<span class="fn">toBe</span>(expected)
+})
+
+<span class="cm">// Object syntax</span>
+<span class="fn">it</span>.<span class="fn">each</span>([
+  { input: <span class="str">'hello'</span>, expected: <span class="num">5</span> },
+  { input: <span class="str">''</span>, expected: <span class="num">0</span> },
+])(<span class="str">'length of "$input" is $expected'</span>, ({ input, expected }) <span class="op">=&gt;</span> {
+  <span class="fn">expect</span>(input.length).<span class="fn">toBe</span>(expected)
+})</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Lifecycle Hooks</h3>
+<pre data-label="hooks"><code><span class="kw">import</span> { <span class="fn">beforeAll</span>, <span class="fn">afterAll</span>, <span class="fn">beforeEach</span>, <span class="fn">afterEach</span> } <span class="kw">from</span> <span class="str">'vitest'</span>
+
+<span class="fn">describe</span>(<span class="str">'Database'</span>, () <span class="op">=&gt;</span> {
+  <span class="fn">beforeAll</span>(<span class="kw">async</span> () <span class="op">=&gt;</span> {
+    <span class="cm">// Runs once before all tests in this describe</span>
+    <span class="kw">await</span> db.<span class="fn">connect</span>()
+  })
+
+  <span class="fn">afterAll</span>(<span class="kw">async</span> () <span class="op">=&gt;</span> {
+    <span class="cm">// Runs once after all tests</span>
+    <span class="kw">await</span> db.<span class="fn">disconnect</span>()
+  })
+
+  <span class="fn">beforeEach</span>(<span class="kw">async</span> () <span class="op">=&gt;</span> {
+    <span class="cm">// Runs before each test</span>
+    <span class="kw">await</span> db.<span class="fn">reset</span>()
+  })
+
+  <span class="fn">afterEach</span>(() <span class="op">=&gt;</span> {
+    <span class="cm">// Runs after each test (cleanup)</span>
+    vi.<span class="fn">restoreAllMocks</span>()
+  })
+})</code></pre>
+                <div class="alert alert-info">Hooks in outer <code>describe</code> blocks run for nested suites too. Execution order: outerBefore &rarr; innerBefore &rarr; test &rarr; innerAfter &rarr; outerAfter.</div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Timeouts</h3>
+<pre data-label="timeouts"><code><span class="cm">// Per-test timeout (default: 5000ms)</span>
+<span class="fn">it</span>(<span class="str">'slow operation'</span>, <span class="kw">async</span> () <span class="op">=&gt;</span> {
+  <span class="kw">await</span> <span class="fn">heavyComputation</span>()
+}, <span class="num">30000</span>)  <span class="cm">// 30s timeout</span>
+
+<span class="cm">// Global timeout in config</span>
+<span class="cm">// test: { testTimeout: 10000 }</span></code></pre>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             04. MATCHERS / EXPECT
+        ============================================================ -->
+        <section id="matchers" class="section">
+            <div class="section-header">
+                <span class="section-number">04</span>
+                <h2 class="section-title">Expect &amp; Matchers</h2>
+            </div>
+            <p class="section-description">Vitest uses Chai-compatible assertions under the hood, plus its own extended matchers.</p>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Equality</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Matcher</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>.toBe(value)</code></td>
+                            <td>Strict equality (===). Use for primitives.</td>
+                        </tr>
+                        <tr>
+                            <td><code>.toEqual(value)</code></td>
+                            <td>Deep equality. Use for objects/arrays.</td>
+                        </tr>
+                        <tr>
+                            <td><code>.toStrictEqual(value)</code></td>
+                            <td>Deep equality + checks undefined properties and array sparseness</td>
+                        </tr>
+                        <tr>
+                            <td><code>.toMatchObject(obj)</code></td>
+                            <td>Partial deep match (subset OK)</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Truthiness &amp; Type Checks</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Matcher</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>.toBeTruthy()</code></td>
+                            <td>Any truthy value</td>
+                        </tr>
+                        <tr>
+                            <td><code>.toBeFalsy()</code></td>
+                            <td>Any falsy value</td>
+                        </tr>
+                        <tr>
+                            <td><code>.toBeNull()</code></td>
+                            <td>Exactly <code>null</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>.toBeUndefined()</code></td>
+                            <td>Exactly <code>undefined</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>.toBeDefined()</code></td>
+                            <td>Not <code>undefined</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>.toBeNaN()</code></td>
+                            <td>Is NaN</td>
+                        </tr>
+                        <tr>
+                            <td><code>.toBeInstanceOf(Class)</code></td>
+                            <td>instanceof check</td>
+                        </tr>
+                        <tr>
+                            <td><code>.toBeTypeOf(type)</code></td>
+                            <td>typeof check (<code>'string'</code>, <code>'number'</code>, etc.)</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Numbers</h3>
+<pre data-label="numbers"><code><span class="fn">expect</span>(<span class="num">3.14</span>).<span class="fn">toBeCloseTo</span>(<span class="num">3.14159</span>, <span class="num">1</span>)   <span class="cm">// 1 decimal precision</span>
+<span class="fn">expect</span>(<span class="num">10</span>).<span class="fn">toBeGreaterThan</span>(<span class="num">5</span>)
+<span class="fn">expect</span>(<span class="num">10</span>).<span class="fn">toBeGreaterThanOrEqual</span>(<span class="num">10</span>)
+<span class="fn">expect</span>(<span class="num">3</span>).<span class="fn">toBeLessThan</span>(<span class="num">5</span>)
+<span class="fn">expect</span>(<span class="num">3</span>).<span class="fn">toBeLessThanOrEqual</span>(<span class="num">3</span>)</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Strings</h3>
+<pre data-label="strings"><code><span class="fn">expect</span>(<span class="str">'hello world'</span>).<span class="fn">toContain</span>(<span class="str">'world'</span>)
+<span class="fn">expect</span>(<span class="str">'hello world'</span>).<span class="fn">toMatch</span>(<span class="op">/</span>hello<span class="op">/</span>)
+<span class="fn">expect</span>(<span class="str">'hello'</span>).<span class="fn">toHaveLength</span>(<span class="num">5</span>)</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Arrays &amp; Iterables</h3>
+<pre data-label="arrays"><code><span class="fn">expect</span>([<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>]).<span class="fn">toContain</span>(<span class="num">2</span>)
+<span class="fn">expect</span>([<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>]).<span class="fn">toHaveLength</span>(<span class="num">3</span>)
+<span class="fn">expect</span>([
+  { id: <span class="num">1</span>, name: <span class="str">'a'</span> },
+  { id: <span class="num">2</span>, name: <span class="str">'b'</span> },
+]).<span class="fn">toContainEqual</span>({ id: <span class="num">1</span>, name: <span class="str">'a'</span> })</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Exceptions</h3>
+<pre data-label="errors"><code><span class="cm">// Wrap in a function</span>
+<span class="fn">expect</span>(() <span class="op">=&gt;</span> <span class="fn">divide</span>(<span class="num">1</span>, <span class="num">0</span>)).<span class="fn">toThrow</span>()
+<span class="fn">expect</span>(() <span class="op">=&gt;</span> <span class="fn">divide</span>(<span class="num">1</span>, <span class="num">0</span>)).<span class="fn">toThrow</span>(<span class="str">'division by zero'</span>)
+<span class="fn">expect</span>(() <span class="op">=&gt;</span> <span class="fn">divide</span>(<span class="num">1</span>, <span class="num">0</span>)).<span class="fn">toThrow</span>(<span class="op">/</span>zero<span class="op">/</span>)
+<span class="fn">expect</span>(() <span class="op">=&gt;</span> <span class="fn">divide</span>(<span class="num">1</span>, <span class="num">0</span>)).<span class="fn">toThrowError</span>(DivisionError)
+
+<span class="cm">// Async</span>
+<span class="kw">await</span> <span class="fn">expect</span>(<span class="fn">fetchData</span>()).<span class="type">rejects</span>.<span class="fn">toThrow</span>(<span class="str">'Not found'</span>)</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Negation &amp; Asymmetric Matchers</h3>
+<pre data-label="advanced"><code><span class="cm">// Negation</span>
+<span class="fn">expect</span>(<span class="num">1</span>).<span class="type">not</span>.<span class="fn">toBe</span>(<span class="num">2</span>)
+
+<span class="cm">// Asymmetric matchers (partial matching)</span>
+<span class="fn">expect</span>(user).<span class="fn">toEqual</span>({
+  name: <span class="fn">expect</span>.<span class="fn">any</span>(String),
+  id: <span class="fn">expect</span>.<span class="fn">any</span>(Number),
+  createdAt: <span class="fn">expect</span>.<span class="fn">any</span>(Date),
+})
+
+<span class="fn">expect</span>(<span class="str">'hello world'</span>).<span class="fn">toEqual</span>(
+  <span class="fn">expect</span>.<span class="fn">stringContaining</span>(<span class="str">'world'</span>)
+)
+
+<span class="fn">expect</span>([<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>]).<span class="fn">toEqual</span>(
+  <span class="fn">expect</span>.<span class="fn">arrayContaining</span>([<span class="num">1</span>, <span class="num">3</span>])
+)
+
+<span class="fn">expect</span>({ a: <span class="num">1</span>, b: <span class="num">2</span> }).<span class="fn">toEqual</span>(
+  <span class="fn">expect</span>.<span class="fn">objectContaining</span>({ a: <span class="num">1</span> })
+)</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Soft Assertions</h3>
+                <p>Continue checking after first failure:</p>
+<pre data-label="soft"><code><span class="kw">import</span> { <span class="fn">expect</span> } <span class="kw">from</span> <span class="str">'vitest'</span>
+
+<span class="fn">it</span>(<span class="str">'checks all fields'</span>, () <span class="op">=&gt;</span> {
+  <span class="fn">expect</span>.<span class="fn">soft</span>(response.status).<span class="fn">toBe</span>(<span class="num">200</span>)
+  <span class="fn">expect</span>.<span class="fn">soft</span>(response.body.name).<span class="fn">toBe</span>(<span class="str">'Alice'</span>)
+  <span class="fn">expect</span>.<span class="fn">soft</span>(response.body.age).<span class="fn">toBe</span>(<span class="num">30</span>)
+  <span class="cm">// All failures reported together</span>
+})</code></pre>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             05. MOCKING
+        ============================================================ -->
+        <section id="mocking" class="section">
+            <div class="section-header">
+                <span class="section-number">05</span>
+                <h2 class="section-title">Mocking</h2>
+            </div>
+            <p class="section-description">Replace modules, functions, and timers with test doubles using the built-in <code>vi</code> utility.</p>
+
+            <div class="subsection">
+                <h3 class="subsection-title">vi.fn() &mdash; Mock Functions</h3>
+<pre data-label="vi.fn"><code><span class="kw">import</span> { <span class="fn">vi</span>, <span class="fn">expect</span>, <span class="fn">it</span> } <span class="kw">from</span> <span class="str">'vitest'</span>
+
+<span class="cm">// Create a mock function</span>
+<span class="kw">const</span> mockFn = <span class="fn">vi.fn</span>()
+
+<span class="cm">// With implementation</span>
+<span class="kw">const</span> mockAdd = <span class="fn">vi.fn</span>((a, b) <span class="op">=&gt;</span> a + b)
+
+<span class="cm">// Chained return values</span>
+mockFn
+  .<span class="fn">mockReturnValueOnce</span>(<span class="num">1</span>)
+  .<span class="fn">mockReturnValueOnce</span>(<span class="num">2</span>)
+  .<span class="fn">mockReturnValue</span>(<span class="num">99</span>)  <span class="cm">// default after</span>
+
+<span class="cm">// Async mock</span>
+<span class="kw">const</span> mockFetch = <span class="fn">vi.fn</span>()
+  .<span class="fn">mockResolvedValueOnce</span>({ data: <span class="str">'first'</span> })
+  .<span class="fn">mockRejectedValueOnce</span>(<span class="kw">new</span> Error(<span class="str">'fail'</span>))</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Mock Function Assertions</h3>
+<pre data-label="assertions"><code><span class="fn">expect</span>(mockFn).<span class="fn">toHaveBeenCalled</span>()
+<span class="fn">expect</span>(mockFn).<span class="fn">toHaveBeenCalledTimes</span>(<span class="num">3</span>)
+<span class="fn">expect</span>(mockFn).<span class="fn">toHaveBeenCalledWith</span>(<span class="str">'arg1'</span>, <span class="str">'arg2'</span>)
+<span class="fn">expect</span>(mockFn).<span class="fn">toHaveBeenLastCalledWith</span>(<span class="str">'last'</span>)
+<span class="fn">expect</span>(mockFn).<span class="fn">toHaveBeenNthCalledWith</span>(<span class="num">1</span>, <span class="str">'first'</span>)
+<span class="fn">expect</span>(mockFn).<span class="fn">toHaveReturnedWith</span>(<span class="num">42</span>)
+
+<span class="cm">// Access call history directly</span>
+mockFn.mock.calls      <span class="cm">// [[arg1, arg2], [arg3]]</span>
+mockFn.mock.results    <span class="cm">// [{ type: 'return', value: 42 }]</span>
+mockFn.mock.instances   <span class="cm">// [this context per call]</span></code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">vi.spyOn() &mdash; Spy on Methods</h3>
+<pre data-label="spyOn"><code><span class="kw">const</span> cart = {
+  items: [],
+  <span class="fn">add</span>(item) { <span class="kw">this</span>.items.<span class="fn">push</span>(item) },
+  <span class="fn">total</span>() { <span class="kw">return this</span>.items.<span class="fn">reduce</span>((s, i) <span class="op">=&gt;</span> s + i.price, <span class="num">0</span>) }
+}
+
+<span class="cm">// Spy preserves original implementation</span>
+<span class="kw">const</span> spy = <span class="fn">vi.spyOn</span>(cart, <span class="str">'add'</span>)
+
+cart.<span class="fn">add</span>({ name: <span class="str">'book'</span>, price: <span class="num">10</span> })
+<span class="fn">expect</span>(spy).<span class="fn">toHaveBeenCalledOnce</span>()
+<span class="fn">expect</span>(cart.items).<span class="fn">toHaveLength</span>(<span class="num">1</span>)  <span class="cm">// original still works</span>
+
+<span class="cm">// Override implementation</span>
+<span class="fn">vi.spyOn</span>(cart, <span class="str">'total'</span>).<span class="fn">mockReturnValue</span>(<span class="num">999</span>)</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">vi.mock() &mdash; Module Mocking</h3>
+<pre data-label="vi.mock"><code><span class="kw">import</span> { <span class="fn">vi</span> } <span class="kw">from</span> <span class="str">'vitest'</span>
+<span class="kw">import</span> { <span class="fn">readFile</span> } <span class="kw">from</span> <span class="str">'./fs-utils'</span>
+
+<span class="cm">// Auto-mock: all exports become vi.fn()</span>
+<span class="fn">vi.mock</span>(<span class="str">'./fs-utils'</span>)
+
+<span class="cm">// Manual factory</span>
+<span class="fn">vi.mock</span>(<span class="str">'./fs-utils'</span>, () <span class="op">=&gt;</span> ({
+  <span class="fn">readFile</span>: <span class="fn">vi.fn</span>(() <span class="op">=&gt;</span> <span class="str">'mock content'</span>),
+  <span class="fn">writeFile</span>: <span class="fn">vi.fn</span>(),
+}))
+
+<span class="cm">// Mock node built-ins</span>
+<span class="fn">vi.mock</span>(<span class="str">'node:fs/promises'</span>, () <span class="op">=&gt;</span> ({
+  <span class="fn">readFile</span>: <span class="fn">vi.fn</span>().<span class="fn">mockResolvedValue</span>(<span class="str">'data'</span>),
+}))
+
+<span class="cm">// Partial mock: keep originals, override some</span>
+<span class="fn">vi.mock</span>(<span class="str">'./utils'</span>, <span class="kw">async</span> (importOriginal) <span class="op">=&gt;</span> {
+  <span class="kw">const</span> actual = <span class="kw">await</span> <span class="fn">importOriginal</span>()
+  <span class="kw">return</span> {
+    ...actual,
+    <span class="fn">fetchData</span>: <span class="fn">vi.fn</span>(),
+  }
+})</code></pre>
+                <div class="alert alert-warning"><code>vi.mock()</code> calls are hoisted to the top of the file automatically. They run before any imports.</div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">vi.hoisted() &mdash; Hoist Variables</h3>
+<pre data-label="hoisted"><code><span class="cm">// Variables used in vi.mock factories must be hoisted</span>
+<span class="kw">const</span> { mockFetch } = <span class="fn">vi.hoisted</span>(() <span class="op">=&gt;</span> ({
+  mockFetch: <span class="fn">vi.fn</span>(),
+}))
+
+<span class="fn">vi.mock</span>(<span class="str">'./api'</span>, () <span class="op">=&gt;</span> ({
+  <span class="fn">fetchData</span>: mockFetch,
+}))</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Timers</h3>
+<pre data-label="timers"><code><span class="fn">vi.useFakeTimers</span>()
+
+<span class="fn">it</span>(<span class="str">'debounces calls'</span>, () <span class="op">=&gt;</span> {
+  <span class="kw">const</span> callback = <span class="fn">vi.fn</span>()
+  <span class="fn">debounce</span>(callback, <span class="num">300</span>)()
+
+  <span class="fn">expect</span>(callback).<span class="type">not</span>.<span class="fn">toHaveBeenCalled</span>()
+
+  <span class="fn">vi.advanceTimersByTime</span>(<span class="num">300</span>)
+  <span class="fn">expect</span>(callback).<span class="fn">toHaveBeenCalledOnce</span>()
+})
+
+<span class="cm">// Other timer controls</span>
+<span class="fn">vi.runAllTimers</span>()          <span class="cm">// Fast-forward all pending timers</span>
+<span class="fn">vi.runOnlyPendingTimers</span>()  <span class="cm">// Run only currently queued</span>
+<span class="fn">vi.advanceTimersToNextTimer</span>() <span class="cm">// Jump to next timer</span>
+<span class="fn">vi.setSystemTime</span>(<span class="kw">new</span> Date(<span class="str">'2024-01-01'</span>))  <span class="cm">// Freeze date</span>
+
+<span class="cm">// Restore real timers</span>
+<span class="fn">vi.useRealTimers</span>()</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Cleanup</h3>
+<pre data-label="cleanup"><code><span class="fn">vi.restoreAllMocks</span>()   <span class="cm">// Restore original implementations</span>
+<span class="fn">vi.resetAllMocks</span>()     <span class="cm">// Reset call history + implementations</span>
+<span class="fn">vi.clearAllMocks</span>()     <span class="cm">// Clear call history only</span>
+
+<span class="cm">// Auto-cleanup in config:</span>
+<span class="cm">// test: { restoreMocks: true }</span></code></pre>
+                <div class="alert alert-info">Set <code>restoreMocks: true</code> in your config to auto-restore after each test. Saves writing <code>afterEach</code> cleanup.</div>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             06. SNAPSHOTS
+        ============================================================ -->
+        <section id="snapshots" class="section">
+            <div class="section-header">
+                <span class="section-number">06</span>
+                <h2 class="section-title">Snapshots</h2>
+            </div>
+            <p class="section-description">Capture and compare output against saved snapshots. Great for serialized objects, HTML, and large structures.</p>
+
+            <div class="subsection">
+                <h3 class="subsection-title">File Snapshots</h3>
+<pre data-label="file snapshots"><code><span class="fn">it</span>(<span class="str">'renders user card'</span>, () <span class="op">=&gt;</span> {
+  <span class="kw">const</span> html = <span class="fn">renderUserCard</span>({ name: <span class="str">'Alice'</span>, age: <span class="num">30</span> })
+
+  <span class="cm">// Creates/compares __snapshots__/file.test.ts.snap</span>
+  <span class="fn">expect</span>(html).<span class="fn">toMatchSnapshot</span>()
+})
+
+<span class="cm">// Update snapshots when output intentionally changes:</span>
+<span class="cm">// npx vitest run --update</span>
+<span class="cm">// or press 'u' in watch mode</span></code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Inline Snapshots</h3>
+<pre data-label="inline"><code><span class="fn">it</span>(<span class="str">'formats date'</span>, () <span class="op">=&gt;</span> {
+  <span class="kw">const</span> result = <span class="fn">formatDate</span>(<span class="kw">new</span> Date(<span class="str">'2024-03-15'</span>))
+
+  <span class="cm">// Vitest writes the snapshot inline on first run</span>
+  <span class="fn">expect</span>(result).<span class="fn">toMatchInlineSnapshot</span>(<span class="str">`"March 15, 2024"`</span>)
+})</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">File Snapshots (toMatchFileSnapshot)</h3>
+<pre data-label="file"><code><span class="cm">// Compare against a dedicated snapshot file</span>
+<span class="fn">it</span>(<span class="str">'generates config'</span>, <span class="kw">async</span> () <span class="op">=&gt;</span> {
+  <span class="kw">const</span> config = <span class="fn">generateConfig</span>()
+  <span class="kw">await</span> <span class="fn">expect</span>(config).<span class="fn">toMatchFileSnapshot</span>(<span class="str">'./fixtures/config.snap'</span>)
+})</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Snapshot Serializers</h3>
+<pre data-label="serializers"><code><span class="cm">// Custom serializer for clean snapshots</span>
+<span class="fn">expect</span>.<span class="fn">addSnapshotSerializer</span>({
+  <span class="fn">serialize</span>(val, config, indent, depth, refs, printer) {
+    <span class="kw">return</span> <span class="str">`User(${val.name})`</span>
+  },
+  <span class="fn">test</span>(val) {
+    <span class="kw">return</span> val <span class="op">&amp;&amp;</span> val.constructor?.name <span class="op">===</span> <span class="str">'User'</span>
+  },
+})</code></pre>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             07. ASYNC TESTING
+        ============================================================ -->
+        <section id="async" class="section">
+            <div class="section-header">
+                <span class="section-number">07</span>
+                <h2 class="section-title">Async Testing</h2>
+            </div>
+            <p class="section-description">Handle promises, async/await, callbacks, and concurrent test execution.</p>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Async / Await</h3>
+<pre data-label="async/await"><code><span class="fn">it</span>(<span class="str">'fetches user'</span>, <span class="kw">async</span> () <span class="op">=&gt;</span> {
+  <span class="kw">const</span> user = <span class="kw">await</span> <span class="fn">fetchUser</span>(<span class="num">1</span>)
+  <span class="fn">expect</span>(user.name).<span class="fn">toBe</span>(<span class="str">'Alice'</span>)
+})
+
+<span class="cm">// Resolves / Rejects helpers</span>
+<span class="fn">it</span>(<span class="str">'resolves with data'</span>, <span class="kw">async</span> () <span class="op">=&gt;</span> {
+  <span class="kw">await</span> <span class="fn">expect</span>(<span class="fn">fetchUser</span>(<span class="num">1</span>)).<span class="type">resolves</span>.<span class="fn">toMatchObject</span>({ name: <span class="str">'Alice'</span> })
+})
+
+<span class="fn">it</span>(<span class="str">'rejects with error'</span>, <span class="kw">async</span> () <span class="op">=&gt;</span> {
+  <span class="kw">await</span> <span class="fn">expect</span>(<span class="fn">fetchUser</span>(<span class="op">-</span><span class="num">1</span>)).<span class="type">rejects</span>.<span class="fn">toThrow</span>(<span class="str">'Invalid ID'</span>)
+})</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Concurrent Tests</h3>
+<pre data-label="concurrent"><code><span class="cm">// Run tests in parallel within a suite</span>
+<span class="fn">describe</span>.<span class="fn">concurrent</span>(<span class="str">'API endpoints'</span>, () <span class="op">=&gt;</span> {
+  <span class="fn">it</span>(<span class="str">'GET /users'</span>, <span class="kw">async</span> () <span class="op">=&gt;</span> {
+    <span class="kw">const</span> res = <span class="kw">await</span> <span class="fn">fetch</span>(<span class="str">'/users'</span>)
+    <span class="fn">expect</span>(res.status).<span class="fn">toBe</span>(<span class="num">200</span>)
+  })
+
+  <span class="fn">it</span>(<span class="str">'GET /posts'</span>, <span class="kw">async</span> () <span class="op">=&gt;</span> {
+    <span class="kw">const</span> res = <span class="kw">await</span> <span class="fn">fetch</span>(<span class="str">'/posts'</span>)
+    <span class="fn">expect</span>(res.status).<span class="fn">toBe</span>(<span class="num">200</span>)
+  })
+})
+
+<span class="cm">// Or per-test</span>
+<span class="fn">it</span>.<span class="fn">concurrent</span>(<span class="str">'fast async test'</span>, <span class="kw">async</span> () <span class="op">=&gt;</span> { <span class="cm">/* ... */</span> })</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">vi.waitFor &amp; vi.waitUntil</h3>
+<pre data-label="polling"><code><span class="cm">// Poll until assertion passes</span>
+<span class="kw">await</span> <span class="fn">vi.waitFor</span>(() <span class="op">=&gt;</span> {
+  <span class="fn">expect</span>(element.textContent).<span class="fn">toBe</span>(<span class="str">'Loaded'</span>)
+}, { timeout: <span class="num">5000</span>, interval: <span class="num">100</span> })
+
+<span class="cm">// Wait until condition is truthy</span>
+<span class="kw">await</span> <span class="fn">vi.waitUntil</span>(() <span class="op">=&gt;</span> {
+  <span class="kw">return</span> document.<span class="fn">querySelector</span>(<span class="str">'.loaded'</span>)
+}, { timeout: <span class="num">3000</span> })</code></pre>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             08. FIXTURES
+        ============================================================ -->
+        <section id="fixtures" class="section">
+            <div class="section-header">
+                <span class="section-number">08</span>
+                <h2 class="section-title">Test Fixtures</h2>
+            </div>
+            <p class="section-description">Reusable test context with automatic setup/teardown. Inspired by Playwright's fixture model.</p>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Defining Fixtures</h3>
+<pre data-label="fixtures"><code><span class="kw">import</span> { <span class="fn">test</span> <span class="kw">as</span> base } <span class="kw">from</span> <span class="str">'vitest'</span>
+
+<span class="cm">// Extend test with custom fixtures</span>
+<span class="kw">const</span> test = base.<span class="fn">extend</span>&lt;{
+  <span class="type">db</span>: Database
+  <span class="type">user</span>: User
+}&gt;({
+  <span class="cm">// Each fixture gets a 'use' callback</span>
+  <span class="kw">async</span> <span class="fn">db</span>({}, use) {
+    <span class="kw">const</span> db = <span class="kw">await</span> <span class="fn">createTestDb</span>()
+    <span class="kw">await</span> <span class="fn">use</span>(db)          <span class="cm">// provide to test</span>
+    <span class="kw">await</span> db.<span class="fn">cleanup</span>()     <span class="cm">// teardown after</span>
+  },
+
+  <span class="cm">// Fixtures can depend on other fixtures</span>
+  <span class="kw">async</span> <span class="fn">user</span>({ db }, use) {
+    <span class="kw">const</span> user = <span class="kw">await</span> db.<span class="fn">createUser</span>({ name: <span class="str">'Alice'</span> })
+    <span class="kw">await</span> <span class="fn">use</span>(user)
+    <span class="kw">await</span> db.<span class="fn">deleteUser</span>(user.id)
+  },
+})</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Using Fixtures</h3>
+<pre data-label="usage"><code><span class="cm">// Fixtures are injected by name via destructuring</span>
+test(<span class="str">'creates a post'</span>, <span class="kw">async</span> ({ db, user }) <span class="op">=&gt;</span> {
+  <span class="kw">const</span> post = <span class="kw">await</span> db.<span class="fn">createPost</span>({
+    authorId: user.id,
+    title: <span class="str">'Hello'</span>,
+  })
+  <span class="fn">expect</span>(post.authorId).<span class="fn">toBe</span>(user.id)
+})
+
+<span class="cm">// Only requested fixtures are initialized</span>
+test(<span class="str">'db health check'</span>, <span class="kw">async</span> ({ db }) <span class="op">=&gt;</span> {
+  <span class="fn">expect</span>(<span class="kw">await</span> db.<span class="fn">ping</span>()).<span class="fn">toBe</span>(<span class="num">true</span>)
+  <span class="cm">// 'user' fixture is NOT created for this test</span>
+})</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Automatic Fixtures</h3>
+<pre data-label="auto"><code><span class="kw">const</span> test = base.<span class="fn">extend</span>&lt;{
+  <span class="type">logger</span>: Logger
+}&gt;({
+  <span class="cm">// { auto: true } means always active, even if not destructured</span>
+  <span class="fn">logger</span>: [<span class="kw">async</span> ({}, use) <span class="op">=&gt;</span> {
+    <span class="kw">const</span> logger = <span class="fn">createLogger</span>()
+    <span class="kw">await</span> <span class="fn">use</span>(logger)
+    logger.<span class="fn">flush</span>()
+  }, { auto: <span class="num">true</span> }],
+})</code></pre>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             09. COVERAGE
+        ============================================================ -->
+        <section id="coverage" class="section">
+            <div class="section-header">
+                <span class="section-number">09</span>
+                <h2 class="section-title">Coverage</h2>
+            </div>
+            <p class="section-description">Measure code coverage with V8 or Istanbul providers.</p>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Setup</h3>
+<pre data-label="install"><code><span class="cm"># V8 (faster, native, recommended)</span>
+npm install -D @vitest/coverage-v8
+
+<span class="cm"># Istanbul (battle-tested, wider compatibility)</span>
+npm install -D @vitest/coverage-istanbul</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Configuration</h3>
+<pre data-label="config"><code><span class="cm">// vitest.config.ts</span>
+<span class="kw">export default</span> <span class="fn">defineConfig</span>({
+  <span class="type">test</span>: {
+    coverage: {
+      provider: <span class="str">'v8'</span>,           <span class="cm">// or 'istanbul'</span>
+      enabled: <span class="num">true</span>,            <span class="cm">// always collect</span>
+      reporter: [
+        <span class="str">'text'</span>,                 <span class="cm">// terminal table</span>
+        <span class="str">'html'</span>,                 <span class="cm">// ./coverage/index.html</span>
+        <span class="str">'lcov'</span>,                 <span class="cm">// for CI tools</span>
+        <span class="str">'json-summary'</span>,         <span class="cm">// machine-readable</span>
+      ],
+      include: [<span class="str">'src/**/*.ts'</span>],
+      exclude: [
+        <span class="str">'src/**/*.test.ts'</span>,
+        <span class="str">'src/**/*.d.ts'</span>,
+        <span class="str">'src/index.ts'</span>,       <span class="cm">// barrel files</span>
+      ],
+      thresholds: {
+        lines: <span class="num">80</span>,
+        functions: <span class="num">80</span>,
+        branches: <span class="num">75</span>,
+        statements: <span class="num">80</span>,
+      },
+    },
+  },
+})</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Coverage Providers Compared</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Feature</th>
+                            <th>V8</th>
+                            <th>Istanbul</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Speed</td>
+                            <td><span class="badge badge-pass">fast</span></td>
+                            <td><span class="badge badge-skip">moderate</span></td>
+                        </tr>
+                        <tr>
+                            <td>Accuracy</td>
+                            <td>Native engine coverage</td>
+                            <td>AST instrumentation</td>
+                        </tr>
+                        <tr>
+                            <td>Source maps</td>
+                            <td>Automatic</td>
+                            <td>Automatic</td>
+                        </tr>
+                        <tr>
+                            <td>Decorators/plugins</td>
+                            <td>May miss some transforms</td>
+                            <td>More reliable with transforms</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Ignoring Coverage</h3>
+<pre data-label="ignore"><code><span class="cm">/* v8 ignore next */</span>
+<span class="kw">if</span> (process.env.DEBUG) {
+  console.<span class="fn">log</span>(<span class="str">'debug mode'</span>)
+}
+
+<span class="cm">/* v8 ignore start */</span>
+<span class="kw">function</span> <span class="fn">debugOnly</span>() {
+  <span class="cm">// This block is excluded from coverage</span>
+}
+<span class="cm">/* v8 ignore stop */</span>
+
+<span class="cm">// Istanbul-style (also supported)</span>
+<span class="cm">/* istanbul ignore next */</span></code></pre>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             10. WORKSPACE MODE
+        ============================================================ -->
+        <section id="workspace" class="section">
+            <div class="section-header">
+                <span class="section-number">10</span>
+                <h2 class="section-title">Workspace Mode</h2>
+            </div>
+            <p class="section-description">Test monorepos and multi-project setups with a single Vitest process.</p>
+
+            <div class="subsection">
+                <h3 class="subsection-title">vitest.workspace.ts</h3>
+<pre data-label="workspace"><code><span class="kw">import</span> { <span class="fn">defineWorkspace</span> } <span class="kw">from</span> <span class="str">'vitest/config'</span>
+
+<span class="kw">export default</span> <span class="fn">defineWorkspace</span>([
+  <span class="cm">// Glob patterns for project configs</span>
+  <span class="str">'packages/*/vitest.config.ts'</span>,
+
+  <span class="cm">// Inline project definitions</span>
+  {
+    <span class="type">test</span>: {
+      name: <span class="str">'unit'</span>,
+      include: [<span class="str">'src/**/*.test.ts'</span>],
+      environment: <span class="str">'node'</span>,
+    },
+  },
+  {
+    <span class="type">test</span>: {
+      name: <span class="str">'ui'</span>,
+      include: [<span class="str">'src/**/*.ui.test.tsx'</span>],
+      environment: <span class="str">'jsdom'</span>,
+    },
+  },
+  {
+    <span class="type">test</span>: {
+      name: <span class="str">'e2e'</span>,
+      include: [<span class="str">'e2e/**/*.test.ts'</span>],
+      environment: <span class="str">'node'</span>,
+      testTimeout: <span class="num">30000</span>,
+    },
+  },
+])</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Running Workspace Projects</h3>
+<pre data-label="commands"><code><span class="cm"># Run all workspace projects</span>
+npx vitest
+
+<span class="cm"># Run specific project</span>
+npx vitest --project unit
+npx vitest --project ui
+
+<span class="cm"># Run multiple projects</span>
+npx vitest --project unit --project e2e</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Monorepo Example</h3>
+<pre data-label="monorepo"><code><span class="cm">// Root vitest.workspace.ts</span>
+<span class="kw">export default</span> <span class="fn">defineWorkspace</span>([
+  <span class="str">'packages/*'</span>,
+])
+
+<span class="cm">// packages/api/vitest.config.ts</span>
+<span class="kw">export default</span> <span class="fn">defineConfig</span>({
+  <span class="type">test</span>: {
+    name: <span class="str">'@myapp/api'</span>,
+    environment: <span class="str">'node'</span>,
+  },
+})
+
+<span class="cm">// packages/web/vitest.config.ts</span>
+<span class="kw">export default</span> <span class="fn">defineConfig</span>({
+  <span class="type">test</span>: {
+    name: <span class="str">'@myapp/web'</span>,
+    environment: <span class="str">'jsdom'</span>,
+  },
+})</code></pre>
+                <div class="alert alert-info">Each workspace project gets its own Vite server, enabling different environments and transforms per project.</div>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             11. BROWSER MODE
+        ============================================================ -->
+        <section id="browser" class="section">
+            <div class="section-header">
+                <span class="section-number">11</span>
+                <h2 class="section-title">Browser Mode</h2>
+            </div>
+            <p class="section-description">Run tests in real browsers instead of simulated DOM environments. Uses Playwright or WebDriverIO under the hood.</p>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Setup</h3>
+<pre data-label="install"><code>npm install -D @vitest/browser playwright</code></pre>
+<pre data-label="vitest.config.ts"><code><span class="kw">export default</span> <span class="fn">defineConfig</span>({
+  <span class="type">test</span>: {
+    browser: {
+      enabled: <span class="num">true</span>,
+      provider: <span class="str">'playwright'</span>,    <span class="cm">// or 'webdriverio'</span>
+      name: <span class="str">'chromium'</span>,            <span class="cm">// browser to use</span>
+      headless: <span class="num">true</span>,             <span class="cm">// CI-friendly</span>
+    },
+  },
+})</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Browser Testing API</h3>
+<pre data-label="browser-test"><code><span class="kw">import</span> { <span class="fn">page</span> } <span class="kw">from</span> <span class="str">'@vitest/browser/context'</span>
+
+<span class="fn">it</span>(<span class="str">'renders button'</span>, <span class="kw">async</span> () <span class="op">=&gt;</span> {
+  <span class="cm">// Interact with actual DOM</span>
+  document.body.innerHTML = <span class="str">'&lt;button id="btn"&gt;Click me&lt;/button&gt;'</span>
+
+  <span class="kw">const</span> btn = document.<span class="fn">getElementById</span>(<span class="str">'btn'</span>)
+  btn.<span class="fn">click</span>()
+
+  <span class="cm">// Real browser APIs work</span>
+  <span class="fn">expect</span>(window.innerWidth).<span class="fn">toBeGreaterThan</span>(<span class="num">0</span>)
+  <span class="fn">expect</span>(document.visibilityState).<span class="fn">toBe</span>(<span class="str">'visible'</span>)
+})</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">When to Use Browser Mode</h3>
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <h4>Use Browser Mode</h4>
+                        <ul>
+                            <li>Canvas / WebGL testing</li>
+                            <li>Real CSS computed styles</li>
+                            <li>Web Workers / Service Workers</li>
+                            <li>Intersection / Resize observers</li>
+                            <li>Browser-specific APIs</li>
+                        </ul>
+                    </div>
+                    <div class="feature-card">
+                        <h4>Use jsdom / happy-dom</h4>
+                        <ul>
+                            <li>Unit tests for components</li>
+                            <li>Simple DOM manipulation</li>
+                            <li>Speed is priority</li>
+                            <li>CI with no browser install</li>
+                            <li>Most React/Vue testing</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             12. VITEST vs JEST
+        ============================================================ -->
+        <section id="vs-jest" class="section">
+            <div class="section-header">
+                <span class="section-number">12</span>
+                <h2 class="section-title">Vitest vs Jest</h2>
+            </div>
+            <p class="section-description">Vitest is designed as a drop-in Jest replacement. Here is what changes and what stays the same.</p>
+
+            <div class="subsection">
+                <h3 class="subsection-title">API Compatibility</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Feature</th>
+                            <th>Jest</th>
+                            <th>Vitest</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Test syntax</td>
+                            <td><code>describe/it/expect</code></td>
+                            <td><code>describe/it/expect</code> (identical)</td>
+                        </tr>
+                        <tr>
+                            <td>Matchers</td>
+                            <td>Built-in set</td>
+                            <td>Same + extras (<code>.toSatisfy</code>, <code>expect.soft</code>)</td>
+                        </tr>
+                        <tr>
+                            <td>Mocking</td>
+                            <td><code>jest.fn()</code>, <code>jest.mock()</code></td>
+                            <td><code>vi.fn()</code>, <code>vi.mock()</code></td>
+                        </tr>
+                        <tr>
+                            <td>Timers</td>
+                            <td><code>jest.useFakeTimers()</code></td>
+                            <td><code>vi.useFakeTimers()</code></td>
+                        </tr>
+                        <tr>
+                            <td>Snapshots</td>
+                            <td><code>toMatchSnapshot()</code></td>
+                            <td><code>toMatchSnapshot()</code> (identical)</td>
+                        </tr>
+                        <tr>
+                            <td>Globals</td>
+                            <td>Auto-global</td>
+                            <td>Import or set <code>globals: true</code></td>
+                        </tr>
+                        <tr>
+                            <td>Config</td>
+                            <td><code>jest.config.js</code></td>
+                            <td><code>vitest.config.ts</code> (extends Vite)</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Key Differences</h3>
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <div class="icon">&#9889;</div>
+                        <h4>Speed</h4>
+                        <p>Vitest uses Vite's native ESM transform. No babel. Watch mode re-runs only affected tests via HMR.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="icon">&#128230;</div>
+                        <h4>ESM First</h4>
+                        <p>Native ESM support. No more <code>transformIgnorePatterns</code> headaches with node_modules.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="icon">&#128295;</div>
+                        <h4>Config Sharing</h4>
+                        <p>Shares <code>vite.config.ts</code> - same aliases, plugins, and transforms in dev and test.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="icon">&#128187;</div>
+                        <h4>TypeScript</h4>
+                        <p>First-class TS support out of the box. No <code>ts-jest</code> or <code>babel-jest</code> needed.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="icon">&#127912;</div>
+                        <h4>UI Mode</h4>
+                        <p>Built-in browser dashboard with <code>--ui</code> flag. Visual test explorer with filtering.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="icon">&#128268;</div>
+                        <h4>In-source Testing</h4>
+                        <p>Write tests inside source files. Tree-shaken in production builds.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Migration from Jest</h3>
+<pre data-label="migration"><code><span class="cm">// Step 1: Replace jest globals with vi</span>
+<span class="cm">// Find & replace in your codebase:</span>
+
+jest.fn()          <span class="op">&rarr;</span>  vi.fn()
+jest.mock()        <span class="op">&rarr;</span>  vi.mock()
+jest.spyOn()       <span class="op">&rarr;</span>  vi.spyOn()
+jest.useFakeTimers <span class="op">&rarr;</span>  vi.useFakeTimers
+jest.clearAllMocks <span class="op">&rarr;</span>  vi.clearAllMocks
+
+<span class="cm">// Step 2: Update config</span>
+<span class="cm">// jest.config.js &rarr; vitest.config.ts</span>
+
+<span class="cm">// Step 3: Update imports (if not using globals)</span>
+<span class="kw">import</span> { <span class="fn">describe</span>, <span class="fn">it</span>, <span class="fn">expect</span>, <span class="fn">vi</span> } <span class="kw">from</span> <span class="str">'vitest'</span></code></pre>
+                <div class="alert alert-info">Most Jest test files work with only the <code>jest</code> &rarr; <code>vi</code> rename. Vitest maintains API compatibility by design.</div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">In-Source Testing</h3>
+                <p>A Vitest-exclusive feature: co-locate tests with source code.</p>
+<pre data-label="in-source"><code><span class="cm">// src/math.ts</span>
+<span class="kw">export function</span> <span class="fn">add</span>(a: <span class="type">number</span>, b: <span class="type">number</span>): <span class="type">number</span> {
+  <span class="kw">return</span> a + b
+}
+
+<span class="cm">// Tests are tree-shaken in production!</span>
+<span class="kw">if</span> (<span class="kw">import</span>.meta.vitest) {
+  <span class="kw">const</span> { <span class="fn">it</span>, <span class="fn">expect</span> } = <span class="kw">import</span>.meta.vitest
+
+  <span class="fn">it</span>(<span class="str">'adds numbers'</span>, () <span class="op">=&gt;</span> {
+    <span class="fn">expect</span>(<span class="fn">add</span>(<span class="num">1</span>, <span class="num">2</span>)).<span class="fn">toBe</span>(<span class="num">3</span>)
+  })
+}</code></pre>
+<pre data-label="config"><code><span class="cm">// Enable in vitest.config.ts</span>
+<span class="kw">export default</span> <span class="fn">defineConfig</span>({
+  <span class="type">define</span>: {
+    <span class="str">'import.meta.vitest'</span>: <span class="str">'undefined'</span>,  <span class="cm">// tree-shake in prod</span>
+  },
+  <span class="type">test</span>: {
+    includeSource: [<span class="str">'src/**/*.ts'</span>],
+  },
+})</code></pre>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             FOOTER
+        ============================================================ -->
+        <footer class="site-footer">
+            <a href="index.html">Back to Tech Guides</a>
+            <div class="glitch-line">// EOF :: vitest_reference_v2.x :: gl1tch_art_rendering_complete</div>
+        </footer>
+    </div>
+</body>
+</html>
