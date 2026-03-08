@@ -9,7 +9,7 @@ A collection of CSS design system showcases, interactive educational stories, st
 ├── index.html              # Master index (links to all sections)
 ├── styles/                 # 204 CSS design system showcases
 │   └── CLAUDE.md           # How to build style guides
-├── stories/                # 40 interactive educational stories
+├── stories/                # 45 interactive educational stories
 │   ├── CLAUDE.md           # How to build stories
 │   ├── STORY-CREATION-GUIDE.md  # Deep reference (audio, parallel workflows)
 │   ├── briefs/             # Research briefs (Markdown)
