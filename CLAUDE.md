@@ -7,16 +7,16 @@ A collection of CSS design system showcases, interactive educational stories, st
 ```
 /
 ├── index.html              # Master index (links to all sections)
-├── styles/                 # 195 CSS design system showcases
+├── styles/                 # 204 CSS design system showcases
 │   └── CLAUDE.md           # How to build style guides
-├── stories/                # 34 interactive educational stories
+├── stories/                # 40 interactive educational stories
 │   ├── CLAUDE.md           # How to build stories
 │   ├── STORY-CREATION-GUIDE.md  # Deep reference (audio, parallel workflows)
 │   ├── briefs/             # Research briefs (Markdown)
 │   ├── audio/              # Optional narration MP3s
 │   └── [story-name]/       # Each story in its own folder
 │       └── index.html      # Story file (may include media assets alongside)
-├── techguides/             # 47 styled developer reference docs
+├── techguides/             # 62 styled developer reference docs
 │   └── CLAUDE.md           # How to build tech guides
 ├── music/                  # Chiptune music studio (Mozart's Study)
 │   ├── CLAUDE.md           # How to use the music section
