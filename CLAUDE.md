@@ -1,6 +1,6 @@
 # HTML Style Guides Project
 
-A collection of CSS design system showcases, interactive educational stories, styled tech reference guides, a chiptune music studio, browser games, creative tools, and a daily AI newspaper. Everything runs on GitHub Pages with zero build tools or frameworks.
+A collection of CSS design system showcases, interactive educational stories, styled tech reference guides, CSS architecture maps, a chiptune music studio, browser games, creative tools, and a daily AI newspaper. Everything runs on GitHub Pages with zero build tools or frameworks.
 
 ## Project Structure
 
@@ -50,6 +50,11 @@ A collection of CSS design system showcases, interactive educational stories, st
 │   ├── index.html          # Archive hub (newspaper-themed)
 │   └── YYYY-MM-DD/         # One folder per daily edition
 │       └── index.html      # Self-contained broadsheet edition
+├── architecture/           # 33 CSS architecture maps (Blueprint Room)
+│   ├── index.html          # Hub page (blueprint-themed card grid)
+│   ├── briefs/             # Research briefs (Markdown)
+│   └── [project-name]/     # Each map in its own folder
+│       └── index.html      # Interactive architecture map
 └── games/                  # Browser games (modular JS)
     ├── casino-audio-engine.js  # Shared CasinoAudio for casino games
     ├── casino-theme.css        # Shared Vegas palette for casino games
@@ -106,6 +111,7 @@ When adding new content, update the relevant index:
 - Stories: `/stories/index.html` (add card with metadata tags)
 - Tech guides: `/techguides/index.html` (add card in appropriate tier)
 - Tools: `/tools/index.html` (add Rococo card linking to the tool)
+- Architecture: `/architecture/index.html` (add card in blueprint grid)
 - News: `/news/index.html` (updated automatically by `/news` skill)
 
 Also update the counts/descriptions in the master `/index.html` nav links if applicable.
