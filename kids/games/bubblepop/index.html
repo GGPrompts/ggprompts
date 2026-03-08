@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bubble Pop!</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    overflow: hidden;
+    background: linear-gradient(180deg, #1a1a3e 0%, #2d1b69 30%, #4a2c8a 60%, #6b3fa0 80%, #8b5fbf 100%);
+    height: 100vh;
+    width: 100vw;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    font-family: 'Comic Sans MS', 'Chalkboard SE', cursive, sans-serif;
+  }
+
+  .bubble {
+    position: absolute;
+    border-radius: 50%;
+    cursor: pointer;
+    pointer-events: auto;
+    transition: transform 0.05s ease-out;
+    will-change: transform;
+  }
+
+  .bubble:hover {
+    transform: scale(1.08);
+  }
+
+  .bubble .shine {
+    position: absolute;
+    border-radius: 50%;
+    background: radial-gradient(ellipse at 30% 20%, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0) 60%);
+    width: 60%;
+    height: 40%;
+    top: 10%;
+    left: 15%;
+  }
+
+  .bubble .shine2 {
+    position: absolute;
+    border-radius: 50%;
+    background: radial-gradient(ellipse at 70% 80%, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 50%);
+    width: 30%;
+    height: 20%;
+    bottom: 15%;
+    right: 15%;
+  }
+
+  .pop-particle {
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+    will-change: transform, opacity;
+  }
+
+  .pop-text {
+    position: absolute;
+    pointer-events: none;
+    font-size: 2rem;
+    font-weight: bold;
+    will-change: transform, opacity;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    z-index: 100;
+  }
+
+  .score-display {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 2rem;
+    color: #fff;
+    text-shadow: 0 0 20px rgba(139, 95, 191, 0.8), 0 2px 4px rgba(0,0,0,0.4);
+    z-index: 200;
+    letter-spacing: 2px;
+    pointer-events: none;
+  }
+
+  .score-display .count {
+    font-size: 3rem;
+    color: #ffd700;
+    text-shadow: 0 0 20px rgba(255, 215, 0, 0.6), 0 2px 4px rgba(0,0,0,0.4);
+  }
+
+  .star {
+    position: absolute;
+    width: 3px;
+    height: 3px;
+    background: #fff;
+    border-radius: 50%;
+    pointer-events: none;
+    opacity: 0.6;
+    animation: twinkle var(--dur) ease-in-out infinite;
+  }
+
+  @keyframes twinkle {
+    0%, 100% { opacity: 0.3; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.5); }
+  }
+
+  .floor-bubbles {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(0deg, rgba(255,255,255,0.05), transparent);
+    pointer-events: none;
+  }
+  .back-btn-carnival {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    z-index: 300;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 140px;
+    height: 64px;
+    padding: 0 24px;
+    background: linear-gradient(135deg, #FF69B4, #FF1493, #D42B2B);
+    color: #fff;
+    font-family: 'Fredoka', 'Comic Sans MS', cursive, sans-serif;
+    font-size: 1.3rem;
+    font-weight: 700;
+    text-decoration: none;
+    border: 4px solid #FFD700;
+    border-radius: 9999px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.25), 0 0 12px rgba(255,215,0,0.4);
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .back-btn-carnival:hover,
+  .back-btn-carnival:active {
+    transform: scale(1.08);
+    box-shadow: 0 6px 24px rgba(0,0,0,0.3), 0 0 20px rgba(255,215,0,0.6);
+  }
+  .back-btn-carnival:active {
+    transform: scale(0.96);
+  }
+</style>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+<a href="../../index.html" class="back-btn-carnival">&#11013;&#65039; Games</a>
+<div class="score-display">
+  POP! <span class="count" id="score">0</span>
+</div>
+<div class="floor-bubbles"></div>
+
+<script>
+// ---- Audio Engine (Web Audio API for silly beep-boop sounds) ----
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let audioCtx;
+
+function ensureAudio() {
+  if (!audioCtx) audioCtx = new AudioCtx();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function playPopSound(size) {
+  ensureAudio();
+  const now = audioCtx.currentTime;
+
+  // Random silly sound type
+  const soundType = Math.floor(Math.random() * 6);
+
+  if (soundType === 0) {
+    // Descending boop
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.type = 'sine';
+    const baseFreq = 300 + Math.random() * 600;
+    osc.frequency.setValueAtTime(baseFreq, now);
+    osc.frequency.exponentialRampToValueAtTime(80, now + 0.3);
+    gain.gain.setValueAtTime(0.3, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+    osc.start(now);
+    osc.stop(now + 0.3);
+  } else if (soundType === 1) {
+    // Ascending bweep
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(150, now);
+    osc.frequency.exponentialRampToValueAtTime(1200, now + 0.15);
+    osc.frequency.exponentialRampToValueAtTime(200, now + 0.25);
+    gain.gain.setValueAtTime(0.15, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+    osc.start(now);
+    osc.stop(now + 0.25);
+  } else if (soundType === 2) {
+    // Wobbly bloop
+    const osc = audioCtx.createOscillator();
+    const lfo = audioCtx.createOscillator();
+    const lfoGain = audioCtx.createGain();
+    const gain = audioCtx.createGain();
+    lfo.connect(lfoGain);
+    lfoGain.connect(osc.frequency);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(400 + Math.random() * 300, now);
+    lfo.frequency.setValueAtTime(20 + Math.random() * 30, now);
+    lfoGain.gain.setValueAtTime(100, now);
+    gain.gain.setValueAtTime(0.25, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+    osc.start(now);
+    lfo.start(now);
+    osc.stop(now + 0.35);
+    lfo.stop(now + 0.35);
+  } else if (soundType === 3) {
+    // Terminal beep-boop (two quick tones)
+    for (let i = 0; i < 2; i++) {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.type = i === 0 ? 'square' : 'triangle';
+      osc.frequency.setValueAtTime(i === 0 ? 800 : 500, now + i * 0.08);
+      gain.gain.setValueAtTime(0.15, now + i * 0.08);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.08 + 0.1);
+      osc.start(now + i * 0.08);
+      osc.stop(now + i * 0.08 + 0.1);
+    }
+  } else if (soundType === 4) {
+    // Bubble squeak
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(600, now);
+    osc.frequency.exponentialRampToValueAtTime(2000, now + 0.05);
+    osc.frequency.exponentialRampToValueAtTime(300, now + 0.2);
+    gain.gain.setValueAtTime(0.2, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+    osc.start(now);
+    osc.stop(now + 0.2);
+  } else {
+    // Silly spring boing
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.type = 'triangle';
+    const f = 200 + Math.random() * 400;
+    osc.frequency.setValueAtTime(f, now);
+    osc.frequency.setValueAtTime(f * 2, now + 0.05);
+    osc.frequency.setValueAtTime(f * 0.5, now + 0.1);
+    osc.frequency.setValueAtTime(f * 1.5, now + 0.15);
+    osc.frequency.setValueAtTime(f * 0.3, now + 0.25);
+    gain.gain.setValueAtTime(0.2, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+    osc.start(now);
+    osc.stop(now + 0.3);
+  }
+
+  // Big bubbles get a bonus deep thump
+  if (size > 100) {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(80, now);
+    osc.frequency.exponentialRampToValueAtTime(30, now + 0.2);
+    gain.gain.setValueAtTime(0.2, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+    osc.start(now);
+    osc.stop(now + 0.2);
+  }
+}
+
+// ---- Bubble Colors ----
+const bubbleColors = [
+  { body: 'rgba(255, 100, 150, 0.35)', border: 'rgba(255, 100, 150, 0.5)', glow: 'rgba(255, 100, 150, 0.3)' },
+  { body: 'rgba(100, 200, 255, 0.35)', border: 'rgba(100, 200, 255, 0.5)', glow: 'rgba(100, 200, 255, 0.3)' },
+  { body: 'rgba(150, 255, 150, 0.35)', border: 'rgba(150, 255, 150, 0.5)', glow: 'rgba(150, 255, 150, 0.3)' },
+  { body: 'rgba(255, 220, 100, 0.35)', border: 'rgba(255, 220, 100, 0.5)', glow: 'rgba(255, 220, 100, 0.3)' },
+  { body: 'rgba(200, 150, 255, 0.35)', border: 'rgba(200, 150, 255, 0.5)', glow: 'rgba(200, 150, 255, 0.3)' },
+  { body: 'rgba(255, 180, 100, 0.35)', border: 'rgba(255, 180, 100, 0.5)', glow: 'rgba(255, 180, 100, 0.3)' },
+  { body: 'rgba(100, 255, 220, 0.35)', border: 'rgba(100, 255, 220, 0.5)', glow: 'rgba(100, 255, 220, 0.3)' },
+  { body: 'rgba(255, 130, 255, 0.35)', border: 'rgba(255, 130, 255, 0.5)', glow: 'rgba(255, 130, 255, 0.3)' },
+];
+
+const popEmojis = ['POP!', 'BOOP!', 'SPLAT!', 'YAY!', 'WOW!', 'BONK!', 'POOF!', 'ZAP!'];
+
+// ---- State ----
+let score = 0;
+const bubbles = [];
+let animFrame;
+
+// ---- Starfield background ----
+function createStars() {
+  for (let i = 0; i < 60; i++) {
+    const star = document.createElement('div');
+    star.className = 'star';
+    star.style.left = Math.random() * 100 + '%';
+    star.style.top = Math.random() * 70 + '%';
+    star.style.setProperty('--dur', (2 + Math.random() * 4) + 's');
+    star.style.animationDelay = Math.random() * 4 + 's';
+    const s = 1 + Math.random() * 3;
+    star.style.width = s + 'px';
+    star.style.height = s + 'px';
+    document.body.appendChild(star);
+  }
+}
+createStars();
+
+// ---- Bubble creation ----
+function createBubble() {
+  const size = 40 + Math.random() * 120;
+  const color = bubbleColors[Math.floor(Math.random() * bubbleColors.length)];
+  const x = Math.random() * (window.innerWidth - size);
+  const speedY = 0.4 + Math.random() * 1.2;
+  const wobbleAmp = 20 + Math.random() * 40;
+  const wobbleSpeed = 0.5 + Math.random() * 1.5;
+  const wobbleOffset = Math.random() * Math.PI * 2;
+
+  const el = document.createElement('div');
+  el.className = 'bubble';
+  el.style.width = size + 'px';
+  el.style.height = size + 'px';
+  el.style.background = `radial-gradient(circle at 35% 25%, rgba(255,255,255,0.3), ${color.body} 50%, rgba(0,0,0,0.05))`;
+  el.style.border = `2px solid ${color.border}`;
+  el.style.boxShadow = `0 0 ${size/3}px ${color.glow}, inset 0 0 ${size/4}px rgba(255,255,255,0.1)`;
+  el.innerHTML = '<div class="shine"></div><div class="shine2"></div>';
+
+  document.body.appendChild(el);
+
+  const bubble = {
+    el, size, color,
+    x, y: window.innerHeight + size,
+    speedY, wobbleAmp, wobbleSpeed, wobbleOffset,
+    startX: x,
+    time: 0,
+    alive: true,
+  };
+
+  el.addEventListener('pointerdown', (e) => {
+    e.stopPropagation();
+    popBubble(bubble);
+  });
+  // Touch support
+  el.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    popBubble(bubble);
+  }, { passive: false });
+
+  bubbles.push(bubble);
+}
+
+// ---- Pop effect ----
+function popBubble(bubble) {
+  if (!bubble.alive) return;
+  bubble.alive = false;
+
+  const cx = bubble.x + bubble.size / 2;
+  const cy = bubble.y + bubble.size / 2;
+
+  playPopSound(bubble.size);
+
+  // Particles
+  const particleCount = 8 + Math.floor(Math.random() * 8);
+  for (let i = 0; i < particleCount; i++) {
+    const p = document.createElement('div');
+    p.className = 'pop-particle';
+    const pSize = 4 + Math.random() * 10;
+    p.style.width = pSize + 'px';
+    p.style.height = pSize + 'px';
+    p.style.background = bubble.color.border;
+    p.style.boxShadow = `0 0 ${pSize}px ${bubble.color.glow}`;
+    p.style.left = cx + 'px';
+    p.style.top = cy + 'px';
+    document.body.appendChild(p);
+
+    const angle = (Math.PI * 2 / particleCount) * i + Math.random() * 0.5;
+    const dist = 30 + Math.random() * 80;
+    const dx = Math.cos(angle) * dist;
+    const dy = Math.sin(angle) * dist;
+
+    p.animate([
+      { transform: 'translate(-50%, -50%) scale(1)', opacity: 1 },
+      { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(0)`, opacity: 0 }
+    ], { duration: 300 + Math.random() * 200, easing: 'ease-out', fill: 'forwards' })
+    .onfinish = () => p.remove();
+  }
+
+  // Pop text
+  const text = document.createElement('div');
+  text.className = 'pop-text';
+  text.textContent = popEmojis[Math.floor(Math.random() * popEmojis.length)];
+  text.style.left = cx + 'px';
+  text.style.top = cy + 'px';
+  text.style.color = bubble.color.border.replace('0.5', '1');
+  document.body.appendChild(text);
+
+  text.animate([
+    { transform: 'translate(-50%, -50%) scale(0.5)', opacity: 1 },
+    { transform: 'translate(-50%, calc(-50% - 60px)) scale(1.3)', opacity: 0 }
+  ], { duration: 600, easing: 'ease-out', fill: 'forwards' })
+  .onfinish = () => text.remove();
+
+  // Ring burst
+  const ring = document.createElement('div');
+  ring.style.position = 'absolute';
+  ring.style.left = cx + 'px';
+  ring.style.top = cy + 'px';
+  ring.style.width = '0px';
+  ring.style.height = '0px';
+  ring.style.borderRadius = '50%';
+  ring.style.border = `3px solid ${bubble.color.border}`;
+  ring.style.pointerEvents = 'none';
+  ring.style.zIndex = '50';
+  document.body.appendChild(ring);
+
+  ring.animate([
+    { width: '0px', height: '0px', opacity: 1, transform: 'translate(-50%, -50%)' },
+    { width: bubble.size * 2 + 'px', height: bubble.size * 2 + 'px', opacity: 0, transform: 'translate(-50%, -50%)' }
+  ], { duration: 400, easing: 'ease-out', fill: 'forwards' })
+  .onfinish = () => ring.remove();
+
+  // Remove bubble element
+  bubble.el.remove();
+
+  // Score
+  score++;
+  document.getElementById('score').textContent = score;
+
+  // Score pop animation
+  const scoreEl = document.getElementById('score');
+  scoreEl.animate([
+    { transform: 'scale(1.5)', color: bubble.color.border.replace('0.5', '1') },
+    { transform: 'scale(1)', color: '#ffd700' }
+  ], { duration: 300, easing: 'ease-out' });
+}
+
+// ---- Animation loop ----
+function animate() {
+  const dt = 1 / 60;
+
+  for (let i = bubbles.length - 1; i >= 0; i--) {
+    const b = bubbles[i];
+    if (!b.alive) {
+      bubbles.splice(i, 1);
+      continue;
+    }
+
+    b.time += dt;
+    b.y -= b.speedY;
+    b.x = b.startX + Math.sin(b.time * b.wobbleSpeed + b.wobbleOffset) * b.wobbleAmp;
+
+    b.el.style.left = b.x + 'px';
+    b.el.style.top = b.y + 'px';
+
+    // Remove if off screen
+    if (b.y < -b.size - 20) {
+      b.el.remove();
+      b.alive = false;
+      bubbles.splice(i, 1);
+    }
+  }
+
+  animFrame = requestAnimationFrame(animate);
+}
+
+// ---- Spawn timer ----
+let spawnTimer = 0;
+function spawnLoop() {
+  createBubble();
+  // Spawn rate: faster as more are popped, but cap it
+  const interval = Math.max(300, 800 - score * 5);
+  setTimeout(spawnLoop, interval);
+}
+
+// ---- Init ----
+// Spawn a few to start
+for (let i = 0; i < 8; i++) {
+  setTimeout(() => createBubble(), i * 200);
+}
+
+setTimeout(spawnLoop, 1500);
+animate();
+
+// Tap anywhere on mobile to ensure audio context starts
+document.body.addEventListener('pointerdown', ensureAudio, { once: true });
+document.body.addEventListener('touchstart', ensureAudio, { once: true });
+</script>
+</body>
+</html>

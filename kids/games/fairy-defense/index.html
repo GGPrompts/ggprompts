@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#FFB3D9">
+    <title>Fairy Makeover Defense</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body {
+            width: 100%; height: 100%;
+            overflow: hidden;
+            overscroll-behavior: none;
+            touch-action: none;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-user-select: none;
+            user-select: none;
+            background: #87CEEB;
+            font-family: 'Fredoka', sans-serif;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+        .back-btn {
+            position: fixed;
+            top: 12px;
+            left: 12px;
+            z-index: 10;
+            background: #FFB3D9;
+            color: #fff;
+            font-family: 'Lilita One', cursive;
+            font-size: 1.2rem;
+            padding: 8px 18px;
+            border: 3px solid #fff;
+            border-radius: 9999px;
+            text-decoration: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transition: transform 0.2s;
+        }
+        .back-btn:active { transform: scale(0.93); }
+        .score-display {
+            position: fixed;
+            top: 12px;
+            right: 16px;
+            z-index: 10;
+            font-family: 'Lilita One', cursive;
+            font-size: 1.6rem;
+            color: #fff;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+            pointer-events: none;
+        }
+        @supports (padding: env(safe-area-inset-top)) {
+            .back-btn { top: calc(12px + env(safe-area-inset-top)); left: calc(12px + env(safe-area-inset-left)); }
+            .score-display { top: calc(12px + env(safe-area-inset-top)); right: calc(16px + env(safe-area-inset-right)); }
+        }
+    </style>
+</head>
+<body>
+    <a href="../../" class="back-btn">&#8592; Back</a>
+    <div class="score-display" id="score">&#10024; 0</div>
+    <canvas id="game"></canvas>
+
+    <script>
+    (function() {
+        'use strict';
+
+        // ── Canvas Setup ──
+        var canvas = document.getElementById('game');
+        var ctx = canvas.getContext('2d');
+        var W, H, groundY, fairyX, fairyY;
+        var dpr = window.devicePixelRatio || 1;
+
+        function resize() {
+            W = window.innerWidth;
+            H = window.innerHeight;
+            canvas.width = W * dpr;
+            canvas.height = H * dpr;
+            canvas.style.width = W + 'px';
+            canvas.style.height = H + 'px';
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            groundY = H * 0.82;
+            fairyX = W * 0.85;
+            fairyY = groundY - 40;
+        }
+        resize();
+        window.addEventListener('resize', resize);
+
+        // ── Colors ──
+        var PINK = '#FFB3D9';
+        var BLUE = '#42A5F5';
+        var GREEN = '#66BB6A';
+        var YELLOW = '#FFE066';
+        var PURPLE = '#B07CC6';
+        var GOLD = '#F5C542';
+        var SKY_TOP = '#E0F4FF';
+        var SKY_BOT = '#87CEEB';
+        var GRASS = '#7EC850';
+        var GRASS_DARK = '#5AA832';
+        var RAINBOW = ['#E53935', '#FF8F00', '#FFE066', '#66BB6A', '#42A5F5', '#B07CC6'];
+
+        // ── State ──
+        var score = 0;
+        var monsters = [];
+        var particles = [];
+        var sparkles = []; // ambient sparkles
+        var clouds = [];
+        var flowers = [];
+        var time = 0;
+        var spawnTimer = 0;
+        var spawnInterval = 3500; // ms between spawns
+        var minSpawnInterval = 1200;
+        var fairyWandGlow = 0;
+        var audioCtx = null;
+
+        // ── Clouds ──
+        for (var i = 0; i < 5; i++) {
+            clouds.push({
+                x: Math.random() * 1400 - 200,
+                y: 20 + Math.random() * 100,
+                w: 80 + Math.random() * 120,
+                speed: 8 + Math.random() * 12
+            });
+        }
+
+        // ── Flowers ──
+        function initFlowers() {
+            flowers = [];
+            for (var i = 0; i < 12; i++) {
+                flowers.push({
+                    x: 30 + Math.random() * (W - 60),
+                    y: groundY + 5 + Math.random() * (H - groundY - 30),
+                    size: 6 + Math.random() * 8,
+                    color: [PINK, YELLOW, PURPLE, BLUE][Math.floor(Math.random() * 4)],
+                    phase: Math.random() * Math.PI * 2
+                });
+            }
+        }
+        initFlowers();
+
+        // ── Monster Types ──
+        var monsterTypes = [
+            { name: 'blob', color: '#7A7A7A', eyeColor: '#333', draw: drawBlobMonster },
+            { name: 'spiky', color: '#5C7A5C', eyeColor: '#2A3A2A', draw: drawSpikyMonster },
+            { name: 'square', color: '#6A5A8A', eyeColor: '#3A2A5A', draw: drawSquareMonster },
+            { name: 'horned', color: '#8A6A5A', eyeColor: '#4A3A2A', draw: drawHornedMonster }
+        ];
+
+        // ── Spawn Monster ──
+        function spawnMonster() {
+            var type = monsterTypes[Math.floor(Math.random() * monsterTypes.length)];
+            var size = 50 + Math.random() * 30; // 50-80
+            var speed = 20 + Math.random() * 15 + Math.max(0, score - 5) * 1.5;
+            var yOffset = -10 + Math.random() * 20;
+            monsters.push({
+                x: -size,
+                y: groundY - size * 0.5 + yOffset,
+                size: size,
+                speed: speed,
+                type: type,
+                beautified: false,
+                beautifyTime: 0,
+                floatY: 0,
+                floatSpeed: 0,
+                smile: 0,
+                wingPhase: Math.random() * Math.PI * 2,
+                brightness: 0,
+                rainbowTrail: [],
+                turningBack: false,
+                opacity: 1
+            });
+        }
+
+        // ── Drawing: Blob Monster ──
+        function drawBlobMonster(ctx, m) {
+            var s = m.size;
+            var cx = 0, cy = 0;
+            ctx.beginPath();
+            // Wobbly blob
+            for (var a = 0; a < Math.PI * 2; a += 0.1) {
+                var wobble = 1 + Math.sin(a * 3 + time * 3) * 0.08;
+                var r = s * 0.5 * wobble;
+                var px = cx + Math.cos(a) * r;
+                var py = cy + Math.sin(a) * r * 0.9;
+                if (a === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+        }
+
+        // ── Drawing: Spiky Monster ──
+        function drawSpikyMonster(ctx, m) {
+            var s = m.size;
+            var points = 7;
+            ctx.beginPath();
+            for (var i = 0; i <= points * 2; i++) {
+                var a = (Math.PI * 2 / (points * 2)) * i - Math.PI / 2;
+                var r = (i % 2 === 0) ? s * 0.5 : s * 0.35;
+                var px = Math.cos(a) * r;
+                var py = Math.sin(a) * r * 0.85;
+                if (i === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+        }
+
+        // ── Drawing: Square Monster ──
+        function drawSquareMonster(ctx, m) {
+            var s = m.size;
+            var r = s * 0.12;
+            var hw = s * 0.42, hh = s * 0.38;
+            ctx.beginPath();
+            ctx.moveTo(-hw + r, -hh);
+            ctx.lineTo(hw - r, -hh);
+            ctx.quadraticCurveTo(hw, -hh, hw, -hh + r);
+            ctx.lineTo(hw, hh - r);
+            ctx.quadraticCurveTo(hw, hh, hw - r, hh);
+            ctx.lineTo(-hw + r, hh);
+            ctx.quadraticCurveTo(-hw, hh, -hw, hh - r);
+            ctx.lineTo(-hw, -hh + r);
+            ctx.quadraticCurveTo(-hw, -hh, -hw + r, -hh);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+        }
+
+        // ── Drawing: Horned Monster ──
+        function drawHornedMonster(ctx, m) {
+            var s = m.size;
+            // Body - oval
+            ctx.beginPath();
+            ctx.ellipse(0, 0, s * 0.4, s * 0.38, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            // Horns
+            ctx.beginPath();
+            ctx.moveTo(-s * 0.2, -s * 0.3);
+            ctx.lineTo(-s * 0.3, -s * 0.55);
+            ctx.lineTo(-s * 0.08, -s * 0.3);
+            ctx.fill();
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(s * 0.2, -s * 0.3);
+            ctx.lineTo(s * 0.3, -s * 0.55);
+            ctx.lineTo(s * 0.08, -s * 0.3);
+            ctx.fill();
+            ctx.stroke();
+        }
+
+        // ── Draw Monster ──
+        function drawMonster(m) {
+            ctx.save();
+            ctx.translate(m.x, m.y - m.floatY);
+            ctx.globalAlpha = m.opacity;
+
+            // Rainbow trail for beautified monsters
+            if (m.beautified && m.rainbowTrail.length > 1) {
+                ctx.save();
+                ctx.globalAlpha = 0.4 * m.opacity;
+                for (var t = 1; t < m.rainbowTrail.length; t++) {
+                    var trail = m.rainbowTrail[t];
+                    var prev = m.rainbowTrail[t - 1];
+                    ctx.strokeStyle = RAINBOW[t % RAINBOW.length];
+                    ctx.lineWidth = 4 * (t / m.rainbowTrail.length);
+                    ctx.beginPath();
+                    ctx.moveTo(prev.x - m.x, prev.y - (m.y - m.floatY));
+                    ctx.lineTo(trail.x - m.x, trail.y - (m.y - m.floatY));
+                    ctx.stroke();
+                }
+                ctx.restore();
+            }
+
+            // Wings (if beautified)
+            if (m.beautified) {
+                var wingFlap = Math.sin(time * 8 + m.wingPhase) * 0.3 + 0.7;
+                var ws = m.size * 0.5;
+                // Left wing
+                ctx.save();
+                ctx.translate(-m.size * 0.25, -m.size * 0.15);
+                ctx.scale(-wingFlap, 1);
+                ctx.beginPath();
+                ctx.ellipse(0, 0, ws * 0.6, ws * 0.4, -0.3, 0, Math.PI * 2);
+                var wingGrad = ctx.createLinearGradient(-ws * 0.6, 0, ws * 0.6, 0);
+                wingGrad.addColorStop(0, 'rgba(255,179,217,0.7)');
+                wingGrad.addColorStop(0.3, 'rgba(255,224,102,0.7)');
+                wingGrad.addColorStop(0.5, 'rgba(102,187,106,0.7)');
+                wingGrad.addColorStop(0.7, 'rgba(66,165,245,0.7)');
+                wingGrad.addColorStop(1, 'rgba(176,124,198,0.7)');
+                ctx.fillStyle = wingGrad;
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+                ctx.restore();
+                // Right wing
+                ctx.save();
+                ctx.translate(m.size * 0.25, -m.size * 0.15);
+                ctx.scale(wingFlap, 1);
+                ctx.beginPath();
+                ctx.ellipse(0, 0, ws * 0.6, ws * 0.4, 0.3, 0, Math.PI * 2);
+                ctx.fillStyle = wingGrad;
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            // Body color - lerp toward bright when beautified
+            var baseColor = m.type.color;
+            var r = parseInt(baseColor.slice(1, 3), 16);
+            var g = parseInt(baseColor.slice(3, 5), 16);
+            var b = parseInt(baseColor.slice(5, 7), 16);
+            var bright = m.brightness;
+            // Brighten toward pink/gold
+            r = Math.round(r + (255 - r) * bright * 0.7);
+            g = Math.round(g + (200 - g) * bright * 0.5);
+            b = Math.round(b + (220 - b) * bright * 0.6);
+            ctx.fillStyle = 'rgb(' + r + ',' + g + ',' + b + ')';
+            ctx.strokeStyle = m.beautified ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.15)';
+            ctx.lineWidth = 2;
+
+            // Draw body shape
+            m.type.draw(ctx, m);
+
+            // Eyes
+            var eyeSpacing = m.size * 0.15;
+            var eyeY = -m.size * 0.05;
+            var eyeSize = m.size * 0.08;
+            // Eye whites
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(-eyeSpacing, eyeY, eyeSize + 2, 0, Math.PI * 2);
+            ctx.arc(eyeSpacing, eyeY, eyeSize + 2, 0, Math.PI * 2);
+            ctx.fill();
+            // Pupils
+            ctx.fillStyle = m.beautified ? '#4A3A6A' : m.type.eyeColor;
+            ctx.beginPath();
+            ctx.arc(-eyeSpacing + 1, eyeY, eyeSize, 0, Math.PI * 2);
+            ctx.arc(eyeSpacing + 1, eyeY, eyeSize, 0, Math.PI * 2);
+            ctx.fill();
+            // Eye sparkle
+            if (m.beautified) {
+                ctx.fillStyle = '#fff';
+                ctx.beginPath();
+                ctx.arc(-eyeSpacing - 1, eyeY - 2, eyeSize * 0.4, 0, Math.PI * 2);
+                ctx.arc(eyeSpacing - 1, eyeY - 2, eyeSize * 0.4, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Mouth
+            var mouthY = m.size * 0.12;
+            if (m.beautified) {
+                // Happy smile
+                ctx.strokeStyle = '#D4508A';
+                ctx.lineWidth = 2.5;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.arc(0, mouthY - 3, m.size * 0.12 * (0.5 + m.smile * 0.5), 0.1, Math.PI - 0.1);
+                ctx.stroke();
+            } else {
+                // Grumpy flat mouth
+                ctx.strokeStyle = m.type.eyeColor;
+                ctx.lineWidth = 2;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(-m.size * 0.08, mouthY);
+                ctx.lineTo(m.size * 0.08, mouthY + 2);
+                ctx.stroke();
+            }
+
+            // Little feet (only if not floating)
+            if (!m.beautified || m.floatY < 5) {
+                var footBob = Math.sin(time * 4 + m.wingPhase) * 3;
+                ctx.fillStyle = ctx.fillStyle; // same body color
+                ctx.beginPath();
+                ctx.ellipse(-m.size * 0.15, m.size * 0.35 + footBob, m.size * 0.1, m.size * 0.06, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(m.size * 0.15, m.size * 0.35 - footBob, m.size * 0.1, m.size * 0.06, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            ctx.restore();
+        }
+
+        // ── Draw Fairy ──
+        function drawFairy() {
+            ctx.save();
+            ctx.translate(fairyX, fairyY);
+
+            var bob = Math.sin(time * 2) * 4;
+            ctx.translate(0, bob);
+
+            // Wing flutter
+            var wingFlap = Math.sin(time * 5) * 0.25 + 0.75;
+
+            // Left wing
+            ctx.save();
+            ctx.translate(-18, -25);
+            ctx.scale(-wingFlap, 1);
+            ctx.beginPath();
+            ctx.ellipse(0, 0, 28, 18, -0.4, 0, Math.PI * 2);
+            var fwg = ctx.createRadialGradient(0, 0, 2, 0, 0, 28);
+            fwg.addColorStop(0, 'rgba(255,224,102,0.6)');
+            fwg.addColorStop(0.5, 'rgba(255,179,217,0.5)');
+            fwg.addColorStop(1, 'rgba(168,216,234,0.3)');
+            ctx.fillStyle = fwg;
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            ctx.restore();
+
+            // Right wing
+            ctx.save();
+            ctx.translate(18, -25);
+            ctx.scale(wingFlap, 1);
+            ctx.beginPath();
+            ctx.ellipse(0, 0, 28, 18, 0.4, 0, Math.PI * 2);
+            ctx.fillStyle = fwg;
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            ctx.restore();
+
+            // Dress (triangle)
+            ctx.beginPath();
+            ctx.moveTo(0, -10);
+            ctx.lineTo(-20, 25);
+            ctx.lineTo(20, 25);
+            ctx.closePath();
+            var dressGrad = ctx.createLinearGradient(0, -10, 0, 25);
+            dressGrad.addColorStop(0, PINK);
+            dressGrad.addColorStop(1, PURPLE);
+            ctx.fillStyle = dressGrad;
+            ctx.fill();
+
+            // Head
+            ctx.fillStyle = '#FFE0C2';
+            ctx.beginPath();
+            ctx.arc(0, -22, 14, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Hair
+            ctx.fillStyle = GOLD;
+            ctx.beginPath();
+            ctx.arc(0, -28, 14, Math.PI + 0.3, Math.PI * 2 - 0.3);
+            ctx.quadraticCurveTo(16, -24, 14, -15);
+            ctx.quadraticCurveTo(10, -30, 0, -28);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(0, -28, 14, Math.PI + 0.3, Math.PI * 2 - 0.3);
+            ctx.quadraticCurveTo(-16, -24, -14, -15);
+            ctx.quadraticCurveTo(-10, -30, 0, -28);
+            ctx.fill();
+
+            // Eyes
+            ctx.fillStyle = '#6A4A8A';
+            ctx.beginPath();
+            ctx.arc(-5, -23, 2.5, 0, Math.PI * 2);
+            ctx.arc(5, -23, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+            // Eye sparkle
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(-4, -24, 1, 0, Math.PI * 2);
+            ctx.arc(6, -24, 1, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Smile
+            ctx.strokeStyle = '#D4508A';
+            ctx.lineWidth = 1.5;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.arc(0, -19, 5, 0.2, Math.PI - 0.2);
+            ctx.stroke();
+
+            // Crown / tiara
+            ctx.fillStyle = GOLD;
+            ctx.beginPath();
+            ctx.moveTo(-8, -35);
+            ctx.lineTo(-5, -42);
+            ctx.lineTo(-2, -36);
+            ctx.lineTo(0, -44);
+            ctx.lineTo(2, -36);
+            ctx.lineTo(5, -42);
+            ctx.lineTo(8, -35);
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = '#E8A317';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            // Wand arm (extended to the left, toward monsters)
+            var wandGlow = fairyWandGlow;
+            ctx.save();
+            ctx.translate(-15, -5);
+            ctx.rotate(-0.5);
+            // Arm
+            ctx.strokeStyle = '#FFE0C2';
+            ctx.lineWidth = 4;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(-22, -10);
+            ctx.stroke();
+            // Wand stick
+            ctx.strokeStyle = '#E8A317';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(-22, -10);
+            ctx.lineTo(-38, -22);
+            ctx.stroke();
+            // Star on wand tip
+            drawStar(ctx, -40, -24, 8 + wandGlow * 4, 5, GOLD, wandGlow);
+            ctx.restore();
+
+            ctx.restore();
+        }
+
+        // ── Draw Star ──
+        function drawStar(ctx, x, y, size, points, color, glow) {
+            if (glow > 0) {
+                ctx.save();
+                ctx.shadowColor = GOLD;
+                ctx.shadowBlur = 15 * glow;
+                ctx.restore();
+            }
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            for (var i = 0; i < points * 2; i++) {
+                var a = (Math.PI * 2 / (points * 2)) * i - Math.PI / 2;
+                var r = (i % 2 === 0) ? size : size * 0.4;
+                var px = x + Math.cos(a) * r;
+                var py = y + Math.sin(a) * r;
+                if (i === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+            ctx.fill();
+
+            // Sparkle lines from star if glowing
+            if (glow > 0.3) {
+                ctx.strokeStyle = 'rgba(255,224,102,' + glow * 0.7 + ')';
+                ctx.lineWidth = 1.5;
+                for (var j = 0; j < 4; j++) {
+                    var sa = (Math.PI / 2) * j + time * 2;
+                    var len = size * 1.5 * glow;
+                    ctx.beginPath();
+                    ctx.moveTo(x + Math.cos(sa) * (size + 2), y + Math.sin(sa) * (size + 2));
+                    ctx.lineTo(x + Math.cos(sa) * (size + 2 + len), y + Math.sin(sa) * (size + 2 + len));
+                    ctx.stroke();
+                }
+            }
+        }
+
+        // ── Particles ──
+        function spawnSparkles(x, y, count, colors) {
+            for (var i = 0; i < count; i++) {
+                var angle = Math.random() * Math.PI * 2;
+                var speed = 40 + Math.random() * 100;
+                var c = colors[Math.floor(Math.random() * colors.length)];
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed - 30,
+                    life: 0.8 + Math.random() * 0.6,
+                    maxLife: 0.8 + Math.random() * 0.6,
+                    size: 3 + Math.random() * 6,
+                    color: c,
+                    type: Math.random() > 0.4 ? 'star' : 'circle',
+                    rotation: Math.random() * Math.PI * 2,
+                    rotSpeed: (Math.random() - 0.5) * 10
+                });
+            }
+        }
+
+        function drawParticle(p) {
+            var alpha = p.life / p.maxLife;
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.translate(p.x, p.y);
+            ctx.rotate(p.rotation);
+            if (p.type === 'star') {
+                drawStar(ctx, 0, 0, p.size, 4, p.color, 0);
+            } else {
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(0, 0, p.size * 0.6, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+
+        // ── Background ──
+        function drawBackground() {
+            // Sky gradient
+            var skyGrad = ctx.createLinearGradient(0, 0, 0, groundY);
+            skyGrad.addColorStop(0, SKY_TOP);
+            skyGrad.addColorStop(1, SKY_BOT);
+            ctx.fillStyle = skyGrad;
+            ctx.fillRect(0, 0, W, groundY);
+
+            // Clouds
+            for (var i = 0; i < clouds.length; i++) {
+                var c = clouds[i];
+                ctx.fillStyle = 'rgba(255,255,255,0.7)';
+                ctx.beginPath();
+                ctx.ellipse(c.x, c.y, c.w * 0.5, 18, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(c.x - c.w * 0.2, c.y - 10, c.w * 0.3, 16, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(c.x + c.w * 0.2, c.y - 6, c.w * 0.25, 14, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Ground
+            var grassGrad = ctx.createLinearGradient(0, groundY, 0, H);
+            grassGrad.addColorStop(0, GRASS);
+            grassGrad.addColorStop(1, GRASS_DARK);
+            ctx.fillStyle = grassGrad;
+            ctx.fillRect(0, groundY, W, H - groundY);
+
+            // Grass tufts
+            ctx.strokeStyle = '#5AA832';
+            ctx.lineWidth = 2;
+            ctx.lineCap = 'round';
+            for (var g = 0; g < W; g += 25) {
+                var gy = groundY;
+                var sway = Math.sin(time * 1.5 + g * 0.05) * 3;
+                ctx.beginPath();
+                ctx.moveTo(g, gy);
+                ctx.quadraticCurveTo(g + sway, gy - 12, g + sway - 2, gy - 18);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(g + 8, gy);
+                ctx.quadraticCurveTo(g + 8 - sway * 0.5, gy - 10, g + 8 - sway * 0.3, gy - 14);
+                ctx.stroke();
+            }
+
+            // Flowers
+            for (var f = 0; f < flowers.length; f++) {
+                var fl = flowers[f];
+                var fBob = Math.sin(time * 2 + fl.phase) * 2;
+                ctx.fillStyle = fl.color;
+                for (var p = 0; p < 5; p++) {
+                    var pa = (Math.PI * 2 / 5) * p + time * 0.3 + fl.phase;
+                    ctx.beginPath();
+                    ctx.ellipse(
+                        fl.x + Math.cos(pa) * fl.size * 0.4,
+                        fl.y + fBob + Math.sin(pa) * fl.size * 0.4,
+                        fl.size * 0.35, fl.size * 0.25, pa, 0, Math.PI * 2
+                    );
+                    ctx.fill();
+                }
+                ctx.fillStyle = YELLOW;
+                ctx.beginPath();
+                ctx.arc(fl.x, fl.y + fBob, fl.size * 0.2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // ── Ambient Sparkles (always floating) ──
+        function updateAmbientSparkles(dt) {
+            // Spawn ambient sparkles near fairy
+            if (Math.random() < 0.3) {
+                sparkles.push({
+                    x: fairyX - 60 + Math.random() * 80,
+                    y: fairyY - 60 + Math.random() * 60,
+                    size: 1 + Math.random() * 3,
+                    life: 1 + Math.random(),
+                    maxLife: 1 + Math.random(),
+                    vy: -10 - Math.random() * 15
+                });
+            }
+            for (var i = sparkles.length - 1; i >= 0; i--) {
+                var s = sparkles[i];
+                s.y += s.vy * dt;
+                s.life -= dt;
+                if (s.life <= 0) { sparkles.splice(i, 1); continue; }
+            }
+        }
+
+        function drawAmbientSparkles() {
+            for (var i = 0; i < sparkles.length; i++) {
+                var s = sparkles[i];
+                var alpha = (s.life / s.maxLife);
+                ctx.save();
+                ctx.globalAlpha = alpha * 0.6;
+                ctx.fillStyle = GOLD;
+                drawStar(ctx, s.x, s.y, s.size, 4, GOLD, 0);
+                ctx.restore();
+            }
+        }
+
+        // ── Audio ──
+        function initAudio() {
+            if (audioCtx) return;
+            try {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            } catch (e) {}
+        }
+
+        function playMagicSound() {
+            if (!audioCtx) return;
+            try {
+                // Shimmer/whoosh
+                var now = audioCtx.currentTime;
+                var osc1 = audioCtx.createOscillator();
+                var osc2 = audioCtx.createOscillator();
+                var gain1 = audioCtx.createGain();
+                var gain2 = audioCtx.createGain();
+
+                osc1.type = 'sine';
+                osc1.frequency.setValueAtTime(800, now);
+                osc1.frequency.exponentialRampToValueAtTime(2000, now + 0.15);
+                osc1.frequency.exponentialRampToValueAtTime(1200, now + 0.4);
+                gain1.gain.setValueAtTime(0.12, now);
+                gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+                osc1.connect(gain1);
+                gain1.connect(audioCtx.destination);
+                osc1.start(now);
+                osc1.stop(now + 0.4);
+
+                osc2.type = 'triangle';
+                osc2.frequency.setValueAtTime(1200, now + 0.05);
+                osc2.frequency.exponentialRampToValueAtTime(2400, now + 0.2);
+                gain2.gain.setValueAtTime(0.08, now + 0.05);
+                gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+                osc2.connect(gain2);
+                gain2.connect(audioCtx.destination);
+                osc2.start(now + 0.05);
+                osc2.stop(now + 0.35);
+            } catch (e) {}
+        }
+
+        function playChimeSound() {
+            if (!audioCtx) return;
+            try {
+                var now = audioCtx.currentTime;
+                var notes = [523, 659, 784, 1047]; // C E G C
+                for (var i = 0; i < notes.length; i++) {
+                    var osc = audioCtx.createOscillator();
+                    var gain = audioCtx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.value = notes[i];
+                    gain.gain.setValueAtTime(0, now + i * 0.08);
+                    gain.gain.linearRampToValueAtTime(0.08, now + i * 0.08 + 0.02);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.08 + 0.5);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now + i * 0.08);
+                    osc.stop(now + i * 0.08 + 0.5);
+                }
+            } catch (e) {}
+        }
+
+        // ── Tap / Click ──
+        function handleTap(cx, cy) {
+            initAudio();
+            for (var i = monsters.length - 1; i >= 0; i--) {
+                var m = monsters[i];
+                if (m.beautified) continue;
+                var dx = cx - m.x;
+                var dy = cy - (m.y - m.floatY);
+                var dist = Math.sqrt(dx * dx + dy * dy);
+                // Generous hit area
+                if (dist < m.size * 0.7) {
+                    beautifyMonster(m);
+                    return;
+                }
+            }
+        }
+
+        function beautifyMonster(m) {
+            m.beautified = true;
+            m.beautifyTime = time;
+            score++;
+            document.getElementById('score').textContent = '\u2728 ' + score;
+            fairyWandGlow = 1;
+
+            // Spawn LOTS of sparkles
+            var sparkColors = [PINK, GOLD, YELLOW, '#fff', PURPLE, BLUE, '#FF6B9D'];
+            spawnSparkles(m.x, m.y, 30, sparkColors);
+
+            // Additional ring of sparkles
+            for (var i = 0; i < 12; i++) {
+                var angle = (Math.PI * 2 / 12) * i;
+                var dist = m.size * 0.8;
+                spawnSparkles(
+                    m.x + Math.cos(angle) * dist,
+                    m.y + Math.sin(angle) * dist,
+                    3, sparkColors
+                );
+            }
+
+            playMagicSound();
+            setTimeout(playChimeSound, 150);
+
+            // Gradually speed up spawns
+            spawnInterval = Math.max(minSpawnInterval, spawnInterval - 80);
+        }
+
+        canvas.addEventListener('pointerdown', function(e) {
+            e.preventDefault();
+            var rect = canvas.getBoundingClientRect();
+            var cx = (e.clientX - rect.left);
+            var cy = (e.clientY - rect.top);
+            handleTap(cx, cy);
+        });
+
+        // Prevent double-tap zoom on iOS
+        canvas.addEventListener('touchstart', function(e) { e.preventDefault(); }, { passive: false });
+
+        // ── Game Loop ──
+        var lastTime = performance.now();
+
+        function update(now) {
+            var dt = Math.min((now - lastTime) / 1000, 0.1);
+            lastTime = now;
+            time += dt;
+
+            // Spawn monsters
+            spawnTimer += dt * 1000;
+            if (spawnTimer >= spawnInterval) {
+                spawnTimer = 0;
+                spawnMonster();
+            }
+
+            // Move clouds
+            for (var c = 0; c < clouds.length; c++) {
+                clouds[c].x += clouds[c].speed * dt;
+                if (clouds[c].x > W + 200) clouds[c].x = -200;
+            }
+
+            // Update monsters
+            for (var i = monsters.length - 1; i >= 0; i--) {
+                var m = monsters[i];
+                if (m.beautified) {
+                    // Animate beautification
+                    var bt = time - m.beautifyTime;
+                    m.brightness = Math.min(1, bt * 3);
+                    m.smile = Math.min(1, bt * 4);
+
+                    // Start floating up after a brief pause
+                    if (bt > 0.4) {
+                        m.floatSpeed += 80 * dt;
+                        m.floatY += m.floatSpeed * dt;
+                        // Slight horizontal drift
+                        m.x += Math.sin(time * 3 + m.wingPhase) * 20 * dt;
+                    }
+
+                    // Rainbow trail
+                    if (bt > 0.3 && m.floatY > 0) {
+                        m.rainbowTrail.push({ x: m.x, y: m.y - m.floatY });
+                        if (m.rainbowTrail.length > 20) m.rainbowTrail.shift();
+                    }
+
+                    // Sparkle trail while floating
+                    if (m.floatY > 10 && Math.random() < 0.4) {
+                        spawnSparkles(m.x, m.y - m.floatY + m.size * 0.3, 1, [GOLD, PINK, '#fff']);
+                    }
+
+                    // Fade out as it leaves
+                    if (m.y - m.floatY < -m.size) {
+                        m.opacity -= dt * 2;
+                        if (m.opacity <= 0) {
+                            monsters.splice(i, 1);
+                            continue;
+                        }
+                    }
+                } else {
+                    // Walk toward fairy
+                    m.x += m.speed * dt;
+
+                    // If reaches fairy area, auto-beautify (no fail state!)
+                    if (m.x > fairyX - 60) {
+                        beautifyMonster(m);
+                    }
+                }
+            }
+
+            // Update particles
+            for (var j = particles.length - 1; j >= 0; j--) {
+                var p = particles[j];
+                p.x += p.vx * dt;
+                p.y += p.vy * dt;
+                p.vy += 60 * dt; // gravity
+                p.life -= dt;
+                p.rotation += p.rotSpeed * dt;
+                if (p.life <= 0) { particles.splice(j, 1); }
+            }
+
+            // Fairy wand glow decay
+            if (fairyWandGlow > 0) {
+                fairyWandGlow = Math.max(0, fairyWandGlow - dt * 2.5);
+            }
+
+            updateAmbientSparkles(dt);
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, W, H);
+            drawBackground();
+
+            // Draw monsters (back to front by x position)
+            monsters.sort(function(a, b) { return a.x - b.x; });
+            for (var i = 0; i < monsters.length; i++) {
+                drawMonster(monsters[i]);
+            }
+
+            drawFairy();
+            drawAmbientSparkles();
+
+            // Draw particles
+            for (var j = 0; j < particles.length; j++) {
+                drawParticle(particles[j]);
+            }
+        }
+
+        function loop(now) {
+            update(now);
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        requestAnimationFrame(loop);
+
+        // Spawn first monster soon
+        setTimeout(spawnMonster, 1500);
+    })();
+    </script>
+</body>
+</html>
