@@ -24,7 +24,7 @@ Run `/news` to generate today's edition. The skill:
 ## Edition Conventions
 
 - **Self-contained**: Each edition is a single `.html` file with all CSS inlined
-- **No JavaScript**: Pure static HTML/CSS
+- **Minimal JavaScript**: Theme toggle + TTS (text-to-speech) listener — no frameworks
 - **Newspaper CSS**: Adapted from `styles/newspaper.html` (Playfair Display, Libre Baskerville, PT Sans Narrow)
 - **Source attribution**: Every story links to its source — never fabricate URLs
 - **External links**: Always `target="_blank" rel="noopener"`
@@ -65,6 +65,28 @@ New entries are added at the top of the `#archive-list` element by the `/news` s
 - Editions: `news/YYYY-MM-DD/index.html`
 - Hub: `news/index.html`
 - No other files needed — everything is inlined
+
+## Text-to-Speech (Listen Button)
+
+Every edition includes a floating TTS button (bottom-right corner) using the Web Speech API. The feature is fully inlined — no external JS.
+
+### Components
+1. **CSS** — `.tts-fab`, `.tts-fab-btn`, `.tts-panel`, `.tts-btn-row`, `.tts-progress` styles, inserted before `.theme-toggle` in the `<style>` block
+2. **HTML** — `<div class="tts-fab" id="ttsFab">` with panel (voice select, speed slider, play/pause/stop buttons), placed after the theme toggle button and before `<div class="container">`
+3. **JS** — `<!-- Text-to-Speech Engine -->` script block before `</body>`, after the theme toggle script
+
+### How it works
+- Floating speaker icon button toggles a control panel
+- Extracts article text from `.container` in DOM order (headlines, decks, body paragraphs, data tables)
+- Skips `.card-byline` elements
+- Chunks long paragraphs at sentence boundaries (~300 chars) for reliable utterance handling
+- Includes Chrome workaround (pause/resume every 10s) to prevent speech cutoff
+- Voice selector populated from `speechSynthesis.getVoices()`, English voices listed first
+- Speed slider: 0.5x to 2.0x
+- Gracefully hidden if `speechSynthesis` is not available
+
+### When generating new editions
+Copy the TTS CSS, HTML, and JS from any recent edition (e.g., `news/2026-03-06/index.html`). The three blocks are clearly marked with comments.
 
 ## Deduplication
 
