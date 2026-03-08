@@ -2223,6 +2223,40 @@ const SlideEditor = (() => {
     window.open('view.html?preview=1', '_blank');
   }
 
+  function getShareData() {
+    const clean = deepClone(deck);
+    // Strip image elements with local/data URIs (they bloat the URL)
+    clean.slides.forEach(slide => {
+      slide.elements = slide.elements.filter(el => {
+        if (el.type === 'image' && el.src && el.src.startsWith('data:')) return false;
+        return true;
+      });
+    });
+    return JSON.stringify(clean);
+  }
+
+  function loadFromShareData(json) {
+    try {
+      const data = JSON.parse(json);
+      if (!data.slides || !Array.isArray(data.slides)) return false;
+      data.slides.forEach(slide => {
+        if (!Array.isArray(slide.elements)) slide.elements = [];
+        slide.elements.forEach(el => { if (!el.id) el.id = genId(); });
+      });
+      deck = data;
+      currentSlide = 0;
+      clearSelection();
+      renderSlidePanel();
+      renderCanvas();
+      renderProps();
+      saveDraft();
+      resetHistory();
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
   /* -- Grid / Snap toggles ------------------------------------------- */
 
   function setShowGrid(value) {
@@ -2290,6 +2324,8 @@ const SlideEditor = (() => {
     setTheme,
     updateDeckMeta,
     previewInViewer,
+    getShareData,
+    loadFromShareData,
     loadDraft,
     undo,
     redo,

@@ -451,6 +451,31 @@
             color: var(--accent-glow);
         }
 
+        /* ── Toast ───────────────────────────────────────────────── */
+        .share-toast {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            background: var(--safelight-dark);
+            color: var(--text-primary);
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            border: 1px solid var(--safelight-red);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+            opacity: 0;
+            transition: opacity 0.3s, transform 0.3s;
+            z-index: 200;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+        .share-toast.visible {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
         /* ── Scrollbar ───────────────────────────────────────────── */
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: var(--bg-primary); }
@@ -482,6 +507,8 @@
             <button class="btn" id="btn-save" title="Save as JSON">Save</button>
             <div class="toolbar-sep"></div>
             <button class="btn accent" id="btn-export" title="Export GIF">Export GIF</button>
+            <div class="toolbar-sep"></div>
+            <button class="btn" id="btn-share" title="Copy shareable link">Share Link</button>
             <div class="toolbar-sep"></div>
             <button class="btn" id="btn-undo" title="Undo (Ctrl+Z)" disabled>Undo</button>
             <button class="btn" id="btn-redo" title="Redo (Ctrl+Shift+Z)" disabled>Redo</button>
@@ -1160,6 +1187,28 @@
                 document.getElementById('export-dialog').classList.add('show');
             });
 
+            document.getElementById('btn-share').addEventListener('click', function() {
+                var json = AE.saveToJSON(animation, figures);
+                var encoded;
+                try {
+                    encoded = btoa(unescape(encodeURIComponent(json)));
+                } catch(err) {
+                    showShareToast('Failed to encode animation data');
+                    return;
+                }
+                var url = window.location.origin + window.location.pathname + '#data=' + encoded;
+                if (url.length > 32000) {
+                    showShareToast('Animation too large to share via URL (' + Math.round(url.length / 1024) + 'KB)');
+                    return;
+                }
+                window.location.hash = 'data=' + encoded;
+                navigator.clipboard.writeText(url).then(function() {
+                    showShareToast('Link copied to clipboard!' + (url.length > 8000 ? ' (Large URL: ' + Math.round(url.length / 1024) + 'KB)' : ''));
+                }, function() {
+                    showShareToast('URL updated — copy from address bar');
+                });
+            });
+
             document.getElementById('btn-undo').addEventListener('click', doUndo);
             document.getElementById('btn-redo').addEventListener('click', doRedo);
 
@@ -1518,9 +1567,34 @@
             });
         }
 
+        // ── Share Toast ──────────────────────────────────────────────
+        var shareToastTimer = null;
+        function showShareToast(msg) {
+            var el = document.getElementById('share-toast');
+            el.textContent = msg;
+            el.classList.add('visible');
+            clearTimeout(shareToastTimer);
+            shareToastTimer = setTimeout(function() { el.classList.remove('visible'); }, 3000);
+        }
+
         // ── Boot ─────────────────────────────────────────────────────
         init();
+
+        // Load from URL hash if present
+        (function loadFromHash() {
+            var hash = window.location.hash;
+            if (!hash || hash.indexOf('#data=') !== 0) return;
+            try {
+                var encoded = hash.slice(6);
+                var json = decodeURIComponent(escape(atob(encoded)));
+                var data = AE.loadFromJSON(json);
+                loadAnimation(data);
+            } catch(err) {
+                console.warn('Failed to load animation from URL hash:', err);
+            }
+        })();
     })();
     </script>
+    <div class="share-toast" id="share-toast"></div>
 </body>
 </html>

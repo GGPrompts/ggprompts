@@ -473,6 +473,30 @@
             line-height: 1.5;
         }
 
+        /* ── Toast ──────────────────────────────────────── */
+        .share-toast {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            background: var(--bg-panel);
+            color: var(--text);
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-size: 13px;
+            border: 1px solid var(--accent);
+            box-shadow: var(--shadow-lg);
+            opacity: 0;
+            transition: opacity 0.3s, transform 0.3s;
+            z-index: 200;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+        .share-toast.visible {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
         /* ── Responsive ─────────────────────────────────── */
         @media (max-width: 900px) {
             .app {
@@ -505,6 +529,7 @@
         <button class="btn btn-sm" id="btnExportPNG" title="Export as PNG">Export PNG</button>
         <button class="btn btn-sm" id="btnCopySVG" title="Copy chart as SVG markup">Copy SVG</button>
         <button class="btn btn-sm" id="btnToggleRender">SVG Mode</button>
+        <button class="btn btn-sm" id="btnShareLink" title="Copy shareable link">Share Link</button>
     </div>
 </div>
 
@@ -1650,11 +1675,122 @@ Mar,12,30"></textarea>
     });
     ro.observe(container);
 
+    // ── Share / URL Hash ─────────────────────────────────
+    var shareToastTimer = null;
+    function showShareToast(msg) {
+        var el = document.getElementById('share-toast');
+        el.textContent = msg;
+        el.classList.add('visible');
+        clearTimeout(shareToastTimer);
+        shareToastTimer = setTimeout(function() { el.classList.remove('visible'); }, 3000);
+    }
+
+    function getChartState() {
+        return {
+            chartType: chartType,
+            seriesHeaders: seriesHeaders.slice(),
+            seriesColors: seriesColors.slice(),
+            labels: labels.slice(),
+            data: data.map(function(row) { return row.slice(); }),
+            opts: {
+                title: document.getElementById('optTitle').value,
+                xLabel: document.getElementById('optXLabel').value,
+                yLabel: document.getElementById('optYLabel').value,
+                bgColor: document.getElementById('optBgColor').value,
+                textColor: document.getElementById('optTextColor').value,
+                gridColor: document.getElementById('optGridColor').value,
+                fontSize: document.getElementById('optFontSize').value,
+                showGrid: document.getElementById('optShowGrid').checked,
+                showLegend: document.getElementById('optShowLegend').checked,
+                showValues: document.getElementById('optShowValues').checked,
+                smooth: document.getElementById('optSmooth').checked,
+                barWidth: document.getElementById('optBarWidth').value,
+                pointRadius: document.getElementById('optPointRadius').value,
+                lineWidth: document.getElementById('optLineWidth').value
+            }
+        };
+    }
+
+    function loadChartState(state) {
+        if (!state || !state.data) return false;
+        chartType = state.chartType || 'bar';
+        seriesHeaders = state.seriesHeaders || ['Series A'];
+        seriesColors = state.seriesColors || [DEFAULT_COLORS[0]];
+        labels = state.labels || ['A'];
+        data = state.data || [[0]];
+
+        // Update chart type buttons
+        document.querySelectorAll('.chart-type-btn').forEach(function(btn) {
+            btn.classList.toggle('active', btn.dataset.type === chartType);
+        });
+
+        // Update style options
+        if (state.opts) {
+            var o = state.opts;
+            document.getElementById('optTitle').value = o.title || '';
+            document.getElementById('optXLabel').value = o.xLabel || '';
+            document.getElementById('optYLabel').value = o.yLabel || '';
+            if (o.bgColor) document.getElementById('optBgColor').value = o.bgColor;
+            if (o.textColor) document.getElementById('optTextColor').value = o.textColor;
+            if (o.gridColor) document.getElementById('optGridColor').value = o.gridColor;
+            if (o.fontSize) document.getElementById('optFontSize').value = o.fontSize;
+            document.getElementById('optShowGrid').checked = o.showGrid !== false;
+            document.getElementById('optShowLegend').checked = o.showLegend !== false;
+            document.getElementById('optShowValues').checked = !!o.showValues;
+            document.getElementById('optSmooth').checked = !!o.smooth;
+            if (o.barWidth) document.getElementById('optBarWidth').value = o.barWidth;
+            if (o.pointRadius) document.getElementById('optPointRadius').value = o.pointRadius;
+            if (o.lineWidth) document.getElementById('optLineWidth').value = o.lineWidth;
+        }
+
+        buildTable();
+        render();
+        return true;
+    }
+
+    document.getElementById('btnShareLink').addEventListener('click', function() {
+        var state = getChartState();
+        var json = JSON.stringify(state);
+        var encoded;
+        try {
+            encoded = btoa(unescape(encodeURIComponent(json)));
+        } catch(e) {
+            showShareToast('Failed to encode chart data');
+            return;
+        }
+        var url = window.location.origin + window.location.pathname + '#data=' + encoded;
+        if (url.length > 32000) {
+            showShareToast('Chart data too large to share via URL (' + Math.round(url.length / 1024) + 'KB)');
+            return;
+        }
+        window.location.hash = 'data=' + encoded;
+        navigator.clipboard.writeText(url).then(function() {
+            showShareToast('Link copied to clipboard!');
+        }, function() {
+            showShareToast('URL updated — copy from address bar');
+        });
+    });
+
+    // Load from URL hash if present
+    (function loadFromHash() {
+        var hash = window.location.hash;
+        if (!hash || hash.indexOf('#data=') !== 0) return;
+        try {
+            var encoded = hash.slice(6);
+            var json = decodeURIComponent(escape(atob(encoded)));
+            var state = JSON.parse(json);
+            loadChartState(state);
+        } catch(e) {
+            console.warn('Failed to load chart from URL hash:', e);
+        }
+    })();
+
     // ── Init ───────────────────────────────────────────
     buildTable();
     render();
 
 })();
 </script>
+<div class="share-toast" id="share-toast"></div>
 </body>
 </html>

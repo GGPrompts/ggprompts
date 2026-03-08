@@ -314,6 +314,30 @@
     margin: 5px 0;
   }
 
+  /* -- Toast --------------------------------------------------------- */
+  .share-toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: #1a1a2e;
+    color: #e0e0e0;
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-size: 0.82rem;
+    border: 1px solid #2563eb;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+    opacity: 0;
+    transition: opacity 0.3s, transform 0.3s;
+    z-index: 200;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  .share-toast.visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
   /* -- Responsive ---------------------------------------------------- */
   @media (max-width: 1060px) {
     .editor-layout {
@@ -422,6 +446,7 @@
       <button onclick="SlideEditor.exportJSON()" title="Download JSON">Export</button>
       <button onclick="document.getElementById('import-file').click()" title="Load JSON file">Import</button>
       <input type="file" id="import-file" accept=".json" style="display:none">
+      <button onclick="shareSlides()" title="Copy shareable link">Share Link</button>
     </div>
   </div>
 
@@ -446,8 +471,25 @@
   const draftStorageKey = deckName ? `slides-draft-${deckName}` : 'slides-draft';
 
   let deckData = null;
+  let loadedFromHash = false;
 
-  if (deckName) {
+  // Check URL hash for shared data
+  const hash = window.location.hash;
+  if (hash && hash.indexOf('#data=') === 0) {
+    try {
+      const encoded = hash.slice(6);
+      const json = decodeURIComponent(escape(atob(encoded)));
+      const parsed = JSON.parse(json);
+      if (parsed.slides && Array.isArray(parsed.slides)) {
+        deckData = parsed;
+        loadedFromHash = true;
+      }
+    } catch (e) {
+      console.warn('Failed to load presentation from URL hash:', e);
+    }
+  }
+
+  if (!deckData && deckName) {
     try {
       const response = await fetch(`decks/${deckName}.json`);
       if (response.ok) deckData = await response.json();
@@ -628,6 +670,38 @@ function refreshToggleButtons() {
   gridBtn.classList.toggle('active', prefs.showGrid);
   gridSnapBtn.classList.toggle('active', prefs.snapToGrid);
 }
+
+var shareToastTimer = null;
+function showShareToast(msg) {
+  var el = document.getElementById('share-toast');
+  el.textContent = msg;
+  el.classList.add('visible');
+  clearTimeout(shareToastTimer);
+  shareToastTimer = setTimeout(function() { el.classList.remove('visible'); }, 3000);
+}
+
+function shareSlides() {
+  var json = SlideEditor.getShareData();
+  var encoded;
+  try {
+    encoded = btoa(unescape(encodeURIComponent(json)));
+  } catch(e) {
+    showShareToast('Failed to encode presentation data');
+    return;
+  }
+  var url = window.location.origin + window.location.pathname + '#data=' + encoded;
+  if (url.length > 32000) {
+    showShareToast('Presentation too large to share via URL (' + Math.round(url.length / 1024) + 'KB)');
+    return;
+  }
+  window.location.hash = 'data=' + encoded;
+  navigator.clipboard.writeText(url).then(function() {
+    showShareToast('Link copied to clipboard!' + (url.length > 8000 ? ' (Large URL: ' + Math.round(url.length / 1024) + 'KB)' : ''));
+  }, function() {
+    showShareToast('URL updated — copy from address bar');
+  });
+}
 </script>
+<div class="share-toast" id="share-toast"></div>
 </body>
 </html>
