@@ -1,6 +1,6 @@
 # The Compendium of Digital Curiosities
 
-A collection of **204 CSS design systems**, **41 interactive stories**, **62 tech guides**, **50 browser games**, a **chiptune music studio**, **44 creative tools**, and a **daily AI newspaper** — all built with vanilla HTML, CSS, and JavaScript. No frameworks. No build step. Just open a file in your browser.
+A collection of **204 CSS design systems**, **45 interactive stories**, **62 tech guides**, **50 browser games**, a **chiptune music studio**, **45 creative tools**, a **Kids' Corner** with toddler-friendly games and activities, and a **daily AI newspaper** — all built with vanilla HTML, CSS, and JavaScript. No frameworks. No build step. Just open a file in your browser.
 
 **[Browse the live site](https://ggprompts.github.io/htmlstyleguides/)**
 
@@ -13,7 +13,7 @@ Each style guide is a self-contained HTML file showcasing a complete CSS design 
 
 Every guide defines its full design system in CSS variables (`:root {}`), making it easy to extract and reuse.
 
-### Interactive Stories (41)
+### Interactive Stories (45)
 Educational narratives that pair style guide aesthetics with historical content. Each story has 10-15 scenes with branching choices, keyboard navigation, and real historical facts woven into the progression. Some include audio narration.
 
 ### Tech Guides (62)
@@ -25,11 +25,14 @@ Standalone arcade and strategy games — Asteroids, Checkers, casino games, rogu
 ### Music Studio
 A FamiTracker-inspired chiptune sequencer with 78+ songs, a virtual cathedral organ, and 75+ canvas-rendered music videos with beat-synced animations.
 
-### Creative Tools (44)
-Interactive editors including a stick figure animation studio (with IK solver and GIF export), an HTML presentation viewer/editor, CSS grid playground, color blindness simulator, font pairing tool, ASCII art editor, and more.
+### Creative Tools (45)
+Interactive editors including a stick figure animation studio (with IK solver and GIF export), an HTML presentation viewer/editor, a drawing studio (with layers, blend modes, and pressure sensitivity), CSS grid playground, color blindness simulator, font pairing tool, ASCII art editor, and more.
 
-### Architecture Maps (32)
+### Architecture Maps (33)
 Interactive system architecture diagrams for open source projects and tech platforms.
+
+### Kids' Corner
+A PWA-enabled section designed for 2-4 year olds on iPad. Carnival-fairground themed hub with big picture-based navigation. Includes Bubble Pop, Finger Paint, and Fairy Makeover Defense (tap monsters to beautify them with sparkles and rainbow wings). Works fullscreen with iPad Guided Access to keep kids in the app.
 
 ### The AI Dispatch
 A newspaper-themed daily AI news publication with self-contained broadsheet editions.
@@ -266,12 +269,13 @@ Every style has a unique aesthetic. Some are paired with tech guides and stories
 ```
 /
 ├── styles/          # 204 CSS design system showcases
-├── stories/         # 41 interactive educational stories
+├── stories/         # 45 interactive educational stories
 ├── techguides/      # 62 styled developer reference docs
 ├── games/           # 50 browser games
 ├── music/           # Chiptune studio, sequencer, visualizer
-├── tools/           # 44 creative tools and editors
-├── architecture/    # 32 interactive architecture maps
+├── tools/           # 45 creative tools and editors
+├── kids/            # Kids' Corner — toddler games & activities (PWA)
+├── architecture/    # 33 interactive architecture maps
 ├── news/            # The AI Dispatch — daily AI news
 └── index.html       # Main navigation
 ```

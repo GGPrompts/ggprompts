@@ -45,6 +45,17 @@ A collection of CSS design system showcases, interactive educational stories, st
 │       ├── themes/         # Theme JS modules (default, graffiti, cyberpunk)
 │       ├── assets/         # Deck images (prefix with deck name)
 │       └── decks/          # JSON presentation files
+├── kids/                  # Kids' Corner (PWA, toddler-friendly)
+│   ├── CLAUDE.md           # How to build kids content
+│   ├── index.html          # Hub page (carnival-fairground themed)
+│   ├── manifest.json       # PWA manifest for fullscreen iPad
+│   ├── sw.js               # Service worker for offline support
+│   ├── games/              # Tap-and-play games
+│   │   ├── bubblepop/      # Bubble popping game
+│   │   └── fairy-defense/  # Tap monsters to beautify with sparkles
+│   ├── create/             # Creative tools for kids
+│   │   └── kid-paint/      # Drawing canvas (also in tools/)
+│   └── stories/            # Simplified interactive stories
 ├── news/                  # Daily AI news (The AI Dispatch)
 │   ├── CLAUDE.md           # Section conventions
 │   ├── index.html          # Archive hub (newspaper-themed)
@@ -111,6 +122,7 @@ When adding new content, update the relevant index:
 - Stories: `/stories/index.html` (add card with metadata tags)
 - Tech guides: `/techguides/index.html` (add card in appropriate tier)
 - Tools: `/tools/index.html` (add Rococo card linking to the tool)
+- Kids: `/kids/index.html` (add card with big emoji icon)
 - Architecture: `/architecture/index.html` (add card in blueprint grid)
 - News: `/news/index.html` (updated automatically by `/news` skill)
 
