@@ -17,6 +17,7 @@ window.MatchRenderer = (function () {
   let floatingTexts = [];
   let shakeTimer = 0;
   let shakeIntensity = 0;
+  let swapAnims = [];  // {r1,c1,r2,c2, progress, duration, resolve}
 
   /* --- Gem visuals --- */
   const GEM_COLORS = {
@@ -211,6 +212,15 @@ window.MatchRenderer = (function () {
       if (ft.life <= 0) floatingTexts.splice(i, 1);
     }
 
+    // Update swap animations
+    for (let i = swapAnims.length - 1; i >= 0; i--) {
+      swapAnims[i].progress += dt / swapAnims[i].duration;
+      if (swapAnims[i].progress >= 1) {
+        const sa = swapAnims.splice(i, 1)[0];
+        if (sa.resolve) sa.resolve();
+      }
+    }
+
     // Shake decay
     if (shakeTimer > 0) {
       shakeTimer -= dt;
@@ -301,8 +311,26 @@ window.MatchRenderer = (function () {
         const gemVis = GEM_COLORS[cell.type];
         if (!gemVis) continue;
 
-        const cx = x + CELL / 2;
-        const cy = y + CELL / 2;
+        // Compute swap animation offset
+        let offsetX = 0, offsetY = 0;
+        for (const sa of swapAnims) {
+          const t = Math.min(1, sa.progress);
+          const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+          if (sa.r1 === r && sa.c1 === c) {
+            const target = cellPos(sa.r2, sa.c2);
+            const origin = cellPos(sa.r1, sa.c1);
+            offsetX = (target.x - origin.x) * ease;
+            offsetY = (target.y - origin.y) * ease;
+          } else if (sa.r2 === r && sa.c2 === c) {
+            const target = cellPos(sa.r1, sa.c1);
+            const origin = cellPos(sa.r2, sa.c2);
+            offsetX = (target.x - origin.x) * ease;
+            offsetY = (target.y - origin.y) * ease;
+          }
+        }
+
+        const cx = x + CELL / 2 + offsetX;
+        const cy = y + CELL / 2 + offsetY;
         const gemSize = CELL * 0.35;
 
         // Glow
@@ -355,13 +383,13 @@ window.MatchRenderer = (function () {
             ctx.lineWidth = 1.5;
             if (cell.special === 'line-h') {
               ctx.beginPath();
-              ctx.moveTo(x + 4, cy);
-              ctx.lineTo(x + CELL - 4, cy);
+              ctx.moveTo(x + offsetX + 4, cy);
+              ctx.lineTo(x + offsetX + CELL - 4, cy);
               ctx.stroke();
             } else if (cell.special === 'line-v') {
               ctx.beginPath();
-              ctx.moveTo(cx, y + 4);
-              ctx.lineTo(cx, y + CELL - 4);
+              ctx.moveTo(cx, y + offsetY + 4);
+              ctx.lineTo(cx, y + offsetY + CELL - 4);
               ctx.stroke();
             }
           }
@@ -388,6 +416,13 @@ window.MatchRenderer = (function () {
     grid = g;
   }
 
+  function animateSwap(r1, c1, r2, c2, duration) {
+    duration = duration || 0.2;
+    return new Promise(function (resolve) {
+      swapAnims.push({ r1: r1, c1: c1, r2: r2, c2: c2, progress: 0, duration: duration, resolve: resolve });
+    });
+  }
+
   function triggerShake(intensity, duration) {
     shakeIntensity = intensity;
     shakeTimer = duration;
@@ -403,6 +438,7 @@ window.MatchRenderer = (function () {
     addParticles,
     addFloatingText,
     triggerShake,
+    animateSwap,
     cellPos,
     CELL
   };

@@ -4,7 +4,7 @@
     'use strict';
 
     var GRAVITY = 980;        // pixels/s^2
-    var FRICTION = 0.998;     // per-frame velocity damping
+    var FRICTION = 0.999;     // per-frame velocity damping
     var RESTITUTION = 0.45;   // wall/flipper bounce
     var BUMPER_RESTITUTION = 1.5; // bumpers give energy back
     var MAX_SPEED = 2400;

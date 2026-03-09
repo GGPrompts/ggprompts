@@ -38,7 +38,7 @@
         // Right wall (plunger lane outer)
         table.walls.push({ type: 'segment', x1: TABLE_W - 5, y1: 0, x2: TABLE_W - 5, y2: TABLE_H });
         // Top wall
-        table.walls.push({ type: 'segment', x1: 20, y1: 20, x2: TABLE_W - 5, y2: 20 });
+        table.walls.push({ type: 'segment', x1: 20, y1: 20, x2: TABLE_W - 32, y2: 20 });
         // Bottom drain walls (leave gap for drain)
         table.walls.push({ type: 'segment', x1: 20, y1: TABLE_H - 5, x2: 130, y2: TABLE_H - 5 });
         table.walls.push({ type: 'segment', x1: 260, y1: TABLE_H - 5, x2: TABLE_W - 5, y2: TABLE_H - 5 });
