@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Balloon Pop!</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    overflow: hidden;
+    background: linear-gradient(180deg, #4FC3F7 0%, #81D4FA 30%, #B3E5FC 60%, #E1F5FE 85%, #E8F5E9 100%);
+    height: 100vh;
+    width: 100vw;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+    overscroll-behavior: none;
+    font-family: 'Fredoka', 'Comic Sans MS', cursive, sans-serif;
+  }
+
+  /* ---- Clouds ---- */
+  .cloud {
+    position: absolute;
+    pointer-events: none;
+    opacity: 0.7;
+    will-change: transform;
+  }
+  .cloud-blob {
+    position: absolute;
+    background: #fff;
+    border-radius: 50%;
+  }
+
+  /* ---- Balloon ---- */
+  .balloon {
+    position: absolute;
+    cursor: pointer;
+    pointer-events: auto;
+    will-change: transform;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .balloon-body {
+    width: 100%;
+    border-radius: 50% 50% 50% 50% / 45% 45% 55% 55%;
+    position: relative;
+  }
+  .balloon-body::after {
+    content: '';
+    position: absolute;
+    bottom: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 7px solid transparent;
+    border-right: 7px solid transparent;
+    border-top: 10px solid var(--knot-color);
+  }
+  .balloon-shine {
+    position: absolute;
+    border-radius: 50%;
+    background: radial-gradient(ellipse at 35% 25%, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0) 55%);
+    width: 55%;
+    height: 40%;
+    top: 12%;
+    left: 12%;
+    pointer-events: none;
+  }
+  .balloon-string {
+    position: absolute;
+    left: 50%;
+    top: 100%;
+    width: 2px;
+    height: 40px;
+    transform: translateX(-50%);
+    pointer-events: none;
+  }
+
+  @keyframes wobble {
+    0%, 100% { transform: rotate(-3deg); }
+    50% { transform: rotate(3deg); }
+  }
+
+  /* ---- Pop effects ---- */
+  .confetti {
+    position: absolute;
+    pointer-events: none;
+    will-change: transform, opacity;
+  }
+
+  .pop-text {
+    position: absolute;
+    pointer-events: none;
+    font-size: 2.5rem;
+    font-weight: 700;
+    will-change: transform, opacity;
+    text-shadow: 0 3px 8px rgba(0,0,0,0.2), 0 0 12px rgba(255,255,255,0.5);
+    z-index: 100;
+    letter-spacing: 2px;
+  }
+
+  /* ---- Score ---- */
+  .score-display {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 2rem;
+    color: #fff;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.2), 0 0 16px rgba(255,255,255,0.4);
+    z-index: 200;
+    letter-spacing: 2px;
+    pointer-events: none;
+    font-weight: 700;
+  }
+  .score-display .count {
+    font-size: 3.5rem;
+    color: #FFD700;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.3), 0 0 20px rgba(255,215,0,0.5);
+    display: inline-block;
+  }
+
+  /* ---- Back button ---- */
+  .back-btn-carnival {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    z-index: 300;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 140px;
+    height: 64px;
+    padding: 0 24px;
+    background: linear-gradient(135deg, #FF69B4, #FF1493, #D42B2B);
+    color: #fff;
+    font-family: 'Fredoka', 'Comic Sans MS', cursive, sans-serif;
+    font-size: 1.3rem;
+    font-weight: 700;
+    text-decoration: none;
+    border: 4px solid #FFD700;
+    border-radius: 9999px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.25), 0 0 12px rgba(255,215,0,0.4);
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .back-btn-carnival:hover,
+  .back-btn-carnival:active {
+    transform: scale(1.08);
+    box-shadow: 0 6px 24px rgba(0,0,0,0.3), 0 0 20px rgba(255,215,0,0.6);
+  }
+  .back-btn-carnival:active {
+    transform: scale(0.96);
+  }
+
+  /* ---- Grass ---- */
+  .grass {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 40px;
+    background: linear-gradient(0deg, #4CAF50 0%, #66BB6A 60%, #81C784 100%);
+    pointer-events: none;
+    z-index: 10;
+  }
+  .grass::before {
+    content: '';
+    position: absolute;
+    top: -8px;
+    left: 0;
+    right: 0;
+    height: 16px;
+    background: repeating-linear-gradient(
+      90deg,
+      transparent 0px,
+      transparent 8px,
+      #4CAF50 8px,
+      #66BB6A 12px,
+      transparent 12px,
+      transparent 20px
+    );
+    mask-image: linear-gradient(0deg, #000 50%, transparent 100%);
+    -webkit-mask-image: linear-gradient(0deg, #000 50%, transparent 100%);
+  }
+</style>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+<a href="../../index.html" class="back-btn-carnival">&#11013;&#65039; Games</a>
+<div class="score-display">
+  POP! <span class="count" id="score">0</span>
+</div>
+<div class="grass"></div>
+
+<script>
+// ---- Audio Engine (Web Audio API) ----
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let audioCtx;
+
+function ensureAudio() {
+  if (!audioCtx) audioCtx = new AudioCtx();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function playPopSound(size) {
+  ensureAudio();
+  const now = audioCtx.currentTime;
+  const type = Math.floor(Math.random() * 5);
+
+  if (type === 0) {
+    // Rubber pop — quick pitch drop
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.type = 'sine';
+    const f = 500 + Math.random() * 400;
+    osc.frequency.setValueAtTime(f, now);
+    osc.frequency.exponentialRampToValueAtTime(80, now + 0.15);
+    gain.gain.setValueAtTime(0.35, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+    osc.start(now); osc.stop(now + 0.15);
+    // Add noise burst for "pop" texture
+    const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.06, audioCtx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+    const noise = audioCtx.createBufferSource();
+    const ng = audioCtx.createGain();
+    noise.buffer = buf;
+    noise.connect(ng); ng.connect(audioCtx.destination);
+    ng.gain.setValueAtTime(0.15, now);
+    ng.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+    noise.start(now); noise.stop(now + 0.06);
+  } else if (type === 1) {
+    // Happy bweep up
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(300, now);
+    osc.frequency.exponentialRampToValueAtTime(1200, now + 0.1);
+    osc.frequency.exponentialRampToValueAtTime(600, now + 0.2);
+    gain.gain.setValueAtTime(0.25, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+    osc.start(now); osc.stop(now + 0.2);
+  } else if (type === 2) {
+    // Wobbly bloop
+    const osc = audioCtx.createOscillator();
+    const lfo = audioCtx.createOscillator();
+    const lfoGain = audioCtx.createGain();
+    const gain = audioCtx.createGain();
+    lfo.connect(lfoGain); lfoGain.connect(osc.frequency);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(400 + Math.random() * 300, now);
+    lfo.frequency.setValueAtTime(25 + Math.random() * 25, now);
+    lfoGain.gain.setValueAtTime(80, now);
+    gain.gain.setValueAtTime(0.25, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+    osc.start(now); lfo.start(now);
+    osc.stop(now + 0.25); lfo.stop(now + 0.25);
+  } else if (type === 3) {
+    // Two-tone beep-boop
+    for (let i = 0; i < 2; i++) {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.type = i === 0 ? 'square' : 'triangle';
+      osc.frequency.setValueAtTime(i === 0 ? 700 : 450, now + i * 0.08);
+      gain.gain.setValueAtTime(0.12, now + i * 0.08);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.08 + 0.1);
+      osc.start(now + i * 0.08); osc.stop(now + i * 0.08 + 0.1);
+    }
+  } else {
+    // Silly spring boing
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.type = 'triangle';
+    const f = 250 + Math.random() * 350;
+    osc.frequency.setValueAtTime(f, now);
+    osc.frequency.setValueAtTime(f * 2, now + 0.04);
+    osc.frequency.setValueAtTime(f * 0.6, now + 0.08);
+    osc.frequency.setValueAtTime(f * 1.4, now + 0.14);
+    osc.frequency.setValueAtTime(f * 0.3, now + 0.22);
+    gain.gain.setValueAtTime(0.2, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+    osc.start(now); osc.stop(now + 0.28);
+  }
+
+  // Big balloons get a bonus deep thump
+  if (size > 100) {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(70, now);
+    osc.frequency.exponentialRampToValueAtTime(25, now + 0.2);
+    gain.gain.setValueAtTime(0.2, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+    osc.start(now); osc.stop(now + 0.2);
+  }
+}
+
+// ---- Carnival Balloon Colors ----
+const balloonColors = [
+  { fill: '#FF1744', grad: '#D50000', knot: '#B71C1C' },   // Balloon Red
+  { fill: '#2979FF', grad: '#1565C0', knot: '#0D47A1' },   // Balloon Blue
+  { fill: '#00E676', grad: '#00C853', knot: '#1B5E20' },   // Balloon Green
+  { fill: '#FFD600', grad: '#FFC107', knot: '#F57F17' },   // Popcorn Yellow
+  { fill: '#FF69B4', grad: '#E91E8F', knot: '#C2185B' },   // Cotton Candy Pink
+  { fill: '#AA00FF', grad: '#7B1FA2', knot: '#4A148C' },   // Taffy Purple
+  { fill: '#FF6D00', grad: '#E65100', knot: '#BF360C' },   // Orange
+  { fill: '#00E5FF', grad: '#00B8D4', knot: '#006064' },   // Aqua
+];
+
+const popTexts = ['POP!', 'YAY!', 'WOO!', 'WOW!', 'BANG!', 'BOOM!', 'POOF!', 'HEE!'];
+const confettiColors = ['#FF1744', '#FFD600', '#2979FF', '#00E676', '#FF69B4', '#AA00FF', '#FF6D00', '#00E5FF'];
+
+// ---- State ----
+let score = 0;
+const balloons = [];
+
+// ---- Clouds ----
+function createCloud(y) {
+  const cloud = document.createElement('div');
+  cloud.className = 'cloud';
+  const w = 80 + Math.random() * 120;
+  cloud.style.top = y + '%';
+  cloud.style.left = -w + 'px';
+  cloud.style.width = w + 'px';
+  cloud.style.height = (w * 0.5) + 'px';
+
+  // Build cloud from overlapping circles
+  const blobs = 3 + Math.floor(Math.random() * 3);
+  for (let i = 0; i < blobs; i++) {
+    const blob = document.createElement('div');
+    blob.className = 'cloud-blob';
+    const s = w * (0.3 + Math.random() * 0.4);
+    blob.style.width = s + 'px';
+    blob.style.height = s + 'px';
+    blob.style.left = (i / blobs * w * 0.7) + 'px';
+    blob.style.top = (Math.random() * w * 0.15) + 'px';
+    cloud.appendChild(blob);
+  }
+
+  document.body.appendChild(cloud);
+  const speed = 0.3 + Math.random() * 0.5;
+
+  return { el: cloud, x: -w, y: parseFloat(cloud.style.top), speed, w };
+}
+
+const clouds = [];
+for (let i = 0; i < 4; i++) {
+  const c = createCloud(5 + Math.random() * 40);
+  c.x = Math.random() * window.innerWidth;
+  c.el.style.left = c.x + 'px';
+  clouds.push(c);
+}
+
+function updateClouds() {
+  for (const c of clouds) {
+    c.x += c.speed;
+    if (c.x > window.innerWidth + 20) {
+      c.x = -c.w - 20;
+      c.el.style.top = (5 + Math.random() * 40) + '%';
+    }
+    c.el.style.left = c.x + 'px';
+  }
+}
+
+// ---- Balloon creation ----
+function createBalloon() {
+  const size = 60 + Math.random() * 60; // 60-120px
+  const color = balloonColors[Math.floor(Math.random() * balloonColors.length)];
+  const x = 20 + Math.random() * (window.innerWidth - size - 40);
+  const speedY = 0.6 + Math.random() * 1.0;
+  const wobbleAmp = 15 + Math.random() * 25;
+  const wobbleSpeed = 0.8 + Math.random() * 1.2;
+  const wobbleOffset = Math.random() * Math.PI * 2;
+  const wobbleDur = (1.5 + Math.random() * 1.5).toFixed(2);
+
+  const el = document.createElement('div');
+  el.className = 'balloon';
+  el.style.width = size + 'px';
+
+  const bodyH = size * 1.2;
+  el.innerHTML = `
+    <div class="balloon-body" style="
+      height: ${bodyH}px;
+      background: radial-gradient(circle at 38% 30%, ${lighten(color.fill, 40)}, ${color.fill} 55%, ${color.grad} 100%);
+      --knot-color: ${color.knot};
+      animation: wobble ${wobbleDur}s ease-in-out infinite;
+    ">
+      <div class="balloon-shine"></div>
+    </div>
+    <svg class="balloon-string" viewBox="0 0 2 40" preserveAspectRatio="none"
+         style="left:50%; top:${bodyH + 4}px; width:2px; height:40px; position:absolute; transform:translateX(-50%);">
+      <path d="M1 0 Q 0 10 2 20 Q 0 30 1 40" stroke="${color.knot}" stroke-width="1.5" fill="none" opacity="0.6"/>
+    </svg>
+  `;
+
+  document.body.appendChild(el);
+
+  const balloon = {
+    el, size, bodyH, color,
+    x, y: window.innerHeight + bodyH + 50,
+    speedY, wobbleAmp, wobbleSpeed, wobbleOffset,
+    startX: x,
+    time: 0,
+    alive: true,
+  };
+
+  el.addEventListener('pointerdown', (e) => {
+    e.stopPropagation();
+    popBalloon(balloon);
+  });
+  el.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    popBalloon(balloon);
+  }, { passive: false });
+
+  balloons.push(balloon);
+}
+
+function lighten(hex, pct) {
+  const num = parseInt(hex.slice(1), 16);
+  const r = Math.min(255, ((num >> 16) & 0xFF) + pct);
+  const g = Math.min(255, ((num >> 8) & 0xFF) + pct);
+  const b = Math.min(255, (num & 0xFF) + pct);
+  return `rgb(${r},${g},${b})`;
+}
+
+// ---- Pop effect ----
+function popBalloon(balloon) {
+  if (!balloon.alive) return;
+  balloon.alive = false;
+
+  const rect = balloon.el.getBoundingClientRect();
+  const cx = balloon.x + balloon.size / 2;
+  const cy = balloon.y + balloon.bodyH / 2;
+
+  playPopSound(balloon.size);
+
+  // Confetti burst
+  const count = 12 + Math.floor(Math.random() * 8);
+  for (let i = 0; i < count; i++) {
+    const c = document.createElement('div');
+    c.className = 'confetti';
+    const cw = 6 + Math.random() * 8;
+    const ch = cw * (0.5 + Math.random() * 1.5);
+    const cColor = confettiColors[Math.floor(Math.random() * confettiColors.length)];
+    c.style.width = cw + 'px';
+    c.style.height = ch + 'px';
+    c.style.background = cColor;
+    c.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+    c.style.left = cx + 'px';
+    c.style.top = cy + 'px';
+    document.body.appendChild(c);
+
+    const angle = (Math.PI * 2 / count) * i + Math.random() * 0.4;
+    const dist = 40 + Math.random() * 100;
+    const dx = Math.cos(angle) * dist;
+    const dy = Math.sin(angle) * dist;
+    const rot = Math.random() * 720 - 360;
+
+    c.animate([
+      { transform: 'translate(-50%,-50%) scale(1) rotate(0deg)', opacity: 1 },
+      { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy + 30}px)) scale(0.3) rotate(${rot}deg)`, opacity: 0 }
+    ], { duration: 500 + Math.random() * 300, easing: 'ease-out', fill: 'forwards' })
+    .onfinish = () => c.remove();
+  }
+
+  // Pop text
+  const text = document.createElement('div');
+  text.className = 'pop-text';
+  text.textContent = popTexts[Math.floor(Math.random() * popTexts.length)];
+  text.style.left = cx + 'px';
+  text.style.top = cy + 'px';
+  text.style.color = balloon.color.fill;
+  document.body.appendChild(text);
+
+  text.animate([
+    { transform: 'translate(-50%,-50%) scale(0.5)', opacity: 1 },
+    { transform: 'translate(-50%, calc(-50% - 80px)) scale(1.4)', opacity: 0 }
+  ], { duration: 700, easing: 'ease-out', fill: 'forwards' })
+  .onfinish = () => text.remove();
+
+  // Burst ring
+  const ring = document.createElement('div');
+  ring.style.cssText = `position:absolute;left:${cx}px;top:${cy}px;width:0;height:0;
+    border-radius:50%;border:3px solid ${balloon.color.fill};pointer-events:none;z-index:50;opacity:0.6;`;
+  document.body.appendChild(ring);
+  const ringSize = balloon.size * 2;
+  ring.animate([
+    { width: '0px', height: '0px', opacity: 0.8, transform: 'translate(-50%,-50%)' },
+    { width: ringSize + 'px', height: ringSize + 'px', opacity: 0, transform: 'translate(-50%,-50%)' }
+  ], { duration: 350, easing: 'ease-out', fill: 'forwards' })
+  .onfinish = () => ring.remove();
+
+  // Remove balloon
+  balloon.el.remove();
+
+  // Score
+  score++;
+  const scoreEl = document.getElementById('score');
+  scoreEl.textContent = score;
+  scoreEl.animate([
+    { transform: 'scale(1.6)', color: balloon.color.fill },
+    { transform: 'scale(1)', color: '#FFD700' }
+  ], { duration: 350, easing: 'ease-out' });
+}
+
+// ---- Animation loop ----
+function animate() {
+  const dt = 1 / 60;
+
+  for (let i = balloons.length - 1; i >= 0; i--) {
+    const b = balloons[i];
+    if (!b.alive) {
+      balloons.splice(i, 1);
+      continue;
+    }
+
+    b.time += dt;
+    b.y -= b.speedY;
+    b.x = b.startX + Math.sin(b.time * b.wobbleSpeed + b.wobbleOffset) * b.wobbleAmp;
+
+    b.el.style.left = b.x + 'px';
+    b.el.style.top = b.y + 'px';
+
+    // Remove if off top of screen
+    if (b.y < -(b.bodyH + 60)) {
+      b.el.remove();
+      b.alive = false;
+      balloons.splice(i, 1);
+    }
+  }
+
+  updateClouds();
+  requestAnimationFrame(animate);
+}
+
+// ---- Spawn timer ----
+function spawnLoop() {
+  createBalloon();
+  // Gently increase spawn rate with score, cap at 400ms
+  const interval = Math.max(400, 900 - score * 8);
+  setTimeout(spawnLoop, interval);
+}
+
+// ---- Init ----
+// Spawn a few balloons to start
+for (let i = 0; i < 6; i++) {
+  setTimeout(() => createBalloon(), i * 300);
+}
+
+setTimeout(spawnLoop, 2000);
+animate();
+
+// Ensure audio context starts on first interaction
+document.body.addEventListener('pointerdown', ensureAudio, { once: true });
+document.body.addEventListener('touchstart', ensureAudio, { once: true });
+</script>
+</body>
+</html>

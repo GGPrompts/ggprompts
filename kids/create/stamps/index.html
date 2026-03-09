@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Stamp Art!</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Lilita+One&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #E8F8FF;
+    --toolbar-bg: linear-gradient(135deg, #FF69B4, #FF1493, #9B59B6, #3498DB);
+    --font: 'Fredoka', 'Comic Sans MS', cursive, sans-serif;
+    --font-title: 'Lilita One', 'Fredoka', cursive, sans-serif;
+    --stamp-btn-size: 84px;
+    --color-btn-size: 56px;
+    --size-btn-size: 64px;
+    --cotton-candy: #FF69B4;
+    --balloon-red: #E74C3C;
+    --balloon-blue: #3498DB;
+    --balloon-green: #2ECC71;
+    --popcorn-yellow: #F1C40F;
+    --taffy-purple: #9B59B6;
+  }
+
+  html, body {
+    height: 100%; overflow: hidden;
+    font-family: var(--font);
+    background: var(--bg);
+    touch-action: manipulation;
+    -webkit-user-select: none; user-select: none;
+    overscroll-behavior: none;
+  }
+
+  body::before {
+    content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    background:
+      radial-gradient(ellipse at 20% 30%, rgba(255,182,193,0.3) 0%, transparent 60%),
+      radial-gradient(ellipse at 80% 60%, rgba(173,216,230,0.3) 0%, transparent 60%),
+      radial-gradient(ellipse at 50% 90%, rgba(255,255,150,0.2) 0%, transparent 50%);
+  }
+
+  /* ---- Layout ---- */
+  #app {
+    display: grid;
+    grid-template-rows: 1fr auto;
+    height: 100vh; width: 100vw;
+  }
+
+  /* ---- Canvas area ---- */
+  #canvas-wrap {
+    position: relative; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+    padding: 8px;
+  }
+  #stamp-canvas {
+    background: #FFFFFF;
+    border-radius: 16px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.1), 0 0 0 4px var(--cotton-candy);
+    touch-action: none;
+    width: 100%; height: 100%;
+  }
+
+  /* ---- Pop animation overlay ---- */
+  .pop-anim {
+    position: fixed; pointer-events: none; z-index: 50;
+    animation: popIn 0.35s ease-out forwards;
+  }
+  @keyframes popIn {
+    0% { transform: translate(-50%, -50%) scale(0); opacity: 1; }
+    60% { transform: translate(-50%, -50%) scale(1.15); opacity: 1; }
+    100% { transform: translate(-50%, -50%) scale(1.0); opacity: 0; }
+  }
+
+  /* ---- Bottom toolbar ---- */
+  #toolbar {
+    background: var(--toolbar-bg);
+    padding: 8px 8px 12px;
+    box-shadow: 0 -3px 16px rgba(0,0,0,0.2);
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 55vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .toolbar-section {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .toolbar-label {
+    font-family: var(--font-title);
+    font-size: 14px;
+    color: rgba(255,255,255,0.9);
+    text-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    width: 100%;
+    text-align: center;
+    margin-bottom: -2px;
+  }
+
+  .sep-line {
+    width: 100%;
+    height: 2px;
+    background: rgba(255,255,255,0.25);
+    border-radius: 2px;
+  }
+
+  /* Stamp buttons */
+  .stamp-btn {
+    width: var(--stamp-btn-size); height: var(--stamp-btn-size);
+    border: 4px solid rgba(255,255,255,0.7);
+    border-radius: 18px;
+    background: rgba(255,255,255,0.9);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column;
+    transition: transform 0.12s, box-shadow 0.12s;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.15);
+    flex-shrink: 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .stamp-btn:active { transform: scale(0.92); }
+  .stamp-btn.active {
+    background: #FFD700;
+    border-color: #FF6600;
+    box-shadow: 0 0 14px rgba(255,215,0,0.6), 0 3px 8px rgba(0,0,0,0.15);
+    transform: scale(1.05);
+  }
+  .stamp-btn canvas { pointer-events: none; }
+  .stamp-btn .stamp-label {
+    font-size: 10px; font-weight: 600; color: #666;
+    margin-top: 2px; pointer-events: none;
+  }
+  .stamp-btn.active .stamp-label { color: #333; }
+
+  /* Color buttons */
+  .color-btn {
+    width: var(--color-btn-size); height: var(--color-btn-size);
+    border-radius: 50%;
+    border: 4px solid rgba(255,255,255,0.7);
+    cursor: pointer;
+    transition: transform 0.12s, box-shadow 0.12s;
+    box-shadow: 0 3px 6px rgba(0,0,0,0.15);
+    flex-shrink: 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .color-btn:active { transform: scale(0.9); }
+  .color-btn.active {
+    border-color: #333;
+    box-shadow: 0 0 0 4px #FFD700, 0 3px 10px rgba(0,0,0,0.25);
+    transform: scale(1.1);
+  }
+
+  /* Size buttons */
+  .size-btn {
+    width: var(--size-btn-size); height: var(--size-btn-size);
+    border: 4px solid rgba(255,255,255,0.7);
+    border-radius: 16px;
+    background: rgba(255,255,255,0.9);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column;
+    font-family: var(--font);
+    font-size: 22px;
+    font-weight: 700;
+    color: #666;
+    transition: transform 0.12s, box-shadow 0.12s;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.15);
+    flex-shrink: 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .size-btn:active { transform: scale(0.92); }
+  .size-btn.active {
+    background: #FFD700;
+    border-color: #FF6600;
+    box-shadow: 0 0 14px rgba(255,215,0,0.6), 0 3px 8px rgba(0,0,0,0.15);
+    color: #333;
+  }
+  .size-btn .size-label {
+    font-size: 10px; font-weight: 600;
+    margin-top: 1px; pointer-events: none;
+  }
+
+  /* Action buttons */
+  .action-btn {
+    height: var(--size-btn-size);
+    padding: 0 20px;
+    border: 4px solid rgba(255,255,255,0.7);
+    border-radius: 16px;
+    background: rgba(255,255,255,0.9);
+    font-family: var(--font);
+    font-size: 14px; font-weight: 700;
+    color: #555;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    gap: 6px;
+    transition: transform 0.12s, box-shadow 0.12s;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.15);
+    flex-shrink: 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .action-btn:active { transform: scale(0.92); }
+  .action-btn .icon { font-size: 24px; }
+  .action-btn.danger { background: #FF6B6B; color: #fff; border-color: #FF4444; }
+  .action-btn.random-mode {
+    background: conic-gradient(#FF0000, #FF8800, #FFFF00, #00CC44, #0088FF, #9900FF, #FF00AA, #FF0000);
+    color: #fff; border-color: #FFD700;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+  }
+  .action-btn.random-mode.active {
+    box-shadow: 0 0 20px rgba(255,215,0,0.8), 0 3px 8px rgba(0,0,0,0.15);
+    border-color: #fff;
+  }
+
+  /* Clear button shake */
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-8px) rotate(-3deg); }
+    40% { transform: translateX(8px) rotate(3deg); }
+    60% { transform: translateX(-6px) rotate(-2deg); }
+    80% { transform: translateX(6px) rotate(2deg); }
+  }
+  .shake { animation: shake 0.4s ease-in-out; }
+
+  /* ---- Back link ---- */
+  #back-link {
+    position: fixed;
+    bottom: 14px;
+    right: 14px;
+    z-index: 300;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 140px;
+    height: 64px;
+    padding: 0 24px;
+    background: linear-gradient(135deg, #FF69B4, #FF1493, #D42B2B);
+    color: #fff;
+    font-family: var(--font);
+    font-size: 1.3rem;
+    font-weight: 700;
+    text-decoration: none;
+    border: 4px solid #FFD700;
+    border-radius: 9999px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.25), 0 0 12px rgba(255,215,0,0.4);
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #back-link:active { transform: scale(0.95); }
+
+  /* ---- Responsive ---- */
+  @media (max-width: 500px) {
+    :root {
+      --stamp-btn-size: 68px;
+      --color-btn-size: 46px;
+      --size-btn-size: 54px;
+    }
+    #toolbar { padding: 6px 4px 10px; gap: 4px; }
+    .action-btn { padding: 0 14px; font-size: 12px; }
+    .action-btn .btn-text { display: none; }
+    #back-link { min-width: 120px; height: 54px; font-size: 1.1rem; }
+  }
+
+  @media (min-width: 768px) {
+    :root {
+      --stamp-btn-size: 90px;
+      --color-btn-size: 60px;
+      --size-btn-size: 68px;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <!-- Canvas -->
+  <div id="canvas-wrap">
+    <canvas id="stamp-canvas"></canvas>
+  </div>
+
+  <!-- Bottom toolbar -->
+  <div id="toolbar">
+    <!-- Row 1: Stamps -->
+    <div class="toolbar-label">Stamps</div>
+    <div class="toolbar-section" id="stamp-grid"></div>
+
+    <div class="sep-line"></div>
+
+    <!-- Row 2: Colors -->
+    <div class="toolbar-label">Colors</div>
+    <div class="toolbar-section" id="color-grid"></div>
+
+    <div class="sep-line"></div>
+
+    <!-- Row 3: Size + Actions -->
+    <div class="toolbar-section" id="controls-row"></div>
+  </div>
+</div>
+
+<!-- Back link -->
+<a id="back-link" href="../../index.html">&#11013;&#65039; Create</a>
+
+<script>
+(function() {
+  'use strict';
+
+  /* ==== STAMP DRAWING FUNCTIONS ==== */
+  const Stamps = {
+    star(ctx, sz, color) {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      for (let i = 0; i < 5; i++) {
+        const a = (i * 72 - 90) * Math.PI / 180;
+        const ai = ((i * 72) + 36 - 90) * Math.PI / 180;
+        ctx.lineTo(Math.cos(a) * sz, Math.sin(a) * sz);
+        ctx.lineTo(Math.cos(ai) * sz * 0.45, Math.sin(ai) * sz * 0.45);
+      }
+      ctx.closePath();
+      ctx.fill();
+      // Highlight
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      ctx.beginPath();
+      for (let i = 0; i < 5; i++) {
+        const a = (i * 72 - 90) * Math.PI / 180;
+        const ai = ((i * 72) + 36 - 90) * Math.PI / 180;
+        ctx.lineTo(Math.cos(a) * sz * 0.55, Math.sin(a) * sz * 0.55);
+        ctx.lineTo(Math.cos(ai) * sz * 0.25, Math.sin(ai) * sz * 0.25);
+      }
+      ctx.closePath();
+      ctx.fill();
+    },
+
+    heart(ctx, sz, color) {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      const s = sz * 0.06;
+      ctx.moveTo(0, s * 4);
+      ctx.bezierCurveTo(0, s * 2, -s * 5, -s * 4, -s * 10, -s * 4);
+      ctx.bezierCurveTo(-s * 17, -s * 4, -s * 17, s * 5, -s * 17, s * 5);
+      ctx.bezierCurveTo(-s * 17, s * 10, -s * 10, s * 14, 0, s * 18);
+      ctx.bezierCurveTo(s * 10, s * 14, s * 17, s * 10, s * 17, s * 5);
+      ctx.bezierCurveTo(s * 17, s * 5, s * 17, -s * 4, s * 10, -s * 4);
+      ctx.bezierCurveTo(s * 5, -s * 4, 0, s * 2, 0, s * 4);
+      ctx.closePath();
+      ctx.fill();
+      // Shine
+      ctx.fillStyle = 'rgba(255,255,255,0.3)';
+      ctx.beginPath();
+      ctx.ellipse(-s * 6, -s * 1, s * 3, s * 2.5, -0.4, 0, Math.PI * 2);
+      ctx.fill();
+    },
+
+    flower(ctx, sz, color) {
+      const r = sz * 0.4;
+      // Petals
+      ctx.fillStyle = color;
+      for (let i = 0; i < 6; i++) {
+        ctx.save();
+        ctx.rotate(i * Math.PI / 3);
+        ctx.beginPath();
+        ctx.ellipse(0, -r, r * 0.45, r * 0.85, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+      // Center
+      ctx.fillStyle = '#FFD700';
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 0.38, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.3)';
+      ctx.beginPath();
+      ctx.arc(-r * 0.1, -r * 0.1, r * 0.18, 0, Math.PI * 2);
+      ctx.fill();
+    },
+
+    butterfly(ctx, sz, color) {
+      const w = sz * 0.8, h = sz * 0.6;
+      ctx.fillStyle = color;
+      // Left wing
+      ctx.beginPath();
+      ctx.ellipse(-w * 0.4, -h * 0.2, w * 0.45, h * 0.55, -0.3, 0, Math.PI * 2);
+      ctx.fill();
+      // Right wing
+      ctx.beginPath();
+      ctx.ellipse(w * 0.4, -h * 0.2, w * 0.45, h * 0.55, 0.3, 0, Math.PI * 2);
+      ctx.fill();
+      // Lower wings
+      ctx.globalAlpha = 0.7;
+      ctx.beginPath();
+      ctx.ellipse(-w * 0.3, h * 0.25, w * 0.3, h * 0.4, -0.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(w * 0.3, h * 0.25, w * 0.3, h * 0.4, 0.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      // Body
+      ctx.fillStyle = '#333';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, sz * 0.06, h * 0.6, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Antennae
+      ctx.strokeStyle = '#333';
+      ctx.lineWidth = sz * 0.04;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(0, -h * 0.4);
+      ctx.quadraticCurveTo(-w * 0.2, -h * 0.8, -w * 0.3, -h * 0.75);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, -h * 0.4);
+      ctx.quadraticCurveTo(w * 0.2, -h * 0.8, w * 0.3, -h * 0.75);
+      ctx.stroke();
+      // Wing spots
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      ctx.beginPath();
+      ctx.arc(-w * 0.4, -h * 0.2, sz * 0.12, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(w * 0.4, -h * 0.2, sz * 0.12, 0, Math.PI * 2);
+      ctx.fill();
+    },
+
+    rainbow(ctx, sz, color) {
+      const colors = ['#FF0000', '#FF8800', '#FFFF00', '#00CC44', '#0088FF', '#6600CC', '#9900FF'];
+      const bandW = sz * 0.12;
+      for (let i = 0; i < colors.length; i++) {
+        ctx.strokeStyle = colors[i];
+        ctx.lineWidth = bandW;
+        ctx.beginPath();
+        ctx.arc(0, sz * 0.3, sz * 0.9 - i * bandW, Math.PI, 0);
+        ctx.stroke();
+      }
+      // Clouds at ends
+      ctx.fillStyle = '#fff';
+      [[-sz * 0.9, sz * 0.3], [sz * 0.9, sz * 0.3]].forEach(([cx, cy]) => {
+        ctx.beginPath();
+        ctx.arc(cx, cy, sz * 0.2, 0, Math.PI * 2);
+        ctx.arc(cx - sz * 0.12, cy - sz * 0.08, sz * 0.15, 0, Math.PI * 2);
+        ctx.arc(cx + sz * 0.12, cy - sz * 0.08, sz * 0.15, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    },
+
+    smiley(ctx, sz, color) {
+      // Face
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(0, 0, sz, 0, Math.PI * 2);
+      ctx.fill();
+      // Eyes
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.ellipse(-sz * 0.32, -sz * 0.2, sz * 0.18, sz * 0.22, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(sz * 0.32, -sz * 0.2, sz * 0.18, sz * 0.22, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Pupils
+      ctx.fillStyle = '#222';
+      ctx.beginPath();
+      ctx.arc(-sz * 0.3, -sz * 0.18, sz * 0.1, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(sz * 0.3, -sz * 0.18, sz * 0.1, 0, Math.PI * 2);
+      ctx.fill();
+      // Smile
+      ctx.strokeStyle = '#222';
+      ctx.lineWidth = sz * 0.08;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.arc(0, sz * 0.05, sz * 0.5, 0.2, Math.PI - 0.2);
+      ctx.stroke();
+      // Cheeks
+      ctx.fillStyle = 'rgba(255,150,150,0.4)';
+      ctx.beginPath();
+      ctx.ellipse(-sz * 0.55, sz * 0.2, sz * 0.18, sz * 0.12, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(sz * 0.55, sz * 0.2, sz * 0.18, sz * 0.12, 0, 0, Math.PI * 2);
+      ctx.fill();
+    },
+
+    sun(ctx, sz, color) {
+      // Rays
+      ctx.strokeStyle = color;
+      ctx.lineWidth = sz * 0.12;
+      ctx.lineCap = 'round';
+      for (let i = 0; i < 12; i++) {
+        const a = i * Math.PI / 6;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a) * sz * 0.55, Math.sin(a) * sz * 0.55);
+        ctx.lineTo(Math.cos(a) * sz * 0.95, Math.sin(a) * sz * 0.95);
+        ctx.stroke();
+      }
+      // Circle
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(0, 0, sz * 0.48, 0, Math.PI * 2);
+      ctx.fill();
+      // Highlight
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      ctx.beginPath();
+      ctx.arc(-sz * 0.12, -sz * 0.12, sz * 0.22, 0, Math.PI * 2);
+      ctx.fill();
+    },
+
+    moon(ctx, sz, color) {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(0, 0, sz * 0.85, 0, Math.PI * 2);
+      ctx.fill();
+      // Crescent cut
+      ctx.fillStyle = '#E8F8FF';
+      ctx.beginPath();
+      ctx.arc(sz * 0.3, -sz * 0.15, sz * 0.65, 0, Math.PI * 2);
+      ctx.fill();
+      // Stars
+      ctx.fillStyle = color;
+      const stars = [[sz * 0.6, -sz * 0.5, sz * 0.08], [sz * 0.8, -sz * 0.2, sz * 0.06], [sz * 0.5, sz * 0.1, sz * 0.05]];
+      stars.forEach(([x, y, r]) => {
+        ctx.beginPath();
+        for (let i = 0; i < 5; i++) {
+          const a = (i * 72 - 90) * Math.PI / 180;
+          const ai = ((i * 72) + 36 - 90) * Math.PI / 180;
+          ctx.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r);
+          ctx.lineTo(x + Math.cos(ai) * r * 0.45, y + Math.sin(ai) * r * 0.45);
+        }
+        ctx.closePath();
+        ctx.fill();
+      });
+    },
+
+    cloud(ctx, sz, color) {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(0, 0, sz * 0.45, 0, Math.PI * 2);
+      ctx.arc(-sz * 0.4, sz * 0.1, sz * 0.35, 0, Math.PI * 2);
+      ctx.arc(sz * 0.4, sz * 0.1, sz * 0.35, 0, Math.PI * 2);
+      ctx.arc(-sz * 0.2, -sz * 0.2, sz * 0.3, 0, Math.PI * 2);
+      ctx.arc(sz * 0.25, -sz * 0.15, sz * 0.28, 0, Math.PI * 2);
+      ctx.fill();
+      // Highlight
+      ctx.fillStyle = 'rgba(255,255,255,0.3)';
+      ctx.beginPath();
+      ctx.ellipse(-sz * 0.15, -sz * 0.2, sz * 0.2, sz * 0.12, -0.3, 0, Math.PI * 2);
+      ctx.fill();
+    },
+
+    tree(ctx, sz, color) {
+      // Trunk
+      ctx.fillStyle = '#8B4513';
+      ctx.fillRect(-sz * 0.1, sz * 0.1, sz * 0.2, sz * 0.6);
+      // Foliage layers
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(0, -sz * 0.9);
+      ctx.lineTo(-sz * 0.55, -sz * 0.15);
+      ctx.lineTo(sz * 0.55, -sz * 0.15);
+      ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(0, -sz * 0.6);
+      ctx.lineTo(-sz * 0.7, sz * 0.15);
+      ctx.lineTo(sz * 0.7, sz * 0.15);
+      ctx.closePath();
+      ctx.fill();
+      // Highlight
+      ctx.fillStyle = 'rgba(255,255,255,0.2)';
+      ctx.beginPath();
+      ctx.moveTo(-sz * 0.1, -sz * 0.75);
+      ctx.lineTo(-sz * 0.4, -sz * 0.2);
+      ctx.lineTo(-sz * 0.05, -sz * 0.3);
+      ctx.closePath();
+      ctx.fill();
+    },
+
+    crown(ctx, sz, color) {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(-sz * 0.8, sz * 0.4);
+      ctx.lineTo(-sz * 0.8, -sz * 0.15);
+      ctx.lineTo(-sz * 0.45, sz * 0.1);
+      ctx.lineTo(-sz * 0.15, -sz * 0.55);
+      ctx.lineTo(0, -sz * 0.1);
+      ctx.lineTo(sz * 0.15, -sz * 0.55);
+      ctx.lineTo(sz * 0.45, sz * 0.1);
+      ctx.lineTo(sz * 0.8, -sz * 0.15);
+      ctx.lineTo(sz * 0.8, sz * 0.4);
+      ctx.closePath();
+      ctx.fill();
+      // Band
+      ctx.fillStyle = 'rgba(0,0,0,0.12)';
+      ctx.fillRect(-sz * 0.8, sz * 0.2, sz * 1.6, sz * 0.2);
+      // Jewels
+      ctx.fillStyle = '#FF0000';
+      ctx.beginPath(); ctx.arc(0, sz * 0.3, sz * 0.08, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#0088FF';
+      ctx.beginPath(); ctx.arc(-sz * 0.4, sz * 0.3, sz * 0.07, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(sz * 0.4, sz * 0.3, sz * 0.07, 0, Math.PI * 2); ctx.fill();
+      // Tips
+      ctx.fillStyle = '#FFD700';
+      [[-sz * 0.8, -sz * 0.15], [-sz * 0.15, -sz * 0.55], [0, -sz * 0.1], [sz * 0.15, -sz * 0.55], [sz * 0.8, -sz * 0.15]].forEach(([x, y]) => {
+        ctx.beginPath(); ctx.arc(x, y, sz * 0.06, 0, Math.PI * 2); ctx.fill();
+      });
+    },
+
+    unicorn(ctx, sz, color) {
+      // Head
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.ellipse(0, sz * 0.1, sz * 0.5, sz * 0.55, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Snout
+      ctx.beginPath();
+      ctx.ellipse(0, sz * 0.55, sz * 0.3, sz * 0.2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Horn
+      const grad = ctx.createLinearGradient(-sz * 0.05, -sz * 0.9, sz * 0.05, -sz * 0.3);
+      grad.addColorStop(0, '#FFD700');
+      grad.addColorStop(0.5, '#FFF8DC');
+      grad.addColorStop(1, '#FFD700');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.moveTo(0, -sz * 0.95);
+      ctx.lineTo(-sz * 0.1, -sz * 0.35);
+      ctx.lineTo(sz * 0.1, -sz * 0.35);
+      ctx.closePath();
+      ctx.fill();
+      // Horn spiral
+      ctx.strokeStyle = 'rgba(180,140,0,0.4)';
+      ctx.lineWidth = sz * 0.03;
+      for (let i = 0; i < 4; i++) {
+        const y = -sz * 0.85 + i * sz * 0.14;
+        const w = sz * 0.03 + i * sz * 0.018;
+        ctx.beginPath();
+        ctx.moveTo(-w, y);
+        ctx.lineTo(w, y + sz * 0.04);
+        ctx.stroke();
+      }
+      // Eye
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.ellipse(-sz * 0.18, -sz * 0.05, sz * 0.12, sz * 0.14, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#4A0080';
+      ctx.beginPath();
+      ctx.arc(-sz * 0.16, -sz * 0.03, sz * 0.07, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(-sz * 0.19, -sz * 0.07, sz * 0.03, 0, Math.PI * 2);
+      ctx.fill();
+      // Nostril
+      ctx.fillStyle = 'rgba(0,0,0,0.15)';
+      ctx.beginPath();
+      ctx.ellipse(-sz * 0.1, sz * 0.55, sz * 0.04, sz * 0.03, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Mane
+      const maneColors = ['#FF69B4', '#9B59B6', '#3498DB', '#FF69B4', '#E74C3C'];
+      maneColors.forEach((mc, i) => {
+        ctx.fillStyle = mc;
+        ctx.globalAlpha = 0.75;
+        ctx.beginPath();
+        const mx = sz * 0.25 + i * sz * 0.05;
+        const my = -sz * 0.3 + i * sz * 0.18;
+        ctx.ellipse(mx, my, sz * 0.12, sz * 0.22, 0.5 + i * 0.15, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.globalAlpha = 1;
+      // Smile
+      ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+      ctx.lineWidth = sz * 0.04;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.arc(-sz * 0.05, sz * 0.4, sz * 0.15, 0.2, Math.PI - 0.2);
+      ctx.stroke();
+    }
+  };
+
+  const STAMP_NAMES = ['star', 'heart', 'flower', 'butterfly', 'rainbow', 'smiley', 'sun', 'moon', 'cloud', 'tree', 'crown', 'unicorn'];
+
+  const COLORS = [
+    { name: 'Red',    hex: '#E74C3C' },
+    { name: 'Pink',   hex: '#FF69B4' },
+    { name: 'Orange', hex: '#FF8C00' },
+    { name: 'Yellow', hex: '#F1C40F' },
+    { name: 'Green',  hex: '#2ECC71' },
+    { name: 'Blue',   hex: '#3498DB' },
+    { name: 'Purple', hex: '#9B59B6' },
+    { name: 'Black',  hex: '#222222' },
+  ];
+
+  const SIZES = [
+    { label: 'S', scale: 0.5, dot: 18 },
+    { label: 'M', scale: 1.0, dot: 28 },
+    { label: 'L', scale: 1.8, dot: 40 },
+  ];
+
+  /* ==== STATE ==== */
+  let currentStamp = 'star';
+  let currentColor = '#E74C3C';
+  let currentSizeIdx = 1;
+  let randomMode = false;
+  let clearPrimed = false;
+  let clearTimer = null;
+
+  /* ==== WEB AUDIO ==== */
+  let audioCtx = null;
+  function ensureAudio() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+
+  function playPop() {
+    ensureAudio();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.06);
+    osc.frequency.exponentialRampToValueAtTime(400, audioCtx.currentTime + 0.15);
+    gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + 0.2);
+  }
+
+  function playSprinkle() {
+    ensureAudio();
+    for (let i = 0; i < 3; i++) {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.type = 'sine';
+      const t = audioCtx.currentTime + i * 0.05;
+      osc.frequency.setValueAtTime(800 + Math.random() * 600, t);
+      osc.frequency.exponentialRampToValueAtTime(1400 + Math.random() * 400, t + 0.08);
+      gain.gain.setValueAtTime(0.12, t);
+      gain.gain.exponentialRampToValueAtTime(0.01, t + 0.12);
+      osc.start(t);
+      osc.stop(t + 0.12);
+    }
+  }
+
+  function playClear() {
+    ensureAudio();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(500, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(150, audioCtx.currentTime + 0.3);
+    gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.35);
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + 0.35);
+  }
+
+  /* ==== CANVAS SETUP ==== */
+  const canvas = document.getElementById('stamp-canvas');
+  const ctx = canvas.getContext('2d');
+  const wrap = document.getElementById('canvas-wrap');
+
+  // Undo stack
+  const undoStack = [];
+  const MAX_UNDO = 30;
+
+  function pushUndo() {
+    if (canvas.width === 0 || canvas.height === 0) return;
+    undoStack.push(canvas.toDataURL());
+    if (undoStack.length > MAX_UNDO) undoStack.shift();
+  }
+
+  function resizeCanvas() {
+    const rect = wrap.getBoundingClientRect();
+    const w = Math.floor(rect.width - 16);
+    const h = Math.floor(rect.height - 16);
+
+    let imgData = null;
+    if (canvas.width > 0 && canvas.height > 0) {
+      imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    }
+
+    canvas.width = w;
+    canvas.height = h;
+
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, w, h);
+    if (imgData) ctx.putImageData(imgData, 0, 0);
+  }
+
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+  setTimeout(() => pushUndo(), 100);
+
+  /* ==== COORDINATE HELPER ==== */
+  function canvasCoords(e) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    let clientX, clientY;
+    if (e.touches && e.touches.length > 0) {
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+    } else if (e.changedTouches && e.changedTouches.length > 0) {
+      clientX = e.changedTouches[0].clientX;
+      clientY = e.changedTouches[0].clientY;
+    } else {
+      clientX = e.clientX;
+      clientY = e.clientY;
+    }
+    return {
+      x: (clientX - rect.left) * scaleX,
+      y: (clientY - rect.top) * scaleY,
+      clientX, clientY
+    };
+  }
+
+  /* ==== STAMP PLACEMENT ==== */
+  function getStampSize() {
+    return 22 + SIZES[currentSizeIdx].scale * 30;
+  }
+
+  function placeStamp(x, y, clientX, clientY) {
+    pushUndo();
+
+    const stamp = randomMode ? STAMP_NAMES[Math.floor(Math.random() * STAMP_NAMES.length)] : currentStamp;
+    const color = currentColor;
+    const sz = getStampSize();
+    const rotation = (Math.random() - 0.5) * 30 * Math.PI / 180; // +/-15 degrees
+
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(rotation);
+    Stamps[stamp](ctx, sz, color);
+    ctx.restore();
+
+    // Pop animation overlay
+    showPopAnimation(clientX, clientY, stamp, sz, color, rotation);
+
+    // Sound
+    playPop();
+    playSprinkle();
+  }
+
+  function showPopAnimation(clientX, clientY, stamp, sz, color, rotation) {
+    const popCanvas = document.createElement('canvas');
+    const popSz = sz * 3;
+    popCanvas.width = popSz;
+    popCanvas.height = popSz;
+    popCanvas.className = 'pop-anim';
+    popCanvas.style.left = clientX + 'px';
+    popCanvas.style.top = clientY + 'px';
+    popCanvas.style.width = popSz + 'px';
+    popCanvas.style.height = popSz + 'px';
+
+    const pctx = popCanvas.getContext('2d');
+    pctx.translate(popSz / 2, popSz / 2);
+    pctx.rotate(rotation);
+    Stamps[stamp](pctx, sz, color);
+
+    document.body.appendChild(popCanvas);
+    popCanvas.addEventListener('animationend', () => popCanvas.remove());
+  }
+
+  /* ==== CANVAS TAP HANDLER ==== */
+  function handleTap(e) {
+    e.preventDefault();
+    const pos = canvasCoords(e);
+    placeStamp(pos.x, pos.y, pos.clientX, pos.clientY);
+  }
+
+  canvas.addEventListener('mousedown', handleTap);
+  canvas.addEventListener('touchstart', handleTap, { passive: false });
+  canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+  // Prevent scroll/zoom on canvas
+  canvas.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+
+  /* ==== BUILD TOOLBAR ==== */
+
+  // Stamp buttons
+  const stampGrid = document.getElementById('stamp-grid');
+  STAMP_NAMES.forEach(name => {
+    const btn = document.createElement('button');
+    btn.className = 'stamp-btn' + (name === currentStamp ? ' active' : '');
+    btn.dataset.stamp = name;
+
+    const c = document.createElement('canvas');
+    const previewSz = 52;
+    c.width = previewSz; c.height = previewSz;
+    const sc = c.getContext('2d');
+    sc.translate(previewSz / 2, previewSz / 2);
+    Stamps[name](sc, previewSz * 0.35, '#FF69B4');
+    btn.appendChild(c);
+
+    const lbl = document.createElement('span');
+    lbl.className = 'stamp-label';
+    lbl.textContent = name.charAt(0).toUpperCase() + name.slice(1);
+    btn.appendChild(lbl);
+
+    btn.addEventListener('click', () => {
+      currentStamp = name;
+      stampGrid.querySelectorAll('.stamp-btn').forEach(b => b.classList.toggle('active', b === btn));
+      playPop();
+    });
+    stampGrid.appendChild(btn);
+  });
+
+  // Color buttons
+  const colorGrid = document.getElementById('color-grid');
+  COLORS.forEach((c, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'color-btn' + (i === 0 ? ' active' : '');
+    btn.style.background = c.hex;
+    btn.title = c.name;
+    btn.addEventListener('click', () => {
+      currentColor = c.hex;
+      colorGrid.querySelectorAll('.color-btn').forEach(b => b.classList.toggle('active', b === btn));
+      playPop();
+    });
+    colorGrid.appendChild(btn);
+  });
+
+  // Controls row: Size + Random + Save + Clear
+  const controlsRow = document.getElementById('controls-row');
+
+  // Size buttons
+  SIZES.forEach((s, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'size-btn' + (i === currentSizeIdx ? ' active' : '');
+    btn.innerHTML = '<span style="font-size:' + s.dot + 'px">&#11088;</span><span class="size-label">' + s.label + '</span>';
+    btn.addEventListener('click', () => {
+      currentSizeIdx = i;
+      controlsRow.querySelectorAll('.size-btn').forEach(b => b.classList.toggle('active', b.dataset.sizeIdx == i));
+      playPop();
+    });
+    btn.dataset.sizeIdx = i;
+    controlsRow.appendChild(btn);
+  });
+
+  // Random mode button
+  const randomBtn = document.createElement('button');
+  randomBtn.className = 'action-btn random-mode';
+  randomBtn.innerHTML = '<span class="icon">&#127922;</span><span class="btn-text">Random!</span>';
+  randomBtn.addEventListener('click', () => {
+    randomMode = !randomMode;
+    randomBtn.classList.toggle('active', randomMode);
+    playPop();
+  });
+  controlsRow.appendChild(randomBtn);
+
+  // Save button
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'action-btn';
+  saveBtn.innerHTML = '<span class="icon">&#128190;</span><span class="btn-text">Save</span>';
+  saveBtn.addEventListener('click', () => {
+    const link = document.createElement('a');
+    link.download = 'my-stamps.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+    playPop();
+  });
+  controlsRow.appendChild(saveBtn);
+
+  // Clear button (shake on first tap, clear on double-tap)
+  const clearBtn = document.createElement('button');
+  clearBtn.className = 'action-btn danger';
+  clearBtn.innerHTML = '<span class="icon">&#128465;</span><span class="btn-text">Clear</span>';
+  clearBtn.addEventListener('click', () => {
+    if (clearPrimed) {
+      // Second tap — actually clear
+      pushUndo();
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      playClear();
+      clearPrimed = false;
+      clearTimeout(clearTimer);
+      clearBtn.style.transform = '';
+    } else {
+      // First tap — shake warning
+      clearPrimed = true;
+      clearBtn.classList.add('shake');
+      clearBtn.addEventListener('animationend', () => clearBtn.classList.remove('shake'), { once: true });
+      // Reset primed state after 2 seconds
+      clearTimer = setTimeout(() => {
+        clearPrimed = false;
+      }, 2000);
+    }
+  });
+  controlsRow.appendChild(clearBtn);
+
+})();
+</script>
+</body>
+</html>

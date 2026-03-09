@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Fireworks!</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    overflow: hidden;
+    background: #0a0a2e;
+    height: 100vh;
+    width: 100vw;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+    overscroll-behavior: none;
+    font-family: 'Comic Sans MS', 'Chalkboard SE', cursive, sans-serif;
+  }
+
+  canvas {
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .back-btn-carnival {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    z-index: 300;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 140px;
+    height: 64px;
+    padding: 0 24px;
+    background: linear-gradient(135deg, #FF69B4, #FF1493, #D42B2B);
+    color: #fff;
+    font-family: 'Fredoka', 'Comic Sans MS', cursive, sans-serif;
+    font-size: 1.3rem;
+    font-weight: 700;
+    text-decoration: none;
+    border: 4px solid #FFD700;
+    border-radius: 9999px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.25), 0 0 12px rgba(255,215,0,0.4);
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .back-btn-carnival:hover,
+  .back-btn-carnival:active {
+    transform: scale(1.08);
+    box-shadow: 0 6px 24px rgba(0,0,0,0.3), 0 0 20px rgba(255,215,0,0.6);
+  }
+  .back-btn-carnival:active {
+    transform: scale(0.96);
+  }
+
+  .tap-count {
+    position: fixed;
+    top: 20px;
+    right: 24px;
+    z-index: 300;
+    font-size: 1.6rem;
+    color: #fff;
+    text-shadow: 0 0 16px rgba(255, 215, 0, 0.6), 0 2px 4px rgba(0,0,0,0.5);
+    pointer-events: none;
+    font-family: 'Fredoka', 'Comic Sans MS', cursive, sans-serif;
+    font-weight: 700;
+    letter-spacing: 1px;
+  }
+  .tap-count .num {
+    font-size: 2.2rem;
+    color: #ffd700;
+  }
+
+  .tap-hint {
+    position: fixed;
+    bottom: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 300;
+    font-size: 1.4rem;
+    color: rgba(255,255,255,0.6);
+    text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    pointer-events: none;
+    font-family: 'Fredoka', 'Comic Sans MS', cursive, sans-serif;
+    font-weight: 600;
+    animation: pulse-hint 2s ease-in-out infinite;
+    transition: opacity 0.5s;
+  }
+  @keyframes pulse-hint {
+    0%, 100% { opacity: 0.4; transform: translateX(-50%) scale(1); }
+    50% { opacity: 0.8; transform: translateX(-50%) scale(1.05); }
+  }
+</style>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+<a href="../../index.html" class="back-btn-carnival">&#11013;&#65039; Games</a>
+<div class="tap-count">&#127878; <span class="num" id="tapCount">0</span></div>
+<div class="tap-hint" id="tapHint">Tap anywhere!</div>
+<canvas id="sky"></canvas>
+
+<script>
+// ---- Canvas Setup ----
+const canvas = document.getElementById('sky');
+const ctx = canvas.getContext('2d');
+let W, H, dpr;
+
+function resize() {
+  dpr = window.devicePixelRatio || 1;
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ---- Audio ----
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let audioCtx;
+
+function ensureAudio() {
+  if (!audioCtx) audioCtx = new AudioCtx();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function playWhoosh() {
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  // Filtered noise whoosh
+  const bufSize = audioCtx.sampleRate * 0.4;
+  const buf = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1);
+  const noise = audioCtx.createBufferSource();
+  noise.buffer = buf;
+  const bp = audioCtx.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.frequency.setValueAtTime(600, now);
+  bp.frequency.exponentialRampToValueAtTime(2000, now + 0.3);
+  bp.Q.setValueAtTime(2, now);
+  const gain = audioCtx.createGain();
+  gain.gain.setValueAtTime(0.12, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+  noise.connect(bp);
+  bp.connect(gain);
+  gain.connect(audioCtx.destination);
+  noise.start(now);
+  noise.stop(now + 0.4);
+
+  // Rising tone
+  const osc = audioCtx.createOscillator();
+  const oscGain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(200, now);
+  osc.frequency.exponentialRampToValueAtTime(800 + Math.random() * 400, now + 0.35);
+  oscGain.gain.setValueAtTime(0.06, now);
+  oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+  osc.connect(oscGain);
+  oscGain.connect(audioCtx.destination);
+  osc.start(now);
+  osc.stop(now + 0.35);
+}
+
+function playBurst(color) {
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+
+  // Crackle — short noise burst
+  const bufSize = audioCtx.sampleRate * 0.3;
+  const buf = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) {
+    data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufSize, 2);
+  }
+  const noise = audioCtx.createBufferSource();
+  noise.buffer = buf;
+  const hp = audioCtx.createBiquadFilter();
+  hp.type = 'highpass';
+  hp.frequency.setValueAtTime(2000, now);
+  const gain = audioCtx.createGain();
+  gain.gain.setValueAtTime(0.18, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+  noise.connect(hp);
+  hp.connect(gain);
+  gain.connect(audioCtx.destination);
+  noise.start(now);
+  noise.stop(now + 0.3);
+
+  // Pop tone
+  const osc = audioCtx.createOscillator();
+  const oscGain = audioCtx.createGain();
+  osc.type = 'triangle';
+  const baseFreq = 400 + Math.random() * 600;
+  osc.frequency.setValueAtTime(baseFreq, now);
+  osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.3, now + 0.15);
+  oscGain.gain.setValueAtTime(0.12, now);
+  oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+  osc.connect(oscGain);
+  oscGain.connect(audioCtx.destination);
+  osc.start(now);
+  osc.stop(now + 0.2);
+
+  // Secondary sparkle pops (staggered)
+  for (let i = 0; i < 3; i++) {
+    const t = now + 0.05 + Math.random() * 0.15;
+    const o2 = audioCtx.createOscillator();
+    const g2 = audioCtx.createGain();
+    o2.type = 'sine';
+    o2.frequency.setValueAtTime(1000 + Math.random() * 2000, t);
+    g2.gain.setValueAtTime(0.04, t);
+    g2.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+    o2.connect(g2);
+    g2.connect(audioCtx.destination);
+    o2.start(t);
+    o2.stop(t + 0.08);
+  }
+}
+
+function playGrandFinaleSound() {
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  // Big ascending fanfare
+  const notes = [523, 659, 784, 1047]; // C5 E5 G5 C6
+  notes.forEach((freq, i) => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(freq, now + i * 0.1);
+    gain.gain.setValueAtTime(0.1, now + i * 0.1);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.1 + 0.4);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(now + i * 0.1);
+    osc.stop(now + i * 0.1 + 0.4);
+  });
+}
+
+// ---- Stars ----
+const stars = [];
+function initStars() {
+  stars.length = 0;
+  for (let i = 0; i < 120; i++) {
+    stars.push({
+      x: Math.random() * W,
+      y: Math.random() * H * 0.85,
+      r: 0.5 + Math.random() * 1.5,
+      phase: Math.random() * Math.PI * 2,
+      speed: 0.5 + Math.random() * 2,
+    });
+  }
+}
+initStars();
+window.addEventListener('resize', initStars);
+
+// ---- Firework Colors ----
+const palettes = [
+  ['#ff4444', '#ff8866', '#ffcc44', '#ffeeaa'],        // Red-gold
+  ['#44aaff', '#66ddff', '#aaeeff', '#ffffff'],         // Blue-white
+  ['#ff44cc', '#ff88dd', '#ffaaee', '#ffddff'],         // Pink
+  ['#44ff88', '#88ffaa', '#ccffcc', '#eeffee'],         // Green
+  ['#ffaa00', '#ffcc44', '#ffdd88', '#ffeecc'],         // Gold
+  ['#aa44ff', '#cc88ff', '#ddaaff', '#eeddff'],         // Purple
+  ['#ff6644', '#ff9966', '#ffbb88', '#ffddaa'],         // Orange
+  ['#44ffdd', '#88ffee', '#aaffee', '#ccffff'],         // Cyan
+  ['#ff4488', '#44ddff', '#ffdd44', '#88ff88'],         // Rainbow mix
+];
+
+// ---- Particle System ----
+const rockets = [];
+const particles = [];
+const trails = [];
+
+function launchFirework(tx, ty) {
+  const palette = palettes[Math.floor(Math.random() * palettes.length)];
+  const sx = W * 0.3 + Math.random() * W * 0.4; // launch from bottom ~center
+  const burstType = Math.floor(Math.random() * 3); // 0=circle, 1=star, 2=ring
+  const travelTime = 0.6 + Math.random() * 0.3; // seconds to reach target
+
+  rockets.push({
+    sx, sy: H,
+    tx, ty,
+    palette,
+    burstType,
+    t: 0,
+    duration: travelTime,
+    alive: true,
+  });
+
+  playWhoosh();
+}
+
+function explode(x, y, palette, burstType) {
+  const count = 25 + Math.floor(Math.random() * 20);
+  playBurst();
+
+  if (burstType === 0) {
+    // Circle burst
+    for (let i = 0; i < count; i++) {
+      const angle = (Math.PI * 2 / count) * i + (Math.random() - 0.5) * 0.2;
+      const speed = 2 + Math.random() * 4;
+      spawnParticle(x, y, Math.cos(angle) * speed, Math.sin(angle) * speed, palette);
+    }
+  } else if (burstType === 1) {
+    // Star burst — 5 arms with extra particles
+    const arms = 5;
+    for (let i = 0; i < count; i++) {
+      const arm = i % arms;
+      const armAngle = (Math.PI * 2 / arms) * arm - Math.PI / 2;
+      const isCore = i < arms * 3;
+      const speed = isCore ? (3 + Math.random() * 3) : (1 + Math.random() * 2);
+      const spread = isCore ? (Math.random() - 0.5) * 0.3 : (Math.random() - 0.5) * Math.PI * 2;
+      const a = armAngle + spread;
+      spawnParticle(x, y, Math.cos(a) * speed, Math.sin(a) * speed, palette);
+    }
+  } else {
+    // Ring burst — two concentric rings
+    const ring1 = Math.floor(count * 0.6);
+    const ring2 = count - ring1;
+    for (let i = 0; i < ring1; i++) {
+      const angle = (Math.PI * 2 / ring1) * i;
+      const speed = 3.5 + Math.random() * 0.5;
+      spawnParticle(x, y, Math.cos(angle) * speed, Math.sin(angle) * speed, palette);
+    }
+    for (let i = 0; i < ring2; i++) {
+      const angle = (Math.PI * 2 / ring2) * i + 0.3;
+      const speed = 1.5 + Math.random() * 0.5;
+      spawnParticle(x, y, Math.cos(angle) * speed, Math.sin(angle) * speed, palette);
+    }
+  }
+}
+
+function spawnParticle(x, y, vx, vy, palette) {
+  particles.push({
+    x, y,
+    vx, vy,
+    color: palette[Math.floor(Math.random() * palette.length)],
+    life: 1,
+    decay: 0.008 + Math.random() * 0.012,
+    size: 2 + Math.random() * 3,
+    sparkle: Math.random() < 0.3,
+  });
+}
+
+// ---- State ----
+let tapCount = 0;
+let grandFinaleTriggered = false;
+let grandFinaleActive = false;
+let lastTime = performance.now();
+
+// ---- Grand Finale ----
+function triggerGrandFinale() {
+  grandFinaleActive = true;
+  playGrandFinaleSound();
+  const burstCount = 12 + Math.floor(Math.random() * 8);
+  for (let i = 0; i < burstCount; i++) {
+    setTimeout(() => {
+      const fx = W * 0.1 + Math.random() * W * 0.8;
+      const fy = H * 0.1 + Math.random() * H * 0.5;
+      launchFirework(fx, fy);
+    }, i * 200 + Math.random() * 150);
+  }
+  // Reset finale flag after it's done so it can trigger again every 10
+  setTimeout(() => {
+    grandFinaleActive = false;
+    grandFinaleTriggered = false;
+  }, burstCount * 250 + 2000);
+}
+
+// ---- Main Loop ----
+function frame(now) {
+  const dt = Math.min((now - lastTime) / 1000, 0.05);
+  lastTime = now;
+
+  // Sky gradient
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, '#050520');
+  grad.addColorStop(0.4, '#0a0a3a');
+  grad.addColorStop(0.7, '#1a1050');
+  grad.addColorStop(1, '#2a1860');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  // Stars
+  const t = now * 0.001;
+  for (const s of stars) {
+    const bright = 0.3 + 0.7 * (0.5 + 0.5 * Math.sin(t * s.speed + s.phase));
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255, 255, 255, ${bright})`;
+    ctx.fill();
+  }
+
+  // Update & draw rockets
+  for (let i = rockets.length - 1; i >= 0; i--) {
+    const r = rockets[i];
+    r.t += dt;
+    const p = Math.min(r.t / r.duration, 1);
+    // Ease-out curve
+    const ep = 1 - Math.pow(1 - p, 2);
+    const rx = r.sx + (r.tx - r.sx) * ep;
+    const ry = r.sy + (r.ty - r.sy) * ep;
+
+    // Trail particles from rocket
+    if (p < 1) {
+      trails.push({
+        x: rx + (Math.random() - 0.5) * 3,
+        y: ry + (Math.random() - 0.5) * 3,
+        life: 1,
+        decay: 0.03 + Math.random() * 0.02,
+        size: 1.5 + Math.random() * 2,
+        color: r.palette[0],
+      });
+    }
+
+    // Draw rocket head
+    if (p < 1) {
+      ctx.beginPath();
+      ctx.arc(rx, ry, 3, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff';
+      ctx.shadowColor = r.palette[0];
+      ctx.shadowBlur = 15;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+
+    // Explode at destination
+    if (p >= 1) {
+      explode(r.tx, r.ty, r.palette, r.burstType);
+      rockets.splice(i, 1);
+    }
+  }
+
+  // Update & draw trails
+  for (let i = trails.length - 1; i >= 0; i--) {
+    const tr = trails[i];
+    tr.life -= tr.decay;
+    tr.y += 0.3; // slight gravity
+    if (tr.life <= 0) { trails.splice(i, 1); continue; }
+    ctx.beginPath();
+    ctx.arc(tr.x, tr.y, tr.size * tr.life, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255, 200, 100, ${tr.life * 0.6})`;
+    ctx.fill();
+  }
+
+  // Update & draw particles
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.life -= p.decay;
+    if (p.life <= 0) { particles.splice(i, 1); continue; }
+
+    p.vy += 1.5 * dt; // gravity
+    p.vx *= 0.99;     // drag
+    p.vy *= 0.99;
+    p.x += p.vx;
+    p.y += p.vy;
+
+    const alpha = p.life;
+    const sz = p.size * (0.5 + p.life * 0.5);
+
+    // Glow
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, sz * 2, 0, Math.PI * 2);
+    ctx.fillStyle = hexToRgba(p.color, alpha * 0.3);
+    ctx.fill();
+
+    // Core
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, sz, 0, Math.PI * 2);
+    ctx.fillStyle = hexToRgba(p.color, alpha);
+    ctx.fill();
+
+    // Sparkle
+    if (p.sparkle && Math.random() < 0.3) {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, sz * 1.5, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.5})`;
+      ctx.fill();
+    }
+
+    // Fading trail
+    if (p.life > 0.3) {
+      trails.push({
+        x: p.x, y: p.y,
+        life: 0.4,
+        decay: 0.04,
+        size: sz * 0.5,
+        color: p.color,
+      });
+    }
+  }
+
+  requestAnimationFrame(frame);
+}
+
+function hexToRgba(hex, alpha) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+// ---- Input ----
+function handleTap(x, y) {
+  ensureAudio();
+
+  // Hide hint after first tap
+  const hint = document.getElementById('tapHint');
+  if (hint) hint.style.opacity = '0';
+
+  launchFirework(x, y);
+  tapCount++;
+  document.getElementById('tapCount').textContent = tapCount;
+
+  // Animate count
+  const numEl = document.getElementById('tapCount');
+  numEl.animate([
+    { transform: 'scale(1.5)', color: '#fff' },
+    { transform: 'scale(1)', color: '#ffd700' },
+  ], { duration: 300, easing: 'ease-out' });
+
+  // Grand finale every 10 taps
+  if (tapCount % 10 === 0 && !grandFinaleActive) {
+    setTimeout(() => triggerGrandFinale(), 600);
+  }
+}
+
+// Prevent back button from capturing taps — check if click is on back button
+canvas.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  handleTap(e.clientX, e.clientY);
+});
+
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  for (const touch of e.changedTouches) {
+    handleTap(touch.clientX, touch.clientY);
+  }
+}, { passive: false });
+
+// Ensure audio starts
+document.body.addEventListener('pointerdown', ensureAudio, { once: true });
+document.body.addEventListener('touchstart', ensureAudio, { once: true });
+
+// ---- Start ----
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
