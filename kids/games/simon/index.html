@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Simon Says!</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Lilita+One&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    overflow: hidden;
+    background: linear-gradient(180deg, #87CEEB 0%, #B0E0FF 40%, #E0F0FF 100%);
+    height: 100vh;
+    width: 100vw;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+    overscroll-behavior: none;
+    font-family: 'Fredoka', 'Comic Sans MS', cursive, sans-serif;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* --- Back Button --- */
+  .back-btn-carnival {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    z-index: 300;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 140px;
+    height: 64px;
+    padding: 0 24px;
+    background: linear-gradient(135deg, #FF69B4, #FF1493, #D42B2B);
+    color: #fff;
+    font-family: 'Fredoka', 'Comic Sans MS', cursive, sans-serif;
+    font-size: 1.3rem;
+    font-weight: 700;
+    text-decoration: none;
+    border: 4px solid #FFD700;
+    border-radius: 9999px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.25), 0 0 12px rgba(255,215,0,0.4);
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .back-btn-carnival:hover,
+  .back-btn-carnival:active {
+    transform: scale(1.08);
+    box-shadow: 0 6px 24px rgba(0,0,0,0.3), 0 0 20px rgba(255,215,0,0.6);
+  }
+  .back-btn-carnival:active {
+    transform: scale(0.96);
+  }
+
+  /* --- Top Bar --- */
+  .top-bar {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px 160px;
+    z-index: 100;
+    flex-shrink: 0;
+  }
+
+  .score-display {
+    font-family: 'Lilita One', 'Fredoka', cursive;
+    font-size: 1.4rem;
+    color: #4A148C;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    text-align: center;
+    line-height: 1.4;
+  }
+  .score-display .big-num {
+    font-size: 2.2rem;
+    color: #FF6F00;
+  }
+
+  /* --- Center Status --- */
+  .status-area {
+    flex-shrink: 0;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+
+  .status-msg {
+    font-family: 'Lilita One', 'Fredoka', cursive;
+    font-size: 2rem;
+    color: #4A148C;
+    text-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    text-align: center;
+    transition: transform 0.2s;
+  }
+  .status-msg.bounce {
+    animation: statusBounce 0.5s ease;
+  }
+  @keyframes statusBounce {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+  }
+
+  /* --- Simon Board --- */
+  .simon-board {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 8px;
+    padding: 8px;
+    max-width: 500px;
+    max-height: 500px;
+    width: calc(100vw - 16px);
+    aspect-ratio: 1;
+    z-index: 10;
+  }
+
+  .simon-btn {
+    border-radius: 24px;
+    border: 6px solid rgba(255,255,255,0.3);
+    cursor: pointer;
+    transition: filter 0.1s, transform 0.1s, box-shadow 0.1s;
+    -webkit-tap-highlight-color: transparent;
+    position: relative;
+    overflow: hidden;
+  }
+  .simon-btn::after {
+    content: '';
+    position: absolute;
+    top: 8%; left: 12%; right: 50%; bottom: 60%;
+    background: linear-gradient(135deg, rgba(255,255,255,0.4), transparent);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+
+  .simon-btn.dim {
+    filter: brightness(0.55);
+  }
+  .simon-btn.lit {
+    filter: brightness(1.3);
+    transform: scale(1.03);
+    box-shadow: 0 0 40px var(--glow-color), 0 0 80px var(--glow-color);
+  }
+  .simon-btn.pressed {
+    filter: brightness(1.2);
+    transform: scale(0.97);
+  }
+
+  /* Quadrant colors */
+  .btn-red {
+    background: linear-gradient(135deg, #FF5252, #D32F2F);
+    --glow-color: rgba(255,82,82,0.7);
+  }
+  .btn-blue {
+    background: linear-gradient(135deg, #448AFF, #1565C0);
+    --glow-color: rgba(68,138,255,0.7);
+  }
+  .btn-green {
+    background: linear-gradient(135deg, #69F0AE, #2E7D32);
+    --glow-color: rgba(105,240,174,0.7);
+  }
+  .btn-yellow {
+    background: linear-gradient(135deg, #FFD740, #F9A825);
+    --glow-color: rgba(255,215,64,0.7);
+  }
+
+  /* Corner rounding - each quadrant rounds its outer corner more */
+  .btn-red    { border-radius: 50% 24px 24px 24px; }
+  .btn-blue   { border-radius: 24px 50% 24px 24px; }
+  .btn-green  { border-radius: 24px 24px 24px 50%; }
+  .btn-yellow { border-radius: 24px 24px 50% 24px; }
+
+  /* --- Bottom Controls --- */
+  .bottom-bar {
+    flex-shrink: 0;
+    padding: 12px 16px 24px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    flex-wrap: wrap;
+  }
+
+  .game-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 120px;
+    height: 64px;
+    padding: 0 24px;
+    color: #fff;
+    font-family: 'Fredoka', 'Comic Sans MS', cursive, sans-serif;
+    font-size: 1.2rem;
+    font-weight: 700;
+    text-decoration: none;
+    border: 4px solid #FFD700;
+    border-radius: 9999px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2), 0 0 10px rgba(255,215,0,0.3);
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .game-btn:active {
+    transform: scale(0.95);
+  }
+
+  .btn-start {
+    background: linear-gradient(135deg, #4CAF50, #2E7D32);
+  }
+  .btn-mode {
+    background: linear-gradient(135deg, #7B1FA2, #4A148C);
+  }
+  .btn-mode.toddler {
+    background: linear-gradient(135deg, #FF69B4, #D81B60);
+  }
+
+  /* --- Sparkle Canvas --- */
+  #sparkles {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 200;
+  }
+
+  /* --- Responsive --- */
+  @media (max-width: 768px) {
+    .top-bar { padding: 16px 80px 4px; }
+    .score-display { font-size: 1.1rem; }
+    .score-display .big-num { font-size: 1.6rem; }
+    .status-msg { font-size: 1.5rem; }
+    .status-area { height: 44px; }
+    .simon-board { gap: 6px; padding: 6px; }
+    .game-btn { min-width: 100px; height: 56px; font-size: 1rem; padding: 0 16px; }
+    .back-btn-carnival { min-width: 100px; height: 52px; font-size: 1.1rem; padding: 0 16px; }
+  }
+
+  @media (max-height: 600px) {
+    .top-bar { padding: 8px 80px 2px; }
+    .status-area { height: 32px; }
+    .status-msg { font-size: 1.2rem; }
+    .bottom-bar { padding: 6px 16px 12px; }
+    .game-btn { height: 48px; min-width: 90px; font-size: 0.95rem; }
+  }
+</style>
+</head>
+<body>
+
+<a href="../../index.html" class="back-btn-carnival">&#11013;&#65039; Games</a>
+
+<canvas id="sparkles"></canvas>
+
+<div class="top-bar">
+  <div class="score-display">
+    <div>Round <span class="big-num" id="round">0</span></div>
+    <div>Best: <span id="best">0</span></div>
+  </div>
+</div>
+
+<div class="status-area">
+  <div class="status-msg" id="status">Tap Start to play!</div>
+</div>
+
+<div class="simon-board" id="board">
+  <div class="simon-btn btn-red dim" data-color="red"></div>
+  <div class="simon-btn btn-blue dim" data-color="blue"></div>
+  <div class="simon-btn btn-green dim" data-color="green"></div>
+  <div class="simon-btn btn-yellow dim" data-color="yellow"></div>
+</div>
+
+<div class="bottom-bar">
+  <button class="game-btn btn-start" id="startBtn">&#9654; Start</button>
+  <button class="game-btn btn-mode toddler" id="modeBtn">&#128124; Toddler</button>
+</div>
+
+<script>
+// ---- Audio Engine ----
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let audioCtx;
+
+function ensureAudio() {
+  if (!audioCtx) audioCtx = new AudioCtx();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+// Each color gets a distinct chiptune tone
+const COLOR_TONES = {
+  red:    330,   // E4
+  blue:   262,   // C4
+  green:  392,   // G4
+  yellow: 523,   // C5
+};
+
+function playTone(color, duration) {
+  ensureAudio();
+  const freq = COLOR_TONES[color];
+  const now = audioCtx.currentTime;
+  const dur = duration || 0.35;
+
+  const osc1 = audioCtx.createOscillator();
+  osc1.type = 'square';
+  osc1.frequency.setValueAtTime(freq, now);
+
+  const osc2 = audioCtx.createOscillator();
+  osc2.type = 'square';
+  osc2.frequency.setValueAtTime(freq * 1.003, now);
+
+  const osc3 = audioCtx.createOscillator();
+  osc3.type = 'triangle';
+  osc3.frequency.setValueAtTime(freq * 0.5, now);
+
+  const gain1 = audioCtx.createGain();
+  const gain2 = audioCtx.createGain();
+  const gain3 = audioCtx.createGain();
+  const master = audioCtx.createGain();
+
+  osc1.connect(gain1); gain1.connect(master);
+  osc2.connect(gain2); gain2.connect(master);
+  osc3.connect(gain3); gain3.connect(master);
+  master.connect(audioCtx.destination);
+
+  gain1.gain.setValueAtTime(0.14, now);
+  gain2.gain.setValueAtTime(0.07, now);
+  gain3.gain.setValueAtTime(0.05, now);
+
+  master.gain.setValueAtTime(0, now);
+  master.gain.linearRampToValueAtTime(1, now + 0.01);
+  master.gain.setValueAtTime(1, now + dur * 0.6);
+  master.gain.exponentialRampToValueAtTime(0.001, now + dur);
+
+  osc1.start(now); osc1.stop(now + dur);
+  osc2.start(now); osc2.stop(now + dur);
+  osc3.start(now); osc3.stop(now + dur);
+}
+
+function playHooray() {
+  ensureAudio();
+  const now = audioCtx.currentTime;
+  const notes = [523, 659, 784, 1047];
+  notes.forEach((freq, i) => {
+    const osc = audioCtx.createOscillator();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(freq, now + i * 0.1);
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    gain.gain.setValueAtTime(0, now + i * 0.1);
+    gain.gain.linearRampToValueAtTime(0.12, now + i * 0.1 + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.1 + 0.3);
+    osc.start(now + i * 0.1);
+    osc.stop(now + i * 0.1 + 0.3);
+  });
+}
+
+function playTryAgain() {
+  ensureAudio();
+  const now = audioCtx.currentTime;
+  // Gentle descending two-tone
+  [392, 330].forEach((freq, i) => {
+    const osc = audioCtx.createOscillator();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(freq, now + i * 0.2);
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    gain.gain.setValueAtTime(0, now + i * 0.2);
+    gain.gain.linearRampToValueAtTime(0.1, now + i * 0.2 + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.2 + 0.35);
+    osc.start(now + i * 0.2);
+    osc.stop(now + i * 0.2 + 0.35);
+  });
+}
+
+// ---- Sparkle System ----
+const sparkleCanvas = document.getElementById('sparkles');
+const sCtx = sparkleCanvas.getContext('2d');
+const sparkles = [];
+
+function resizeCanvas() {
+  sparkleCanvas.width = window.innerWidth;
+  sparkleCanvas.height = window.innerHeight;
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+function spawnSparkles(x, y, count, colors) {
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 2 + Math.random() * 5;
+    sparkles.push({
+      x: x,
+      y: y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 2,
+      size: 3 + Math.random() * 6,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      life: 1,
+      decay: 0.015 + Math.random() * 0.01,
+      shape: Math.random() > 0.4 ? 'star' : 'circle',
+    });
+  }
+}
+
+function spawnCelebration() {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  const colors = ['#FFD700', '#FF69B4', '#4DABF7', '#6BCB77', '#FF5252', '#FFD740', '#CC5DE8'];
+  for (let i = 0; i < 5; i++) {
+    setTimeout(() => {
+      spawnSparkles(Math.random() * w, Math.random() * h * 0.6, 20, colors);
+    }, i * 80);
+  }
+}
+
+function drawStar(ctx, x, y, r) {
+  ctx.beginPath();
+  for (let i = 0; i < 5; i++) {
+    const angle = (i * 4 * Math.PI) / 5 - Math.PI / 2;
+    const method = i === 0 ? 'moveTo' : 'lineTo';
+    ctx[method](x + Math.cos(angle) * r, y + Math.sin(angle) * r);
+  }
+  ctx.closePath();
+  ctx.fill();
+}
+
+function updateSparkles() {
+  sCtx.clearRect(0, 0, sparkleCanvas.width, sparkleCanvas.height);
+  for (let i = sparkles.length - 1; i >= 0; i--) {
+    const p = sparkles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.08;
+    p.life -= p.decay;
+    if (p.life <= 0) { sparkles.splice(i, 1); continue; }
+
+    sCtx.globalAlpha = p.life;
+    sCtx.fillStyle = p.color;
+    sCtx.shadowColor = p.color;
+    sCtx.shadowBlur = p.size;
+
+    if (p.shape === 'star') {
+      drawStar(sCtx, p.x, p.y, p.size);
+    } else {
+      sCtx.beginPath();
+      sCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      sCtx.fill();
+    }
+  }
+  sCtx.globalAlpha = 1;
+  sCtx.shadowBlur = 0;
+}
+
+// ---- Game State ----
+const COLORS = ['red', 'blue', 'green', 'yellow'];
+const buttons = {};
+document.querySelectorAll('.simon-btn').forEach(btn => {
+  buttons[btn.dataset.color] = btn;
+});
+
+let sequence = [];
+let playerIndex = 0;
+let isShowingSequence = false;
+let isPlayerTurn = false;
+let gameActive = false;
+let bestScore = 0;
+let currentRound = 0;
+
+// Difficulty modes
+const MODES = {
+  toddler: { label: '\u{1F476} Toddler', maxNotes: 4, showDelay: 700, litDuration: 500, pauseBetween: 300 },
+  kid:     { label: '\u{1F9D2} Kid',     maxNotes: Infinity, showDelay: 500, litDuration: 400, pauseBetween: 200 },
+};
+let currentMode = 'toddler';
+
+const roundEl = document.getElementById('round');
+const bestEl = document.getElementById('best');
+const statusEl = document.getElementById('status');
+const startBtn = document.getElementById('startBtn');
+const modeBtn = document.getElementById('modeBtn');
+
+// ---- Speed Scaling ----
+function getTimings() {
+  const mode = MODES[currentMode];
+  // Speed up slightly as sequence grows (min 60% of original speed)
+  const speedFactor = Math.max(0.6, 1 - (sequence.length - 2) * 0.03);
+  return {
+    litDuration: mode.litDuration * speedFactor,
+    pauseBetween: mode.pauseBetween * speedFactor,
+    showDelay: mode.showDelay * speedFactor,
+  };
+}
+
+// ---- Light Up / Dim ----
+function lightUp(color, duration) {
+  return new Promise(resolve => {
+    const btn = buttons[color];
+    btn.classList.remove('dim');
+    btn.classList.add('lit');
+    playTone(color, duration / 1000);
+    setTimeout(() => {
+      btn.classList.remove('lit');
+      btn.classList.add('dim');
+      resolve();
+    }, duration);
+  });
+}
+
+function setAllDim(dim) {
+  COLORS.forEach(c => {
+    buttons[c].classList.toggle('dim', dim);
+  });
+}
+
+// ---- Show Sequence ----
+async function showSequence() {
+  isShowingSequence = true;
+  isPlayerTurn = false;
+  setStatus('Watch!');
+  setAllDim(true);
+
+  const t = getTimings();
+  await sleep(t.showDelay);
+
+  for (let i = 0; i < sequence.length; i++) {
+    if (!gameActive) return;
+    await lightUp(sequence[i], t.litDuration);
+    if (i < sequence.length - 1) await sleep(t.pauseBetween);
+  }
+
+  isShowingSequence = false;
+  isPlayerTurn = true;
+  playerIndex = 0;
+  setAllDim(false);
+  setStatus('Your turn!');
+}
+
+// ---- Player Input ----
+function handlePlayerPress(color) {
+  if (!isPlayerTurn || isShowingSequence || !gameActive) return;
+
+  const btn = buttons[color];
+  btn.classList.add('pressed');
+  playTone(color, 0.25);
+
+  // Sparkles from the button
+  const rect = btn.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+  const colorMap = { red: ['#FF5252','#FF8A80'], blue: ['#448AFF','#82B1FF'], green: ['#69F0AE','#B9F6CA'], yellow: ['#FFD740','#FFF176'] };
+  spawnSparkles(cx, cy, 6, colorMap[color]);
+
+  setTimeout(() => btn.classList.remove('pressed'), 150);
+
+  if (color === sequence[playerIndex]) {
+    // Correct
+    playerIndex++;
+    if (playerIndex >= sequence.length) {
+      // Completed the round!
+      isPlayerTurn = false;
+      currentRound = sequence.length;
+      updateScoreDisplay();
+
+      if (currentRound > bestScore) {
+        bestScore = currentRound;
+        bestEl.textContent = bestScore;
+      }
+
+      // Check if toddler mode max reached
+      const mode = MODES[currentMode];
+      if (sequence.length >= mode.maxNotes) {
+        // Won toddler mode!
+        setStatus('You did it! Amazing!');
+        playHooray();
+        spawnCelebration();
+        setTimeout(() => {
+          if (gameActive) {
+            // Reset sequence for another round at max
+            sequence = [];
+            addToSequence();
+            addToSequence();
+            currentRound = 0;
+            updateScoreDisplay();
+            showSequence();
+          }
+        }, 2500);
+        return;
+      }
+
+      setStatus('Hooray!');
+      playHooray();
+      spawnCelebration();
+      setTimeout(() => {
+        if (gameActive) {
+          addToSequence();
+          showSequence();
+        }
+      }, 1500);
+    }
+  } else {
+    // Wrong - gentle retry, no punishment
+    isPlayerTurn = false;
+    playTryAgain();
+    setStatus('Try again!');
+    setAllDim(true);
+
+    // Replay the sequence after a pause
+    setTimeout(() => {
+      if (gameActive) {
+        showSequence();
+      }
+    }, 1200);
+  }
+}
+
+// ---- Helpers ----
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function setStatus(msg) {
+  statusEl.textContent = msg;
+  statusEl.classList.remove('bounce');
+  void statusEl.offsetWidth; // force reflow
+  statusEl.classList.add('bounce');
+}
+
+function updateScoreDisplay() {
+  roundEl.textContent = currentRound;
+}
+
+function addToSequence() {
+  sequence.push(COLORS[Math.floor(Math.random() * 4)]);
+}
+
+// ---- Start Game ----
+function startGame() {
+  ensureAudio();
+  gameActive = true;
+  sequence = [];
+  playerIndex = 0;
+  currentRound = 0;
+  updateScoreDisplay();
+
+  // Start with 2-note sequence
+  addToSequence();
+  addToSequence();
+
+  startBtn.innerHTML = '&#9632; Stop';
+  showSequence();
+}
+
+function stopGame() {
+  gameActive = false;
+  isShowingSequence = false;
+  isPlayerTurn = false;
+  setAllDim(true);
+  setStatus('Tap Start to play!');
+  startBtn.innerHTML = '&#9654; Start';
+}
+
+startBtn.addEventListener('click', () => {
+  ensureAudio();
+  if (gameActive) {
+    stopGame();
+  } else {
+    startGame();
+  }
+});
+
+// ---- Mode Toggle ----
+modeBtn.addEventListener('click', () => {
+  ensureAudio();
+  if (gameActive) stopGame();
+  currentMode = currentMode === 'toddler' ? 'kid' : 'toddler';
+  const mode = MODES[currentMode];
+  modeBtn.textContent = mode.label;
+  modeBtn.classList.toggle('toddler', currentMode === 'toddler');
+  setStatus('Tap Start to play!');
+});
+
+// ---- Touch / Pointer Handling ----
+function getColorFromPoint(x, y) {
+  for (const color of COLORS) {
+    const rect = buttons[color].getBoundingClientRect();
+    if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+      return color;
+    }
+  }
+  return null;
+}
+
+// Touch events on the board
+const board = document.getElementById('board');
+
+board.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  ensureAudio();
+  for (const touch of e.changedTouches) {
+    const color = getColorFromPoint(touch.clientX, touch.clientY);
+    if (color) handlePlayerPress(color);
+  }
+}, { passive: false });
+
+board.addEventListener('touchend', (e) => { e.preventDefault(); }, { passive: false });
+board.addEventListener('touchmove', (e) => { e.preventDefault(); }, { passive: false });
+
+// Mouse fallback
+board.addEventListener('mousedown', (e) => {
+  ensureAudio();
+  const color = getColorFromPoint(e.clientX, e.clientY);
+  if (color) handlePlayerPress(color);
+});
+
+// ---- Animation Loop ----
+function animate() {
+  updateSparkles();
+  requestAnimationFrame(animate);
+}
+requestAnimationFrame(animate);
+
+// First-tap audio init
+document.body.addEventListener('pointerdown', ensureAudio, { once: true });
+document.body.addEventListener('touchstart', ensureAudio, { once: true });
+</script>
+</body>
+</html>

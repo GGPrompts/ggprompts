@@ -1,0 +1,1572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#FFB3D9">
+    <title>Fairy World Builder</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body {
+            width: 100%; height: 100%;
+            overflow: hidden;
+            overscroll-behavior: none;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-user-select: none;
+            user-select: none;
+            background: #87CEEB;
+            font-family: 'Fredoka', sans-serif;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+        .back-btn {
+            position: fixed;
+            top: 12px;
+            left: 12px;
+            z-index: 20;
+            background: #FFB3D9;
+            color: #fff;
+            font-family: 'Lilita One', cursive;
+            font-size: 1.2rem;
+            padding: 8px 18px;
+            border: 3px solid #fff;
+            border-radius: 9999px;
+            text-decoration: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transition: transform 0.2s;
+        }
+        .back-btn:active { transform: scale(0.93); }
+        .fairy-count {
+            position: fixed;
+            top: 12px;
+            right: 16px;
+            z-index: 20;
+            font-family: 'Lilita One', cursive;
+            font-size: 1.6rem;
+            color: #fff;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+            pointer-events: none;
+        }
+        .day-night-btn {
+            position: fixed;
+            top: 12px;
+            right: 130px;
+            z-index: 20;
+            background: #FFE066;
+            color: #fff;
+            font-size: 2rem;
+            width: 52px;
+            height: 52px;
+            border: 3px solid #fff;
+            border-radius: 50%;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: transform 0.2s, background 0.3s;
+            line-height: 1;
+        }
+        .day-night-btn:active { transform: scale(0.9); }
+        .toolbar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 20;
+            display: flex;
+            gap: 6px;
+            padding: 8px 6px;
+            padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+            background: rgba(255,255,255,0.85);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            overflow-x: auto;
+            overflow-y: hidden;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+        }
+        .toolbar::-webkit-scrollbar { display: none; }
+        .tool-btn {
+            flex: 0 0 auto;
+            width: 70px;
+            height: 70px;
+            border-radius: 16px;
+            border: 3px solid #ddd;
+            background: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            cursor: pointer;
+            transition: transform 0.15s, border-color 0.15s, background 0.15s;
+            position: relative;
+        }
+        .tool-btn span {
+            font-size: 0.55rem;
+            font-family: 'Fredoka', sans-serif;
+            font-weight: 600;
+            color: #888;
+            margin-top: 2px;
+            line-height: 1;
+        }
+        .tool-btn:active { transform: scale(0.92); }
+        .tool-btn.selected {
+            border-color: #FFB3D9;
+            background: #FFF0F7;
+            box-shadow: 0 0 12px rgba(255,179,217,0.5);
+        }
+        .tool-btn.selected span { color: #D4508A; }
+        @supports (padding: env(safe-area-inset-top)) {
+            .back-btn { top: calc(12px + env(safe-area-inset-top)); left: calc(12px + env(safe-area-inset-left)); }
+            .fairy-count { top: calc(12px + env(safe-area-inset-top)); right: calc(16px + env(safe-area-inset-right)); }
+            .day-night-btn { top: calc(12px + env(safe-area-inset-top)); }
+        }
+    </style>
+</head>
+<body>
+    <a href="../../index.html" class="back-btn">&#8592; Back</a>
+    <div class="fairy-count" id="fairyCount">&#129526; 3</div>
+    <div class="day-night-btn" id="dayNightBtn">&#9728;&#65039;</div>
+    <canvas id="world"></canvas>
+    <div class="toolbar" id="toolbar"></div>
+
+    <script>
+    (function() {
+        'use strict';
+
+        // ── Canvas Setup ──
+        var canvas = document.getElementById('world');
+        var ctx = canvas.getContext('2d');
+        var W, H, groundY, toolbarH;
+        var dpr = window.devicePixelRatio || 1;
+
+        function resize() {
+            W = window.innerWidth;
+            H = window.innerHeight;
+            canvas.width = W * dpr;
+            canvas.height = H * dpr;
+            canvas.style.width = W + 'px';
+            canvas.style.height = H + 'px';
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            toolbarH = 86;
+            groundY = H * 0.55;
+        }
+        resize();
+        window.addEventListener('resize', resize);
+
+        // ── Colors (fairy-defense palette) ──
+        var PINK = '#FFB3D9';
+        var BLUE = '#42A5F5';
+        var GREEN = '#66BB6A';
+        var YELLOW = '#FFE066';
+        var PURPLE = '#B07CC6';
+        var GOLD = '#F5C542';
+        var SKY_TOP_DAY = '#E0F4FF';
+        var SKY_BOT_DAY = '#87CEEB';
+        var GRASS = '#7EC850';
+        var GRASS_DARK = '#5AA832';
+        var SKY_TOP_NIGHT = '#0B1026';
+        var SKY_BOT_NIGHT = '#1A2744';
+        var GRASS_NIGHT = '#2D5A1E';
+        var GRASS_DARK_NIGHT = '#1A3F10';
+
+        // ── State ──
+        var time = 0;
+        var isNight = false;
+        var placedItems = [];
+        var fairies = [];
+        var particles = [];
+        var clouds = [];
+        var flowers = [];
+        var butterflies = [];
+        var fireflies = [];
+        var selectedTool = null;
+        var audioCtx = null;
+        var stars = [];
+
+        // ── Tool Definitions ──
+        var TOOLS = [
+            { id: 'mushroom-house', icon: '\uD83C\uDF44', label: 'Mushroom', category: 'house', fairyValue: 2 },
+            { id: 'treehouse', icon: '\uD83C\uDF33', label: 'Treehouse', category: 'house', fairyValue: 2 },
+            { id: 'flower-cottage', icon: '\uD83C\uDF3B', label: 'Cottage', category: 'house', fairyValue: 2 },
+            { id: 'flower', icon: '\uD83C\uDF38', label: 'Flower', category: 'nature', fairyValue: 0.5 },
+            { id: 'tree', icon: '\uD83C\uDF32', label: 'Tree', category: 'nature', fairyValue: 0.5 },
+            { id: 'mushroom-ring', icon: '\uD83D\uDD6E', label: 'Ring', category: 'nature', fairyValue: 1 },
+            { id: 'bush', icon: '\uD83C\uDF3F', label: 'Bush', category: 'nature', fairyValue: 0.3 },
+            { id: 'pond', icon: '\uD83D\uDCA7', label: 'Pond', category: 'water', fairyValue: 1.5 },
+            { id: 'waterfall', icon: '\uD83C\uDF0A', label: 'Waterfall', category: 'water', fairyValue: 2 },
+            { id: 'bridge', icon: '\uD83C\uDF09', label: 'Bridge', category: 'structure', fairyValue: 1 },
+            { id: 'fence', icon: '\uD83E\uDEF8', label: 'Fence', category: 'structure', fairyValue: 0.3 },
+            { id: 'path-stones', icon: '\u26AB', label: 'Path', category: 'structure', fairyValue: 0.2 },
+            { id: 'wishing-well', icon: '\u26F2', label: 'Well', category: 'structure', fairyValue: 2 },
+            { id: 'lantern', icon: '\uD83C\uDFEE', label: 'Lantern', category: 'decor', fairyValue: 1 },
+            { id: 'crystal', icon: '\uD83D\uDC8E', label: 'Crystal', category: 'decor', fairyValue: 1.5 },
+            { id: 'rainbow', icon: '\uD83C\uDF08', label: 'Rainbow', category: 'decor', fairyValue: 2 }
+        ];
+
+        // ── Build Toolbar ──
+        var toolbarEl = document.getElementById('toolbar');
+        TOOLS.forEach(function(tool) {
+            var btn = document.createElement('div');
+            btn.className = 'tool-btn';
+            btn.setAttribute('data-tool', tool.id);
+            btn.innerHTML = tool.icon + '<span>' + tool.label + '</span>';
+            btn.addEventListener('pointerdown', function(e) {
+                e.stopPropagation();
+                selectTool(tool.id);
+            });
+            toolbarEl.appendChild(btn);
+        });
+
+        function selectTool(id) {
+            if (selectedTool === id) {
+                selectedTool = null;
+            } else {
+                selectedTool = id;
+            }
+            var btns = document.querySelectorAll('.tool-btn');
+            btns.forEach(function(b) {
+                b.classList.toggle('selected', b.getAttribute('data-tool') === selectedTool);
+            });
+        }
+
+        // ── Init Clouds ──
+        for (var ci = 0; ci < 6; ci++) {
+            clouds.push({
+                x: Math.random() * 1600 - 200,
+                y: 20 + Math.random() * (groundY * 0.4),
+                w: 80 + Math.random() * 120,
+                speed: 6 + Math.random() * 10
+            });
+        }
+
+        // ── Init Stars ──
+        for (var si = 0; si < 80; si++) {
+            stars.push({
+                x: Math.random(),
+                y: Math.random() * 0.5,
+                size: 0.5 + Math.random() * 2,
+                twinkle: Math.random() * Math.PI * 2
+            });
+        }
+
+        // ── Init Ground Flowers ──
+        function initFlowers() {
+            flowers = [];
+            for (var i = 0; i < 15; i++) {
+                flowers.push({
+                    x: 30 + Math.random() * (W - 60),
+                    y: groundY + 8 + Math.random() * (H - groundY - toolbarH - 30),
+                    size: 5 + Math.random() * 7,
+                    color: [PINK, YELLOW, PURPLE, BLUE, '#FF6B9D'][Math.floor(Math.random() * 5)],
+                    phase: Math.random() * Math.PI * 2
+                });
+            }
+        }
+        initFlowers();
+
+        // ── Init Fairies ──
+        function createFairy() {
+            return {
+                x: 60 + Math.random() * (W - 120),
+                y: groundY - 40 - Math.random() * 80,
+                targetX: 0,
+                targetY: 0,
+                vx: 0,
+                vy: 0,
+                phase: Math.random() * Math.PI * 2,
+                wingPhase: Math.random() * Math.PI * 2,
+                size: 12 + Math.random() * 6,
+                color: [PINK, PURPLE, BLUE, '#FF6B9D', GOLD][Math.floor(Math.random() * 5)],
+                state: 'flying', // flying, hovering
+                hoverTimer: 0,
+                targetItem: null
+            };
+        }
+        for (var fi = 0; fi < 3; fi++) {
+            fairies.push(createFairy());
+        }
+
+        // ── Fairy Count ──
+        function getTargetFairyCount() {
+            var totalValue = 0;
+            placedItems.forEach(function(item) {
+                var tool = TOOLS.find(function(t) { return t.id === item.type; });
+                if (tool) totalValue += tool.fairyValue;
+            });
+            return Math.min(20, 3 + Math.floor(totalValue / 3));
+        }
+
+        function updateFairyPopulation() {
+            var target = getTargetFairyCount();
+            while (fairies.length < target) {
+                var f = createFairy();
+                // Spawn near a random placed item if possible
+                if (placedItems.length > 0) {
+                    var item = placedItems[Math.floor(Math.random() * placedItems.length)];
+                    f.x = item.x + (Math.random() - 0.5) * 60;
+                    f.y = item.y - 30;
+                }
+                fairies.push(f);
+            }
+            document.getElementById('fairyCount').textContent = '\uD83E\uDDF6 ' + fairies.length;
+        }
+
+        // ── Pick Fairy Target ──
+        function pickFairyTarget(fairy) {
+            var targets = [];
+            // Placed items as targets
+            placedItems.forEach(function(item) {
+                targets.push({ x: item.x, y: item.y - 15 });
+            });
+            // Ground flowers
+            flowers.forEach(function(f) {
+                targets.push({ x: f.x, y: f.y - 5 });
+            });
+            // Random sky position
+            targets.push({ x: 40 + Math.random() * (W - 80), y: groundY - 30 - Math.random() * (groundY * 0.6) });
+
+            var t = targets[Math.floor(Math.random() * targets.length)];
+            fairy.targetX = t.x;
+            fairy.targetY = t.y;
+            fairy.state = 'flying';
+        }
+
+        // ── Audio ──
+        function initAudio() {
+            if (audioCtx) return;
+            try {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            } catch (e) {}
+        }
+
+        function playPlaceSound() {
+            if (!audioCtx) return;
+            try {
+                var now = audioCtx.currentTime;
+                var osc = audioCtx.createOscillator();
+                var gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(600, now);
+                osc.frequency.exponentialRampToValueAtTime(1200, now + 0.1);
+                osc.frequency.exponentialRampToValueAtTime(800, now + 0.25);
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now);
+                osc.stop(now + 0.3);
+
+                var osc2 = audioCtx.createOscillator();
+                var gain2 = audioCtx.createGain();
+                osc2.type = 'triangle';
+                osc2.frequency.setValueAtTime(900, now + 0.05);
+                osc2.frequency.exponentialRampToValueAtTime(1400, now + 0.15);
+                gain2.gain.setValueAtTime(0.06, now + 0.05);
+                gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+                osc2.connect(gain2);
+                gain2.connect(audioCtx.destination);
+                osc2.start(now + 0.05);
+                osc2.stop(now + 0.3);
+            } catch (e) {}
+        }
+
+        function playChimeLoop() {
+            if (!audioCtx) return;
+            try {
+                var now = audioCtx.currentTime;
+                var notes = [523, 659, 784];
+                for (var i = 0; i < notes.length; i++) {
+                    var osc = audioCtx.createOscillator();
+                    var gain = audioCtx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.value = notes[i];
+                    gain.gain.setValueAtTime(0, now + i * 0.12);
+                    gain.gain.linearRampToValueAtTime(0.04, now + i * 0.12 + 0.03);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.12 + 0.6);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now + i * 0.12);
+                    osc.stop(now + i * 0.12 + 0.6);
+                }
+            } catch (e) {}
+        }
+
+        // ── Particles ──
+        function spawnSparkles(x, y, count, colors) {
+            for (var i = 0; i < count; i++) {
+                var angle = Math.random() * Math.PI * 2;
+                var speed = 30 + Math.random() * 70;
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed - 20,
+                    life: 0.6 + Math.random() * 0.5,
+                    maxLife: 0.6 + Math.random() * 0.5,
+                    size: 2 + Math.random() * 4,
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    type: Math.random() > 0.4 ? 'star' : 'circle',
+                    rotation: Math.random() * Math.PI * 2,
+                    rotSpeed: (Math.random() - 0.5) * 8
+                });
+            }
+        }
+
+        // ── Day/Night Toggle ──
+        var dayNightBtn = document.getElementById('dayNightBtn');
+        dayNightBtn.addEventListener('pointerdown', function(e) {
+            e.stopPropagation();
+            initAudio();
+            isNight = !isNight;
+            dayNightBtn.textContent = isNight ? '\uD83C\uDF19' : '\u2600\uFE0F';
+            dayNightBtn.style.background = isNight ? '#3A3A7A' : '#FFE066';
+            playChimeLoop();
+        });
+
+        // ── Place Item ──
+        function placeItem(x, y) {
+            if (!selectedTool) return;
+            // Clamp to ground area
+            if (y < groundY - 20) y = groundY - 20;
+            if (y > H - toolbarH - 20) y = H - toolbarH - 20;
+            if (x < 30) x = 30;
+            if (x > W - 30) x = W - 30;
+
+            placedItems.push({
+                type: selectedTool,
+                x: x,
+                y: y,
+                scale: 0,
+                targetScale: 1,
+                phase: Math.random() * Math.PI * 2,
+                placed: time
+            });
+
+            spawnSparkles(x, y - 10, 12, [PINK, GOLD, YELLOW, '#fff', PURPLE]);
+            playPlaceSound();
+            updateFairyPopulation();
+        }
+
+        // ── Canvas Tap ──
+        canvas.addEventListener('pointerdown', function(e) {
+            e.preventDefault();
+            initAudio();
+            var rect = canvas.getBoundingClientRect();
+            var cx = e.clientX - rect.left;
+            var cy = e.clientY - rect.top;
+            // Don't place if tapping UI area
+            if (cy < 60 || cy > H - toolbarH) return;
+            placeItem(cx, cy);
+        });
+
+        canvas.addEventListener('touchstart', function(e) { e.preventDefault(); }, { passive: false });
+
+        // ── Draw Helpers ──
+        function drawStar(cx, cy, size, points, color) {
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            for (var i = 0; i < points * 2; i++) {
+                var a = (Math.PI * 2 / (points * 2)) * i - Math.PI / 2;
+                var r = (i % 2 === 0) ? size : size * 0.4;
+                var px = cx + Math.cos(a) * r;
+                var py = cy + Math.sin(a) * r;
+                if (i === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        // ── Draw Background ──
+        function drawBackground() {
+            var skyTop, skyBot, grassCol, grassDark;
+            if (isNight) {
+                skyTop = SKY_TOP_NIGHT;
+                skyBot = SKY_BOT_NIGHT;
+                grassCol = GRASS_NIGHT;
+                grassDark = GRASS_DARK_NIGHT;
+            } else {
+                skyTop = SKY_TOP_DAY;
+                skyBot = SKY_BOT_DAY;
+                grassCol = GRASS;
+                grassDark = GRASS_DARK;
+            }
+
+            // Sky
+            var skyGrad = ctx.createLinearGradient(0, 0, 0, groundY);
+            skyGrad.addColorStop(0, skyTop);
+            skyGrad.addColorStop(1, skyBot);
+            ctx.fillStyle = skyGrad;
+            ctx.fillRect(0, 0, W, groundY);
+
+            // Stars at night
+            if (isNight) {
+                for (var s = 0; s < stars.length; s++) {
+                    var st = stars[s];
+                    var twinkle = 0.3 + Math.sin(time * 2 + st.twinkle) * 0.3 + 0.4;
+                    ctx.globalAlpha = twinkle;
+                    ctx.fillStyle = '#fff';
+                    ctx.beginPath();
+                    ctx.arc(st.x * W, st.y * groundY, st.size, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.globalAlpha = 1;
+                }
+                // Moon
+                ctx.fillStyle = '#FFFDE7';
+                ctx.beginPath();
+                ctx.arc(W * 0.82, groundY * 0.18, 35, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = skyTop;
+                ctx.beginPath();
+                ctx.arc(W * 0.82 + 12, groundY * 0.18 - 5, 30, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Clouds (dimmer at night)
+            ctx.globalAlpha = isNight ? 0.15 : 0.7;
+            for (var i = 0; i < clouds.length; i++) {
+                var c = clouds[i];
+                ctx.fillStyle = isNight ? '#667' : '#fff';
+                ctx.beginPath();
+                ctx.ellipse(c.x, c.y, c.w * 0.5, 18, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(c.x - c.w * 0.2, c.y - 10, c.w * 0.3, 16, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(c.x + c.w * 0.2, c.y - 6, c.w * 0.25, 14, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+
+            // Ground
+            var grassGrad = ctx.createLinearGradient(0, groundY, 0, H);
+            grassGrad.addColorStop(0, grassCol);
+            grassGrad.addColorStop(1, grassDark);
+            ctx.fillStyle = grassGrad;
+            ctx.fillRect(0, groundY, W, H - groundY);
+
+            // Grass tufts
+            ctx.strokeStyle = isNight ? '#1A5010' : '#5AA832';
+            ctx.lineWidth = 2;
+            ctx.lineCap = 'round';
+            for (var g = 0; g < W; g += 28) {
+                var gy = groundY;
+                var sway = Math.sin(time * 1.5 + g * 0.05) * 3;
+                ctx.beginPath();
+                ctx.moveTo(g, gy);
+                ctx.quadraticCurveTo(g + sway, gy - 12, g + sway - 2, gy - 18);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(g + 10, gy);
+                ctx.quadraticCurveTo(g + 10 - sway * 0.5, gy - 10, g + 10 - sway * 0.3, gy - 14);
+                ctx.stroke();
+            }
+
+            // Ground flowers
+            for (var f = 0; f < flowers.length; f++) {
+                drawGroundFlower(flowers[f]);
+            }
+        }
+
+        function drawGroundFlower(fl) {
+            var bob = Math.sin(time * 2 + fl.phase) * 2;
+            ctx.globalAlpha = isNight ? 0.5 : 1;
+            ctx.fillStyle = fl.color;
+            for (var p = 0; p < 5; p++) {
+                var pa = (Math.PI * 2 / 5) * p + time * 0.3 + fl.phase;
+                ctx.beginPath();
+                ctx.ellipse(
+                    fl.x + Math.cos(pa) * fl.size * 0.4,
+                    fl.y + bob + Math.sin(pa) * fl.size * 0.4,
+                    fl.size * 0.35, fl.size * 0.25, pa, 0, Math.PI * 2
+                );
+                ctx.fill();
+            }
+            ctx.fillStyle = YELLOW;
+            ctx.beginPath();
+            ctx.arc(fl.x, fl.y + bob, fl.size * 0.2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1;
+        }
+
+        // ── Draw Placed Items (procedural) ──
+        function drawPlacedItem(item) {
+            ctx.save();
+            ctx.translate(item.x, item.y);
+            var s = item.scale;
+            ctx.scale(s, s);
+
+            switch (item.type) {
+                case 'mushroom-house': drawMushroomHouse(); break;
+                case 'treehouse': drawTreehouse(); break;
+                case 'flower-cottage': drawFlowerCottage(); break;
+                case 'flower': drawPlacedFlower(item); break;
+                case 'tree': drawPlacedTree(); break;
+                case 'mushroom-ring': drawMushroomRing(item); break;
+                case 'bush': drawBush(); break;
+                case 'pond': drawPond(item); break;
+                case 'waterfall': drawWaterfall(item); break;
+                case 'bridge': drawBridge(); break;
+                case 'fence': drawFence(); break;
+                case 'path-stones': drawPathStones(); break;
+                case 'wishing-well': drawWishingWell(item); break;
+                case 'lantern': drawLantern(item); break;
+                case 'crystal': drawCrystal(item); break;
+                case 'rainbow': drawRainbowArch(); break;
+            }
+
+            ctx.restore();
+        }
+
+        function drawMushroomHouse() {
+            // Stem
+            ctx.fillStyle = '#F5E6D3';
+            ctx.fillRect(-12, -20, 24, 25);
+            // Door
+            ctx.fillStyle = '#8B5E3C';
+            ctx.beginPath();
+            ctx.arc(0, 5, 7, Math.PI, 0);
+            ctx.lineTo(7, 5);
+            ctx.lineTo(-7, 5);
+            ctx.fill();
+            // Cap
+            ctx.fillStyle = '#E53935';
+            ctx.beginPath();
+            ctx.ellipse(0, -22, 28, 20, 0, Math.PI, 0);
+            ctx.fill();
+            // Spots
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(-12, -30, 5, 0, Math.PI * 2);
+            ctx.arc(8, -28, 4, 0, Math.PI * 2);
+            ctx.arc(-2, -36, 3, 0, Math.PI * 2);
+            ctx.arc(15, -32, 3, 0, Math.PI * 2);
+            ctx.fill();
+            // Window
+            ctx.fillStyle = isNight ? '#FFE066' : '#87CEEB';
+            ctx.beginPath();
+            ctx.arc(0, -14, 5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#8B5E3C';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            // Glow at night
+            if (isNight) {
+                ctx.save();
+                ctx.globalAlpha = 0.3;
+                var glow = ctx.createRadialGradient(0, -14, 2, 0, -14, 25);
+                glow.addColorStop(0, '#FFE066');
+                glow.addColorStop(1, 'transparent');
+                ctx.fillStyle = glow;
+                ctx.fillRect(-30, -44, 60, 55);
+                ctx.restore();
+            }
+        }
+
+        function drawTreehouse() {
+            // Trunk
+            ctx.fillStyle = '#8B6F47';
+            ctx.fillRect(-6, -10, 12, 15);
+            // Canopy / tree
+            ctx.fillStyle = '#3D8B37';
+            ctx.beginPath();
+            ctx.moveTo(0, -55);
+            ctx.lineTo(-30, -10);
+            ctx.lineTo(30, -10);
+            ctx.closePath();
+            ctx.fill();
+            // Second layer
+            ctx.fillStyle = '#4CAF50';
+            ctx.beginPath();
+            ctx.moveTo(0, -45);
+            ctx.lineTo(-22, -15);
+            ctx.lineTo(22, -15);
+            ctx.closePath();
+            ctx.fill();
+            // Platform
+            ctx.fillStyle = '#A0784C';
+            ctx.fillRect(-18, -22, 36, 5);
+            // Little house on platform
+            ctx.fillStyle = '#FFE0B2';
+            ctx.fillRect(-10, -36, 20, 14);
+            // Roof
+            ctx.fillStyle = '#E53935';
+            ctx.beginPath();
+            ctx.moveTo(-14, -36);
+            ctx.lineTo(0, -46);
+            ctx.lineTo(14, -36);
+            ctx.closePath();
+            ctx.fill();
+            // Window
+            ctx.fillStyle = isNight ? '#FFE066' : '#87CEEB';
+            ctx.fillRect(-4, -33, 8, 6);
+            // Night glow
+            if (isNight) {
+                ctx.save();
+                ctx.globalAlpha = 0.25;
+                var glow = ctx.createRadialGradient(0, -30, 2, 0, -30, 30);
+                glow.addColorStop(0, '#FFE066');
+                glow.addColorStop(1, 'transparent');
+                ctx.fillStyle = glow;
+                ctx.fillRect(-35, -60, 70, 60);
+                ctx.restore();
+            }
+        }
+
+        function drawFlowerCottage() {
+            // Walls
+            ctx.fillStyle = '#FFEEF5';
+            ctx.beginPath();
+            ctx.moveTo(-22, 5);
+            ctx.lineTo(-22, -18);
+            ctx.lineTo(22, -18);
+            ctx.lineTo(22, 5);
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = PINK;
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+            // Roof with flower petals
+            ctx.fillStyle = PINK;
+            for (var p = 0; p < 7; p++) {
+                ctx.beginPath();
+                ctx.ellipse(-18 + p * 6, -22, 8, 12, 0, Math.PI, 0);
+                ctx.fill();
+            }
+            // Door
+            ctx.fillStyle = '#D4508A';
+            ctx.beginPath();
+            ctx.arc(0, 5, 8, Math.PI, 0);
+            ctx.lineTo(8, 5);
+            ctx.lineTo(-8, 5);
+            ctx.fill();
+            // Windows
+            ctx.fillStyle = isNight ? '#FFE066' : '#E0F4FF';
+            ctx.beginPath();
+            ctx.arc(-10, -8, 4, 0, Math.PI * 2);
+            ctx.arc(10, -8, 4, 0, Math.PI * 2);
+            ctx.fill();
+            // Flower on roof
+            ctx.fillStyle = YELLOW;
+            ctx.beginPath();
+            ctx.arc(0, -30, 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#FF6B9D';
+            for (var fp = 0; fp < 5; fp++) {
+                var fa = (Math.PI * 2 / 5) * fp;
+                ctx.beginPath();
+                ctx.ellipse(Math.cos(fa) * 5, -30 + Math.sin(fa) * 5, 3, 5, fa, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            if (isNight) {
+                ctx.save();
+                ctx.globalAlpha = 0.3;
+                var glow = ctx.createRadialGradient(0, -5, 2, 0, -5, 25);
+                glow.addColorStop(0, '#FFE066');
+                glow.addColorStop(1, 'transparent');
+                ctx.fillStyle = glow;
+                ctx.fillRect(-30, -35, 60, 45);
+                ctx.restore();
+            }
+        }
+
+        function drawPlacedFlower(item) {
+            // Stem
+            ctx.strokeStyle = '#4CAF50';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(0, 5);
+            ctx.quadraticCurveTo(Math.sin(time * 2 + item.phase) * 3, -5, 0, -15);
+            ctx.stroke();
+            // Petals
+            var colors = [PINK, PURPLE, '#FF6B9D', YELLOW, BLUE];
+            var col = colors[Math.floor(item.phase * 10) % colors.length];
+            ctx.fillStyle = col;
+            for (var p = 0; p < 6; p++) {
+                var a = (Math.PI * 2 / 6) * p + Math.sin(time + item.phase) * 0.1;
+                ctx.beginPath();
+                ctx.ellipse(Math.cos(a) * 7, -15 + Math.sin(a) * 7, 5, 8, a, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            // Center
+            ctx.fillStyle = YELLOW;
+            ctx.beginPath();
+            ctx.arc(0, -15, 4, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawPlacedTree() {
+            // Trunk
+            ctx.fillStyle = '#8B6F47';
+            ctx.fillRect(-5, -15, 10, 20);
+            // Canopy layers
+            ctx.fillStyle = '#4CAF50';
+            ctx.beginPath();
+            ctx.arc(0, -28, 22, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#66BB6A';
+            ctx.beginPath();
+            ctx.arc(-8, -22, 14, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(10, -24, 12, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawMushroomRing(item) {
+            // Ring of tiny mushrooms
+            for (var i = 0; i < 6; i++) {
+                var a = (Math.PI * 2 / 6) * i;
+                var mx = Math.cos(a) * 18;
+                var my = Math.sin(a) * 8;
+                // Stem
+                ctx.fillStyle = '#F5E6D3';
+                ctx.fillRect(mx - 2, my - 6, 4, 8);
+                // Cap
+                ctx.fillStyle = ['#E53935', '#FF8F00', PURPLE][i % 3];
+                ctx.beginPath();
+                ctx.ellipse(mx, my - 8, 6, 5, 0, Math.PI, 0);
+                ctx.fill();
+                // Spots
+                ctx.fillStyle = '#fff';
+                ctx.beginPath();
+                ctx.arc(mx - 2, my - 10, 1.5, 0, Math.PI * 2);
+                ctx.arc(mx + 2, my - 9, 1, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            // Fairy ring glow
+            ctx.save();
+            ctx.globalAlpha = 0.15 + Math.sin(time * 2 + item.phase) * 0.08;
+            ctx.strokeStyle = GOLD;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.ellipse(0, 0, 22, 12, 0, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function drawBush() {
+            ctx.fillStyle = '#3D8B37';
+            ctx.beginPath();
+            ctx.ellipse(0, 0, 18, 14, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#4CAF50';
+            ctx.beginPath();
+            ctx.ellipse(-6, -4, 10, 10, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(8, -2, 9, 9, 0, 0, Math.PI * 2);
+            ctx.fill();
+            // Small berries
+            ctx.fillStyle = '#E53935';
+            ctx.beginPath();
+            ctx.arc(-4, -6, 2, 0, Math.PI * 2);
+            ctx.arc(6, -4, 2, 0, Math.PI * 2);
+            ctx.arc(2, -8, 1.5, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawPond(item) {
+            // Water
+            ctx.save();
+            var shimmer = Math.sin(time * 1.5 + item.phase) * 0.1;
+            ctx.fillStyle = isNight ? '#1A3A6A' : '#42A5F5';
+            ctx.globalAlpha = 0.7 + shimmer;
+            ctx.beginPath();
+            ctx.ellipse(0, 3, 32, 14, 0, 0, Math.PI * 2);
+            ctx.fill();
+            // Highlight
+            ctx.fillStyle = isNight ? '#3A5A8A' : '#90CAF9';
+            ctx.globalAlpha = 0.5 + shimmer;
+            ctx.beginPath();
+            ctx.ellipse(-8, -1, 14, 6, -0.2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+            // Lily pads
+            ctx.fillStyle = '#388E3C';
+            ctx.beginPath();
+            ctx.ellipse(10, 2, 7, 4, 0.3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = PINK;
+            ctx.beginPath();
+            ctx.arc(12, 0, 3, 0, Math.PI * 2);
+            ctx.fill();
+            // Ripples
+            ctx.strokeStyle = isNight ? 'rgba(100,150,220,0.3)' : 'rgba(255,255,255,0.4)';
+            ctx.lineWidth = 1;
+            var ripple = (time * 0.5 + item.phase) % 2;
+            ctx.globalAlpha = 1 - ripple / 2;
+            ctx.beginPath();
+            ctx.ellipse(-5, 3, 8 + ripple * 8, 3 + ripple * 3, 0, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+        }
+
+        function drawWaterfall(item) {
+            // Rock face
+            ctx.fillStyle = '#78909C';
+            ctx.beginPath();
+            ctx.moveTo(-20, -40);
+            ctx.lineTo(-25, 5);
+            ctx.lineTo(25, 5);
+            ctx.lineTo(20, -40);
+            ctx.closePath();
+            ctx.fill();
+            ctx.fillStyle = '#607D8B';
+            ctx.beginPath();
+            ctx.moveTo(-15, -38);
+            ctx.lineTo(-10, -42);
+            ctx.lineTo(12, -42);
+            ctx.lineTo(15, -38);
+            ctx.closePath();
+            ctx.fill();
+            // Falling water
+            var waterShift = (time * 3 + item.phase) % 1;
+            ctx.fillStyle = isNight ? 'rgba(40,80,140,0.7)' : 'rgba(66,165,245,0.7)';
+            ctx.fillRect(-8, -38, 16, 43);
+            // White streaks
+            ctx.fillStyle = 'rgba(255,255,255,0.5)';
+            for (var s = 0; s < 4; s++) {
+                var sy = -35 + ((s * 12 + waterShift * 12) % 45);
+                ctx.fillRect(-5 + s * 3, sy, 2, 8);
+            }
+            // Splash pool
+            ctx.fillStyle = isNight ? '#1A3A6A' : '#42A5F5';
+            ctx.globalAlpha = 0.7;
+            ctx.beginPath();
+            ctx.ellipse(0, 8, 22, 8, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1;
+            // Splash particles
+            ctx.fillStyle = 'rgba(255,255,255,0.6)';
+            for (var sp = 0; sp < 3; sp++) {
+                var spx = -6 + Math.sin(time * 4 + sp * 2) * 8;
+                var spy = 2 - Math.abs(Math.sin(time * 5 + sp * 1.5)) * 8;
+                ctx.beginPath();
+                ctx.arc(spx, spy, 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function drawBridge() {
+            // Planks
+            ctx.fillStyle = '#A0784C';
+            ctx.fillRect(-28, -6, 56, 8);
+            // Plank lines
+            ctx.strokeStyle = '#8B6F47';
+            ctx.lineWidth = 1;
+            for (var p = -24; p < 28; p += 8) {
+                ctx.beginPath();
+                ctx.moveTo(p, -6);
+                ctx.lineTo(p, 2);
+                ctx.stroke();
+            }
+            // Rails
+            ctx.strokeStyle = '#8B6F47';
+            ctx.lineWidth = 3;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(-28, -6);
+            ctx.quadraticCurveTo(0, -18, 28, -6);
+            ctx.stroke();
+            // Posts
+            ctx.fillStyle = '#8B6F47';
+            ctx.fillRect(-28, -10, 4, 10);
+            ctx.fillRect(24, -10, 4, 10);
+        }
+
+        function drawFence() {
+            ctx.fillStyle = '#F5E6D3';
+            // Posts
+            ctx.fillRect(-20, -18, 4, 22);
+            ctx.fillRect(-4, -18, 4, 22);
+            ctx.fillRect(12, -18, 4, 22);
+            // Rails
+            ctx.fillRect(-22, -14, 38, 3);
+            ctx.fillRect(-22, -6, 38, 3);
+            // Post caps (pointed)
+            ctx.beginPath();
+            ctx.moveTo(-20, -18); ctx.lineTo(-18, -23); ctx.lineTo(-16, -18); ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(-4, -18); ctx.lineTo(-2, -23); ctx.lineTo(0, -18); ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(12, -18); ctx.lineTo(14, -23); ctx.lineTo(16, -18); ctx.fill();
+        }
+
+        function drawPathStones() {
+            ctx.fillStyle = '#9E9E9E';
+            var stonePositions = [[-14, 2], [-3, -3], [10, 1], [22, -1], [-8, -8]];
+            for (var i = 0; i < stonePositions.length; i++) {
+                ctx.beginPath();
+                ctx.ellipse(stonePositions[i][0], stonePositions[i][1], 7 + i * 0.5, 4, i * 0.3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.fillStyle = '#BDBDBD';
+            ctx.beginPath();
+            ctx.ellipse(-14, 1, 5, 3, 0, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawWishingWell(item) {
+            // Base
+            ctx.fillStyle = '#78909C';
+            ctx.beginPath();
+            ctx.ellipse(0, 5, 18, 8, 0, 0, Math.PI * 2);
+            ctx.fill();
+            // Wall
+            ctx.fillStyle = '#90A4AE';
+            ctx.fillRect(-15, -12, 30, 17);
+            // Stone lines
+            ctx.strokeStyle = '#607D8B';
+            ctx.lineWidth = 1;
+            for (var row = -10; row < 5; row += 4) {
+                ctx.beginPath();
+                ctx.moveTo(-15, row);
+                ctx.lineTo(15, row);
+                ctx.stroke();
+            }
+            // Rim
+            ctx.fillStyle = '#607D8B';
+            ctx.beginPath();
+            ctx.ellipse(0, -12, 18, 6, 0, 0, Math.PI * 2);
+            ctx.fill();
+            // Water inside
+            ctx.fillStyle = isNight ? '#1A3A6A' : '#2196F3';
+            ctx.beginPath();
+            ctx.ellipse(0, -12, 13, 4, 0, 0, Math.PI * 2);
+            ctx.fill();
+            // Roof supports
+            ctx.fillStyle = '#8B6F47';
+            ctx.fillRect(-14, -35, 3, 25);
+            ctx.fillRect(11, -35, 3, 25);
+            // Roof
+            ctx.fillStyle = '#A0784C';
+            ctx.beginPath();
+            ctx.moveTo(-20, -33);
+            ctx.lineTo(0, -45);
+            ctx.lineTo(20, -33);
+            ctx.closePath();
+            ctx.fill();
+            // Sparkle from well
+            var sparkAlpha = 0.3 + Math.sin(time * 3 + item.phase) * 0.2;
+            ctx.save();
+            ctx.globalAlpha = sparkAlpha;
+            drawStar(0, -18, 4, 4, GOLD);
+            ctx.restore();
+        }
+
+        function drawLantern(item) {
+            // Post
+            ctx.fillStyle = '#8B6F47';
+            ctx.fillRect(-2, -5, 4, 10);
+            // Hook
+            ctx.strokeStyle = '#8B6F47';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(0, -5);
+            ctx.quadraticCurveTo(0, -14, 6, -16);
+            ctx.stroke();
+            // Lantern body
+            var glowColor = isNight ? '#FFE066' : '#FF8F00';
+            ctx.fillStyle = glowColor;
+            ctx.globalAlpha = 0.8;
+            ctx.beginPath();
+            ctx.ellipse(6, -20, 6, 8, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1;
+            // Frame
+            ctx.strokeStyle = '#5D4037';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.ellipse(6, -20, 6, 8, 0, 0, Math.PI * 2);
+            ctx.stroke();
+            // Glow (especially at night)
+            if (isNight) {
+                ctx.save();
+                ctx.globalAlpha = 0.4 + Math.sin(time * 3 + item.phase) * 0.1;
+                var glow = ctx.createRadialGradient(6, -20, 2, 6, -20, 40);
+                glow.addColorStop(0, '#FFE066');
+                glow.addColorStop(0.5, 'rgba(255,224,102,0.2)');
+                glow.addColorStop(1, 'transparent');
+                ctx.fillStyle = glow;
+                ctx.fillRect(-40, -65, 92, 90);
+                ctx.restore();
+            }
+        }
+
+        function drawCrystal(item) {
+            var hue = (item.phase * 180) % 360;
+            // Crystal body
+            ctx.save();
+            var pulse = 0.8 + Math.sin(time * 2 + item.phase) * 0.2;
+            var colors = [PURPLE, BLUE, PINK, '#00BCD4', '#E040FB'];
+            var col = colors[Math.floor(item.phase * 10) % colors.length];
+
+            // Main crystal
+            ctx.fillStyle = col;
+            ctx.globalAlpha = 0.8 * pulse;
+            ctx.beginPath();
+            ctx.moveTo(0, -28);
+            ctx.lineTo(-8, -5);
+            ctx.lineTo(-5, 5);
+            ctx.lineTo(5, 5);
+            ctx.lineTo(8, -5);
+            ctx.closePath();
+            ctx.fill();
+            // Highlight
+            ctx.fillStyle = '#fff';
+            ctx.globalAlpha = 0.4;
+            ctx.beginPath();
+            ctx.moveTo(0, -28);
+            ctx.lineTo(-3, -10);
+            ctx.lineTo(2, -8);
+            ctx.lineTo(4, -5);
+            ctx.closePath();
+            ctx.fill();
+            ctx.globalAlpha = 1;
+            // Smaller side crystals
+            ctx.fillStyle = col;
+            ctx.globalAlpha = 0.6 * pulse;
+            ctx.beginPath();
+            ctx.moveTo(-10, -18);
+            ctx.lineTo(-14, -2);
+            ctx.lineTo(-8, 2);
+            ctx.closePath();
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(10, -15);
+            ctx.lineTo(13, -1);
+            ctx.lineTo(7, 3);
+            ctx.closePath();
+            ctx.fill();
+            ctx.globalAlpha = 1;
+            // Sparkle glow
+            if (isNight || true) {
+                ctx.save();
+                ctx.globalAlpha = (isNight ? 0.5 : 0.2) * pulse;
+                var glow = ctx.createRadialGradient(0, -12, 2, 0, -12, 30);
+                glow.addColorStop(0, col);
+                glow.addColorStop(1, 'transparent');
+                ctx.fillStyle = glow;
+                ctx.fillRect(-35, -45, 70, 55);
+                ctx.restore();
+            }
+            ctx.restore();
+        }
+
+        function drawRainbowArch() {
+            var RAINBOW = ['#E53935', '#FF8F00', '#FFE066', '#66BB6A', '#42A5F5', '#B07CC6'];
+            ctx.save();
+            ctx.globalAlpha = 0.7;
+            for (var i = 0; i < RAINBOW.length; i++) {
+                ctx.strokeStyle = RAINBOW[i];
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.arc(0, 5, 35 - i * 4, Math.PI, 0);
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        // ── Draw Fairy ──
+        function drawFairySprite(fairy) {
+            ctx.save();
+            ctx.translate(fairy.x, fairy.y);
+
+            var bob = Math.sin(time * 3 + fairy.phase) * 3;
+            ctx.translate(0, bob);
+
+            var s = fairy.size / 14; // normalize to base size
+
+            // Wing flutter
+            var wingFlap = Math.sin(time * 6 + fairy.wingPhase) * 0.3 + 0.7;
+
+            // Left wing
+            ctx.save();
+            ctx.translate(-8 * s, -12 * s);
+            ctx.scale(-wingFlap, 1);
+            ctx.beginPath();
+            ctx.ellipse(0, 0, 14 * s, 9 * s, -0.4, 0, Math.PI * 2);
+            var fwg = ctx.createRadialGradient(0, 0, 1, 0, 0, 14 * s);
+            fwg.addColorStop(0, 'rgba(255,224,102,0.6)');
+            fwg.addColorStop(0.5, 'rgba(255,179,217,0.5)');
+            fwg.addColorStop(1, 'rgba(168,216,234,0.3)');
+            ctx.fillStyle = fwg;
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            ctx.restore();
+
+            // Right wing
+            ctx.save();
+            ctx.translate(8 * s, -12 * s);
+            ctx.scale(wingFlap, 1);
+            ctx.beginPath();
+            ctx.ellipse(0, 0, 14 * s, 9 * s, 0.4, 0, Math.PI * 2);
+            ctx.fillStyle = fwg;
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            ctx.restore();
+
+            // Dress
+            ctx.beginPath();
+            ctx.moveTo(0, -5 * s);
+            ctx.lineTo(-9 * s, 12 * s);
+            ctx.lineTo(9 * s, 12 * s);
+            ctx.closePath();
+            var dressGrad = ctx.createLinearGradient(0, -5 * s, 0, 12 * s);
+            dressGrad.addColorStop(0, fairy.color);
+            dressGrad.addColorStop(1, PURPLE);
+            ctx.fillStyle = dressGrad;
+            ctx.fill();
+
+            // Head
+            ctx.fillStyle = '#FFE0C2';
+            ctx.beginPath();
+            ctx.arc(0, -10 * s, 7 * s, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Hair
+            ctx.fillStyle = GOLD;
+            ctx.beginPath();
+            ctx.arc(0, -13 * s, 7 * s, Math.PI + 0.3, Math.PI * 2 - 0.3);
+            ctx.quadraticCurveTo(8 * s, -11 * s, 7 * s, -6 * s);
+            ctx.quadraticCurveTo(4 * s, -13 * s, 0, -13 * s);
+            ctx.fill();
+
+            // Eyes
+            ctx.fillStyle = '#6A4A8A';
+            ctx.beginPath();
+            ctx.arc(-2.5 * s, -11 * s, 1.2 * s, 0, Math.PI * 2);
+            ctx.arc(2.5 * s, -11 * s, 1.2 * s, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Smile
+            ctx.strokeStyle = '#D4508A';
+            ctx.lineWidth = 1;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.arc(0, -9 * s, 2.5 * s, 0.2, Math.PI - 0.2);
+            ctx.stroke();
+
+            // Fairy glow
+            ctx.save();
+            ctx.globalAlpha = isNight ? 0.35 : 0.15;
+            var glow = ctx.createRadialGradient(0, 0, 2, 0, 0, 20 * s);
+            glow.addColorStop(0, fairy.color);
+            glow.addColorStop(1, 'transparent');
+            ctx.fillStyle = glow;
+            ctx.beginPath();
+            ctx.arc(0, 0, 20 * s, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+
+            ctx.restore();
+        }
+
+        // ── Draw Butterflies (day) ──
+        function drawButterfly(b) {
+            ctx.save();
+            ctx.translate(b.x, b.y);
+            var flap = Math.sin(time * 8 + b.phase) * 0.5;
+            var wingCol = b.color;
+            // Left wing
+            ctx.save();
+            ctx.scale(-Math.abs(flap) - 0.3, 1);
+            ctx.fillStyle = wingCol;
+            ctx.beginPath();
+            ctx.ellipse(-3, 0, 6, 4, -0.3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+            // Right wing
+            ctx.save();
+            ctx.scale(Math.abs(flap) + 0.3, 1);
+            ctx.fillStyle = wingCol;
+            ctx.beginPath();
+            ctx.ellipse(3, 0, 6, 4, 0.3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+            // Body
+            ctx.fillStyle = '#333';
+            ctx.fillRect(-1, -3, 2, 6);
+            ctx.restore();
+        }
+
+        // ── Draw Fireflies (night) ──
+        function drawFirefly(f) {
+            ctx.save();
+            ctx.translate(f.x, f.y);
+            var pulse = 0.4 + Math.sin(time * 4 + f.phase) * 0.4;
+            ctx.globalAlpha = pulse;
+            var glow = ctx.createRadialGradient(0, 0, 1, 0, 0, 12);
+            glow.addColorStop(0, '#FFE066');
+            glow.addColorStop(0.5, 'rgba(255,224,102,0.3)');
+            glow.addColorStop(1, 'transparent');
+            ctx.fillStyle = glow;
+            ctx.beginPath();
+            ctx.arc(0, 0, 12, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1;
+            ctx.fillStyle = '#FFE066';
+            ctx.beginPath();
+            ctx.arc(0, 0, 2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+
+        // ── Init Butterflies / Fireflies ──
+        function initCreatures() {
+            butterflies = [];
+            fireflies = [];
+            for (var i = 0; i < 8; i++) {
+                butterflies.push({
+                    x: Math.random() * W,
+                    y: groundY * 0.3 + Math.random() * groundY * 0.6,
+                    vx: (Math.random() - 0.5) * 30,
+                    vy: (Math.random() - 0.5) * 20,
+                    phase: Math.random() * Math.PI * 2,
+                    color: [PINK, PURPLE, BLUE, YELLOW, '#FF6B9D'][Math.floor(Math.random() * 5)]
+                });
+            }
+            for (var j = 0; j < 20; j++) {
+                fireflies.push({
+                    x: Math.random() * W,
+                    y: groundY * 0.2 + Math.random() * (H - toolbarH - groundY * 0.2),
+                    vx: (Math.random() - 0.5) * 15,
+                    vy: (Math.random() - 0.5) * 10,
+                    phase: Math.random() * Math.PI * 2
+                });
+            }
+        }
+        initCreatures();
+
+        // ── Ambient Sparkle Particles near houses ──
+        function spawnAmbientSparkles() {
+            placedItems.forEach(function(item) {
+                var tool = TOOLS.find(function(t) { return t.id === item.type; });
+                if (tool && tool.category === 'house' && Math.random() < 0.15) {
+                    particles.push({
+                        x: item.x + (Math.random() - 0.5) * 40,
+                        y: item.y - 15 - Math.random() * 30,
+                        vx: (Math.random() - 0.5) * 8,
+                        vy: -8 - Math.random() * 10,
+                        life: 0.8 + Math.random() * 0.5,
+                        maxLife: 0.8 + Math.random() * 0.5,
+                        size: 1.5 + Math.random() * 2.5,
+                        color: GOLD,
+                        type: 'star',
+                        rotation: Math.random() * Math.PI * 2,
+                        rotSpeed: (Math.random() - 0.5) * 4
+                    });
+                }
+            });
+        }
+
+        // ── Update ──
+        var lastTime = performance.now();
+
+        function update(now) {
+            var dt = Math.min((now - lastTime) / 1000, 0.1);
+            lastTime = now;
+            time += dt;
+
+            // Clouds
+            for (var c = 0; c < clouds.length; c++) {
+                clouds[c].x += clouds[c].speed * dt;
+                if (clouds[c].x > W + 200) clouds[c].x = -200;
+            }
+
+            // Placed items scale-in animation
+            for (var pi = 0; pi < placedItems.length; pi++) {
+                var item = placedItems[pi];
+                if (item.scale < item.targetScale) {
+                    item.scale = Math.min(item.targetScale, item.scale + dt * 4);
+                }
+            }
+
+            // Update fairies
+            for (var fi = 0; fi < fairies.length; fi++) {
+                var fairy = fairies[fi];
+                if (fairy.state === 'flying') {
+                    // Move toward target
+                    var dx = fairy.targetX - fairy.x;
+                    var dy = fairy.targetY - fairy.y;
+                    var dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < 8) {
+                        fairy.state = 'hovering';
+                        fairy.hoverTimer = 1.5 + Math.random() * 2;
+                    } else {
+                        var speed = 50 + Math.random() * 20;
+                        fairy.vx += (dx / dist * speed - fairy.vx) * dt * 2;
+                        fairy.vy += (dy / dist * speed - fairy.vy) * dt * 2;
+                        fairy.x += fairy.vx * dt;
+                        fairy.y += fairy.vy * dt;
+                    }
+                } else if (fairy.state === 'hovering') {
+                    fairy.hoverTimer -= dt;
+                    if (fairy.hoverTimer <= 0) {
+                        pickFairyTarget(fairy);
+                    }
+                }
+
+                // Keep in bounds
+                fairy.x = Math.max(20, Math.min(W - 20, fairy.x));
+                fairy.y = Math.max(30, Math.min(H - toolbarH - 20, fairy.y));
+
+                // Occasional fairy sparkle trail
+                if (Math.random() < 0.15) {
+                    particles.push({
+                        x: fairy.x + (Math.random() - 0.5) * 6,
+                        y: fairy.y + 5 + Math.random() * 5,
+                        vx: (Math.random() - 0.5) * 5,
+                        vy: 3 + Math.random() * 5,
+                        life: 0.4 + Math.random() * 0.3,
+                        maxLife: 0.4 + Math.random() * 0.3,
+                        size: 1 + Math.random() * 2,
+                        color: fairy.color,
+                        type: 'star',
+                        rotation: Math.random() * Math.PI * 2,
+                        rotSpeed: (Math.random() - 0.5) * 5
+                    });
+                }
+
+                // Pick new target if no target
+                if (!fairy.targetX && !fairy.targetY) {
+                    pickFairyTarget(fairy);
+                }
+            }
+
+            // Update butterflies (day)
+            if (!isNight) {
+                for (var bi = 0; bi < butterflies.length; bi++) {
+                    var b = butterflies[bi];
+                    b.vx += (Math.random() - 0.5) * 40 * dt;
+                    b.vy += (Math.random() - 0.5) * 30 * dt;
+                    b.vx *= 0.98;
+                    b.vy *= 0.98;
+                    b.x += b.vx * dt;
+                    b.y += b.vy * dt;
+                    if (b.x < 0 || b.x > W) b.vx *= -1;
+                    if (b.y < 20 || b.y > H - toolbarH) b.vy *= -1;
+                    b.x = Math.max(0, Math.min(W, b.x));
+                    b.y = Math.max(20, Math.min(H - toolbarH, b.y));
+                }
+            }
+
+            // Update fireflies (night)
+            if (isNight) {
+                for (var ffi = 0; ffi < fireflies.length; ffi++) {
+                    var ff = fireflies[ffi];
+                    ff.vx += (Math.random() - 0.5) * 20 * dt;
+                    ff.vy += (Math.random() - 0.5) * 15 * dt;
+                    ff.vx *= 0.97;
+                    ff.vy *= 0.97;
+                    ff.x += ff.vx * dt;
+                    ff.y += ff.vy * dt;
+                    if (ff.x < 0 || ff.x > W) ff.vx *= -1;
+                    if (ff.y < 20 || ff.y > H - toolbarH) ff.vy *= -1;
+                    ff.x = Math.max(0, Math.min(W, ff.x));
+                    ff.y = Math.max(20, Math.min(H - toolbarH, ff.y));
+                }
+            }
+
+            // Update particles
+            for (var j = particles.length - 1; j >= 0; j--) {
+                var p = particles[j];
+                p.x += p.vx * dt;
+                p.y += p.vy * dt;
+                p.vy += 30 * dt;
+                p.life -= dt;
+                p.rotation += p.rotSpeed * dt;
+                if (p.life <= 0) particles.splice(j, 1);
+            }
+
+            // Spawn ambient sparkles near houses
+            spawnAmbientSparkles();
+        }
+
+        // ── Draw ──
+        function draw() {
+            ctx.clearRect(0, 0, W, H);
+            drawBackground();
+
+            // Sort placed items by y for depth
+            var sorted = placedItems.slice().sort(function(a, b) { return a.y - b.y; });
+
+            // Draw placed items
+            for (var i = 0; i < sorted.length; i++) {
+                drawPlacedItem(sorted[i]);
+            }
+
+            // Butterflies (day) or fireflies (night)
+            if (!isNight) {
+                for (var bi = 0; bi < butterflies.length; bi++) {
+                    drawButterfly(butterflies[bi]);
+                }
+            } else {
+                for (var ffi = 0; ffi < fireflies.length; ffi++) {
+                    drawFirefly(fireflies[ffi]);
+                }
+            }
+
+            // Draw fairies
+            for (var fi = 0; fi < fairies.length; fi++) {
+                drawFairySprite(fairies[fi]);
+            }
+
+            // Draw particles
+            for (var j = 0; j < particles.length; j++) {
+                var p = particles[j];
+                var alpha = p.life / p.maxLife;
+                ctx.save();
+                ctx.globalAlpha = alpha;
+                ctx.translate(p.x, p.y);
+                ctx.rotate(p.rotation);
+                if (p.type === 'star') {
+                    drawStar(0, 0, p.size, 4, p.color);
+                } else {
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, p.size * 0.6, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.restore();
+            }
+
+            // Toolbar background overlay (to cover canvas beneath toolbar)
+            ctx.fillStyle = 'rgba(255,255,255,0)';
+            ctx.fillRect(0, H - toolbarH, W, toolbarH);
+        }
+
+        function loop(now) {
+            update(now);
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        requestAnimationFrame(loop);
+
+        // Assign initial targets to fairies
+        fairies.forEach(function(f) { pickFairyTarget(f); });
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Color Mixer!</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Lilita+One&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    overflow: hidden;
+    background: linear-gradient(180deg, #87CEEB 0%, #B0E0FF 40%, #E8F8FF 100%);
+    height: 100vh;
+    width: 100vw;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+    overscroll-behavior: none;
+    font-family: 'Fredoka', 'Comic Sans MS', cursive, sans-serif;
+    position: relative;
+  }
+
+  /* Clouds */
+  .cloud {
+    position: absolute;
+    background: white;
+    border-radius: 50%;
+    opacity: 0.6;
+    pointer-events: none;
+    animation: drift linear infinite;
+  }
+  @keyframes drift {
+    from { transform: translateX(-200px); }
+    to { transform: translateX(calc(100vw + 200px)); }
+  }
+
+  /* Back button */
+  .back-btn-carnival {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    z-index: 300;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 140px;
+    height: 64px;
+    padding: 0 24px;
+    background: linear-gradient(135deg, #FF69B4, #FF1493, #D42B2B);
+    color: #fff;
+    font-family: 'Fredoka', 'Comic Sans MS', cursive, sans-serif;
+    font-size: 1.3rem;
+    font-weight: 700;
+    text-decoration: none;
+    border: 4px solid #FFD700;
+    border-radius: 9999px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.25), 0 0 12px rgba(255,215,0,0.4);
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .back-btn-carnival:hover,
+  .back-btn-carnival:active {
+    transform: scale(1.08);
+    box-shadow: 0 6px 24px rgba(0,0,0,0.3), 0 0 20px rgba(255,215,0,0.6);
+  }
+  .back-btn-carnival:active {
+    transform: scale(0.96);
+  }
+
+  /* Title */
+  .title {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Lilita One', 'Fredoka', cursive;
+    font-size: 2.2rem;
+    color: #fff;
+    text-shadow: 3px 3px 0 #FF69B4, -1px -1px 0 #4A90D9, 0 4px 12px rgba(0,0,0,0.2);
+    z-index: 200;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+
+  /* Paint blobs at top */
+  .paint-tray {
+    position: fixed;
+    top: 90px;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    z-index: 100;
+    pointer-events: none;
+  }
+
+  .paint-blob {
+    width: 110px;
+    height: 110px;
+    border-radius: 50% 45% 55% 48% / 48% 52% 45% 55%;
+    cursor: grab;
+    pointer-events: auto;
+    position: relative;
+    transition: transform 0.15s;
+    animation: wobble 3s ease-in-out infinite;
+    -webkit-tap-highlight-color: transparent;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.2), inset 0 -8px 16px rgba(0,0,0,0.15), inset 0 8px 16px rgba(255,255,255,0.3);
+  }
+  .paint-blob:active {
+    cursor: grabbing;
+    transform: scale(1.1);
+  }
+
+  .paint-blob::after {
+    content: '';
+    position: absolute;
+    top: 15%;
+    left: 20%;
+    width: 30%;
+    height: 20%;
+    background: rgba(255,255,255,0.5);
+    border-radius: 50%;
+    transform: rotate(-20deg);
+  }
+
+  .paint-blob.red {
+    background: radial-gradient(circle at 35% 30%, #FF6B6B, #E53E3E 60%, #C53030);
+    animation-delay: 0s;
+  }
+  .paint-blob.yellow {
+    background: radial-gradient(circle at 35% 30%, #FFE066, #F6D034 60%, #D4A017);
+    animation-delay: 1s;
+  }
+  .paint-blob.blue {
+    background: radial-gradient(circle at 35% 30%, #63B3ED, #3182CE 60%, #2B6CB0);
+    animation-delay: 2s;
+  }
+
+  @keyframes wobble {
+    0%, 100% { border-radius: 50% 45% 55% 48% / 48% 52% 45% 55%; transform: scale(1) rotate(0deg); }
+    25% { border-radius: 48% 52% 45% 55% / 55% 45% 52% 48%; transform: scale(1.03) rotate(2deg); }
+    50% { border-radius: 55% 48% 52% 45% / 45% 55% 48% 52%; transform: scale(0.97) rotate(-1deg); }
+    75% { border-radius: 45% 55% 48% 52% / 52% 48% 55% 45%; transform: scale(1.02) rotate(1deg); }
+  }
+
+  /* Mixing bowl */
+  .bowl-area {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 220px;
+    height: 220px;
+    z-index: 50;
+    pointer-events: none;
+  }
+
+  .bowl {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: radial-gradient(circle at 40% 35%, #F5F0E8, #E8DDD0 50%, #D4C8B8);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.25), inset 0 -20px 40px rgba(0,0,0,0.15), inset 0 10px 20px rgba(255,255,255,0.4);
+    border: 6px solid #C8B8A0;
+    position: relative;
+    overflow: hidden;
+    transition: box-shadow 0.3s;
+  }
+
+  .bowl::after {
+    content: '';
+    position: absolute;
+    top: 8%;
+    left: 15%;
+    width: 35%;
+    height: 18%;
+    background: rgba(255,255,255,0.45);
+    border-radius: 50%;
+    transform: rotate(-15deg);
+  }
+
+  .bowl-fill {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 0;
+    border-radius: 0 0 50% 50%;
+    transition: height 0.5s ease-out, background 0.5s ease-out;
+  }
+
+  .bowl-label {
+    position: absolute;
+    bottom: -40px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Lilita One', cursive;
+    font-size: 1.3rem;
+    color: #8B7355;
+    text-shadow: 0 1px 3px rgba(255,255,255,0.8);
+    white-space: nowrap;
+  }
+
+  .bowl-hint {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 3rem;
+    opacity: 0.3;
+    pointer-events: none;
+    animation: pulse-hint 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-hint {
+    0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.3; }
+    50% { transform: translate(-50%, -50%) scale(1.15); opacity: 0.5; }
+  }
+
+  /* Dragging ghost blob */
+  .drag-ghost {
+    position: fixed;
+    width: 90px;
+    height: 90px;
+    border-radius: 50% 42% 55% 48% / 48% 55% 42% 50%;
+    pointer-events: none;
+    z-index: 500;
+    opacity: 0.85;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+    transition: transform 0.1s;
+  }
+
+  /* Discovery board */
+  .discovery-board {
+    position: fixed;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 16px;
+    z-index: 100;
+    background: rgba(255,255,255,0.6);
+    padding: 12px 24px;
+    border-radius: 30px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+    border: 3px solid rgba(255,215,0,0.5);
+  }
+
+  .discovery-slot {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: #D0D0D0;
+    position: relative;
+    box-shadow: inset 0 4px 8px rgba(0,0,0,0.2);
+    transition: transform 0.3s, background 0.5s;
+  }
+
+  .discovery-slot.found {
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15), inset 0 -4px 8px rgba(0,0,0,0.15), inset 0 4px 8px rgba(255,255,255,0.3);
+    animation: slot-pop 0.5s ease-out;
+  }
+
+  .discovery-slot .slot-label {
+    position: absolute;
+    bottom: -20px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #8B7355;
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .discovery-slot.found .slot-label {
+    opacity: 1;
+  }
+
+  .discovery-slot .slot-icon {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 1.6rem;
+    opacity: 0.25;
+  }
+  .discovery-slot.found .slot-icon {
+    opacity: 0;
+  }
+
+  @keyframes slot-pop {
+    0% { transform: scale(0.5); }
+    50% { transform: scale(1.3); }
+    100% { transform: scale(1); }
+  }
+
+  /* Splat overlay */
+  .splat {
+    position: fixed;
+    pointer-events: none;
+    z-index: 400;
+  }
+
+  /* Color name reveal */
+  .color-reveal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: 'Lilita One', cursive;
+    font-size: 3.5rem;
+    z-index: 600;
+    pointer-events: none;
+    text-shadow: 3px 3px 0 rgba(0,0,0,0.2);
+  }
+
+  /* Celebration particles */
+  .celebrate-particle {
+    position: fixed;
+    pointer-events: none;
+    z-index: 550;
+    font-size: 1.5rem;
+  }
+
+  /* Reset button */
+  .reset-btn {
+    position: fixed;
+    bottom: 110px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    min-width: 120px;
+    height: 56px;
+    padding: 0 20px;
+    background: linear-gradient(135deg, #48BB78, #38A169);
+    color: #fff;
+    font-family: 'Fredoka', cursive;
+    font-size: 1.2rem;
+    font-weight: 700;
+    border: 4px solid #FFD700;
+    border-radius: 9999px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .reset-btn:active {
+    transform: translateX(-50%) scale(0.95);
+  }
+
+  /* All-found banner */
+  .all-found-banner {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: 'Lilita One', cursive;
+    font-size: 3rem;
+    color: #FFD700;
+    text-shadow: 3px 3px 0 #C53030, -2px -2px 0 #3182CE;
+    z-index: 700;
+    pointer-events: none;
+    text-align: center;
+    line-height: 1.3;
+  }
+
+  @media (max-width: 768px) {
+    .paint-blob { width: 90px; height: 90px; }
+    .paint-tray { gap: 16px; top: 80px; }
+    .bowl-area { width: 180px; height: 180px; }
+    .title { font-size: 1.6rem; }
+    .discovery-slot { width: 50px; height: 50px; }
+    .discovery-board { gap: 10px; padding: 10px 16px; }
+    .color-reveal { font-size: 2.5rem; }
+    .all-found-banner { font-size: 2rem; }
+  }
+
+  @media (max-width: 400px) {
+    .paint-blob { width: 80px; height: 80px; }
+    .paint-tray { gap: 12px; top: 75px; }
+    .bowl-area { width: 150px; height: 150px; }
+    .discovery-slot { width: 44px; height: 44px; }
+    .discovery-board { gap: 8px; padding: 8px 12px; }
+    .back-btn-carnival { min-width: 100px; height: 52px; font-size: 1.1rem; padding: 0 16px; }
+  }
+</style>
+</head>
+<body>
+
+<a href="../../index.html" class="back-btn-carnival">&#11013;&#65039; Games</a>
+<div class="title">Color Mixer!</div>
+
+<div class="paint-tray">
+  <div class="paint-blob red" data-color="red"></div>
+  <div class="paint-blob yellow" data-color="yellow"></div>
+  <div class="paint-blob blue" data-color="blue"></div>
+</div>
+
+<div class="bowl-area">
+  <div class="bowl" id="bowl">
+    <div class="bowl-fill" id="bowlFill"></div>
+    <div class="bowl-hint" id="bowlHint">&#127912;</div>
+  </div>
+  <div class="bowl-label" id="bowlLabel">Drag colors here!</div>
+</div>
+
+<button class="reset-btn" id="resetBtn">&#127912; New Mix</button>
+
+<div class="discovery-board" id="discoveryBoard">
+  <div class="discovery-slot" data-combo="orange"><span class="slot-icon">?</span><span class="slot-label">Orange</span></div>
+  <div class="discovery-slot" data-combo="green"><span class="slot-icon">?</span><span class="slot-label">Green</span></div>
+  <div class="discovery-slot" data-combo="purple"><span class="slot-icon">?</span><span class="slot-label">Purple</span></div>
+  <div class="discovery-slot" data-combo="brown"><span class="slot-icon">?</span><span class="slot-label">Brown</span></div>
+</div>
+
+<script>
+// ---- Audio ----
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let audioCtx;
+
+function ensureAudio() {
+  if (!audioCtx) audioCtx = new AudioCtx();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function playSplatSound() {
+  ensureAudio();
+  const now = audioCtx.currentTime;
+
+  // Noise burst for splat texture
+  const bufLen = audioCtx.sampleRate * 0.15;
+  const buf = audioCtx.createBuffer(1, bufLen, audioCtx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufLen; i++) {
+    data[i] = (Math.random() * 2 - 1) * (1 - i / bufLen);
+  }
+  const noise = audioCtx.createBufferSource();
+  noise.buffer = buf;
+  const noiseGain = audioCtx.createGain();
+  const noiseFilter = audioCtx.createBiquadFilter();
+  noiseFilter.type = 'lowpass';
+  noiseFilter.frequency.setValueAtTime(2000, now);
+  noiseFilter.frequency.exponentialRampToValueAtTime(200, now + 0.15);
+  noise.connect(noiseFilter);
+  noiseFilter.connect(noiseGain);
+  noiseGain.connect(audioCtx.destination);
+  noiseGain.gain.setValueAtTime(0.35, now);
+  noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+  noise.start(now);
+  noise.stop(now + 0.15);
+
+  // Deep thump
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(120, now);
+  osc.frequency.exponentialRampToValueAtTime(40, now + 0.2);
+  gain.gain.setValueAtTime(0.3, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+  osc.start(now);
+  osc.stop(now + 0.2);
+}
+
+function playDropSound() {
+  ensureAudio();
+  const now = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(500, now);
+  osc.frequency.exponentialRampToValueAtTime(200, now + 0.15);
+  gain.gain.setValueAtTime(0.2, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+  osc.start(now);
+  osc.stop(now + 0.15);
+}
+
+function playCelebrationSound() {
+  ensureAudio();
+  const now = audioCtx.currentTime;
+  // Ascending arpeggio
+  const notes = [523, 659, 784, 1047]; // C5, E5, G5, C6
+  notes.forEach((freq, i) => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(freq, now + i * 0.1);
+    gain.gain.setValueAtTime(0, now + i * 0.1);
+    gain.gain.linearRampToValueAtTime(0.2, now + i * 0.1 + 0.03);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.1 + 0.3);
+    osc.start(now + i * 0.1);
+    osc.stop(now + i * 0.1 + 0.3);
+  });
+}
+
+function playAllFoundSound() {
+  ensureAudio();
+  const now = audioCtx.currentTime;
+  const notes = [523, 587, 659, 784, 880, 1047, 1175, 1319];
+  notes.forEach((freq, i) => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.type = i % 2 === 0 ? 'triangle' : 'sine';
+    osc.frequency.setValueAtTime(freq, now + i * 0.08);
+    gain.gain.setValueAtTime(0, now + i * 0.08);
+    gain.gain.linearRampToValueAtTime(0.15, now + i * 0.08 + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.08 + 0.4);
+    osc.start(now + i * 0.08);
+    osc.stop(now + i * 0.08 + 0.4);
+  });
+}
+
+// ---- Color definitions ----
+const COLORS = {
+  red:    { hex: '#E53E3E', rgb: [229, 62, 62] },
+  yellow: { hex: '#F6D034', rgb: [246, 208, 52] },
+  blue:   { hex: '#3182CE', rgb: [49, 130, 206] },
+  orange: { hex: '#ED8936', rgb: [237, 137, 54] },
+  green:  { hex: '#48BB78', rgb: [72, 187, 120] },
+  purple: { hex: '#805AD5', rgb: [128, 90, 213] },
+  brown:  { hex: '#8B6914', rgb: [139, 105, 20] },
+};
+
+const RECIPES = {
+  'red+yellow': 'orange',
+  'yellow+red': 'orange',
+  'red+blue': 'purple',
+  'blue+red': 'purple',
+  'yellow+blue': 'green',
+  'blue+yellow': 'green',
+};
+
+// Three-color combo
+const TRIPLE = 'brown';
+
+// ---- State ----
+let bowlColors = []; // colors currently in bowl
+let discovered = new Set();
+let dragging = null;
+let dragGhost = null;
+
+const bowl = document.getElementById('bowl');
+const bowlFill = document.getElementById('bowlFill');
+const bowlHint = document.getElementById('bowlHint');
+const bowlLabel = document.getElementById('bowlLabel');
+const resetBtn = document.getElementById('resetBtn');
+
+// ---- Clouds ----
+function createClouds() {
+  for (let i = 0; i < 5; i++) {
+    const cloud = document.createElement('div');
+    cloud.className = 'cloud';
+    const size = 60 + Math.random() * 100;
+    cloud.style.width = size + 'px';
+    cloud.style.height = size * 0.5 + 'px';
+    cloud.style.top = Math.random() * 30 + '%';
+    cloud.style.animationDuration = (20 + Math.random() * 30) + 's';
+    cloud.style.animationDelay = -(Math.random() * 30) + 's';
+    document.body.appendChild(cloud);
+  }
+}
+createClouds();
+
+// ---- Drag & Drop ----
+function getBowlCenter() {
+  const area = document.querySelector('.bowl-area');
+  const r = area.getBoundingClientRect();
+  return { x: r.left + r.width / 2, y: r.top + r.height / 2, radius: r.width / 2 };
+}
+
+function isOverBowl(x, y) {
+  const b = getBowlCenter();
+  const dx = x - b.x;
+  const dy = y - b.y;
+  return Math.sqrt(dx * dx + dy * dy) < b.radius + 20;
+}
+
+function startDrag(e, colorName) {
+  ensureAudio();
+  e.preventDefault();
+
+  const touch = e.touches ? e.touches[0] : e;
+  dragging = colorName;
+
+  dragGhost = document.createElement('div');
+  dragGhost.className = 'drag-ghost';
+  const col = COLORS[colorName];
+  dragGhost.style.background = `radial-gradient(circle at 35% 30%, rgba(255,255,255,0.3), ${col.hex})`;
+  dragGhost.style.left = (touch.clientX - 45) + 'px';
+  dragGhost.style.top = (touch.clientY - 45) + 'px';
+  document.body.appendChild(dragGhost);
+}
+
+function moveDrag(e) {
+  if (!dragging || !dragGhost) return;
+  e.preventDefault();
+  const touch = e.touches ? e.touches[0] : e;
+  dragGhost.style.left = (touch.clientX - 45) + 'px';
+  dragGhost.style.top = (touch.clientY - 45) + 'px';
+
+  // Scale up near bowl
+  if (isOverBowl(touch.clientX, touch.clientY)) {
+    dragGhost.style.transform = 'scale(1.2)';
+    bowl.style.boxShadow = '0 12px 40px rgba(0,0,0,0.25), inset 0 -20px 40px rgba(0,0,0,0.15), inset 0 10px 20px rgba(255,255,255,0.4), 0 0 30px rgba(255,215,0,0.5)';
+  } else {
+    dragGhost.style.transform = 'scale(1)';
+    bowl.style.boxShadow = '';
+  }
+}
+
+function endDrag(e) {
+  if (!dragging || !dragGhost) return;
+
+  const touch = e.changedTouches ? e.changedTouches[0] : e;
+  const overBowl = isOverBowl(touch.clientX, touch.clientY);
+
+  dragGhost.remove();
+  dragGhost = null;
+  bowl.style.boxShadow = '';
+
+  if (overBowl) {
+    addColorToBowl(dragging);
+  }
+
+  dragging = null;
+}
+
+// Attach events to blobs
+document.querySelectorAll('.paint-blob').forEach(blob => {
+  const color = blob.dataset.color;
+
+  blob.addEventListener('pointerdown', (e) => startDrag(e, color));
+  blob.addEventListener('touchstart', (e) => startDrag(e, color), { passive: false });
+});
+
+document.addEventListener('pointermove', moveDrag);
+document.addEventListener('touchmove', moveDrag, { passive: false });
+document.addEventListener('pointerup', endDrag);
+document.addEventListener('touchend', endDrag);
+
+// ---- Bowl Logic ----
+function addColorToBowl(colorName) {
+  // Don't allow same color twice in a row
+  if (bowlColors.length > 0 && bowlColors[bowlColors.length - 1] === colorName) {
+    // Wiggle the bowl
+    bowl.animate([
+      { transform: 'rotate(-3deg)' },
+      { transform: 'rotate(3deg)' },
+      { transform: 'rotate(-2deg)' },
+      { transform: 'rotate(0deg)' },
+    ], { duration: 300 });
+    return;
+  }
+
+  // Don't allow more than 3
+  if (bowlColors.length >= 3) return;
+
+  bowlColors.push(colorName);
+  playDropSound();
+
+  // Update bowl fill
+  updateBowlFill();
+
+  // Check for mix
+  if (bowlColors.length === 2) {
+    const key = bowlColors[0] + '+' + bowlColors[1];
+    if (RECIPES[key]) {
+      setTimeout(() => mixColors(RECIPES[key]), 400);
+    } else {
+      // Invalid combo (same primaries handled above, so this is duplicate primary)
+      setTimeout(() => {
+        shakeBowl();
+        resetBowl();
+      }, 400);
+    }
+  } else if (bowlColors.length === 3) {
+    // Check for all three primaries
+    const sorted = [...bowlColors].sort().join('+');
+    if (sorted === 'blue+red+yellow') {
+      setTimeout(() => mixColors(TRIPLE), 500);
+    } else {
+      setTimeout(() => {
+        shakeBowl();
+        resetBowl();
+      }, 400);
+    }
+  } else {
+    bowlHint.style.display = 'none';
+    bowlLabel.textContent = 'Add another color!';
+  }
+}
+
+function updateBowlFill() {
+  if (bowlColors.length === 0) {
+    bowlFill.style.height = '0';
+    bowlFill.style.background = 'transparent';
+    return;
+  }
+
+  // Average the RGB values of colors in bowl
+  let r = 0, g = 0, b = 0;
+  bowlColors.forEach(c => {
+    r += COLORS[c].rgb[0];
+    g += COLORS[c].rgb[1];
+    b += COLORS[c].rgb[2];
+  });
+  r = Math.round(r / bowlColors.length);
+  g = Math.round(g / bowlColors.length);
+  b = Math.round(b / bowlColors.length);
+
+  bowlFill.style.background = `rgb(${r}, ${g}, ${b})`;
+  bowlFill.style.height = (bowlColors.length * 30 + 10) + '%';
+}
+
+function shakeBowl() {
+  bowl.animate([
+    { transform: 'rotate(-5deg)' },
+    { transform: 'rotate(5deg)' },
+    { transform: 'rotate(-3deg)' },
+    { transform: 'rotate(3deg)' },
+    { transform: 'rotate(0deg)' },
+  ], { duration: 400 });
+}
+
+// ---- Mix! ----
+function mixColors(resultColor) {
+  const col = COLORS[resultColor];
+
+  // Splat animation
+  playSplatSound();
+
+  // Fill bowl completely with result color
+  bowlFill.style.background = col.hex;
+  bowlFill.style.height = '80%';
+
+  // Bowl bounce
+  bowl.animate([
+    { transform: 'scale(1)' },
+    { transform: 'scale(1.2)' },
+    { transform: 'scale(0.9)' },
+    { transform: 'scale(1.05)' },
+    { transform: 'scale(1)' },
+  ], { duration: 500, easing: 'ease-out' });
+
+  // Splat particles from bowl center
+  const bc = getBowlCenter();
+  createSplatParticles(bc.x, bc.y, col.hex);
+
+  // Show color name
+  setTimeout(() => {
+    showColorReveal(resultColor, col.hex);
+    bowlLabel.textContent = resultColor.charAt(0).toUpperCase() + resultColor.slice(1) + '!';
+  }, 300);
+
+  // Discover
+  const isNew = !discovered.has(resultColor);
+  discovered.add(resultColor);
+
+  if (isNew) {
+    setTimeout(() => {
+      updateDiscoveryBoard(resultColor, col.hex);
+      playCelebrationSound();
+      createCelebration(col.hex);
+    }, 800);
+
+    // Check all found
+    setTimeout(() => {
+      if (discovered.size === 4) {
+        showAllFound();
+      }
+    }, 2000);
+  }
+
+  // Show reset button
+  setTimeout(() => {
+    resetBtn.style.display = 'flex';
+  }, 600);
+}
+
+function createSplatParticles(cx, cy, color) {
+  for (let i = 0; i < 16; i++) {
+    const p = document.createElement('div');
+    p.className = 'splat';
+    const size = 10 + Math.random() * 25;
+    p.style.width = size + 'px';
+    p.style.height = size + 'px';
+    p.style.borderRadius = '50% 40% 55% 45%';
+    p.style.background = color;
+    p.style.left = cx + 'px';
+    p.style.top = cy + 'px';
+    p.style.boxShadow = `0 2px 8px rgba(0,0,0,0.2)`;
+    document.body.appendChild(p);
+
+    const angle = (Math.PI * 2 / 16) * i + Math.random() * 0.4;
+    const dist = 60 + Math.random() * 120;
+    const dx = Math.cos(angle) * dist;
+    const dy = Math.sin(angle) * dist;
+
+    p.animate([
+      { transform: 'translate(-50%, -50%) scale(0.3)', opacity: 1 },
+      { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(1) rotate(${Math.random()*360}deg)`, opacity: 0.8 },
+      { transform: `translate(calc(-50% + ${dx*1.1}px), calc(-50% + ${dy*1.1 + 30}px)) scale(0.5) rotate(${Math.random()*360}deg)`, opacity: 0 },
+    ], { duration: 600 + Math.random() * 300, easing: 'ease-out', fill: 'forwards' })
+    .onfinish = () => p.remove();
+  }
+}
+
+function showColorReveal(name, color) {
+  const el = document.createElement('div');
+  el.className = 'color-reveal';
+  el.textContent = name.charAt(0).toUpperCase() + name.slice(1) + '!';
+  el.style.color = color;
+  document.body.appendChild(el);
+
+  el.animate([
+    { transform: 'translate(-50%, -50%) scale(0)', opacity: 0 },
+    { transform: 'translate(-50%, -50%) scale(1.2)', opacity: 1, offset: 0.3 },
+    { transform: 'translate(-50%, -50%) scale(1)', opacity: 1, offset: 0.5 },
+    { transform: 'translate(-50%, calc(-50% - 40px)) scale(1.1)', opacity: 0 },
+  ], { duration: 1500, easing: 'ease-out', fill: 'forwards' })
+  .onfinish = () => el.remove();
+}
+
+function updateDiscoveryBoard(resultColor, hex) {
+  const slot = document.querySelector(`.discovery-slot[data-combo="${resultColor}"]`);
+  if (!slot) return;
+  slot.classList.add('found');
+  slot.style.background = `radial-gradient(circle at 35% 30%, rgba(255,255,255,0.3), ${hex})`;
+}
+
+function createCelebration(color) {
+  const emojis = ['&#127775;', '&#10024;', '&#127867;', '&#127752;', '&#129388;'];
+  const cx = window.innerWidth / 2;
+  const cy = window.innerHeight / 2;
+
+  for (let i = 0; i < 20; i++) {
+    const p = document.createElement('div');
+    p.className = 'celebrate-particle';
+    p.innerHTML = emojis[Math.floor(Math.random() * emojis.length)];
+    p.style.left = cx + 'px';
+    p.style.top = cy + 'px';
+    document.body.appendChild(p);
+
+    const angle = (Math.PI * 2 / 20) * i + Math.random() * 0.3;
+    const dist = 100 + Math.random() * 200;
+    const dx = Math.cos(angle) * dist;
+    const dy = Math.sin(angle) * dist;
+
+    p.animate([
+      { transform: 'translate(-50%, -50%) scale(0) rotate(0deg)', opacity: 1 },
+      { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(1.2) rotate(${180 + Math.random()*360}deg)`, opacity: 1, offset: 0.6 },
+      { transform: `translate(calc(-50% + ${dx*1.2}px), calc(-50% + ${dy*1.2 + 60}px)) scale(0.5) rotate(${360 + Math.random()*360}deg)`, opacity: 0 },
+    ], { duration: 1000 + Math.random() * 500, easing: 'ease-out', fill: 'forwards' })
+    .onfinish = () => p.remove();
+  }
+}
+
+function showAllFound() {
+  playAllFoundSound();
+
+  const banner = document.createElement('div');
+  banner.className = 'all-found-banner';
+  banner.innerHTML = '&#127752; All Colors Found! &#127752;<br>You are a Color Master!';
+  document.body.appendChild(banner);
+
+  banner.animate([
+    { transform: 'translate(-50%, -50%) scale(0)', opacity: 0 },
+    { transform: 'translate(-50%, -50%) scale(1.1)', opacity: 1, offset: 0.4 },
+    { transform: 'translate(-50%, -50%) scale(1)', opacity: 1, offset: 0.6 },
+    { transform: 'translate(-50%, -50%) scale(1)', opacity: 1, offset: 0.85 },
+    { transform: 'translate(-50%, -50%) scale(0.8)', opacity: 0 },
+  ], { duration: 4000, easing: 'ease-in-out', fill: 'forwards' })
+  .onfinish = () => banner.remove();
+
+  // Rainbow confetti
+  const rainbowColors = ['#E53E3E', '#ED8936', '#F6D034', '#48BB78', '#3182CE', '#805AD5'];
+  for (let i = 0; i < 40; i++) {
+    setTimeout(() => {
+      const p = document.createElement('div');
+      p.className = 'celebrate-particle';
+      p.style.fontSize = '1rem';
+      p.innerHTML = Math.random() > 0.5 ? '&#10024;' : '&#127775;';
+      p.style.left = Math.random() * window.innerWidth + 'px';
+      p.style.top = '-20px';
+      const c = rainbowColors[Math.floor(Math.random() * rainbowColors.length)];
+      p.style.color = c;
+      document.body.appendChild(p);
+
+      const dx = (Math.random() - 0.5) * 100;
+      const dy = window.innerHeight + 40;
+
+      p.animate([
+        { transform: 'translateY(0) rotate(0deg)', opacity: 1 },
+        { transform: `translate(${dx}px, ${dy}px) rotate(${720 + Math.random()*720}deg)`, opacity: 0.3 },
+      ], { duration: 2000 + Math.random() * 1500, easing: 'ease-in', fill: 'forwards' })
+      .onfinish = () => p.remove();
+    }, i * 50);
+  }
+}
+
+// ---- Reset ----
+function resetBowl() {
+  bowlColors = [];
+  bowlFill.style.height = '0';
+  bowlFill.style.background = 'transparent';
+  bowlHint.style.display = '';
+  bowlLabel.textContent = 'Drag colors here!';
+  resetBtn.style.display = 'none';
+}
+
+resetBtn.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  resetBowl();
+});
+resetBtn.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  resetBowl();
+}, { passive: false });
+
+// Ensure audio on first interaction
+document.body.addEventListener('pointerdown', ensureAudio, { once: true });
+document.body.addEventListener('touchstart', ensureAudio, { once: true });
+</script>
+</body>
+</html>

@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Kaleidoscope! - Magic Drawing</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Lilita+One&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #1a1a2e;
+    --toolbar-bg: linear-gradient(135deg, #FF69B4, #9B59B6, #3498DB, #1ABC9C);
+    --btn-size: 64px;
+    --btn-font: 24px;
+    --font: 'Fredoka', 'Comic Sans MS', cursive, sans-serif;
+    --font-heading: 'Lilita One', 'Fredoka', cursive, sans-serif;
+  }
+
+  html, body {
+    height: 100%; overflow: hidden;
+    font-family: var(--font);
+    background: var(--bg);
+    touch-action: manipulation;
+    -webkit-user-select: none; user-select: none;
+    overscroll-behavior: none;
+  }
+
+  /* ---- Layout ---- */
+  #app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh; width: 100vw;
+  }
+
+  /* ---- Top toolbar ---- */
+  #toolbar {
+    background: var(--toolbar-bg);
+    padding: 8px 12px;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    box-shadow: 0 3px 12px rgba(0,0,0,0.3);
+    z-index: 10;
+  }
+
+  .tool-group {
+    display: flex; gap: 6px; align-items: center;
+  }
+
+  .tool-group-label {
+    font-family: var(--font-heading);
+    font-size: 13px;
+    color: rgba(255,255,255,0.85);
+    text-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    margin-right: 2px;
+    white-space: nowrap;
+  }
+
+  .sep {
+    width: 2px; height: 40px; background: rgba(255,255,255,0.3);
+    margin: 0 4px; border-radius: 2px; flex-shrink: 0;
+  }
+
+  .tbtn {
+    min-width: var(--btn-size); height: var(--btn-size);
+    padding: 0 10px;
+    border: 3px solid rgba(255,255,255,0.7);
+    border-radius: 16px;
+    background: rgba(255,255,255,0.85);
+    font-size: var(--btn-font);
+    font-family: var(--font);
+    font-weight: 600;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 4px;
+    transition: transform 0.1s, box-shadow 0.1s, background 0.15s;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    flex-shrink: 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .tbtn:hover { transform: scale(1.06); box-shadow: 0 4px 14px rgba(0,0,0,0.25); }
+  .tbtn:active { transform: scale(0.94); }
+  .tbtn.active {
+    background: #FFD700;
+    border-color: #FF6600;
+    box-shadow: 0 0 14px rgba(255,215,0,0.6), 0 2px 6px rgba(0,0,0,0.15);
+  }
+  .tbtn.danger { background: #FF6B6B; color: #fff; border-color: #FF4444; }
+  .tbtn.save-btn { background: #4CAF50; color: #fff; border-color: #388E3C; }
+
+  /* Size dots inside buttons */
+  .size-dot {
+    display: inline-block;
+    background: #333;
+    border-radius: 50%;
+  }
+
+  /* ---- Canvas ---- */
+  #canvas-wrap {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+  }
+
+  #draw-canvas {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    touch-action: none;
+    cursor: crosshair;
+  }
+
+  /* ---- Sparkle layer ---- */
+  #sparkle-canvas {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  /* ---- Center crosshair ---- */
+  .center-marker {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 16px; height: 16px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 3;
+  }
+  .center-marker::after {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 4px; height: 4px;
+    background: rgba(255,255,255,0.4);
+    border-radius: 50%;
+  }
+
+  /* ---- Confirm dialog ---- */
+  #confirm-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 50;
+    align-items: center; justify-content: center;
+  }
+  #confirm-overlay.open { display: flex; }
+  #confirm-box {
+    background: #fff;
+    border-radius: 24px;
+    padding: 30px 40px;
+    text-align: center;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.3);
+    border: 4px solid #FF69B4;
+  }
+  #confirm-box h2 {
+    font-family: var(--font-heading);
+    font-size: 26px; color: #FF1493; margin-bottom: 10px;
+  }
+  #confirm-box p { font-size: 16px; color: #666; margin-bottom: 20px; }
+  #confirm-box .btn-row { display: flex; gap: 14px; justify-content: center; }
+  #confirm-box button {
+    padding: 12px 32px; border: none; border-radius: 16px;
+    font-family: var(--font); font-size: 18px; font-weight: 700;
+    cursor: pointer; transition: transform 0.1s;
+    min-width: 100px;
+  }
+  #confirm-box button:hover { transform: scale(1.05); }
+  #confirm-yes { background: #FF6B6B; color: #fff; }
+  #confirm-no { background: #87CEEB; color: #fff; }
+
+  /* ---- Responsive ---- */
+  @media (max-width: 768px) {
+    :root {
+      --btn-size: 52px;
+      --btn-font: 20px;
+    }
+    #toolbar { padding: 6px 8px; gap: 5px; }
+    .tool-group-label { font-size: 11px; }
+    .sep { height: 32px; }
+  }
+  @media (max-width: 480px) {
+    :root {
+      --btn-size: 44px;
+      --btn-font: 17px;
+    }
+    #toolbar { padding: 4px 6px; gap: 4px; }
+    .tool-group-label { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div id="toolbar">
+    <!-- Symmetry -->
+    <span class="tool-group-label">Segments</span>
+    <div class="tool-group">
+      <button class="tbtn" data-segments="4" title="4-way symmetry">4</button>
+      <button class="tbtn active" data-segments="6" title="6-way symmetry">6</button>
+      <button class="tbtn" data-segments="8" title="8-way symmetry">8</button>
+    </div>
+
+    <div class="sep"></div>
+
+    <!-- Brush size -->
+    <span class="tool-group-label">Size</span>
+    <div class="tool-group">
+      <button class="tbtn size-btn" data-size="3" title="Thin"><span class="size-dot" style="width:6px;height:6px;"></span></button>
+      <button class="tbtn size-btn active" data-size="6" title="Medium"><span class="size-dot" style="width:12px;height:12px;"></span></button>
+      <button class="tbtn size-btn" data-size="14" title="Thick"><span class="size-dot" style="width:20px;height:20px;"></span></button>
+    </div>
+
+    <div class="sep"></div>
+
+    <!-- Color mode -->
+    <span class="tool-group-label">Color</span>
+    <div class="tool-group">
+      <button class="tbtn active" id="btn-auto-color" title="Auto Rainbow" style="background: conic-gradient(#FF0000, #FF8800, #FFFF00, #00CC44, #0088FF, #9900FF, #FF00AA, #FF0000); border-color: #FF6600; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.6);">Auto</button>
+      <input type="color" id="color-picker" value="#FF69B4" title="Pick a color" style="
+        width: var(--btn-size); height: var(--btn-size);
+        border: 3px solid rgba(255,255,255,0.7);
+        border-radius: 16px;
+        cursor: pointer;
+        padding: 4px;
+        background: rgba(255,255,255,0.85);
+        flex-shrink: 0;
+      ">
+    </div>
+
+    <div class="sep"></div>
+
+    <!-- Background toggle -->
+    <button class="tbtn" id="btn-bg" title="Toggle Background">&#127769;</button>
+
+    <!-- Sparkle toggle -->
+    <button class="tbtn active" id="btn-sparkle" title="Toggle Sparkles">&#10024;</button>
+
+    <div class="sep"></div>
+
+    <!-- Actions -->
+    <button class="tbtn save-btn" id="btn-save" title="Save as PNG">&#128190;</button>
+    <button class="tbtn danger" id="btn-clear" title="Clear Canvas">&#128465;</button>
+  </div>
+
+  <div id="canvas-wrap">
+    <canvas id="draw-canvas"></canvas>
+    <canvas id="sparkle-canvas"></canvas>
+    <div class="center-marker"></div>
+  </div>
+</div>
+
+<!-- Confirm dialog -->
+<div id="confirm-overlay">
+  <div id="confirm-box">
+    <h2>Erase Everything?</h2>
+    <p>This will clear your magical drawing!</p>
+    <div class="btn-row">
+      <button id="confirm-yes">Yes, Clear!</button>
+      <button id="confirm-no">Keep It!</button>
+    </div>
+  </div>
+</div>
+
+<!-- Back link (carnival-styled) -->
+<a id="back-link" href="../../index.html" style="
+  position: fixed;
+  bottom: 14px;
+  right: 14px;
+  z-index: 300;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 140px;
+  height: 64px;
+  padding: 0 24px;
+  background: linear-gradient(135deg, #FF69B4, #FF1493, #D42B2B);
+  color: #fff;
+  font-family: var(--font);
+  font-size: 1.3rem;
+  font-weight: 700;
+  text-decoration: none;
+  border: 4px solid #FFD700;
+  border-radius: 9999px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.25), 0 0 12px rgba(255,215,0,0.4);
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+  -webkit-tap-highlight-color: transparent;
+">&#11013;&#65039; Create</a>
+
+<script>
+(function() {
+  'use strict';
+
+  /* ---- State ---- */
+  let segments = 6;
+  let brushSize = 6;
+  let autoColor = true;
+  let manualColor = '#FF69B4';
+  let hue = 0;
+  let darkBg = true;
+  let sparklesOn = true;
+  let drawing = false;
+  let lastX = 0, lastY = 0;
+  let sparkles = [];
+
+  /* ---- Canvas setup ---- */
+  const canvas = document.getElementById('draw-canvas');
+  const ctx = canvas.getContext('2d');
+  const sparkleCanvas = document.getElementById('sparkle-canvas');
+  const sparkleCtx = sparkleCanvas.getContext('2d');
+  const wrap = document.getElementById('canvas-wrap');
+
+  function bgColor() { return darkBg ? '#1a1a2e' : '#FFFFFF'; }
+
+  function resize() {
+    const rect = wrap.getBoundingClientRect();
+    const w = Math.floor(rect.width);
+    const h = Math.floor(rect.height);
+
+    // Preserve drawing
+    let imgData = null;
+    if (canvas.width > 0 && canvas.height > 0) {
+      imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    }
+
+    canvas.width = w;
+    canvas.height = h;
+    sparkleCanvas.width = w;
+    sparkleCanvas.height = h;
+
+    ctx.fillStyle = bgColor();
+    ctx.fillRect(0, 0, w, h);
+    if (imgData) ctx.putImageData(imgData, 0, 0);
+
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+  }
+
+  window.addEventListener('resize', resize);
+  resize();
+
+  /* ---- Color cycling ---- */
+  function getColor() {
+    if (autoColor) {
+      hue = (hue + 1.2) % 360;
+      return 'hsl(' + hue + ', 85%, 60%)';
+    }
+    return manualColor;
+  }
+
+  /* ---- Coordinate helpers ---- */
+  function canvasCoords(e) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    let clientX, clientY;
+    if (e.touches && e.touches.length > 0) {
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+    } else if (e.changedTouches && e.changedTouches.length > 0) {
+      clientX = e.changedTouches[0].clientX;
+      clientY = e.changedTouches[0].clientY;
+    } else {
+      clientX = e.clientX;
+      clientY = e.clientY;
+    }
+    return {
+      x: (clientX - rect.left) * scaleX,
+      y: (clientY - rect.top) * scaleY
+    };
+  }
+
+  /* ---- Symmetry drawing ---- */
+  function drawSymmetricLine(x1, y1, x2, y2, color) {
+    const cx = canvas.width / 2;
+    const cy = canvas.height / 2;
+    const n = segments;
+    const angleStep = (Math.PI * 2) / n;
+
+    ctx.strokeStyle = color;
+    ctx.lineWidth = brushSize;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.shadowColor = color;
+    ctx.shadowBlur = brushSize * 2;
+
+    // Translate coordinates relative to center
+    const rx1 = x1 - cx, ry1 = y1 - cy;
+    const rx2 = x2 - cx, ry2 = y2 - cy;
+
+    for (let i = 0; i < n; i++) {
+      const angle = angleStep * i;
+      const cos = Math.cos(angle);
+      const sin = Math.sin(angle);
+
+      // Rotated copy
+      ctx.beginPath();
+      ctx.moveTo(cx + rx1 * cos - ry1 * sin, cy + rx1 * sin + ry1 * cos);
+      ctx.lineTo(cx + rx2 * cos - ry2 * sin, cy + rx2 * sin + ry2 * cos);
+      ctx.stroke();
+
+      // Mirrored copy (flip X before rotating)
+      ctx.beginPath();
+      ctx.moveTo(cx + (-rx1) * cos - ry1 * sin, cy + (-rx1) * sin + ry1 * cos);
+      ctx.lineTo(cx + (-rx2) * cos - ry2 * sin, cy + (-rx2) * sin + ry2 * cos);
+      ctx.stroke();
+    }
+
+    ctx.shadowBlur = 0;
+  }
+
+  /* ---- Interpolation for smooth strokes ---- */
+  function interpolateAndDraw(fromX, fromY, toX, toY) {
+    const dx = toX - fromX;
+    const dy = toY - fromY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const step = Math.max(1, brushSize * 0.3);
+
+    if (dist < step) {
+      const color = getColor();
+      drawSymmetricLine(fromX, fromY, toX, toY, color);
+      if (sparklesOn) addSparkles(toX, toY, color);
+      return;
+    }
+
+    const steps = Math.ceil(dist / step);
+    for (let i = 0; i < steps; i++) {
+      const t1 = i / steps;
+      const t2 = (i + 1) / steps;
+      const sx = fromX + dx * t1;
+      const sy = fromY + dy * t1;
+      const ex = fromX + dx * t2;
+      const ey = fromY + dy * t2;
+      const color = getColor();
+      drawSymmetricLine(sx, sy, ex, ey, color);
+      if (sparklesOn && i % 2 === 0) addSparkles(ex, ey, color);
+    }
+  }
+
+  /* ---- Sparkle particles ---- */
+  function addSparkles(x, y, color) {
+    const cx = canvas.width / 2;
+    const cy = canvas.height / 2;
+    const n = segments;
+    const angleStep = (Math.PI * 2) / n;
+    const rx = x - cx, ry = y - cy;
+
+    // Only add sparkles for 2 of the segments to keep perf reasonable
+    for (let i = 0; i < 2; i++) {
+      const idx = Math.floor(Math.random() * n);
+      const angle = angleStep * idx;
+      const cos = Math.cos(angle);
+      const sin = Math.sin(angle);
+      const mirror = Math.random() > 0.5;
+      const px = mirror ? -rx : rx;
+
+      sparkles.push({
+        x: cx + px * cos - ry * sin + (Math.random() - 0.5) * brushSize * 3,
+        y: cy + px * sin + ry * cos + (Math.random() - 0.5) * brushSize * 3,
+        size: Math.random() * 3 + 1.5,
+        color: color,
+        life: 1.0,
+        decay: 0.015 + Math.random() * 0.02,
+        vx: (Math.random() - 0.5) * 1.5,
+        vy: (Math.random() - 0.5) * 1.5
+      });
+    }
+  }
+
+  function updateSparkles() {
+    sparkleCtx.clearRect(0, 0, sparkleCanvas.width, sparkleCanvas.height);
+    for (let i = sparkles.length - 1; i >= 0; i--) {
+      const s = sparkles[i];
+      s.x += s.vx;
+      s.y += s.vy;
+      s.life -= s.decay;
+      if (s.life <= 0) {
+        sparkles.splice(i, 1);
+        continue;
+      }
+      sparkleCtx.save();
+      sparkleCtx.globalAlpha = s.life;
+      sparkleCtx.translate(s.x, s.y);
+      sparkleCtx.rotate(Date.now() * 0.005 + i);
+
+      // 4-point star
+      sparkleCtx.fillStyle = s.color;
+      sparkleCtx.beginPath();
+      const sz = s.size * (0.5 + s.life * 0.5);
+      for (let p = 0; p < 4; p++) {
+        const a = (Math.PI / 2) * p;
+        sparkleCtx.lineTo(Math.cos(a) * sz * 2, Math.sin(a) * sz * 2);
+        sparkleCtx.lineTo(Math.cos(a + Math.PI / 4) * sz * 0.5, Math.sin(a + Math.PI / 4) * sz * 0.5);
+      }
+      sparkleCtx.closePath();
+      sparkleCtx.fill();
+      sparkleCtx.restore();
+    }
+    if (sparkles.length > 0 || sparklesOn) {
+      requestAnimationFrame(updateSparkles);
+    }
+  }
+  requestAnimationFrame(updateSparkles);
+
+  /* ---- Drawing handlers ---- */
+  function startDraw(e) {
+    e.preventDefault();
+    const pos = canvasCoords(e);
+    drawing = true;
+    lastX = pos.x;
+    lastY = pos.y;
+  }
+
+  function moveDraw(e) {
+    if (!drawing) return;
+    e.preventDefault();
+    const pos = canvasCoords(e);
+    interpolateAndDraw(lastX, lastY, pos.x, pos.y);
+    lastX = pos.x;
+    lastY = pos.y;
+  }
+
+  function endDraw(e) {
+    if (!drawing) return;
+    drawing = false;
+  }
+
+  canvas.addEventListener('mousedown', startDraw);
+  canvas.addEventListener('mousemove', moveDraw);
+  canvas.addEventListener('mouseup', endDraw);
+  canvas.addEventListener('mouseleave', endDraw);
+
+  canvas.addEventListener('touchstart', startDraw, { passive: false });
+  canvas.addEventListener('touchmove', moveDraw, { passive: false });
+  canvas.addEventListener('touchend', endDraw);
+  canvas.addEventListener('touchcancel', endDraw);
+
+  /* ---- Segment buttons ---- */
+  const segBtns = document.querySelectorAll('[data-segments]');
+  segBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      segments = parseInt(btn.dataset.segments);
+      segBtns.forEach(b => b.classList.toggle('active', b === btn));
+    });
+  });
+
+  /* ---- Size buttons ---- */
+  const sizeBtns = document.querySelectorAll('.size-btn');
+  sizeBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      brushSize = parseInt(btn.dataset.size);
+      sizeBtns.forEach(b => b.classList.toggle('active', b === btn));
+    });
+  });
+
+  /* ---- Color controls ---- */
+  const autoBtn = document.getElementById('btn-auto-color');
+  const colorPicker = document.getElementById('color-picker');
+
+  autoBtn.addEventListener('click', () => {
+    autoColor = true;
+    autoBtn.classList.add('active');
+  });
+
+  colorPicker.addEventListener('input', () => {
+    autoColor = false;
+    manualColor = colorPicker.value;
+    autoBtn.classList.remove('active');
+  });
+
+  /* ---- Background toggle ---- */
+  const bgBtn = document.getElementById('btn-bg');
+  bgBtn.addEventListener('click', () => {
+    // Swap background pixels
+    const oldBg = bgColor();
+    darkBg = !darkBg;
+    const newBgCol = bgColor();
+
+    bgBtn.innerHTML = darkBg ? '&#127769;' : '&#9728;&#65039;';
+    document.body.style.background = newBgCol;
+
+    // Swap canvas background pixels
+    const w = canvas.width, h = canvas.height;
+    const imgData = ctx.getImageData(0, 0, w, h);
+    const d = imgData.data;
+
+    const tmp = document.createElement('canvas');
+    tmp.width = tmp.height = 1;
+    const tc = tmp.getContext('2d');
+    tc.fillStyle = oldBg; tc.fillRect(0, 0, 1, 1);
+    const ob = tc.getImageData(0, 0, 1, 1).data;
+    tc.fillStyle = newBgCol; tc.fillRect(0, 0, 1, 1);
+    const nb = tc.getImageData(0, 0, 1, 1).data;
+
+    const tol = 10;
+    for (let i = 0; i < d.length; i += 4) {
+      if (Math.abs(d[i] - ob[0]) + Math.abs(d[i+1] - ob[1]) + Math.abs(d[i+2] - ob[2]) <= tol) {
+        d[i] = nb[0]; d[i+1] = nb[1]; d[i+2] = nb[2]; d[i+3] = nb[3];
+      }
+    }
+    ctx.putImageData(imgData, 0, 0);
+
+    // Update center marker
+    const marker = document.querySelector('.center-marker');
+    const borderC = darkBg ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)';
+    marker.style.borderColor = borderC;
+  });
+
+  /* ---- Sparkle toggle ---- */
+  const sparkleBtn = document.getElementById('btn-sparkle');
+  sparkleBtn.addEventListener('click', () => {
+    sparklesOn = !sparklesOn;
+    sparkleBtn.classList.toggle('active', sparklesOn);
+    if (sparklesOn) requestAnimationFrame(updateSparkles);
+  });
+
+  /* ---- Save ---- */
+  document.getElementById('btn-save').addEventListener('click', () => {
+    // Composite drawing + sparkles for save
+    const saveCanvas = document.createElement('canvas');
+    saveCanvas.width = canvas.width;
+    saveCanvas.height = canvas.height;
+    const saveCtx = saveCanvas.getContext('2d');
+    saveCtx.drawImage(canvas, 0, 0);
+    saveCtx.drawImage(sparkleCanvas, 0, 0);
+
+    const link = document.createElement('a');
+    link.download = 'kaleidoscope.png';
+    link.href = saveCanvas.toDataURL('image/png');
+    link.click();
+  });
+
+  /* ---- Clear ---- */
+  document.getElementById('btn-clear').addEventListener('click', () => {
+    document.getElementById('confirm-overlay').classList.add('open');
+  });
+  document.getElementById('confirm-yes').addEventListener('click', () => {
+    ctx.fillStyle = bgColor();
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    sparkles = [];
+    sparkleCtx.clearRect(0, 0, sparkleCanvas.width, sparkleCanvas.height);
+    document.getElementById('confirm-overlay').classList.remove('open');
+  });
+  document.getElementById('confirm-no').addEventListener('click', () => {
+    document.getElementById('confirm-overlay').classList.remove('open');
+  });
+
+  /* ---- Prevent context menu ---- */
+  canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+})();
+</script>
+</body>
+</html>

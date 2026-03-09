@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#FFD700">
+    <title>Music Box</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body {
+            width: 100%; height: 100%;
+            overflow: hidden;
+            overscroll-behavior: none;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-user-select: none;
+            user-select: none;
+            font-family: 'Fredoka', sans-serif;
+        }
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(180deg, #87CEEB 0%, #B0E0FF 40%, #FFE0F0 100%);
+            transition: background 2s ease;
+        }
+
+        canvas#viz {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .back-btn {
+            position: fixed;
+            top: 12px;
+            left: 12px;
+            z-index: 20;
+            background: #FFB3D9;
+            color: #fff;
+            font-family: 'Lilita One', cursive;
+            font-size: 1.2rem;
+            padding: 8px 18px;
+            border: 3px solid #fff;
+            border-radius: 9999px;
+            text-decoration: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transition: transform 0.2s;
+        }
+        .back-btn:active { transform: scale(0.93); }
+
+        .ui-layer {
+            position: relative;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            width: 100%;
+            max-width: 420px;
+            padding: 20px;
+        }
+
+        .album-art {
+            width: 180px;
+            height: 180px;
+            border-radius: 28px;
+            background: rgba(255,255,255,0.85);
+            border: 5px solid #fff;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 90px;
+            transition: transform 0.4s ease, box-shadow 0.4s ease;
+            flex-shrink: 0;
+        }
+        .album-art.playing {
+            animation: albumBounce 0.6s ease infinite alternate;
+        }
+        @keyframes albumBounce {
+            0% { transform: scale(1) rotate(-2deg); }
+            100% { transform: scale(1.06) rotate(2deg); }
+        }
+
+        .controls {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 24px;
+        }
+
+        .ctrl-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+            transition: transform 0.15s;
+        }
+        .ctrl-btn:active { transform: scale(0.88); }
+
+        .nav-btn {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.8);
+            border: 4px solid #fff;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .nav-btn svg {
+            width: 30px;
+            height: 30px;
+            fill: #E84393;
+        }
+
+        .play-btn {
+            width: 130px;
+            height: 130px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #FF6B9D, #E84393);
+            border: 6px solid #fff;
+            box-shadow: 0 8px 30px rgba(232,67,147,0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .play-btn svg {
+            width: 52px;
+            height: 52px;
+            fill: #fff;
+        }
+        .play-btn.active {
+            background: linear-gradient(135deg, #FDCB6E, #E17055);
+            box-shadow: 0 8px 30px rgba(225,112,85,0.4);
+        }
+
+        .volume-row {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            width: 80%;
+            max-width: 280px;
+        }
+        .vol-icon {
+            width: 36px;
+            height: 36px;
+            fill: rgba(255,255,255,0.9);
+            flex-shrink: 0;
+        }
+        .volume-slider {
+            -webkit-appearance: none;
+            appearance: none;
+            flex: 1;
+            height: 14px;
+            border-radius: 7px;
+            background: rgba(255,255,255,0.5);
+            outline: none;
+        }
+        .volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #FDCB6E, #F9CA24);
+            border: 4px solid #fff;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.15);
+            cursor: pointer;
+        }
+        .volume-slider::-moz-range-thumb {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #FDCB6E, #F9CA24);
+            border: 4px solid #fff;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.15);
+            cursor: pointer;
+        }
+
+        .dots {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+        .dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.4);
+            border: 2px solid rgba(255,255,255,0.6);
+            transition: background 0.3s, transform 0.3s;
+        }
+        .dot.active {
+            background: #fff;
+            transform: scale(1.3);
+        }
+
+        @supports (padding: env(safe-area-inset-top)) {
+            .back-btn { top: calc(12px + env(safe-area-inset-top)); left: calc(12px + env(safe-area-inset-left)); }
+        }
+
+        @media (max-width: 400px) {
+            .album-art { width: 140px; height: 140px; font-size: 70px; border-radius: 22px; }
+            .play-btn { width: 110px; height: 110px; }
+            .play-btn svg { width: 44px; height: 44px; }
+            .nav-btn { width: 60px; height: 60px; }
+            .nav-btn svg { width: 26px; height: 26px; }
+            .ui-layer { gap: 16px; }
+        }
+        @media (max-height: 580px) {
+            .album-art { width: 120px; height: 120px; font-size: 56px; border-radius: 18px; }
+            .play-btn { width: 100px; height: 100px; }
+            .play-btn svg { width: 40px; height: 40px; }
+            .nav-btn { width: 54px; height: 54px; }
+            .ui-layer { gap: 10px; padding: 10px; }
+            .volume-row { max-width: 240px; }
+        }
+    </style>
+</head>
+<body>
+    <a href="../../" class="back-btn">&#8592;</a>
+    <canvas id="viz"></canvas>
+
+    <div class="ui-layer">
+        <div class="album-art" id="albumArt"></div>
+
+        <div class="controls">
+            <button class="ctrl-btn nav-btn" id="prevBtn" aria-label="Previous">
+                <svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
+            </button>
+            <button class="ctrl-btn play-btn" id="playBtn" aria-label="Play">
+                <svg id="playIcon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            </button>
+            <button class="ctrl-btn nav-btn" id="nextBtn" aria-label="Next">
+                <svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zm10-12v12h2V6h-2z"/></svg>
+            </button>
+        </div>
+
+        <div class="volume-row">
+            <svg class="vol-icon" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0014 8.5v7a4.47 4.47 0 002.5-3.5zM14 3.23v2.06a7 7 0 010 13.42v2.06A9 9 0 0014 3.23z"/></svg>
+            <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="70" aria-label="Volume">
+        </div>
+
+        <div class="dots" id="dots"></div>
+    </div>
+
+    <script src="../../../music/audio-tracker/synth.js"></script>
+    <script src="../../../music/audio-tracker/playback-engine.js"></script>
+    <script>
+    (function() {
+        'use strict';
+
+        // ── Curated kid-friendly playlist ──
+        var SONGS_BASE = '../../../music/audio-tracker/songs/';
+        var playlist = [
+            { file: 'ode-to-joy.json', emoji: '\uD83C\uDFB5', bg: ['#87CEEB','#B0E0FF','#FFE0F0'] },
+            { file: 'fur-elise.json', emoji: '\uD83C\uDF39', bg: ['#E8DAEF','#D2B4DE','#F5CBA7'] },
+            { file: 'canon-in-d.json', emoji: '\uD83C\uDF1F', bg: ['#FDEBD0','#FAD7A0','#F9E79F'] },
+            { file: 'crystal-caves.json', emoji: '\uD83D\uDC8E', bg: ['#AED6F1','#A3E4D7','#D5F5E3'] },
+            { file: 'greensleeves.json', emoji: '\uD83C\uDF3F', bg: ['#A9DFBF','#82E0AA','#D5F5E3'] },
+            { file: 'photosynthesis.json', emoji: '\uD83C\uDF3B', bg: ['#A9DFBF','#F9E79F','#ABEBC6'] },
+            { file: 'campfire-ballad.json', emoji: '\uD83D\uDD25', bg: ['#F5B041','#F0B27A','#FADBD8'] },
+            { file: 'clockwork-requiem.json', emoji: '\u2699\uFE0F', bg: ['#D5DBDB','#AEB6BF','#F2F3F4'] },
+            { file: 'gilded-ascent.json', emoji: '\uD83D\uDEA0', bg: ['#F9E79F','#F5CBA7','#FDEBD0'] },
+            { file: 'the-tide-clock.json', emoji: '\uD83C\uDF0A', bg: ['#85C1E9','#76D7C4','#AED6F1'] }
+        ];
+
+        var currentIndex = 0;
+        var isPlaying = false;
+        var songLoaded = false;
+        var songCache = {};
+
+        // ── DOM refs ──
+        var albumArt = document.getElementById('albumArt');
+        var playBtn = document.getElementById('playBtn');
+        var playIcon = document.getElementById('playIcon');
+        var prevBtn = document.getElementById('prevBtn');
+        var nextBtn = document.getElementById('nextBtn');
+        var volumeSlider = document.getElementById('volumeSlider');
+        var dotsContainer = document.getElementById('dots');
+        var canvas = document.getElementById('viz');
+        var ctx = canvas.getContext('2d');
+
+        // ── Visualization state ──
+        var shapes = [];
+        var stars = [];
+        var dancingChars = [];
+        var animFrame = null;
+        var W = 0, H = 0;
+        var dpr = window.devicePixelRatio || 1;
+        var hueShift = 0;
+        var beatPulse = 0;
+        var lastBeat = 0;
+
+        // ── Init dots ──
+        function buildDots() {
+            dotsContainer.innerHTML = '';
+            for (var i = 0; i < playlist.length; i++) {
+                var d = document.createElement('div');
+                d.className = 'dot' + (i === currentIndex ? ' active' : '');
+                dotsContainer.appendChild(d);
+            }
+        }
+
+        function updateDots() {
+            var dots = dotsContainer.children;
+            for (var i = 0; i < dots.length; i++) {
+                dots[i].className = 'dot' + (i === currentIndex ? ' active' : '');
+            }
+        }
+
+        // ── Update UI ──
+        function updateUI() {
+            var song = playlist[currentIndex];
+            albumArt.textContent = song.emoji;
+            albumArt.className = 'album-art' + (isPlaying ? ' playing' : '');
+
+            // Update background gradient
+            var bg = song.bg;
+            document.body.style.background = 'linear-gradient(180deg, ' + bg[0] + ' 0%, ' + bg[1] + ' 50%, ' + bg[2] + ' 100%)';
+
+            // Play/pause icon
+            if (isPlaying) {
+                playIcon.innerHTML = '<path d="M6 4h4v16H6zm8 0h4v16h-4z"/>';
+                playBtn.classList.add('active');
+            } else {
+                playIcon.innerHTML = '<path d="M8 5v14l11-7z"/>';
+                playBtn.classList.remove('active');
+            }
+
+            updateDots();
+            resetVisualization();
+        }
+
+        // ── Song loading ──
+        function loadAndPlay(index) {
+            currentIndex = index;
+            var song = playlist[index];
+
+            // Stop current
+            if (ChipPlayer.isPlaying()) {
+                ChipPlayer.stop();
+            }
+            isPlaying = false;
+            songLoaded = false;
+            updateUI();
+
+            var url = SONGS_BASE + song.file;
+            if (songCache[song.file]) {
+                ChipPlayer.load(JSON.parse(JSON.stringify(songCache[song.file])));
+                songLoaded = true;
+                startPlaying();
+                return;
+            }
+
+            fetch(url)
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    songCache[song.file] = data;
+                    // Check we haven't navigated away
+                    if (currentIndex === index) {
+                        ChipPlayer.load(JSON.parse(JSON.stringify(data)));
+                        songLoaded = true;
+                        startPlaying();
+                    }
+                })
+                .catch(function(e) {
+                    console.error('Failed to load song:', e);
+                });
+        }
+
+        function startPlaying() {
+            ChipPlayer.play();
+            isPlaying = true;
+            updateUI();
+        }
+
+        // ── Auto-advance ──
+        // Poll to detect when song finishes (loops back to start)
+        // Since ChipPlayer loops by default, we use onEnd with shortMode or
+        // just track when the song stops being "playing"
+        // Actually, ChipPlayer loops indefinitely. We'll let songs loop
+        // and only advance on user action, OR set a timer based on song length.
+        // For kids, looping is fine - they can tap next when ready.
+
+        // ── Controls ──
+        function handlePlay() {
+            if (!songLoaded) {
+                loadAndPlay(currentIndex);
+                return;
+            }
+            if (isPlaying) {
+                if (ChipPlayer.isPaused()) {
+                    ChipPlayer.resume();
+                } else {
+                    ChipPlayer.pause();
+                }
+                isPlaying = !ChipPlayer.isPaused();
+            } else {
+                ChipPlayer.play();
+                isPlaying = true;
+            }
+            updateUI();
+        }
+
+        function handleNext() {
+            var next = (currentIndex + 1) % playlist.length;
+            loadAndPlay(next);
+        }
+
+        function handlePrev() {
+            var prev = (currentIndex - 1 + playlist.length) % playlist.length;
+            loadAndPlay(prev);
+        }
+
+        function addTap(el, fn) {
+            var handled = false;
+            el.addEventListener('touchend', function(e) {
+                e.preventDefault();
+                handled = true;
+                fn();
+                setTimeout(function() { handled = false; }, 300);
+            });
+            el.addEventListener('click', function(e) {
+                if (!handled) fn();
+            });
+        }
+        addTap(playBtn, handlePlay);
+        addTap(nextBtn, handleNext);
+        addTap(prevBtn, handlePrev);
+
+        volumeSlider.addEventListener('input', function() {
+            var v = parseInt(volumeSlider.value) / 100;
+            ChipPlayer.setVolume(v);
+        });
+
+        // ── Init ChipPlayer ──
+        ChipPlayer.init();
+        ChipPlayer.setVolume(0.7);
+
+        // ── Visualization ──
+        function resizeCanvas() {
+            W = window.innerWidth;
+            H = window.innerHeight;
+            canvas.width = W * dpr;
+            canvas.height = H * dpr;
+            canvas.style.width = W + 'px';
+            canvas.style.height = H + 'px';
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+
+        var SHAPE_COLORS = [
+            '#FF6B9D', '#FDCB6E', '#6C5CE7', '#00CEC9',
+            '#E17055', '#74B9FF', '#A29BFE', '#55E6C1',
+            '#FF9FF3', '#FECA57', '#48DBFB', '#FF6348'
+        ];
+        var CHAR_EMOJIS = ['\u2B50', '\uD83C\uDF1F', '\u2728', '\uD83C\uDF08', '\uD83E\uDD8B', '\uD83C\uDF3C', '\uD83C\uDF38', '\u2764\uFE0F'];
+
+        function resetVisualization() {
+            shapes = [];
+            stars = [];
+            dancingChars = [];
+
+            // Create bouncing shapes
+            for (var i = 0; i < 12; i++) {
+                shapes.push({
+                    x: Math.random() * W,
+                    y: Math.random() * H,
+                    vx: (Math.random() - 0.5) * 2,
+                    vy: (Math.random() - 0.5) * 2,
+                    size: 20 + Math.random() * 40,
+                    color: SHAPE_COLORS[i % SHAPE_COLORS.length],
+                    type: Math.floor(Math.random() * 3), // 0=circle, 1=star, 2=diamond
+                    rotation: Math.random() * Math.PI * 2,
+                    rotSpeed: (Math.random() - 0.5) * 0.04,
+                    phase: Math.random() * Math.PI * 2
+                });
+            }
+
+            // Background sparkle stars
+            for (var j = 0; j < 30; j++) {
+                stars.push({
+                    x: Math.random() * W,
+                    y: Math.random() * H,
+                    size: 1 + Math.random() * 3,
+                    twinkle: Math.random() * Math.PI * 2,
+                    speed: 0.02 + Math.random() * 0.04
+                });
+            }
+
+            // Dancing characters at bottom
+            for (var k = 0; k < 5; k++) {
+                dancingChars.push({
+                    x: W * (0.15 + k * 0.175),
+                    baseY: H * 0.88,
+                    emoji: CHAR_EMOJIS[Math.floor(Math.random() * CHAR_EMOJIS.length)],
+                    phase: Math.random() * Math.PI * 2,
+                    bounceAmt: 10 + Math.random() * 15,
+                    size: 28 + Math.random() * 16
+                });
+            }
+        }
+
+        function drawStar(cx, cy, r, points) {
+            ctx.beginPath();
+            for (var i = 0; i < points * 2; i++) {
+                var radius = i % 2 === 0 ? r : r * 0.45;
+                var angle = (i * Math.PI) / points - Math.PI / 2;
+                if (i === 0) ctx.moveTo(cx + Math.cos(angle) * radius, cy + Math.sin(angle) * radius);
+                else ctx.lineTo(cx + Math.cos(angle) * radius, cy + Math.sin(angle) * radius);
+            }
+            ctx.closePath();
+        }
+
+        function animate(time) {
+            animFrame = requestAnimationFrame(animate);
+            var t = time * 0.001;
+
+            ctx.clearRect(0, 0, W, H);
+
+            // Simulated beat detection: pulse every ~0.5s when playing
+            if (isPlaying && !ChipPlayer.isPaused()) {
+                var beatInterval = 0.5;
+                if (t - lastBeat > beatInterval) {
+                    beatPulse = 1;
+                    lastBeat = t;
+                }
+            }
+            beatPulse *= 0.92;
+            hueShift = (hueShift + (isPlaying ? 0.3 : 0.05)) % 360;
+
+            // Draw sparkle stars
+            for (var i = 0; i < stars.length; i++) {
+                var s = stars[i];
+                s.twinkle += s.speed;
+                var alpha = 0.3 + 0.7 * Math.abs(Math.sin(s.twinkle));
+                ctx.globalAlpha = alpha;
+                ctx.fillStyle = '#fff';
+                ctx.beginPath();
+                ctx.arc(s.x, s.y, s.size + beatPulse * 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+
+            // Draw bouncing shapes
+            var speedMul = isPlaying && !ChipPlayer.isPaused() ? 1.5 : 0.3;
+            for (var j = 0; j < shapes.length; j++) {
+                var sh = shapes[j];
+                sh.x += sh.vx * speedMul;
+                sh.y += sh.vy * speedMul;
+                sh.rotation += sh.rotSpeed * speedMul;
+
+                // Bounce off walls
+                if (sh.x < 0 || sh.x > W) sh.vx *= -1;
+                if (sh.y < 0 || sh.y > H) sh.vy *= -1;
+                sh.x = Math.max(0, Math.min(W, sh.x));
+                sh.y = Math.max(0, Math.min(H, sh.y));
+
+                var pulseSize = sh.size + beatPulse * 12;
+                var alpha2 = 0.25 + beatPulse * 0.3;
+                ctx.globalAlpha = alpha2;
+                ctx.fillStyle = sh.color;
+
+                ctx.save();
+                ctx.translate(sh.x, sh.y);
+                ctx.rotate(sh.rotation);
+
+                if (sh.type === 0) {
+                    // Circle
+                    ctx.beginPath();
+                    ctx.arc(0, 0, pulseSize / 2, 0, Math.PI * 2);
+                    ctx.fill();
+                } else if (sh.type === 1) {
+                    // Star
+                    drawStar(0, 0, pulseSize / 2, 5);
+                    ctx.fill();
+                } else {
+                    // Diamond
+                    var half = pulseSize / 2;
+                    ctx.beginPath();
+                    ctx.moveTo(0, -half);
+                    ctx.lineTo(half, 0);
+                    ctx.lineTo(0, half);
+                    ctx.lineTo(-half, 0);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+
+                ctx.restore();
+            }
+            ctx.globalAlpha = 1;
+
+            // Draw dancing characters
+            if (isPlaying && !ChipPlayer.isPaused()) {
+                for (var k = 0; k < dancingChars.length; k++) {
+                    var dc = dancingChars[k];
+                    dc.phase += 0.06;
+                    var bounce = Math.sin(dc.phase) * dc.bounceAmt * (0.5 + beatPulse);
+                    var sway = Math.sin(dc.phase * 0.7) * 8;
+                    ctx.font = dc.size + 'px serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(dc.emoji, dc.x + sway, dc.baseY + bounce);
+                }
+            }
+
+            // Rainbow ring burst on beat
+            if (beatPulse > 0.3 && isPlaying) {
+                var ringAlpha = beatPulse * 0.4;
+                ctx.strokeStyle = 'hsla(' + hueShift + ', 80%, 70%, ' + ringAlpha + ')';
+                ctx.lineWidth = 3 + beatPulse * 6;
+                ctx.beginPath();
+                ctx.arc(W / 2, H * 0.35, 100 + (1 - beatPulse) * 80, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+        }
+
+        // ── Resize ──
+        window.addEventListener('resize', function() {
+            resizeCanvas();
+            resetVisualization();
+        });
+
+        // ── Start ──
+        buildDots();
+        resizeCanvas();
+        updateUI();
+        animate(0);
+
+    })();
+    </script>
+</body>
+</html>

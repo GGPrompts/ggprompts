@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#9B59B6">
+    <title>Dance Party!</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body {
+            width: 100%; height: 100%;
+            overflow: hidden;
+            overscroll-behavior: none;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-user-select: none;
+            user-select: none;
+            background: #1a0a2e;
+            font-family: 'Fredoka', sans-serif;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+        .back-btn {
+            position: fixed;
+            top: 12px;
+            left: 12px;
+            z-index: 20;
+            background: #E74C8B;
+            color: #fff;
+            font-family: 'Lilita One', cursive;
+            font-size: 1.2rem;
+            padding: 8px 18px;
+            border: 3px solid #fff;
+            border-radius: 9999px;
+            text-decoration: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            transition: transform 0.2s;
+        }
+        .back-btn:active { transform: scale(0.93); }
+        .btn-row {
+            position: fixed;
+            bottom: 12px;
+            left: 0; right: 0;
+            z-index: 20;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            padding: 0 12px;
+            pointer-events: none;
+        }
+        .btn-row button {
+            pointer-events: auto;
+            min-width: 80px;
+            min-height: 80px;
+            border: 3px solid #fff;
+            border-radius: 20px;
+            font-size: 2rem;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            transition: transform 0.15s;
+            font-family: 'Fredoka', sans-serif;
+            color: #fff;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .btn-row button:active { transform: scale(0.9); }
+        .btn-confetti { background: #E74C3C; }
+        .btn-disco   { background: #F1C40F; color: #333 !important; }
+        .btn-lights  { background: #2ECC71; }
+        .btn-bubbles { background: #3498DB; }
+        .btn-skip    { background: #9B59B6; }
+        .song-label {
+            position: fixed;
+            top: 12px;
+            right: 16px;
+            z-index: 20;
+            font-family: 'Lilita One', cursive;
+            font-size: 1.1rem;
+            color: #fff;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.4);
+            pointer-events: none;
+            max-width: 40%;
+            text-align: right;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }
+        .start-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 30;
+            background: linear-gradient(135deg, #9B59B6, #E74C8B, #F39C12);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+        }
+        .start-overlay h1 {
+            font-family: 'Lilita One', cursive;
+            font-size: 3rem;
+            color: #fff;
+            text-shadow: 3px 3px 0 rgba(0,0,0,0.2);
+        }
+        .start-overlay .start-btn {
+            font-family: 'Lilita One', cursive;
+            font-size: 2rem;
+            padding: 20px 60px;
+            background: #F1C40F;
+            color: #333;
+            border: 4px solid #fff;
+            border-radius: 9999px;
+            cursor: pointer;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+            transition: transform 0.2s;
+        }
+        .start-overlay .start-btn:active { transform: scale(0.93); }
+        .start-emoji {
+            font-size: 5rem;
+            animation: bounce 1s ease-in-out infinite;
+        }
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
+        }
+        @supports (padding: env(safe-area-inset-top)) {
+            .back-btn { top: calc(12px + env(safe-area-inset-top)); left: calc(12px + env(safe-area-inset-left)); }
+            .song-label { top: calc(12px + env(safe-area-inset-top)); right: calc(16px + env(safe-area-inset-right)); }
+            .btn-row { bottom: calc(12px + env(safe-area-inset-bottom)); }
+        }
+    </style>
+</head>
+<body>
+    <a href="../../" class="back-btn">&#8592; Back</a>
+    <div class="song-label" id="songLabel"></div>
+    <canvas id="stage"></canvas>
+
+    <div class="btn-row" id="btnRow">
+        <button class="btn-confetti" onclick="toggleEffect('confetti')" aria-label="Confetti">&#127881;</button>
+        <button class="btn-disco" onclick="toggleEffect('disco')" aria-label="Disco Ball">&#129345;</button>
+        <button class="btn-lights" onclick="toggleEffect('lights')" aria-label="Stage Lights">&#128161;</button>
+        <button class="btn-bubbles" onclick="toggleEffect('bubbles')" aria-label="Bubbles">&#129523;</button>
+        <button class="btn-skip" onclick="skipSong()" aria-label="Next Song">&#9193;</button>
+    </div>
+
+    <div class="start-overlay" id="startOverlay">
+        <div class="start-emoji">&#128131;</div>
+        <h1>Dance Party!</h1>
+        <button class="start-btn" id="startBtn">&#127926; Let's Dance!</button>
+    </div>
+
+    <script src="../../../music/audio-tracker/synth.js"></script>
+    <script src="../../../music/audio-tracker/playback-engine.js"></script>
+    <script>
+    (function() {
+        'use strict';
+
+        // ── Kid-friendly song list (upbeat, not too intense) ──
+        var SONG_LIST = [
+            { file: 'ode-to-joy.json', title: 'Ode to Joy', bpm: 120 },
+            { file: 'bonus-stage-bounce.json', title: 'Bonus Stage Bounce', bpm: 108 },
+            { file: 'the-coins-journey.json', title: "The Coin's Journey", bpm: 120 },
+            { file: 'neon-jackpot.json', title: 'Neon Jackpot', bpm: 116 },
+            { file: 'gilded-ascent.json', title: 'Gilded Ascent', bpm: 80 },
+            { file: 'canon-in-d.json', title: 'Canon in D', bpm: 108 },
+            { file: 'fur-elise.json', title: 'Fur Elise', bpm: 130 },
+            { file: 'crystal-caves.json', title: 'Crystal Caves', bpm: 90 },
+            { file: 'survivors-forest.json', title: 'Enchanted Forest', bpm: 100 },
+            { file: 'survivors-campfire.json', title: 'Campfire Rest', bpm: 84 },
+            { file: 'bazaar-of-the-midnight-sun.json', title: 'Bazaar of the Midnight Sun', bpm: 116 },
+            { file: 'photosynthesis.json', title: 'Photosynthesis', bpm: 80 }
+        ];
+
+        var songIndex = 0;
+        var currentBPM = 120;
+        var beatInterval = 60 / 120; // seconds per beat
+        var lastBeatTime = 0;
+        var beatPhase = 0; // 0-1 cycle
+
+        // ── Canvas Setup ──
+        var canvas = document.getElementById('stage');
+        var c = canvas.getContext('2d');
+        var W, H, floorY;
+        var dpr = window.devicePixelRatio || 1;
+
+        function resize() {
+            W = window.innerWidth;
+            H = window.innerHeight;
+            canvas.width = W * dpr;
+            canvas.height = H * dpr;
+            canvas.style.width = W + 'px';
+            canvas.style.height = H + 'px';
+            c.setTransform(dpr, 0, 0, dpr, 0, 0);
+            floorY = H * 0.72;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // ── Dancer colors ──
+        var DANCER_COLORS = [
+            '#E74C3C', '#3498DB', '#2ECC71', '#F1C40F',
+            '#9B59B6', '#E67E22', '#1ABC9C', '#E74C8B',
+            '#00BCD4', '#FF5722'
+        ];
+
+        // ── Dancer class ──
+        var dancers = [];
+        var MAX_DANCERS = 10;
+        var nextColorIdx = 0;
+
+        function Dancer(x, fromSide) {
+            this.x = fromSide === 'left' ? -60 : W + 60;
+            this.targetX = x;
+            this.y = floorY;
+            this.color = DANCER_COLORS[nextColorIdx % DANCER_COLORS.length];
+            nextColorIdx++;
+            this.size = 30 + Math.random() * 15; // head radius proxy
+            this.phase = Math.random() * Math.PI * 2;
+            this.armSwing = 0;
+            this.legSwing = 0;
+            this.bobY = 0;
+            this.specialMove = null;
+            this.specialTimer = 0;
+            this.entering = true;
+            this.hatType = Math.floor(Math.random() * 4); // 0=none,1=tophat,2=bow,3=star
+            this.eyeStyle = Math.floor(Math.random() * 3);
+        }
+
+        Dancer.prototype.update = function(dt, beat) {
+            // Entrance slide
+            if (this.entering) {
+                this.x += (this.targetX - this.x) * 0.08;
+                if (Math.abs(this.x - this.targetX) < 2) {
+                    this.x = this.targetX;
+                    this.entering = false;
+                }
+            }
+
+            // Beat-synced dancing
+            this.phase += dt * (currentBPM / 60) * Math.PI;
+            this.bobY = Math.abs(Math.sin(this.phase)) * 18;
+            this.armSwing = Math.sin(this.phase * 1.0) * 0.7;
+            this.legSwing = Math.sin(this.phase * 0.5) * 0.4;
+
+            // Special moves
+            if (this.specialMove) {
+                this.specialTimer -= dt;
+                if (this.specialTimer <= 0) {
+                    this.specialMove = null;
+                }
+            }
+        };
+
+        Dancer.prototype.draw = function() {
+            c.save();
+            var baseX = this.x;
+            var baseY = this.y - this.bobY;
+            var s = this.size / 30; // scale factor
+
+            // Special move transforms
+            if (this.specialMove === 'spin') {
+                var angle = (1 - this.specialTimer / 1.0) * Math.PI * 4;
+                c.translate(baseX, baseY);
+                c.rotate(angle);
+                c.translate(-baseX, -baseY);
+            } else if (this.specialMove === 'jump') {
+                var jumpT = 1 - this.specialTimer / 0.8;
+                var jumpY = Math.sin(jumpT * Math.PI) * 80;
+                baseY -= jumpY;
+            } else if (this.specialMove === 'split') {
+                var splitT = 1 - this.specialTimer / 1.2;
+                var splitAngle = Math.sin(splitT * Math.PI) * 0.6;
+                this.legSwing = splitAngle * 2;
+            }
+
+            // Shadow
+            c.fillStyle = 'rgba(0,0,0,0.15)';
+            c.beginPath();
+            c.ellipse(this.x, this.y + 5, 25 * s, 8 * s, 0, 0, Math.PI * 2);
+            c.fill();
+
+            // Body (simple stick figure with round head)
+            var headR = 18 * s;
+            var bodyLen = 40 * s;
+            var limbLen = 30 * s;
+
+            // Legs
+            c.strokeStyle = this.color;
+            c.lineWidth = 5 * s;
+            c.lineCap = 'round';
+
+            // Left leg
+            c.beginPath();
+            c.moveTo(baseX, baseY + bodyLen * 0.5);
+            c.lineTo(baseX - 15 * s + Math.sin(this.legSwing) * 15 * s,
+                     baseY + bodyLen * 0.5 + limbLen);
+            c.stroke();
+
+            // Right leg
+            c.beginPath();
+            c.moveTo(baseX, baseY + bodyLen * 0.5);
+            c.lineTo(baseX + 15 * s - Math.sin(this.legSwing) * 15 * s,
+                     baseY + bodyLen * 0.5 + limbLen);
+            c.stroke();
+
+            // Body
+            c.beginPath();
+            c.moveTo(baseX, baseY - headR);
+            c.lineTo(baseX, baseY + bodyLen * 0.5);
+            c.stroke();
+
+            // Arms
+            var armY = baseY + 5 * s;
+            // Left arm
+            c.beginPath();
+            c.moveTo(baseX, armY);
+            c.lineTo(baseX - limbLen * Math.cos(this.armSwing + 0.5),
+                     armY - limbLen * Math.sin(this.armSwing + 0.5));
+            c.stroke();
+
+            // Right arm
+            c.beginPath();
+            c.moveTo(baseX, armY);
+            c.lineTo(baseX + limbLen * Math.cos(-this.armSwing + 0.5),
+                     armY - limbLen * Math.sin(-this.armSwing + 0.5));
+            c.stroke();
+
+            // Head
+            c.fillStyle = this.color;
+            c.beginPath();
+            c.arc(baseX, baseY - headR - 5 * s, headR, 0, Math.PI * 2);
+            c.fill();
+            c.strokeStyle = '#fff';
+            c.lineWidth = 2 * s;
+            c.stroke();
+
+            // Eyes
+            var eyeY = baseY - headR - 7 * s;
+            c.fillStyle = '#fff';
+            c.beginPath();
+            c.arc(baseX - 6 * s, eyeY, 4 * s, 0, Math.PI * 2);
+            c.arc(baseX + 6 * s, eyeY, 4 * s, 0, Math.PI * 2);
+            c.fill();
+            c.fillStyle = '#333';
+            c.beginPath();
+            c.arc(baseX - 5 * s, eyeY, 2 * s, 0, Math.PI * 2);
+            c.arc(baseX + 5 * s, eyeY, 2 * s, 0, Math.PI * 2);
+            c.fill();
+
+            // Smile
+            c.strokeStyle = '#fff';
+            c.lineWidth = 2 * s;
+            c.beginPath();
+            c.arc(baseX, baseY - headR - 3 * s, 7 * s, 0.2, Math.PI - 0.2);
+            c.stroke();
+
+            // Hat/accessory
+            if (this.hatType === 1) {
+                // Top hat
+                c.fillStyle = '#333';
+                c.fillRect(baseX - 12 * s, baseY - headR * 2 - 12 * s, 24 * s, 16 * s);
+                c.fillRect(baseX - 16 * s, baseY - headR * 2 + 2 * s, 32 * s, 4 * s);
+            } else if (this.hatType === 2) {
+                // Bow
+                c.fillStyle = '#FF69B4';
+                c.beginPath();
+                c.moveTo(baseX, baseY - headR * 2 - 5 * s);
+                c.lineTo(baseX - 12 * s, baseY - headR * 2 - 15 * s);
+                c.lineTo(baseX, baseY - headR * 2 - 8 * s);
+                c.lineTo(baseX + 12 * s, baseY - headR * 2 - 15 * s);
+                c.closePath();
+                c.fill();
+            } else if (this.hatType === 3) {
+                // Star
+                drawStar(baseX, baseY - headR * 2 - 10 * s, 8 * s, 5, '#F1C40F');
+            }
+
+            c.restore();
+        };
+
+        Dancer.prototype.hitTest = function(tx, ty) {
+            var dx = tx - this.x;
+            var dy = ty - (this.y - this.bobY);
+            return dx * dx + dy * dy < 3000;
+        };
+
+        Dancer.prototype.doSpecialMove = function() {
+            var moves = ['spin', 'jump', 'split'];
+            this.specialMove = moves[Math.floor(Math.random() * moves.length)];
+            this.specialTimer = this.specialMove === 'spin' ? 1.0 :
+                                this.specialMove === 'jump' ? 0.8 : 1.2;
+        };
+
+        function drawStar(cx, cy, r, points, color) {
+            c.fillStyle = color;
+            c.beginPath();
+            for (var i = 0; i < points * 2; i++) {
+                var a = (i * Math.PI / points) - Math.PI / 2;
+                var rad = i % 2 === 0 ? r : r * 0.4;
+                if (i === 0) c.moveTo(cx + Math.cos(a) * rad, cy + Math.sin(a) * rad);
+                else c.lineTo(cx + Math.cos(a) * rad, cy + Math.sin(a) * rad);
+            }
+            c.closePath();
+            c.fill();
+        }
+
+        // ── Effects ──
+        var effects = { confetti: false, disco: false, lights: false, bubbles: false };
+        var confettiPieces = [];
+        var bubbleList = [];
+        var discoAngle = 0;
+        var lightsHue = 0;
+
+        window.toggleEffect = function(name) {
+            effects[name] = !effects[name];
+            if (name === 'confetti' && effects.confetti) spawnConfetti();
+            if (name === 'bubbles' && effects.bubbles) spawnBubbles();
+        };
+
+        function spawnConfetti() {
+            for (var i = 0; i < 60; i++) {
+                confettiPieces.push({
+                    x: Math.random() * W,
+                    y: -Math.random() * H * 0.5,
+                    vx: (Math.random() - 0.5) * 3,
+                    vy: Math.random() * 2 + 1,
+                    size: 4 + Math.random() * 6,
+                    color: 'hsl(' + Math.floor(Math.random() * 360) + ',90%,60%)',
+                    rot: Math.random() * Math.PI * 2,
+                    rotV: (Math.random() - 0.5) * 0.2
+                });
+            }
+        }
+
+        function spawnBubbles() {
+            for (var i = 0; i < 20; i++) {
+                bubbleList.push({
+                    x: Math.random() * W,
+                    y: H + Math.random() * 100,
+                    r: 10 + Math.random() * 25,
+                    vy: -(1 + Math.random() * 1.5),
+                    vx: (Math.random() - 0.5) * 0.5,
+                    alpha: 0.4 + Math.random() * 0.3
+                });
+            }
+        }
+
+        function updateConfetti(dt) {
+            if (!effects.confetti && confettiPieces.length === 0) return;
+            if (effects.confetti && confettiPieces.length < 80 && Math.random() < 0.3) spawnConfetti();
+            for (var i = confettiPieces.length - 1; i >= 0; i--) {
+                var p = confettiPieces[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.rot += p.rotV;
+                if (p.y > H + 20) confettiPieces.splice(i, 1);
+            }
+        }
+
+        function drawConfetti() {
+            for (var i = 0; i < confettiPieces.length; i++) {
+                var p = confettiPieces[i];
+                c.save();
+                c.translate(p.x, p.y);
+                c.rotate(p.rot);
+                c.fillStyle = p.color;
+                c.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2);
+                c.restore();
+            }
+        }
+
+        function updateBubbles(dt) {
+            if (!effects.bubbles && bubbleList.length === 0) return;
+            if (effects.bubbles && bubbleList.length < 30 && Math.random() < 0.1) spawnBubbles();
+            for (var i = bubbleList.length - 1; i >= 0; i--) {
+                var b = bubbleList[i];
+                b.y += b.vy;
+                b.x += b.vx + Math.sin(b.y * 0.02) * 0.3;
+                if (b.y < -b.r * 2) bubbleList.splice(i, 1);
+            }
+        }
+
+        function drawBubbles() {
+            for (var i = 0; i < bubbleList.length; i++) {
+                var b = bubbleList[i];
+                c.beginPath();
+                c.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+                c.strokeStyle = 'rgba(255,255,255,' + b.alpha + ')';
+                c.lineWidth = 2;
+                c.stroke();
+                // Shine
+                c.beginPath();
+                c.arc(b.x - b.r * 0.3, b.y - b.r * 0.3, b.r * 0.2, 0, Math.PI * 2);
+                c.fillStyle = 'rgba(255,255,255,' + (b.alpha * 0.7) + ')';
+                c.fill();
+            }
+        }
+
+        function drawDisco(dt) {
+            if (!effects.disco) return;
+            discoAngle += dt * 0.5;
+            var cx = W / 2, cy = H * 0.15;
+
+            // Disco ball
+            c.fillStyle = '#ccc';
+            c.beginPath();
+            c.arc(cx, cy, 30, 0, Math.PI * 2);
+            c.fill();
+            c.strokeStyle = '#999';
+            c.lineWidth = 1;
+            // Grid lines on ball
+            for (var g = 0; g < 6; g++) {
+                c.beginPath();
+                c.arc(cx, cy, 30, g * Math.PI / 3, g * Math.PI / 3 + 0.15);
+                c.stroke();
+            }
+            c.fillStyle = '#fff';
+            for (var gg = 0; gg < 8; gg++) {
+                var ga = discoAngle * 2 + gg * Math.PI / 4;
+                c.beginPath();
+                c.arc(cx + Math.cos(ga) * 18, cy + Math.sin(ga) * 12, 4, 0, Math.PI * 2);
+                c.fill();
+            }
+
+            // Light beams
+            c.globalAlpha = 0.12;
+            for (var b = 0; b < 8; b++) {
+                var ba = discoAngle + b * Math.PI / 4;
+                var bx = cx + Math.cos(ba) * W;
+                var by = cy + Math.sin(ba) * H;
+                c.fillStyle = 'hsl(' + ((b * 45 + discoAngle * 60) % 360) + ',100%,70%)';
+                c.beginPath();
+                c.moveTo(cx, cy);
+                c.lineTo(bx - 30, by);
+                c.lineTo(bx + 30, by);
+                c.closePath();
+                c.fill();
+            }
+            c.globalAlpha = 1;
+        }
+
+        function drawStageLights(dt) {
+            if (!effects.lights) return;
+            lightsHue += dt * 120;
+            c.globalAlpha = 0.08;
+            // Color wash
+            c.fillStyle = 'hsl(' + (lightsHue % 360) + ',100%,50%)';
+            c.fillRect(0, 0, W, H);
+
+            // Spotlights
+            for (var i = 0; i < 3; i++) {
+                var sx = W * (0.2 + i * 0.3);
+                var grad = c.createRadialGradient(sx, 0, 0, sx, floorY, W * 0.2);
+                grad.addColorStop(0, 'hsl(' + ((lightsHue + i * 120) % 360) + ',100%,70%)');
+                grad.addColorStop(1, 'transparent');
+                c.fillStyle = grad;
+                c.beginPath();
+                c.moveTo(sx - 10, 0);
+                c.lineTo(sx - W * 0.15, floorY + 40);
+                c.lineTo(sx + W * 0.15, floorY + 40);
+                c.lineTo(sx + 10, 0);
+                c.closePath();
+                c.fill();
+            }
+            c.globalAlpha = 1;
+        }
+
+        // ── Disco Floor ──
+        var floorHue = 0;
+        function drawFloor(dt) {
+            floorHue += dt * 30;
+            var tileSize = 50;
+            var cols = Math.ceil(W / tileSize) + 1;
+            var rows = Math.ceil((H - floorY) / tileSize) + 1;
+
+            for (var r = 0; r < rows; r++) {
+                for (var col = 0; col < cols; col++) {
+                    var hue = ((col + r) * 40 + floorHue) % 360;
+                    var bright = 40 + Math.sin((col + r) * 0.5 + beatPhase * Math.PI * 2) * 15;
+                    c.fillStyle = 'hsl(' + hue + ',80%,' + bright + '%)';
+                    c.fillRect(col * tileSize, floorY + r * tileSize, tileSize - 1, tileSize - 1);
+                }
+            }
+        }
+
+        // ── Background ──
+        var bgPulse = 0;
+        function drawBackground(dt) {
+            bgPulse = 0.5 + Math.sin(beatPhase * Math.PI * 2) * 0.15;
+            var grad = c.createLinearGradient(0, 0, 0, floorY);
+            var h1 = (floorHue * 0.5) % 360;
+            var h2 = (h1 + 60) % 360;
+            grad.addColorStop(0, 'hsl(' + h1 + ',30%,' + (10 + bgPulse * 8) + '%)');
+            grad.addColorStop(1, 'hsl(' + h2 + ',40%,' + (18 + bgPulse * 10) + '%)');
+            c.fillStyle = grad;
+            c.fillRect(0, 0, W, floorY);
+        }
+
+        // ── Sparkle particles on tap ──
+        var sparkles = [];
+        function spawnSparkles(x, y) {
+            for (var i = 0; i < 12; i++) {
+                var a = Math.random() * Math.PI * 2;
+                var speed = 2 + Math.random() * 4;
+                sparkles.push({
+                    x: x, y: y,
+                    vx: Math.cos(a) * speed,
+                    vy: Math.sin(a) * speed - 2,
+                    life: 0.5 + Math.random() * 0.5,
+                    color: 'hsl(' + Math.floor(Math.random() * 360) + ',100%,70%)',
+                    size: 3 + Math.random() * 4
+                });
+            }
+        }
+
+        function updateSparkles(dt) {
+            for (var i = sparkles.length - 1; i >= 0; i--) {
+                var s = sparkles[i];
+                s.x += s.vx;
+                s.y += s.vy;
+                s.vy += 3 * dt;
+                s.life -= dt;
+                if (s.life <= 0) sparkles.splice(i, 1);
+            }
+        }
+
+        function drawSparkles() {
+            for (var i = 0; i < sparkles.length; i++) {
+                var s = sparkles[i];
+                c.globalAlpha = Math.max(0, s.life * 2);
+                drawStar(s.x, s.y, s.size, 4, s.color);
+            }
+            c.globalAlpha = 1;
+        }
+
+        // ── Music ──
+        var musicStarted = false;
+
+        function shuffleArray(arr) {
+            for (var i = arr.length - 1; i > 0; i--) {
+                var j = Math.floor(Math.random() * (i + 1));
+                var temp = arr[i]; arr[i] = arr[j]; arr[j] = temp;
+            }
+        }
+
+        function loadAndPlaySong(idx) {
+            songIndex = idx % SONG_LIST.length;
+            var song = SONG_LIST[songIndex];
+            currentBPM = song.bpm;
+            beatInterval = 60 / currentBPM;
+            document.getElementById('songLabel').textContent = song.title;
+
+            fetch('../../../music/audio-tracker/songs/' + song.file)
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (ChipPlayer.isPlaying()) ChipPlayer.stop();
+                    ChipPlayer.load(data);
+                    ChipPlayer.play();
+                })
+                .catch(function(e) {
+                    console.warn('Failed to load song:', e);
+                    // Try next song
+                    loadAndPlaySong(songIndex + 1);
+                });
+        }
+
+        window.skipSong = function() {
+            loadAndPlaySong(songIndex + 1);
+            // Fun: all dancers do a special move on skip
+            for (var i = 0; i < dancers.length; i++) {
+                dancers[i].doSpecialMove();
+            }
+        };
+
+        function startMusic() {
+            if (musicStarted) return;
+            musicStarted = true;
+            ChipPlayer.init();
+            ChipPlayer.setVolume(0.5);
+            shuffleArray(SONG_LIST);
+            loadAndPlaySong(0);
+
+            // Auto-advance songs
+            setInterval(function() {
+                if (!ChipPlayer.isPlaying() && musicStarted) {
+                    loadAndPlaySong(songIndex + 1);
+                }
+            }, 2000);
+        }
+
+        // ── Start overlay ──
+        document.getElementById('startBtn').addEventListener('click', function() {
+            document.getElementById('startOverlay').style.display = 'none';
+            startMusic();
+            // Spawn initial dancers
+            for (var i = 0; i < 4; i++) {
+                var x = W * 0.2 + (W * 0.6 / 3) * i;
+                var d = new Dancer(x, i % 2 === 0 ? 'left' : 'right');
+                dancers.push(d);
+            }
+        });
+
+        // ── Touch / Click ──
+        function handleTap(tx, ty) {
+            if (!musicStarted) return;
+
+            // Check button area (bottom 100px)
+            if (ty > H - 110) return;
+
+            // Check dancer hit
+            var hitDancer = null;
+            for (var i = 0; i < dancers.length; i++) {
+                if (dancers[i].hitTest(tx, ty)) {
+                    hitDancer = dancers[i];
+                    break;
+                }
+            }
+
+            if (hitDancer) {
+                hitDancer.doSpecialMove();
+                spawnSparkles(tx, ty);
+            } else {
+                // Add new dancer
+                if (dancers.length >= MAX_DANCERS) {
+                    dancers.shift(); // Remove oldest
+                }
+                var d = new Dancer(tx, tx < W / 2 ? 'left' : 'right');
+                dancers.push(d);
+                spawnSparkles(tx, ty);
+            }
+        }
+
+        canvas.addEventListener('pointerdown', function(e) {
+            e.preventDefault();
+            var rect = canvas.getBoundingClientRect();
+            handleTap(e.clientX - rect.left, e.clientY - rect.top);
+        });
+
+        // ── Game Loop ──
+        var lastTime = 0;
+
+        function loop(ts) {
+            requestAnimationFrame(loop);
+            var dt = Math.min((ts - lastTime) / 1000, 0.05);
+            lastTime = ts;
+
+            // Beat tracking
+            var now = ts / 1000;
+            beatPhase = ((now % beatInterval) / beatInterval);
+
+            // Clear
+            c.clearRect(0, 0, W, H);
+
+            // Draw layers
+            drawBackground(dt);
+            drawStageLights(dt);
+            drawFloor(dt);
+            drawDisco(dt);
+
+            // Update and draw dancers
+            for (var i = 0; i < dancers.length; i++) {
+                dancers[i].update(dt, beatPhase);
+            }
+            // Sort by Y for depth (not really needed for stick figures but nice)
+            for (var i = 0; i < dancers.length; i++) {
+                dancers[i].draw();
+            }
+
+            // Effects
+            updateConfetti(dt);
+            drawConfetti();
+            updateBubbles(dt);
+            drawBubbles();
+            updateSparkles(dt);
+            drawSparkles();
+        }
+
+        requestAnimationFrame(loop);
+    })();
+    </script>
+</body>
+</html>
