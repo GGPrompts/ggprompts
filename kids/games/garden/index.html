@@ -1,0 +1,1494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#7EC850">
+    <title>Garden Builder</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body {
+            width: 100%; height: 100%;
+            overflow: hidden;
+            overscroll-behavior: none;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-user-select: none;
+            user-select: none;
+            background: #87CEEB;
+            font-family: 'Fredoka', sans-serif;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+        .back-btn {
+            position: fixed;
+            top: 12px;
+            left: 12px;
+            z-index: 20;
+            background: #7EC850;
+            color: #fff;
+            font-family: 'Lilita One', cursive;
+            font-size: 1.2rem;
+            padding: 8px 18px;
+            border: 3px solid #fff;
+            border-radius: 9999px;
+            text-decoration: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transition: transform 0.2s;
+        }
+        .back-btn:active { transform: scale(0.93); }
+        .top-btn {
+            position: fixed;
+            top: 12px;
+            z-index: 20;
+            color: #fff;
+            font-size: 2rem;
+            width: 56px;
+            height: 56px;
+            border: 3px solid #fff;
+            border-radius: 50%;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: transform 0.2s, background 0.3s;
+            line-height: 1;
+        }
+        .top-btn:active { transform: scale(0.9); }
+        #dayNightBtn { right: 76px; background: #FFE066; }
+        #rainBtn { right: 12px; background: #42A5F5; }
+        .toolbar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 20;
+            display: flex;
+            gap: 6px;
+            padding: 8px 6px;
+            padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+            background: rgba(255,255,255,0.85);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            overflow-x: auto;
+            overflow-y: hidden;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+        }
+        .toolbar::-webkit-scrollbar { display: none; }
+        .tool-btn {
+            flex: 0 0 auto;
+            width: 70px;
+            height: 70px;
+            border-radius: 16px;
+            border: 3px solid #ddd;
+            background: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            cursor: pointer;
+            transition: transform 0.15s, border-color 0.15s, background 0.15s;
+            position: relative;
+        }
+        .tool-btn span {
+            font-size: 0.55rem;
+            font-family: 'Fredoka', sans-serif;
+            font-weight: 600;
+            color: #888;
+            margin-top: 2px;
+            line-height: 1;
+        }
+        .tool-btn:active { transform: scale(0.92); }
+        .tool-btn.selected {
+            border-color: #7EC850;
+            background: #F0FFE0;
+            box-shadow: 0 0 12px rgba(126,200,80,0.5);
+        }
+        .tool-btn.selected span { color: #4A8C20; }
+        @supports (padding: env(safe-area-inset-top)) {
+            .back-btn { top: calc(12px + env(safe-area-inset-top)); left: calc(12px + env(safe-area-inset-left)); }
+            .top-btn { top: calc(12px + env(safe-area-inset-top)); }
+        }
+    </style>
+</head>
+<body>
+    <a href="../../index.html" class="back-btn">&#8592; Back</a>
+    <div class="top-btn" id="dayNightBtn">&#9728;&#65039;</div>
+    <div class="top-btn" id="rainBtn">&#127782;&#65039;</div>
+    <canvas id="world"></canvas>
+    <div class="toolbar" id="toolbar"></div>
+
+    <script>
+    (function() {
+        'use strict';
+
+        // ── Canvas Setup ──
+        var canvas = document.getElementById('world');
+        var ctx = canvas.getContext('2d');
+        var W, H, groundY, toolbarH;
+        var dpr = window.devicePixelRatio || 1;
+
+        function resize() {
+            W = window.innerWidth;
+            H = window.innerHeight;
+            canvas.width = W * dpr;
+            canvas.height = H * dpr;
+            canvas.style.width = W + 'px';
+            canvas.style.height = H + 'px';
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            toolbarH = 86;
+            groundY = H * 0.5;
+        }
+        resize();
+        window.addEventListener('resize', resize);
+
+        // ── Colors ──
+        var GREEN = '#7EC850';
+        var GREEN_DARK = '#5AA832';
+        var SKY_TOP_DAY = '#D6EFFF';
+        var SKY_BOT_DAY = '#87CEEB';
+        var SKY_TOP_NIGHT = '#0B1026';
+        var SKY_BOT_NIGHT = '#1A2744';
+        var GRASS_NIGHT = '#2D5A1E';
+        var GRASS_DARK_NIGHT = '#1A3F10';
+        var PINK = '#FF8FAB';
+        var RED = '#E74C3C';
+        var YELLOW = '#FFE066';
+        var PURPLE = '#B07CC6';
+        var BLUE = '#42A5F5';
+        var WHITE = '#FFFFFF';
+        var ORANGE = '#FF9F43';
+
+        var FLOWER_COLORS = ['#FF6B9D', '#FFD93D', '#B07CC6', '#FF8FAB', '#FF6348'];
+        var TREE_TRUNK = '#8B6914';
+        var TREE_TRUNK_DARK = '#6B4F12';
+
+        // ── State ──
+        var time = 0;
+        var lastTime = 0;
+        var isNight = false;
+        var isRaining = false;
+        var rainDrops = [];
+        var placedItems = [];
+        var wildlife = [];
+        var particles = [];
+        var clouds = [];
+        var stars = [];
+        var selectedTool = null;
+        var audioCtx = null;
+        var breezeTime = 0;
+
+        // ── Tool Definitions ──
+        var TOOLS = [
+            { id: 'tulip', icon: '\uD83C\uDF37', label: 'Tulip', category: 'flower' },
+            { id: 'sunflower', icon: '\uD83C\uDF3B', label: 'Sunflwr', category: 'flower' },
+            { id: 'rose', icon: '\uD83C\uDF39', label: 'Rose', category: 'flower' },
+            { id: 'daisy', icon: '\uD83C\uDF3C', label: 'Daisy', category: 'flower' },
+            { id: 'blossom', icon: '\uD83C\uDF38', label: 'Blossom', category: 'flower' },
+            { id: 'oak', icon: '\uD83C\uDF33', label: 'Oak', category: 'tree' },
+            { id: 'pine', icon: '\uD83C\uDF32', label: 'Pine', category: 'tree' },
+            { id: 'palm', icon: '\uD83C\uDF34', label: 'Palm', category: 'tree' },
+            { id: 'pond', icon: '\uD83D\uDCA7', label: 'Pond', category: 'water' },
+            { id: 'fence', icon: '\uD83E\uDDF1', label: 'Fence', category: 'structure' },
+            { id: 'path', icon: '\u26AA', label: 'Path', category: 'structure' },
+            { id: 'bench', icon: '\uD83E\uDE91', label: 'Bench', category: 'structure' },
+            { id: 'birdhouse', icon: '\uD83C\uDFE0', label: 'Birdhse', category: 'structure' }
+        ];
+
+        // ── Build Toolbar ──
+        var toolbarEl = document.getElementById('toolbar');
+        TOOLS.forEach(function(tool) {
+            var btn = document.createElement('div');
+            btn.className = 'tool-btn';
+            btn.setAttribute('data-tool', tool.id);
+            btn.innerHTML = tool.icon + '<span>' + tool.label + '</span>';
+            btn.addEventListener('pointerdown', function(e) {
+                e.stopPropagation();
+                selectTool(tool.id);
+            });
+            toolbarEl.appendChild(btn);
+        });
+
+        function selectTool(id) {
+            if (selectedTool === id) {
+                selectedTool = null;
+            } else {
+                selectedTool = id;
+            }
+            var btns = document.querySelectorAll('.tool-btn');
+            btns.forEach(function(b) {
+                b.classList.toggle('selected', b.getAttribute('data-tool') === selectedTool);
+            });
+        }
+
+        // ── Init Clouds ──
+        for (var ci = 0; ci < 6; ci++) {
+            clouds.push({
+                x: Math.random() * 1600 - 200,
+                y: 20 + Math.random() * (groundY * 0.35),
+                w: 80 + Math.random() * 120,
+                speed: 6 + Math.random() * 10
+            });
+        }
+
+        // ── Init Stars ──
+        for (var si = 0; si < 80; si++) {
+            stars.push({
+                x: Math.random(),
+                y: Math.random() * 0.45,
+                size: 0.5 + Math.random() * 2,
+                twinkle: Math.random() * Math.PI * 2
+            });
+        }
+
+        // ── Audio ──
+        function initAudio() {
+            if (audioCtx) return;
+            try {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            } catch (e) {}
+        }
+
+        function playPlantSound() {
+            if (!audioCtx) return;
+            try {
+                var now = audioCtx.currentTime;
+                var osc = audioCtx.createOscillator();
+                var gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(440, now);
+                osc.frequency.exponentialRampToValueAtTime(880, now + 0.1);
+                osc.frequency.exponentialRampToValueAtTime(660, now + 0.25);
+                gain.gain.setValueAtTime(0.08, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now);
+                osc.stop(now + 0.35);
+
+                var osc2 = audioCtx.createOscillator();
+                var gain2 = audioCtx.createGain();
+                osc2.type = 'triangle';
+                osc2.frequency.setValueAtTime(660, now + 0.05);
+                osc2.frequency.exponentialRampToValueAtTime(1100, now + 0.15);
+                gain2.gain.setValueAtTime(0.05, now + 0.05);
+                gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+                osc2.connect(gain2);
+                gain2.connect(audioCtx.destination);
+                osc2.start(now + 0.05);
+                osc2.stop(now + 0.35);
+            } catch (e) {}
+        }
+
+        function playRainSound() {
+            if (!audioCtx) return;
+            try {
+                var now = audioCtx.currentTime;
+                var bufferSize = audioCtx.sampleRate * 0.5;
+                var buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+                var data = buffer.getChannelData(0);
+                for (var i = 0; i < bufferSize; i++) {
+                    data[i] = (Math.random() * 2 - 1) * 0.02;
+                }
+                var src = audioCtx.createBufferSource();
+                src.buffer = buffer;
+                var filter = audioCtx.createBiquadFilter();
+                filter.type = 'bandpass';
+                filter.frequency.value = 2000;
+                filter.Q.value = 0.5;
+                var gain = audioCtx.createGain();
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+                src.connect(filter);
+                filter.connect(gain);
+                gain.connect(audioCtx.destination);
+                src.start(now);
+                src.stop(now + 0.5);
+            } catch (e) {}
+        }
+
+        function playChime() {
+            if (!audioCtx) return;
+            try {
+                var now = audioCtx.currentTime;
+                var notes = [523, 659, 784];
+                for (var i = 0; i < notes.length; i++) {
+                    var osc = audioCtx.createOscillator();
+                    var gain = audioCtx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.value = notes[i];
+                    gain.gain.setValueAtTime(0, now + i * 0.12);
+                    gain.gain.linearRampToValueAtTime(0.04, now + i * 0.12 + 0.03);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.12 + 0.6);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now + i * 0.12);
+                    osc.stop(now + i * 0.12 + 0.6);
+                }
+            } catch (e) {}
+        }
+
+        // ── Particles ──
+        function spawnSparkles(x, y, count, colors) {
+            for (var i = 0; i < count; i++) {
+                var angle = Math.random() * Math.PI * 2;
+                var speed = 30 + Math.random() * 60;
+                particles.push({
+                    x: x, y: y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed - 20,
+                    life: 0.6 + Math.random() * 0.5,
+                    maxLife: 0.6 + Math.random() * 0.5,
+                    size: 2 + Math.random() * 4,
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    type: Math.random() > 0.5 ? 'star' : 'circle'
+                });
+            }
+        }
+
+        // ── Wildlife ──
+        function createButterfly(x, y) {
+            return {
+                type: 'butterfly',
+                x: x, y: y,
+                targetX: x, targetY: y,
+                phase: Math.random() * Math.PI * 2,
+                wingPhase: Math.random() * Math.PI * 2,
+                size: 8 + Math.random() * 5,
+                color: [PINK, YELLOW, PURPLE, ORANGE, '#FF6B9D'][Math.floor(Math.random() * 5)],
+                life: 10 + Math.random() * 15,
+                moveTimer: 0
+            };
+        }
+
+        function createBird(x, y) {
+            return {
+                type: 'bird',
+                x: x, y: y,
+                targetX: x, targetY: y - 40,
+                phase: Math.random() * Math.PI * 2,
+                wingPhase: Math.random() * Math.PI * 2,
+                size: 10 + Math.random() * 4,
+                color: ['#E74C3C', '#3498DB', '#F39C12', '#8E44AD'][Math.floor(Math.random() * 4)],
+                life: 12 + Math.random() * 10,
+                moveTimer: 0
+            };
+        }
+
+        function createFrog(x, y) {
+            return {
+                type: 'frog',
+                x: x, y: y,
+                targetX: x, targetY: y,
+                phase: Math.random() * Math.PI * 2,
+                size: 10 + Math.random() * 4,
+                jumpTimer: 2 + Math.random() * 4,
+                jumping: false,
+                jumpVY: 0,
+                baseY: y,
+                life: 15 + Math.random() * 10
+            };
+        }
+
+        function createBee(x, y) {
+            return {
+                type: 'bee',
+                x: x, y: y,
+                targetX: x, targetY: y,
+                phase: Math.random() * Math.PI * 2,
+                wingPhase: Math.random() * Math.PI * 2,
+                size: 6 + Math.random() * 3,
+                life: 8 + Math.random() * 10,
+                moveTimer: 0,
+                pollinateTimer: 0
+            };
+        }
+
+        function createFirefly(x, y) {
+            return {
+                type: 'firefly',
+                x: x, y: y,
+                targetX: x + (Math.random() - 0.5) * 100,
+                targetY: y + (Math.random() - 0.5) * 60,
+                phase: Math.random() * Math.PI * 2,
+                size: 3 + Math.random() * 2,
+                glowPhase: Math.random() * Math.PI * 2,
+                life: 20 + Math.random() * 15,
+                moveTimer: 0
+            };
+        }
+
+        // Spawn wildlife based on placed items
+        var wildlifeSpawnTimer = 0;
+        function trySpawnWildlife(dt) {
+            wildlifeSpawnTimer -= dt;
+            if (wildlifeSpawnTimer > 0) return;
+            wildlifeSpawnTimer = 2 + Math.random() * 3;
+
+            // Max wildlife
+            if (wildlife.length >= 25) return;
+
+            var flowerItems = placedItems.filter(function(it) {
+                return it.category === 'flower' && it.growth >= 1;
+            });
+            var birdhouses = placedItems.filter(function(it) {
+                return it.type === 'birdhouse' && it.growth >= 1;
+            });
+            var ponds = placedItems.filter(function(it) {
+                return it.type === 'pond' && it.growth >= 1;
+            });
+
+            // Butterflies near flowers
+            if (flowerItems.length > 0 && wildlife.filter(function(w) { return w.type === 'butterfly'; }).length < flowerItems.length) {
+                var f = flowerItems[Math.floor(Math.random() * flowerItems.length)];
+                wildlife.push(createButterfly(f.x + (Math.random() - 0.5) * 40, f.y - 30 - Math.random() * 30));
+            }
+
+            // Bees between flowers
+            if (flowerItems.length >= 2 && wildlife.filter(function(w) { return w.type === 'bee'; }).length < Math.min(5, Math.floor(flowerItems.length / 2))) {
+                var bf = flowerItems[Math.floor(Math.random() * flowerItems.length)];
+                wildlife.push(createBee(bf.x, bf.y - 20));
+            }
+
+            // Birds near birdhouses
+            if (birdhouses.length > 0 && wildlife.filter(function(w) { return w.type === 'bird'; }).length < birdhouses.length * 2) {
+                var bh = birdhouses[Math.floor(Math.random() * birdhouses.length)];
+                wildlife.push(createBird(bh.x + (Math.random() - 0.5) * 60, bh.y - 30));
+            }
+
+            // Frogs near ponds
+            if (ponds.length > 0 && wildlife.filter(function(w) { return w.type === 'frog'; }).length < ponds.length * 2) {
+                var p = ponds[Math.floor(Math.random() * ponds.length)];
+                wildlife.push(createFrog(p.x + (Math.random() - 0.5) * 50, p.y + 5));
+            }
+
+            // Fireflies at night
+            if (isNight && wildlife.filter(function(w) { return w.type === 'firefly'; }).length < 12) {
+                wildlife.push(createFirefly(
+                    40 + Math.random() * (W - 80),
+                    groundY - 20 - Math.random() * (groundY * 0.5)
+                ));
+            }
+        }
+
+        function findNearestFlower(x, y) {
+            var best = null, bestDist = Infinity;
+            placedItems.forEach(function(it) {
+                if (it.category === 'flower' && it.growth >= 1) {
+                    var d = Math.hypot(it.x - x, it.y - y);
+                    if (d < bestDist) { bestDist = d; best = it; }
+                }
+            });
+            return best;
+        }
+
+        // ── Day/Night Toggle ──
+        var dayNightBtn = document.getElementById('dayNightBtn');
+        dayNightBtn.addEventListener('pointerdown', function(e) {
+            e.stopPropagation();
+            initAudio();
+            isNight = !isNight;
+            dayNightBtn.textContent = isNight ? '\uD83C\uDF19' : '\u2600\uFE0F';
+            dayNightBtn.style.background = isNight ? '#3A3A7A' : '#FFE066';
+            playChime();
+            // Remove fireflies in daytime
+            if (!isNight) {
+                wildlife = wildlife.filter(function(w) { return w.type !== 'firefly'; });
+            }
+        });
+
+        // ── Rain Toggle ──
+        var rainBtn = document.getElementById('rainBtn');
+        rainBtn.addEventListener('pointerdown', function(e) {
+            e.stopPropagation();
+            initAudio();
+            isRaining = !isRaining;
+            rainBtn.style.background = isRaining ? '#1E88E5' : '#42A5F5';
+            rainBtn.style.borderColor = isRaining ? '#FFE066' : '#fff';
+            if (isRaining) playRainSound();
+        });
+
+        // ── Place Item ──
+        function placeItem(x, y) {
+            if (!selectedTool) return;
+            var tool = TOOLS.find(function(t) { return t.id === selectedTool; });
+            if (!tool) return;
+
+            // Clamp to ground area
+            if (tool.category === 'flower' || tool.category === 'structure') {
+                if (y < groundY) y = groundY + 5;
+            } else if (tool.category === 'tree') {
+                if (y < groundY - 10) y = groundY;
+            } else if (tool.category === 'water') {
+                if (y < groundY + 10) y = groundY + 15;
+            }
+            if (y > H - toolbarH - 20) y = H - toolbarH - 20;
+            if (x < 30) x = 30;
+            if (x > W - 30) x = W - 30;
+
+            placedItems.push({
+                type: selectedTool,
+                category: tool.category,
+                x: x,
+                y: y,
+                growth: 0,
+                growthRate: isRaining ? 0.6 : 0.3,
+                phase: Math.random() * Math.PI * 2,
+                placed: time,
+                color: tool.category === 'flower' ? FLOWER_COLORS[Math.floor(Math.random() * FLOWER_COLORS.length)] : null
+            });
+
+            spawnSparkles(x, y - 10, 10, [GREEN, YELLOW, '#fff', '#90EE90']);
+            playPlantSound();
+        }
+
+        // ── Canvas Tap ──
+        canvas.addEventListener('pointerdown', function(e) {
+            e.preventDefault();
+            initAudio();
+            var rect = canvas.getBoundingClientRect();
+            var cx = e.clientX - rect.left;
+            var cy = e.clientY - rect.top;
+            if (cy < 60 || cy > H - toolbarH) return;
+            placeItem(cx, cy);
+        });
+
+        canvas.addEventListener('touchstart', function(e) { e.preventDefault(); }, { passive: false });
+
+        // ── Draw Helpers ──
+        function drawStar(cx, cy, size, points, color) {
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            for (var i = 0; i < points * 2; i++) {
+                var a = (Math.PI * 2 / (points * 2)) * i - Math.PI / 2;
+                var r = (i % 2 === 0) ? size : size * 0.4;
+                ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+            }
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        function lerp(a, b, t) { return a + (b - a) * t; }
+
+        // ── Draw Background ──
+        function drawBackground() {
+            var skyTop = isNight ? SKY_TOP_NIGHT : SKY_TOP_DAY;
+            var skyBot = isNight ? SKY_BOT_NIGHT : SKY_BOT_DAY;
+            var grassCol = isNight ? GRASS_NIGHT : GREEN;
+            var grassDark = isNight ? GRASS_DARK_NIGHT : GREEN_DARK;
+
+            // Sky gradient
+            var skyGrad = ctx.createLinearGradient(0, 0, 0, groundY);
+            skyGrad.addColorStop(0, skyTop);
+            skyGrad.addColorStop(1, skyBot);
+            ctx.fillStyle = skyGrad;
+            ctx.fillRect(0, 0, W, groundY);
+
+            // Stars at night
+            if (isNight) {
+                stars.forEach(function(s) {
+                    var alpha = 0.4 + 0.6 * Math.abs(Math.sin(s.twinkle + time * 1.5));
+                    ctx.globalAlpha = alpha;
+                    ctx.fillStyle = '#fff';
+                    ctx.beginPath();
+                    ctx.arc(s.x * W, s.y * H, s.size, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+                ctx.globalAlpha = 1;
+            }
+
+            // Sun / Moon
+            if (isNight) {
+                ctx.fillStyle = '#E8E8C8';
+                ctx.beginPath();
+                ctx.arc(W * 0.8, 60, 30, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = SKY_TOP_NIGHT;
+                ctx.beginPath();
+                ctx.arc(W * 0.8 + 10, 55, 26, 0, Math.PI * 2);
+                ctx.fill();
+            } else {
+                // Sun with gentle glow
+                ctx.save();
+                var sunX = W * 0.8, sunY = 55;
+                var sunGlow = ctx.createRadialGradient(sunX, sunY, 20, sunX, sunY, 60);
+                sunGlow.addColorStop(0, 'rgba(255,236,130,0.6)');
+                sunGlow.addColorStop(1, 'rgba(255,236,130,0)');
+                ctx.fillStyle = sunGlow;
+                ctx.fillRect(sunX - 60, sunY - 60, 120, 120);
+                ctx.fillStyle = YELLOW;
+                ctx.beginPath();
+                ctx.arc(sunX, sunY, 25, 0, Math.PI * 2);
+                ctx.fill();
+                // Sun rays
+                ctx.strokeStyle = YELLOW;
+                ctx.lineWidth = 2;
+                for (var ri = 0; ri < 8; ri++) {
+                    var ra = (Math.PI * 2 / 8) * ri + time * 0.3;
+                    ctx.beginPath();
+                    ctx.moveTo(sunX + Math.cos(ra) * 30, sunY + Math.sin(ra) * 30);
+                    ctx.lineTo(sunX + Math.cos(ra) * 38, sunY + Math.sin(ra) * 38);
+                    ctx.stroke();
+                }
+                ctx.restore();
+            }
+
+            // Clouds
+            var cloudAlpha = isNight ? 0.15 : (isRaining ? 0.7 : 0.8);
+            var cloudColor = isRaining ? '#8899AA' : '#fff';
+            ctx.globalAlpha = cloudAlpha;
+            clouds.forEach(function(c) {
+                ctx.fillStyle = cloudColor;
+                ctx.beginPath();
+                ctx.ellipse(c.x, c.y, c.w * 0.5, c.w * 0.22, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(c.x - c.w * 0.25, c.y + 5, c.w * 0.3, c.w * 0.18, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(c.x + c.w * 0.22, c.y + 3, c.w * 0.28, c.w * 0.16, 0, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            ctx.globalAlpha = 1;
+
+            // Ground
+            var grassGrad = ctx.createLinearGradient(0, groundY, 0, H);
+            grassGrad.addColorStop(0, grassCol);
+            grassGrad.addColorStop(0.3, grassDark);
+            grassGrad.addColorStop(1, isNight ? '#0F2B0A' : '#3D8B1F');
+            ctx.fillStyle = grassGrad;
+            ctx.fillRect(0, groundY, W, H - groundY);
+
+            // Grass blades along the horizon
+            ctx.strokeStyle = isNight ? '#3A7A2A' : '#90D860';
+            ctx.lineWidth = 2;
+            for (var gi = 0; gi < W; gi += 8) {
+                var sway = Math.sin(breezeTime * 1.5 + gi * 0.05) * 4;
+                ctx.beginPath();
+                ctx.moveTo(gi, groundY + 2);
+                ctx.quadraticCurveTo(gi + sway, groundY - 8 - Math.random() * 6, gi + sway * 1.2, groundY - 12 - Math.random() * 4);
+                ctx.stroke();
+            }
+        }
+
+        // ── Draw Placed Items ──
+        function drawFlower(item) {
+            var g = item.growth;
+            var sway = Math.sin(breezeTime * 2 + item.phase) * 3 * g;
+            var stemH = lerp(2, 30, Math.min(g, 1));
+            var bloomSize = g >= 0.6 ? lerp(0, 10, (g - 0.6) / 0.4) : 0;
+            var x = item.x;
+            var y = item.y;
+
+            // Stem
+            ctx.strokeStyle = '#3D8B1F';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.quadraticCurveTo(x + sway * 0.5, y - stemH * 0.5, x + sway, y - stemH);
+            ctx.stroke();
+
+            // Leaves
+            if (g > 0.3) {
+                var leafSize = lerp(0, 6, Math.min((g - 0.3) / 0.3, 1));
+                ctx.fillStyle = '#4CAF50';
+                ctx.beginPath();
+                ctx.ellipse(x + sway * 0.3 + 3, y - stemH * 0.4, leafSize, leafSize * 0.4, 0.5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(x + sway * 0.3 - 3, y - stemH * 0.5, leafSize, leafSize * 0.4, -0.5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Bloom
+            if (bloomSize > 0) {
+                var petalColor = item.color || PINK;
+                var topX = x + sway;
+                var topY = y - stemH;
+                // Petals
+                ctx.fillStyle = petalColor;
+                for (var p = 0; p < 5; p++) {
+                    var pa = (Math.PI * 2 / 5) * p + item.phase;
+                    ctx.beginPath();
+                    ctx.ellipse(
+                        topX + Math.cos(pa) * bloomSize * 0.6,
+                        topY + Math.sin(pa) * bloomSize * 0.6,
+                        bloomSize * 0.5, bloomSize * 0.35,
+                        pa, 0, Math.PI * 2
+                    );
+                    ctx.fill();
+                }
+                // Center
+                ctx.fillStyle = YELLOW;
+                ctx.beginPath();
+                ctx.arc(topX, topY, bloomSize * 0.3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Seed at start
+            if (g < 0.15) {
+                ctx.fillStyle = '#8B6914';
+                ctx.beginPath();
+                ctx.ellipse(x, y - 2, 3, 2, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function drawSunflower(item) {
+            var g = item.growth;
+            var sway = Math.sin(breezeTime * 1.5 + item.phase) * 4 * g;
+            var stemH = lerp(2, 50, Math.min(g, 1));
+            var bloomSize = g >= 0.5 ? lerp(0, 16, (g - 0.5) / 0.5) : 0;
+            var x = item.x;
+            var y = item.y;
+
+            // Stem
+            ctx.strokeStyle = '#2E7D32';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.quadraticCurveTo(x + sway * 0.5, y - stemH * 0.5, x + sway, y - stemH);
+            ctx.stroke();
+
+            // Leaves
+            if (g > 0.3) {
+                var leafSize = lerp(0, 10, Math.min((g - 0.3) / 0.3, 1));
+                ctx.fillStyle = '#43A047';
+                ctx.beginPath();
+                ctx.ellipse(x + sway * 0.2 + 5, y - stemH * 0.35, leafSize, leafSize * 0.4, 0.6, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(x + sway * 0.4 - 5, y - stemH * 0.6, leafSize * 0.9, leafSize * 0.35, -0.5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            if (bloomSize > 0) {
+                var topX = x + sway;
+                var topY = y - stemH;
+                // Petals
+                ctx.fillStyle = '#FFD600';
+                for (var p = 0; p < 12; p++) {
+                    var pa = (Math.PI * 2 / 12) * p;
+                    ctx.beginPath();
+                    ctx.ellipse(
+                        topX + Math.cos(pa) * bloomSize * 0.8,
+                        topY + Math.sin(pa) * bloomSize * 0.8,
+                        bloomSize * 0.45, bloomSize * 0.2,
+                        pa, 0, Math.PI * 2
+                    );
+                    ctx.fill();
+                }
+                // Center
+                ctx.fillStyle = '#5D4037';
+                ctx.beginPath();
+                ctx.arc(topX, topY, bloomSize * 0.45, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            if (g < 0.15) {
+                ctx.fillStyle = '#795548';
+                ctx.beginPath();
+                ctx.ellipse(x, y - 2, 4, 2.5, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function drawTree(item, treeType) {
+            var g = item.growth;
+            var sway = Math.sin(breezeTime + item.phase) * 2 * g;
+            var trunkH = lerp(3, 60, Math.min(g, 1));
+            var canopySize = g >= 0.4 ? lerp(0, 35, (g - 0.4) / 0.6) : 0;
+            var x = item.x;
+            var y = item.y;
+
+            if (g < 0.15) {
+                // Seed/sprout
+                ctx.fillStyle = '#8B6914';
+                ctx.beginPath();
+                ctx.ellipse(x, y - 2, 4, 2.5, 0, 0, Math.PI * 2);
+                ctx.fill();
+                if (g > 0.05) {
+                    ctx.strokeStyle = '#4CAF50';
+                    ctx.lineWidth = 1.5;
+                    ctx.beginPath();
+                    ctx.moveTo(x, y - 3);
+                    ctx.lineTo(x, y - 8);
+                    ctx.stroke();
+                }
+                return;
+            }
+
+            // Trunk
+            ctx.fillStyle = TREE_TRUNK;
+            var trunkW = lerp(2, 8, Math.min(g, 1));
+            ctx.beginPath();
+            ctx.moveTo(x - trunkW, y);
+            ctx.lineTo(x - trunkW * 0.6 + sway * 0.3, y - trunkH);
+            ctx.lineTo(x + trunkW * 0.6 + sway * 0.3, y - trunkH);
+            ctx.lineTo(x + trunkW, y);
+            ctx.closePath();
+            ctx.fill();
+
+            if (canopySize <= 0) return;
+
+            var topX = x + sway;
+            var topY = y - trunkH;
+
+            if (treeType === 'pine') {
+                // Triangular layers
+                ctx.fillStyle = isNight ? '#1B5E20' : '#2E7D32';
+                for (var layer = 0; layer < 3; layer++) {
+                    var layerY = topY + layer * canopySize * 0.35;
+                    var layerW = canopySize * (0.3 + layer * 0.25);
+                    ctx.beginPath();
+                    ctx.moveTo(topX, layerY - canopySize * 0.5 + layer * canopySize * 0.15);
+                    ctx.lineTo(topX - layerW, layerY + canopySize * 0.2);
+                    ctx.lineTo(topX + layerW, layerY + canopySize * 0.2);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+            } else if (treeType === 'palm') {
+                // Palm fronds
+                ctx.strokeStyle = isNight ? '#2E7D32' : '#4CAF50';
+                ctx.lineWidth = 3;
+                for (var fr = 0; fr < 6; fr++) {
+                    var fa = (Math.PI * 2 / 6) * fr + Math.sin(breezeTime + item.phase) * 0.1;
+                    var fLen = canopySize * 0.9;
+                    ctx.beginPath();
+                    ctx.moveTo(topX, topY);
+                    var endX = topX + Math.cos(fa) * fLen;
+                    var endY = topY + Math.sin(fa) * fLen * 0.5 + fLen * 0.3;
+                    ctx.quadraticCurveTo(
+                        topX + Math.cos(fa) * fLen * 0.6,
+                        topY + Math.sin(fa) * fLen * 0.2,
+                        endX, endY
+                    );
+                    ctx.stroke();
+                    // Leaf segments
+                    ctx.fillStyle = isNight ? '#1B5E20' : '#43A047';
+                    for (var seg = 0.3; seg < 1; seg += 0.15) {
+                        var sx = lerp(topX, endX, seg);
+                        var sy = lerp(topY, endY, seg);
+                        ctx.beginPath();
+                        ctx.ellipse(sx, sy, 5, 12, fa, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                }
+                // Coconuts
+                ctx.fillStyle = '#795548';
+                ctx.beginPath();
+                ctx.arc(topX - 4, topY + 3, 4, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(topX + 4, topY + 5, 4, 0, Math.PI * 2);
+                ctx.fill();
+            } else {
+                // Oak — round canopy
+                ctx.fillStyle = isNight ? '#1B5E20' : '#43A047';
+                ctx.beginPath();
+                ctx.ellipse(topX, topY - canopySize * 0.2, canopySize, canopySize * 0.75, 0, 0, Math.PI * 2);
+                ctx.fill();
+                // Highlight
+                ctx.fillStyle = isNight ? '#2E7D32' : '#66BB6A';
+                ctx.beginPath();
+                ctx.ellipse(topX - canopySize * 0.2, topY - canopySize * 0.4, canopySize * 0.5, canopySize * 0.35, -0.3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function drawPond(item) {
+            var g = Math.min(item.growth, 1);
+            var x = item.x;
+            var y = item.y;
+            var rw = lerp(5, 40, g);
+            var rh = lerp(3, 18, g);
+
+            // Water shadow
+            ctx.fillStyle = isNight ? '#0D3B66' : '#1E88E5';
+            ctx.beginPath();
+            ctx.ellipse(x, y + 2, rw, rh, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Water surface
+            ctx.fillStyle = isNight ? '#1565C0' : '#42A5F5';
+            ctx.beginPath();
+            ctx.ellipse(x, y, rw, rh, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Shine ripples
+            if (g > 0.5) {
+                ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+                ctx.lineWidth = 1;
+                var ripple = Math.sin(time * 2 + item.phase) * 0.15;
+                ctx.beginPath();
+                ctx.ellipse(x - rw * 0.2, y - rh * 0.2, rw * (0.3 + ripple), rh * (0.3 + ripple), 0, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.ellipse(x + rw * 0.15, y + rh * 0.1, rw * (0.2 + ripple * 0.5), rh * (0.2 + ripple * 0.5), 0, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+
+            // Lily pads
+            if (g > 0.7) {
+                ctx.fillStyle = '#2E7D32';
+                ctx.beginPath();
+                ctx.ellipse(x + rw * 0.3, y - rh * 0.1, 6, 4, 0.3, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(x - rw * 0.25, y + rh * 0.2, 5, 3.5, -0.2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function drawFence(item) {
+            var g = Math.min(item.growth, 1);
+            var x = item.x;
+            var y = item.y;
+            var h = lerp(2, 22, g);
+            var sway = Math.sin(breezeTime * 0.8 + item.phase) * 1;
+
+            ctx.fillStyle = isNight ? '#5D4037' : '#8D6E63';
+            // Posts
+            for (var fp = -1; fp <= 1; fp++) {
+                ctx.fillRect(x + fp * 14 + sway * 0.5 - 2, y - h, 4, h);
+            }
+            // Rails
+            if (g > 0.5) {
+                ctx.fillRect(x - 16 + sway, y - h * 0.7, 32, 3);
+                ctx.fillRect(x - 16 + sway * 0.5, y - h * 0.35, 32, 3);
+            }
+        }
+
+        function drawPath(item) {
+            var g = Math.min(item.growth, 1);
+            var x = item.x;
+            var y = item.y;
+            var s = lerp(2, 8, g);
+
+            ctx.fillStyle = isNight ? '#555' : '#B0BEC5';
+            ctx.beginPath();
+            ctx.ellipse(x, y, s * 1.3, s * 0.8, 0.2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = isNight ? '#666' : '#CFD8DC';
+            ctx.beginPath();
+            ctx.ellipse(x + s, y - s * 0.4, s * 0.9, s * 0.6, -0.3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(x - s * 0.7, y + s * 0.3, s * 0.7, s * 0.5, 0.5, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawBench(item) {
+            var g = Math.min(item.growth, 1);
+            var x = item.x;
+            var y = item.y;
+            var scale = lerp(0.1, 1, g);
+
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.scale(scale, scale);
+
+            // Legs
+            ctx.fillStyle = isNight ? '#4E342E' : '#6D4C41';
+            ctx.fillRect(-16, -5, 3, 15);
+            ctx.fillRect(13, -5, 3, 15);
+            // Seat
+            ctx.fillStyle = isNight ? '#5D4037' : '#8D6E63';
+            ctx.fillRect(-18, -8, 36, 5);
+            // Back
+            ctx.fillRect(-16, -20, 3, 15);
+            ctx.fillRect(13, -20, 3, 15);
+            ctx.fillRect(-18, -22, 36, 4);
+
+            ctx.restore();
+        }
+
+        function drawBirdhouse(item) {
+            var g = Math.min(item.growth, 1);
+            var x = item.x;
+            var y = item.y;
+            var scale = lerp(0.1, 1, g);
+            var sway = Math.sin(breezeTime * 1.2 + item.phase) * 2 * g;
+
+            ctx.save();
+            ctx.translate(x + sway, y);
+            ctx.scale(scale, scale);
+
+            // Pole
+            ctx.fillStyle = isNight ? '#5D4037' : '#8D6E63';
+            ctx.fillRect(-2, -30, 4, 30);
+            // House body
+            ctx.fillStyle = isNight ? '#C62828' : '#EF5350';
+            ctx.fillRect(-14, -52, 28, 22);
+            // Roof
+            ctx.fillStyle = isNight ? '#3E2723' : '#5D4037';
+            ctx.beginPath();
+            ctx.moveTo(-18, -52);
+            ctx.lineTo(0, -65);
+            ctx.lineTo(18, -52);
+            ctx.closePath();
+            ctx.fill();
+            // Hole
+            ctx.fillStyle = isNight ? '#1A1A1A' : '#3E2723';
+            ctx.beginPath();
+            ctx.arc(0, -43, 5, 0, Math.PI * 2);
+            ctx.fill();
+            // Perch
+            ctx.fillStyle = isNight ? '#4E342E' : '#795548';
+            ctx.fillRect(-2, -38, 8, 2);
+
+            ctx.restore();
+        }
+
+        function drawItem(item) {
+            switch (item.type) {
+                case 'tulip':
+                case 'rose':
+                case 'daisy':
+                case 'blossom':
+                    drawFlower(item);
+                    break;
+                case 'sunflower':
+                    drawSunflower(item);
+                    break;
+                case 'oak':
+                    drawTree(item, 'oak');
+                    break;
+                case 'pine':
+                    drawTree(item, 'pine');
+                    break;
+                case 'palm':
+                    drawTree(item, 'palm');
+                    break;
+                case 'pond':
+                    drawPond(item);
+                    break;
+                case 'fence':
+                    drawFence(item);
+                    break;
+                case 'path':
+                    drawPath(item);
+                    break;
+                case 'bench':
+                    drawBench(item);
+                    break;
+                case 'birdhouse':
+                    drawBirdhouse(item);
+                    break;
+            }
+        }
+
+        // ── Draw Wildlife ──
+        function drawButterfly(w) {
+            var x = w.x, y = w.y;
+            var wingOpen = Math.sin(w.wingPhase) * 0.8;
+            var s = w.size;
+
+            // Wings
+            ctx.fillStyle = w.color;
+            ctx.globalAlpha = 0.8;
+            ctx.beginPath();
+            ctx.ellipse(x - s * 0.4, y, s * 0.6 * Math.abs(wingOpen), s * 0.4, -0.3 * wingOpen, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(x + s * 0.4, y, s * 0.6 * Math.abs(wingOpen), s * 0.4, 0.3 * wingOpen, 0, Math.PI * 2);
+            ctx.fill();
+            // Lower wings
+            ctx.globalAlpha = 0.6;
+            ctx.beginPath();
+            ctx.ellipse(x - s * 0.3, y + s * 0.2, s * 0.4 * Math.abs(wingOpen), s * 0.3, -0.5 * wingOpen, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(x + s * 0.3, y + s * 0.2, s * 0.4 * Math.abs(wingOpen), s * 0.3, 0.5 * wingOpen, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1;
+
+            // Body
+            ctx.fillStyle = '#333';
+            ctx.beginPath();
+            ctx.ellipse(x, y, 1.5, s * 0.3, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Antennae
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 0.8;
+            ctx.beginPath();
+            ctx.moveTo(x - 1, y - s * 0.25);
+            ctx.lineTo(x - 4, y - s * 0.5);
+            ctx.moveTo(x + 1, y - s * 0.25);
+            ctx.lineTo(x + 4, y - s * 0.5);
+            ctx.stroke();
+        }
+
+        function drawBird(w) {
+            var x = w.x, y = w.y;
+            var wingFlap = Math.sin(w.wingPhase) * 0.7;
+            var s = w.size;
+
+            // Body
+            ctx.fillStyle = w.color;
+            ctx.beginPath();
+            ctx.ellipse(x, y, s * 0.6, s * 0.4, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Head
+            ctx.beginPath();
+            ctx.arc(x + s * 0.5, y - s * 0.15, s * 0.28, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Beak
+            ctx.fillStyle = ORANGE;
+            ctx.beginPath();
+            ctx.moveTo(x + s * 0.75, y - s * 0.15);
+            ctx.lineTo(x + s * 1.0, y - s * 0.1);
+            ctx.lineTo(x + s * 0.75, y - s * 0.05);
+            ctx.closePath();
+            ctx.fill();
+
+            // Eye
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(x + s * 0.55, y - s * 0.22, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#000';
+            ctx.beginPath();
+            ctx.arc(x + s * 0.57, y - s * 0.22, 1.2, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Wings
+            ctx.fillStyle = w.color;
+            ctx.globalAlpha = 0.7;
+            ctx.beginPath();
+            ctx.ellipse(x - s * 0.1, y - s * 0.1, s * 0.5, s * 0.2, -0.3 + wingFlap * 0.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1;
+
+            // Tail
+            ctx.fillStyle = w.color;
+            ctx.beginPath();
+            ctx.moveTo(x - s * 0.5, y);
+            ctx.lineTo(x - s * 0.9, y - s * 0.15);
+            ctx.lineTo(x - s * 0.85, y + s * 0.1);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        function drawFrog(w) {
+            var x = w.x, y = w.y;
+            var s = w.size;
+
+            // Body
+            ctx.fillStyle = isNight ? '#1B5E20' : '#4CAF50';
+            ctx.beginPath();
+            ctx.ellipse(x, y, s * 0.7, s * 0.5, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Eyes
+            ctx.fillStyle = isNight ? '#2E7D32' : '#66BB6A';
+            ctx.beginPath();
+            ctx.arc(x - s * 0.3, y - s * 0.4, s * 0.22, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(x + s * 0.3, y - s * 0.4, s * 0.22, 0, Math.PI * 2);
+            ctx.fill();
+            // Pupils
+            ctx.fillStyle = '#000';
+            ctx.beginPath();
+            ctx.arc(x - s * 0.28, y - s * 0.42, s * 0.08, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(x + s * 0.32, y - s * 0.42, s * 0.08, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Legs
+            ctx.fillStyle = isNight ? '#1B5E20' : '#43A047';
+            ctx.beginPath();
+            ctx.ellipse(x - s * 0.5, y + s * 0.3, s * 0.25, s * 0.12, -0.3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(x + s * 0.5, y + s * 0.3, s * 0.25, s * 0.12, 0.3, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawBee(w) {
+            var x = w.x, y = w.y;
+            var s = w.size;
+            var wingFlap = Math.sin(w.wingPhase);
+
+            // Wings
+            ctx.fillStyle = 'rgba(200,220,255,0.5)';
+            ctx.beginPath();
+            ctx.ellipse(x - s * 0.2, y - s * 0.35 * Math.abs(wingFlap), s * 0.4, s * 0.2, -0.4 * wingFlap, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(x + s * 0.2, y - s * 0.35 * Math.abs(wingFlap), s * 0.4, s * 0.2, 0.4 * wingFlap, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Body
+            ctx.fillStyle = '#FFD600';
+            ctx.beginPath();
+            ctx.ellipse(x, y, s * 0.5, s * 0.35, 0, 0, Math.PI * 2);
+            ctx.fill();
+            // Stripes
+            ctx.fillStyle = '#333';
+            ctx.fillRect(x - s * 0.15, y - s * 0.3, s * 0.1, s * 0.6);
+            ctx.fillRect(x + s * 0.1, y - s * 0.25, s * 0.1, s * 0.5);
+
+            // Head
+            ctx.fillStyle = '#333';
+            ctx.beginPath();
+            ctx.arc(x + s * 0.45, y, s * 0.18, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawFireflyEntity(w) {
+            var x = w.x, y = w.y;
+            var glow = 0.3 + 0.7 * Math.abs(Math.sin(w.glowPhase));
+
+            ctx.save();
+            // Glow
+            var glowGrad = ctx.createRadialGradient(x, y, 0, x, y, w.size * 4);
+            glowGrad.addColorStop(0, 'rgba(255,255,100,' + (glow * 0.4) + ')');
+            glowGrad.addColorStop(1, 'rgba(255,255,100,0)');
+            ctx.fillStyle = glowGrad;
+            ctx.beginPath();
+            ctx.arc(x, y, w.size * 4, 0, Math.PI * 2);
+            ctx.fill();
+            // Body
+            ctx.fillStyle = 'rgba(255,255,150,' + glow + ')';
+            ctx.beginPath();
+            ctx.arc(x, y, w.size, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+
+        function drawWildlifeEntity(w) {
+            switch (w.type) {
+                case 'butterfly': drawButterfly(w); break;
+                case 'bird': drawBird(w); break;
+                case 'frog': drawFrog(w); break;
+                case 'bee': drawBee(w); break;
+                case 'firefly': drawFireflyEntity(w); break;
+            }
+        }
+
+        // ── Draw Rain ──
+        function drawRain() {
+            if (!isRaining) return;
+            ctx.strokeStyle = 'rgba(150,200,255,0.5)';
+            ctx.lineWidth = 1.5;
+            for (var ri = 0; ri < rainDrops.length; ri++) {
+                var rd = rainDrops[ri];
+                ctx.beginPath();
+                ctx.moveTo(rd.x, rd.y);
+                ctx.lineTo(rd.x - 1, rd.y + rd.len);
+                ctx.stroke();
+            }
+        }
+
+        // ── Draw Particles ──
+        function drawParticles() {
+            particles.forEach(function(p) {
+                var alpha = p.life / p.maxLife;
+                ctx.globalAlpha = alpha;
+                ctx.fillStyle = p.color;
+                if (p.type === 'star') {
+                    drawStar(p.x, p.y, p.size, 4, p.color);
+                } else {
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
+            ctx.globalAlpha = 1;
+        }
+
+        // ── Update ──
+        function update(dt) {
+            time += dt;
+            breezeTime += dt;
+
+            // Clouds
+            clouds.forEach(function(c) {
+                c.x += c.speed * dt;
+                if (c.x > W + c.w) { c.x = -c.w; c.y = 20 + Math.random() * (groundY * 0.35); }
+            });
+
+            // Grow items
+            placedItems.forEach(function(item) {
+                if (item.growth < 1) {
+                    var rate = item.growthRate * (isRaining ? 2.5 : 1);
+                    item.growth = Math.min(1, item.growth + rate * dt);
+                }
+                // Update growth rate if rain state changed
+                item.growthRate = isRaining ? 0.6 : 0.3;
+            });
+
+            // Rain
+            if (isRaining) {
+                // Spawn rain drops
+                for (var rr = 0; rr < 8; rr++) {
+                    rainDrops.push({
+                        x: Math.random() * W,
+                        y: -10,
+                        vy: 300 + Math.random() * 200,
+                        len: 8 + Math.random() * 12
+                    });
+                }
+            }
+            // Update rain drops
+            for (var rdi = rainDrops.length - 1; rdi >= 0; rdi--) {
+                rainDrops[rdi].y += rainDrops[rdi].vy * dt;
+                if (rainDrops[rdi].y > H) {
+                    rainDrops.splice(rdi, 1);
+                }
+            }
+            // Cap rain drops
+            if (rainDrops.length > 300) rainDrops.splice(0, rainDrops.length - 300);
+
+            // Wildlife AI
+            trySpawnWildlife(dt);
+            for (var wi = wildlife.length - 1; wi >= 0; wi--) {
+                var w = wildlife[wi];
+                w.life -= dt;
+                if (w.life <= 0) { wildlife.splice(wi, 1); continue; }
+
+                w.phase += dt;
+
+                if (w.type === 'butterfly') {
+                    w.wingPhase += dt * 8;
+                    w.moveTimer -= dt;
+                    if (w.moveTimer <= 0) {
+                        w.moveTimer = 1.5 + Math.random() * 3;
+                        var fl = findNearestFlower(w.x, w.y);
+                        if (fl && Math.random() > 0.3) {
+                            w.targetX = fl.x + (Math.random() - 0.5) * 30;
+                            w.targetY = fl.y - 15 - Math.random() * 20;
+                        } else {
+                            w.targetX = w.x + (Math.random() - 0.5) * 120;
+                            w.targetY = groundY - 20 - Math.random() * 80;
+                        }
+                    }
+                    w.x += (w.targetX - w.x) * dt * 1.2;
+                    w.y += (w.targetY - w.y) * dt * 1.2 + Math.sin(w.phase * 3) * 0.5;
+                } else if (w.type === 'bird') {
+                    w.wingPhase += dt * 6;
+                    w.moveTimer -= dt;
+                    if (w.moveTimer <= 0) {
+                        w.moveTimer = 2 + Math.random() * 4;
+                        var bh = placedItems.find(function(it) { return it.type === 'birdhouse' && it.growth >= 1; });
+                        if (bh && Math.random() > 0.4) {
+                            w.targetX = bh.x + (Math.random() - 0.5) * 50;
+                            w.targetY = bh.y - 50 - Math.random() * 30;
+                        } else {
+                            w.targetX = w.x + (Math.random() - 0.5) * 150;
+                            w.targetY = groundY - 40 - Math.random() * (groundY * 0.5);
+                        }
+                    }
+                    w.x += (w.targetX - w.x) * dt * 0.8;
+                    w.y += (w.targetY - w.y) * dt * 0.8 + Math.sin(w.phase * 2) * 0.3;
+                } else if (w.type === 'frog') {
+                    w.jumpTimer -= dt;
+                    if (w.jumping) {
+                        w.jumpVY += 200 * dt;
+                        w.y += w.jumpVY * dt;
+                        if (w.y >= w.baseY) {
+                            w.y = w.baseY;
+                            w.jumping = false;
+                            w.jumpTimer = 2 + Math.random() * 4;
+                        }
+                    } else if (w.jumpTimer <= 0) {
+                        w.jumping = true;
+                        w.jumpVY = -120 - Math.random() * 60;
+                        w.x += (Math.random() - 0.5) * 30;
+                    }
+                } else if (w.type === 'bee') {
+                    w.wingPhase += dt * 20;
+                    w.moveTimer -= dt;
+                    if (w.moveTimer <= 0) {
+                        w.moveTimer = 1 + Math.random() * 2;
+                        var bf = findNearestFlower(w.x, w.y);
+                        if (bf) {
+                            w.targetX = bf.x + (Math.random() - 0.5) * 20;
+                            w.targetY = bf.y - 10 - Math.random() * 15;
+                        }
+                    }
+                    w.x += (w.targetX - w.x) * dt * 2;
+                    w.y += (w.targetY - w.y) * dt * 2 + Math.sin(w.phase * 5) * 0.8;
+                } else if (w.type === 'firefly') {
+                    w.glowPhase += dt * 2;
+                    w.moveTimer -= dt;
+                    if (w.moveTimer <= 0) {
+                        w.moveTimer = 1 + Math.random() * 3;
+                        w.targetX = w.x + (Math.random() - 0.5) * 100;
+                        w.targetY = w.y + (Math.random() - 0.5) * 60;
+                        w.targetX = Math.max(20, Math.min(W - 20, w.targetX));
+                        w.targetY = Math.max(30, Math.min(groundY - 10, w.targetY));
+                    }
+                    w.x += (w.targetX - w.x) * dt * 0.8;
+                    w.y += (w.targetY - w.y) * dt * 0.8 + Math.sin(w.phase * 1.5) * 0.3;
+                }
+
+                // Keep in bounds
+                w.x = Math.max(10, Math.min(W - 10, w.x));
+                if (w.type !== 'frog') {
+                    w.y = Math.max(20, Math.min(groundY - 5, w.y));
+                }
+            }
+
+            // Particles
+            for (var pi = particles.length - 1; pi >= 0; pi--) {
+                var p = particles[pi];
+                p.life -= dt;
+                if (p.life <= 0) { particles.splice(pi, 1); continue; }
+                p.x += p.vx * dt;
+                p.y += p.vy * dt;
+                p.vy += 60 * dt;
+                p.vx *= 0.98;
+            }
+        }
+
+        // ── Render ──
+        function render() {
+            ctx.clearRect(0, 0, W, H);
+            drawBackground();
+
+            // Sort items by y for depth
+            var sortedItems = placedItems.slice().sort(function(a, b) { return a.y - b.y; });
+            sortedItems.forEach(drawItem);
+
+            // Wildlife
+            wildlife.forEach(drawWildlifeEntity);
+
+            drawRain();
+            drawParticles();
+        }
+
+        // ── Game Loop ──
+        var lastFrameTime = performance.now();
+        function loop(now) {
+            var dt = Math.min((now - lastFrameTime) / 1000, 0.05);
+            lastFrameTime = now;
+            update(dt);
+            render();
+            requestAnimationFrame(loop);
+        }
+        requestAnimationFrame(loop);
+
+    })();
+    </script>
+</body>
+</html>

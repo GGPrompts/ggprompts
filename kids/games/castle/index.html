@@ -1,0 +1,1234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Castle Builder!</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Lilita+One&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --font: 'Fredoka', 'Comic Sans MS', cursive, sans-serif;
+    --font-title: 'Lilita One', 'Fredoka', cursive, sans-serif;
+    --btn-size: 80px;
+    --toolbar-height: 130px;
+  }
+
+  html, body {
+    height: 100%; overflow: hidden;
+    font-family: var(--font);
+    touch-action: manipulation;
+    -webkit-user-select: none; user-select: none;
+    overscroll-behavior: none;
+  }
+
+  #app {
+    display: grid;
+    grid-template-rows: 1fr auto auto;
+    height: 100vh; width: 100vw;
+  }
+
+  /* Canvas area */
+  #canvas-area {
+    position: relative;
+    overflow: hidden;
+  }
+
+  canvas#castle-canvas {
+    display: block;
+    width: 100%; height: 100%;
+    touch-action: none;
+  }
+
+  /* Theme bar */
+  #theme-bar {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 6px 10px;
+    background: linear-gradient(135deg, #5B4A3F, #7B6B5F);
+    border-top: 3px solid #8B7B6F;
+    box-shadow: 0 -2px 8px rgba(0,0,0,0.2);
+  }
+  .theme-btn {
+    height: 48px; padding: 0 16px;
+    border: 3px solid rgba(255,255,255,0.5);
+    border-radius: 12px;
+    font-family: var(--font);
+    font-size: 14px; font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.1s;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .theme-btn:active { transform: scale(0.92); }
+  .theme-btn.active {
+    border-color: #FFD700;
+    box-shadow: 0 0 12px rgba(255,215,0,0.6), 0 2px 6px rgba(0,0,0,0.2);
+    transform: scale(1.05);
+  }
+  .theme-btn[data-theme="stone"] { background: linear-gradient(135deg, #999, #777); color: #fff; }
+  .theme-btn[data-theme="ice"] { background: linear-gradient(135deg, #B0E0FF, #87CEEB); color: #234; }
+  .theme-btn[data-theme="fairy"] { background: linear-gradient(135deg, #FFB6C1, #DDA0DD); color: #523; }
+
+  .action-btn {
+    height: 48px; padding: 0 14px;
+    border: 3px solid rgba(255,255,255,0.5);
+    border-radius: 12px;
+    font-family: var(--font);
+    font-size: 22px;
+    cursor: pointer;
+    background: rgba(255,255,255,0.85);
+    display: flex; align-items: center; justify-content: center;
+    gap: 4px;
+    transition: transform 0.1s;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+  }
+  .action-btn:active { transform: scale(0.92); }
+  .action-btn .btn-label { font-size: 10px; font-weight: 700; color: #555; }
+  .action-btn.danger { background: #FF6B6B; color: #fff; border-color: #FF4444; }
+
+  .sep-v {
+    width: 2px; height: 36px; background: rgba(255,255,255,0.25);
+    border-radius: 2px; flex-shrink: 0;
+  }
+
+  /* Bottom toolbar */
+  #toolbar {
+    background: linear-gradient(135deg, #6B5B4F, #8B7B6F, #5B4B3F);
+    padding: 8px 10px;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    box-shadow: 0 -3px 16px rgba(0,0,0,0.3);
+    z-index: 10;
+    border-top: 4px solid #9B8B7F;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .piece-btn {
+    width: var(--btn-size); height: var(--btn-size);
+    border: 4px solid rgba(255,255,255,0.6);
+    border-radius: 14px;
+    background: rgba(255,255,255,0.88);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column;
+    transition: transform 0.1s, box-shadow 0.1s;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.2);
+    flex-shrink: 0;
+    gap: 2px;
+    position: relative;
+  }
+  .piece-btn canvas {
+    width: 44px; height: 44px;
+    image-rendering: pixelated; image-rendering: crisp-edges;
+  }
+  .piece-btn .btn-label {
+    font-size: 9px; font-weight: 700; color: #555; line-height: 1;
+  }
+  .piece-btn:active { transform: scale(0.92); }
+  .piece-btn.active {
+    background: #FFD700;
+    border-color: #FF6600;
+    box-shadow: 0 0 14px rgba(255,215,0,0.7), 0 3px 8px rgba(0,0,0,0.2);
+  }
+  .piece-btn.active .btn-label { color: #333; }
+
+  /* Decoration sub-bar */
+  .deco-sep {
+    width: 3px; height: 60px; background: rgba(255,255,255,0.3);
+    border-radius: 2px; flex-shrink: 0;
+  }
+
+  /* Ghost piece while dragging */
+  #ghost {
+    position: fixed; pointer-events: none; z-index: 100;
+    opacity: 0.7; display: none;
+  }
+
+  /* Confirm dialog */
+  #confirm-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 50;
+    align-items: center; justify-content: center;
+  }
+  #confirm-overlay.open { display: flex; }
+  #confirm-box {
+    background: #fff;
+    border-radius: 24px;
+    padding: 30px 40px;
+    text-align: center;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.3);
+    border: 5px solid #8B7B6F;
+  }
+  #confirm-box h2 {
+    font-family: var(--font-title);
+    font-size: 26px; color: #D42B2B; margin-bottom: 10px;
+  }
+  #confirm-box p { font-size: 16px; color: #666; margin-bottom: 20px; }
+  #confirm-box .btn-row { display: flex; gap: 16px; justify-content: center; }
+  #confirm-box button {
+    padding: 14px 32px; border: none; border-radius: 14px;
+    font-family: var(--font); font-size: 18px; font-weight: 700;
+    cursor: pointer; transition: transform 0.1s;
+    min-width: 120px;
+  }
+  #confirm-box button:active { transform: scale(0.92); }
+  #confirm-yes { background: #FF6B6B; color: #fff; }
+  #confirm-no { background: #8B7B6F; color: #fff; }
+
+  /* Fireworks canvas */
+  #fireworks-canvas {
+    position: fixed; inset: 0;
+    pointer-events: none; z-index: 40;
+    display: none;
+  }
+
+  @media (max-width: 768px) {
+    :root { --btn-size: 64px; }
+    .piece-btn canvas { width: 36px; height: 36px; }
+    .piece-btn .btn-label { font-size: 8px; }
+    .theme-btn { height: 40px; padding: 0 10px; font-size: 12px; }
+    .action-btn { height: 40px; padding: 0 10px; font-size: 18px; }
+  }
+  @media (max-width: 480px) {
+    :root { --btn-size: 56px; }
+    .piece-btn { border-width: 3px; border-radius: 10px; }
+    .piece-btn canvas { width: 30px; height: 30px; }
+    .theme-btn { height: 36px; padding: 0 8px; font-size: 11px; }
+    .action-btn { height: 36px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div id="canvas-area">
+    <canvas id="castle-canvas"></canvas>
+  </div>
+
+  <div id="theme-bar">
+    <button class="theme-btn active" data-theme="stone">&#127984; Stone</button>
+    <button class="theme-btn" data-theme="ice">&#10052;&#65039; Ice</button>
+    <button class="theme-btn" data-theme="fairy">&#10024; Fairy</button>
+    <div class="sep-v"></div>
+    <button class="action-btn" id="btn-erase" title="Erase Mode">&#128465;<span class="btn-label">Erase</span></button>
+    <button class="action-btn danger" id="btn-clear" title="Clear All">&#128163;<span class="btn-label">Clear</span></button>
+    <button class="action-btn" id="btn-save" title="Save">&#128190;<span class="btn-label">Save</span></button>
+  </div>
+
+  <div id="toolbar"></div>
+</div>
+
+<canvas id="ghost" width="64" height="64"></canvas>
+<canvas id="fireworks-canvas"></canvas>
+
+<!-- Confirm dialog -->
+<div id="confirm-overlay">
+  <div id="confirm-box">
+    <h2>Demolish Castle?</h2>
+    <p>This will clear your whole castle!</p>
+    <div class="btn-row">
+      <button id="confirm-yes">Yes, Clear!</button>
+      <button id="confirm-no">Keep It!</button>
+    </div>
+  </div>
+</div>
+
+<!-- Back link -->
+<a id="back-link" href="../../index.html" style="
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  z-index: 300;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 100px;
+  height: 56px;
+  padding: 0 20px;
+  background: linear-gradient(135deg, #FF69B4, #FF1493, #D42B2B);
+  color: #fff;
+  font-family: var(--font);
+  font-size: 1.2rem;
+  font-weight: 700;
+  text-decoration: none;
+  border: 4px solid #FFD700;
+  border-radius: 9999px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.25), 0 0 12px rgba(255,215,0,0.4);
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+  -webkit-tap-highlight-color: transparent;
+">&#11013;&#65039; Games</a>
+
+<script>
+(function() {
+  'use strict';
+
+  /* =============== AUDIO =============== */
+  const SFX = (() => {
+    let actx = null;
+    function ctx() {
+      if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+      return actx;
+    }
+    function beep(freq, dur, vol, type) {
+      try {
+        const c = ctx();
+        const o = c.createOscillator();
+        const g = c.createGain();
+        o.type = type || 'square';
+        o.frequency.value = freq;
+        g.gain.value = vol || 0.08;
+        g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + dur);
+        o.connect(g); g.connect(c.destination);
+        o.start(); o.stop(c.currentTime + dur);
+      } catch(e) {}
+    }
+    return {
+      place: () => { beep(400, 0.06, 0.1); setTimeout(() => beep(600, 0.04, 0.08), 40); },
+      erase: () => beep(250, 0.08, 0.06),
+      click: () => beep(700, 0.04, 0.1),
+      clear: () => { beep(400, 0.1, 0.06); setTimeout(() => beep(200, 0.15, 0.06), 80); },
+      save: () => { beep(600, 0.06, 0.08); setTimeout(() => beep(900, 0.08, 0.08), 80); },
+      celebrate: () => {
+        [0,100,200,300,400].forEach((t,i) => {
+          setTimeout(() => beep(500 + i*100, 0.12, 0.06, 'sine'), t);
+        });
+      },
+      theme: () => { beep(500, 0.05, 0.07); setTimeout(() => beep(650, 0.05, 0.07), 50); },
+    };
+  })();
+
+  /* =============== THEMES =============== */
+  const THEMES = {
+    stone: {
+      name: 'Stone Castle',
+      sky: ['#87CEEB', '#B0E0FF', '#5B8C3E'],
+      ground: '#5B8C3E',
+      groundDark: '#4A7A2E',
+      wall: { base: '#999', light: '#BBB', dark: '#777', mortar: '#888' },
+      tower: { base: '#888', light: '#AAA', dark: '#666', top: '#777' },
+      roof: { base: '#8B4513', light: '#A0522D', dark: '#6B3410' },
+      window: { frame: '#555', glass: '#87CEEB', sill: '#AAA' },
+      door: { base: '#6B3410', handle: '#FFD700', frame: '#555' },
+      flag: { pole: '#555', cloth: '#CC0000' },
+      turret: { base: '#777', top: '#666', merlon: '#888' },
+      drawbridge: { base: '#8B6914', chain: '#777', plank: '#A0522D' },
+      moat: { base: '#3366CC', light: '#5588DD', foam: '#B0E0FF' },
+      banner: { cloth: '#CC0000', trim: '#FFD700' },
+      torch: { base: '#555', flame1: '#FF6600', flame2: '#FFD700', flame3: '#FF4400' },
+      flower: { stem: '#228B22', petal: '#FF69B4', center: '#FFD700' },
+    },
+    ice: {
+      name: 'Ice Palace',
+      sky: ['#C5E8FF', '#E8F4FF', '#D0E8FF'],
+      ground: '#D0E8FF',
+      groundDark: '#B0D0EE',
+      wall: { base: '#CCE8FF', light: '#E0F0FF', dark: '#A0C8E8', mortar: '#B8D8F0' },
+      tower: { base: '#B0D8F0', light: '#D0ECFF', dark: '#88B8D8', top: '#A0C8E0' },
+      roof: { base: '#6699CC', light: '#88BBDD', dark: '#4477AA' },
+      window: { frame: '#6699BB', glass: '#E0F0FF', sill: '#CCE0F0' },
+      door: { base: '#5588AA', handle: '#C0E8FF', frame: '#6699BB' },
+      flag: { pole: '#88AACC', cloth: '#E0F0FF' },
+      turret: { base: '#A0C8E0', top: '#88B0CC', merlon: '#B8D8F0' },
+      drawbridge: { base: '#88AACC', chain: '#AAC8DD', plank: '#99BBDD' },
+      moat: { base: '#88BBEE', light: '#AAD0FF', foam: '#E0F0FF' },
+      banner: { cloth: '#88CCFF', trim: '#E0F0FF' },
+      torch: { base: '#88AACC', flame1: '#88DDFF', flame2: '#C0F0FF', flame3: '#55CCFF' },
+      flower: { stem: '#88BBDD', petal: '#D0ECFF', center: '#E0F0FF' },
+    },
+    fairy: {
+      name: 'Fairy Castle',
+      sky: ['#FFD0E8', '#FFE0F0', '#E8B0D0'],
+      ground: '#90D090',
+      groundDark: '#78B878',
+      wall: { base: '#E8A0CC', light: '#FFB8DD', dark: '#CC80AA', mortar: '#DDA0C0' },
+      tower: { base: '#DD90BB', light: '#FFB0DD', dark: '#BB70AA', top: '#CC80AA' },
+      roof: { base: '#9966CC', light: '#BB88DD', dark: '#7744AA' },
+      window: { frame: '#AA77BB', glass: '#FFE0F0', sill: '#E8B0D0' },
+      door: { base: '#8855AA', handle: '#FFD700', frame: '#AA77BB' },
+      flag: { pole: '#BB88CC', cloth: '#FF88BB' },
+      turret: { base: '#CC80AA', top: '#BB70AA', merlon: '#DD90BB' },
+      drawbridge: { base: '#AA7799', chain: '#CC99BB', plank: '#BB88AA' },
+      moat: { base: '#88AADD', light: '#AACCEE', foam: '#D0E8FF' },
+      banner: { cloth: '#FF88BB', trim: '#FFD700' },
+      torch: { base: '#BB88CC', flame1: '#FF88DD', flame2: '#FFB0EE', flame3: '#FF66CC' },
+      flower: { stem: '#66AA66', petal: '#FF88CC', center: '#FFD700' },
+    }
+  };
+
+  let currentTheme = 'stone';
+
+  function T() { return THEMES[currentTheme]; }
+
+  /* =============== PIECE DEFINITIONS =============== */
+  const PIECES = [
+    { id: 'tower',       label: 'Tower',       w: 2, h: 3 },
+    { id: 'wall',        label: 'Wall',        w: 3, h: 2 },
+    { id: 'window',      label: 'Window',      w: 1, h: 1 },
+    { id: 'door',        label: 'Door',        w: 1, h: 2 },
+    { id: 'flag',        label: 'Flag',        w: 1, h: 2 },
+    { id: 'roof',        label: 'Roof',        w: 3, h: 2 },
+    { id: 'turret',      label: 'Turret',      w: 2, h: 2 },
+    { id: 'drawbridge',  label: 'Bridge',      w: 3, h: 2 },
+    { id: 'moat',        label: 'Moat',        w: 3, h: 1 },
+  ];
+
+  const DECORATIONS = [
+    { id: 'banner',  label: 'Banner',  w: 1, h: 2 },
+    { id: 'torch',   label: 'Torch',   w: 1, h: 1 },
+    { id: 'flower',  label: 'Flower',  w: 1, h: 1 },
+  ];
+
+  const ALL_PIECES = PIECES.concat(DECORATIONS);
+
+  /* =============== GRID STATE =============== */
+  const CELL = 48;
+  let cols, rows;
+  let placed = []; // { id, gridX, gridY, w, h }
+
+  /* =============== CANVAS =============== */
+  const mainCanvas = document.getElementById('castle-canvas');
+  const mainCtx = mainCanvas.getContext('2d');
+  const canvasArea = document.getElementById('canvas-area');
+
+  let selectedPiece = 'tower';
+  let eraseMode = false;
+  let dragging = false;
+  let dragPiece = null;
+  let dragX = 0, dragY = 0;
+
+  // Scroll offset for the building area
+  let scrollX = 0, scrollY = 0;
+
+  function recalcGrid() {
+    const rect = canvasArea.getBoundingClientRect();
+    mainCanvas.width = rect.width * window.devicePixelRatio;
+    mainCanvas.height = rect.height * window.devicePixelRatio;
+    mainCanvas.style.width = rect.width + 'px';
+    mainCanvas.style.height = rect.height + 'px';
+    mainCtx.setTransform(window.devicePixelRatio, 0, 0, window.devicePixelRatio, 0, 0);
+    cols = Math.ceil(rect.width / CELL) + 2;
+    rows = Math.ceil(rect.height / CELL) + 2;
+  }
+
+  /* =============== PIECE RENDERERS =============== */
+  function drawStonePattern(ctx, x, y, w, h, t) {
+    ctx.fillStyle = t.base;
+    ctx.fillRect(x, y, w, h);
+    // Stone blocks
+    const bw = w / 3, bh = h / 2;
+    ctx.strokeStyle = t.mortar;
+    ctx.lineWidth = 1.5;
+    for (let row = 0; row < 2; row++) {
+      for (let col = 0; col < 3; col++) {
+        const ox = (row % 2 === 0) ? 0 : bw * 0.5;
+        ctx.strokeRect(x + col * bw + ox, y + row * bh, bw, bh);
+      }
+    }
+    // Highlight
+    ctx.fillStyle = t.light;
+    ctx.globalAlpha = 0.3;
+    ctx.fillRect(x, y, w, h * 0.15);
+    ctx.globalAlpha = 1;
+    // Shadow
+    ctx.fillStyle = t.dark;
+    ctx.globalAlpha = 0.2;
+    ctx.fillRect(x, y + h * 0.85, w, h * 0.15);
+    ctx.globalAlpha = 1;
+  }
+
+  function renderPiece(ctx, id, x, y, cellW, cellH, theme) {
+    const t = theme || T();
+    const w = cellW * CELL;
+    const h = cellH * CELL;
+    const px = x * CELL;
+    const py = y * CELL;
+
+    switch (id) {
+      case 'tower': {
+        drawStonePattern(ctx, px + 4, py + 8, w - 8, h - 8, t.tower);
+        // Crenellations at top
+        const mw = (w - 8) / 5;
+        for (let i = 0; i < 5; i += 2) {
+          ctx.fillStyle = t.tower.base;
+          ctx.fillRect(px + 4 + i * mw, py, mw, 12);
+          ctx.fillStyle = t.tower.dark;
+          ctx.fillRect(px + 4 + i * mw, py + 10, mw, 2);
+        }
+        // Narrow window slit
+        ctx.fillStyle = t.window.glass;
+        ctx.fillRect(px + w/2 - 3, py + h * 0.4, 6, h * 0.2);
+        ctx.strokeStyle = t.window.frame;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(px + w/2 - 3, py + h * 0.4, 6, h * 0.2);
+        break;
+      }
+      case 'wall': {
+        drawStonePattern(ctx, px + 2, py + 4, w - 4, h - 4, t.wall);
+        // Crenellations
+        const mw = (w - 4) / 7;
+        for (let i = 0; i < 7; i += 2) {
+          ctx.fillStyle = t.wall.base;
+          ctx.fillRect(px + 2 + i * mw, py, mw, 8);
+          ctx.fillStyle = t.wall.dark;
+          ctx.fillRect(px + 2 + i * mw, py + 6, mw, 2);
+        }
+        break;
+      }
+      case 'window': {
+        // Window with frame and sill
+        const pad = 6;
+        ctx.fillStyle = t.window.frame;
+        ctx.fillRect(px + pad, py + pad, w - pad*2, h - pad*2);
+        ctx.fillStyle = t.window.glass;
+        ctx.fillRect(px + pad + 3, py + pad + 3, w - pad*2 - 6, h - pad*2 - 6);
+        // Cross bar
+        ctx.fillStyle = t.window.frame;
+        ctx.fillRect(px + w/2 - 1, py + pad + 3, 2, h - pad*2 - 6);
+        ctx.fillRect(px + pad + 3, py + h/2 - 1, w - pad*2 - 6, 2);
+        // Sill
+        ctx.fillStyle = t.window.sill;
+        ctx.fillRect(px + pad - 2, py + h - pad - 2, w - pad*2 + 4, 5);
+        break;
+      }
+      case 'door': {
+        // Arched door
+        const dw = w - 12, dh = h - 8;
+        const dx = px + 6, dy = py + 8;
+        ctx.fillStyle = t.door.frame;
+        ctx.beginPath();
+        ctx.moveTo(dx, dy + dh);
+        ctx.lineTo(dx, dy + dw/2);
+        ctx.arc(dx + dw/2, dy + dw/2, dw/2, Math.PI, 0, false);
+        ctx.lineTo(dx + dw, dy + dh);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = t.door.base;
+        ctx.beginPath();
+        const inset = 3;
+        ctx.moveTo(dx + inset, dy + dh - inset);
+        ctx.lineTo(dx + inset, dy + dw/2);
+        ctx.arc(dx + dw/2, dy + dw/2, dw/2 - inset, Math.PI, 0, false);
+        ctx.lineTo(dx + dw - inset, dy + dh - inset);
+        ctx.closePath();
+        ctx.fill();
+        // Planks
+        ctx.strokeStyle = t.door.frame;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(dx + dw/2, dy + 4);
+        ctx.lineTo(dx + dw/2, dy + dh - inset);
+        ctx.stroke();
+        // Handle
+        ctx.fillStyle = t.door.handle;
+        ctx.beginPath();
+        ctx.arc(dx + dw * 0.7, dy + dh * 0.55, 3, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+      }
+      case 'flag': {
+        // Pole
+        ctx.fillStyle = t.flag.pole;
+        ctx.fillRect(px + w/2 - 2, py, 4, h);
+        // Flag cloth (triangle)
+        ctx.fillStyle = t.flag.cloth;
+        ctx.beginPath();
+        ctx.moveTo(px + w/2 + 2, py + 4);
+        ctx.lineTo(px + w - 2, py + h * 0.25);
+        ctx.lineTo(px + w/2 + 2, py + h * 0.45);
+        ctx.closePath();
+        ctx.fill();
+        // Ball on top
+        ctx.fillStyle = t.flag.pole;
+        ctx.beginPath();
+        ctx.arc(px + w/2, py + 3, 3, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+      }
+      case 'roof': {
+        // Triangle roof
+        ctx.fillStyle = t.roof.base;
+        ctx.beginPath();
+        ctx.moveTo(px - 4, py + h);
+        ctx.lineTo(px + w/2, py + 4);
+        ctx.lineTo(px + w + 4, py + h);
+        ctx.closePath();
+        ctx.fill();
+        // Highlight left slope
+        ctx.fillStyle = t.roof.light;
+        ctx.globalAlpha = 0.3;
+        ctx.beginPath();
+        ctx.moveTo(px - 4, py + h);
+        ctx.lineTo(px + w/2, py + 4);
+        ctx.lineTo(px + w/4, py + h);
+        ctx.closePath();
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        // Ridge lines
+        ctx.strokeStyle = t.roof.dark;
+        ctx.lineWidth = 1;
+        for (let i = 0; i < 4; i++) {
+          const ly = py + h * 0.3 + i * (h * 0.7 / 4);
+          const ratio = (ly - py) / h;
+          const lx1 = px + w/2 - (w/2 + 4) * ratio;
+          const lx2 = px + w/2 + (w/2 + 4) * ratio;
+          ctx.beginPath();
+          ctx.moveTo(lx1, ly);
+          ctx.lineTo(lx2, ly);
+          ctx.stroke();
+        }
+        break;
+      }
+      case 'turret': {
+        // Cylindrical turret
+        ctx.fillStyle = t.turret.base;
+        const tw = w * 0.8, tx = px + w * 0.1;
+        ctx.fillRect(tx, py + 10, tw, h - 10);
+        // Round top
+        ctx.beginPath();
+        ctx.ellipse(tx + tw/2, py + 12, tw/2, 8, 0, 0, Math.PI * 2);
+        ctx.fillStyle = t.turret.top;
+        ctx.fill();
+        // Merlons
+        const mw = tw / 5;
+        for (let i = 0; i < 5; i += 2) {
+          ctx.fillStyle = t.turret.merlon;
+          ctx.fillRect(tx + i * mw, py + 4, mw, 10);
+        }
+        // Highlight
+        ctx.fillStyle = 'rgba(255,255,255,0.15)';
+        ctx.fillRect(tx, py + 10, tw * 0.3, h - 10);
+        break;
+      }
+      case 'drawbridge': {
+        // Bridge planks
+        ctx.fillStyle = t.drawbridge.base;
+        ctx.fillRect(px + 4, py + h * 0.3, w - 8, h * 0.65);
+        // Planks
+        ctx.strokeStyle = t.drawbridge.plank;
+        ctx.lineWidth = 1;
+        const planks = 6;
+        for (let i = 0; i <= planks; i++) {
+          const plx = px + 4 + i * (w - 8) / planks;
+          ctx.beginPath();
+          ctx.moveTo(plx, py + h * 0.3);
+          ctx.lineTo(plx, py + h * 0.95);
+          ctx.stroke();
+        }
+        // Chains
+        ctx.strokeStyle = t.drawbridge.chain;
+        ctx.lineWidth = 2;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(px + 8, py + 4);
+        ctx.lineTo(px + 8, py + h * 0.3);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(px + w - 8, py + 4);
+        ctx.lineTo(px + w - 8, py + h * 0.3);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        break;
+      }
+      case 'moat': {
+        // Water
+        ctx.fillStyle = t.moat.base;
+        ctx.fillRect(px, py + 4, w, h - 4);
+        // Wave highlights
+        ctx.fillStyle = t.moat.light;
+        ctx.globalAlpha = 0.4;
+        for (let i = 0; i < 4; i++) {
+          const wx = px + 6 + i * (w / 4);
+          ctx.beginPath();
+          ctx.ellipse(wx, py + h * 0.5, w/8, 3, 0, 0, Math.PI);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        // Foam edge
+        ctx.fillStyle = t.moat.foam;
+        ctx.globalAlpha = 0.5;
+        ctx.fillRect(px, py + 4, w, 3);
+        ctx.globalAlpha = 1;
+        break;
+      }
+      case 'banner': {
+        // Pole
+        ctx.fillStyle = t.banner.trim;
+        ctx.fillRect(px + w/2 - 1.5, py + 2, 3, h - 4);
+        // Banner cloth
+        ctx.fillStyle = t.banner.cloth;
+        const bw = w * 0.7, bx = px + w * 0.15;
+        ctx.beginPath();
+        ctx.moveTo(bx, py + 6);
+        ctx.lineTo(bx + bw, py + 6);
+        ctx.lineTo(bx + bw, py + h * 0.7);
+        ctx.lineTo(bx + bw/2, py + h * 0.85);
+        ctx.lineTo(bx, py + h * 0.7);
+        ctx.closePath();
+        ctx.fill();
+        // Trim
+        ctx.strokeStyle = t.banner.trim;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        // Emblem (simple cross/diamond)
+        ctx.fillStyle = t.banner.trim;
+        const cx = px + w/2, cy = py + h * 0.4;
+        ctx.fillRect(cx - 1, cy - 6, 2, 12);
+        ctx.fillRect(cx - 6, cy - 1, 12, 2);
+        break;
+      }
+      case 'torch': {
+        const now = performance.now();
+        // Bracket
+        ctx.fillStyle = t.torch.base;
+        ctx.fillRect(px + w/2 - 3, py + h * 0.4, 6, h * 0.55);
+        ctx.fillRect(px + w/2 - 6, py + h * 0.35, 12, 6);
+        // Flame (animated via flicker)
+        const flicker = Math.sin(now / 100) * 2;
+        const flicker2 = Math.cos(now / 130) * 1.5;
+        ctx.fillStyle = t.torch.flame1;
+        ctx.beginPath();
+        ctx.ellipse(px + w/2 + flicker2, py + h * 0.25, 7, 10, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = t.torch.flame2;
+        ctx.beginPath();
+        ctx.ellipse(px + w/2 + flicker, py + h * 0.22, 4, 7, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = t.torch.flame3;
+        ctx.beginPath();
+        ctx.ellipse(px + w/2 - flicker, py + h * 0.19, 2, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+      }
+      case 'flower': {
+        // Stem
+        ctx.strokeStyle = t.flower.stem;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(px + w/2, py + h * 0.45);
+        ctx.lineTo(px + w/2, py + h - 4);
+        ctx.stroke();
+        // Leaves
+        ctx.fillStyle = t.flower.stem;
+        ctx.beginPath();
+        ctx.ellipse(px + w/2 - 5, py + h * 0.65, 5, 3, -0.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(px + w/2 + 5, py + h * 0.55, 5, 3, 0.5, 0, Math.PI * 2);
+        ctx.fill();
+        // Petals
+        const cx = px + w/2, cy = py + h * 0.35;
+        for (let a = 0; a < 5; a++) {
+          const angle = a * Math.PI * 2 / 5 - Math.PI / 2;
+          ctx.fillStyle = t.flower.petal;
+          ctx.beginPath();
+          ctx.ellipse(cx + Math.cos(angle) * 6, cy + Math.sin(angle) * 6, 5, 4, angle, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        // Center
+        ctx.fillStyle = t.flower.center;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+      }
+    }
+  }
+
+  /* =============== RENDER MAIN CANVAS =============== */
+  let animFrame;
+  let hasTorches = false;
+
+  function render() {
+    const rect = canvasArea.getBoundingClientRect();
+    const cw = rect.width, ch = rect.height;
+    const t = T();
+
+    // Sky gradient
+    const grad = mainCtx.createLinearGradient(0, 0, 0, ch);
+    grad.addColorStop(0, t.sky[0]);
+    grad.addColorStop(0.65, t.sky[1]);
+    grad.addColorStop(1, t.sky[2]);
+    mainCtx.fillStyle = grad;
+    mainCtx.fillRect(0, 0, cw, ch);
+
+    // Ground
+    const groundY = ch - CELL * 2;
+    mainCtx.fillStyle = t.ground;
+    mainCtx.fillRect(0, groundY, cw, CELL * 2);
+    mainCtx.fillStyle = t.groundDark;
+    mainCtx.fillRect(0, groundY + CELL, cw, CELL);
+
+    // Grid overlay (subtle)
+    mainCtx.strokeStyle = 'rgba(0,0,0,0.06)';
+    mainCtx.lineWidth = 0.5;
+    for (let gx = 0; gx <= cw; gx += CELL) {
+      mainCtx.beginPath();
+      mainCtx.moveTo(gx, 0);
+      mainCtx.lineTo(gx, ch);
+      mainCtx.stroke();
+    }
+    for (let gy = 0; gy <= ch; gy += CELL) {
+      mainCtx.beginPath();
+      mainCtx.moveTo(0, gy);
+      mainCtx.lineTo(cw, gy);
+      mainCtx.stroke();
+    }
+
+    // Render placed pieces
+    hasTorches = false;
+    for (const p of placed) {
+      if (p.id === 'torch') hasTorches = true;
+      renderPiece(mainCtx, p.id, p.gridX, p.gridY, p.w, p.h, t);
+    }
+
+    // Ghost preview while dragging
+    if (dragging && dragPiece) {
+      const gx = Math.round((dragX) / CELL);
+      const gy = Math.round((dragY) / CELL);
+      mainCtx.globalAlpha = 0.5;
+      renderPiece(mainCtx, dragPiece.id, gx, gy, dragPiece.w, dragPiece.h, t);
+      mainCtx.globalAlpha = 1;
+      // Snap indicator
+      mainCtx.strokeStyle = '#FFD700';
+      mainCtx.lineWidth = 2;
+      mainCtx.setLineDash([4, 4]);
+      mainCtx.strokeRect(gx * CELL, gy * CELL, dragPiece.w * CELL, dragPiece.h * CELL);
+      mainCtx.setLineDash([]);
+    }
+
+    // Erase mode indicator
+    if (eraseMode) {
+      mainCtx.fillStyle = 'rgba(255,80,80,0.12)';
+      mainCtx.fillRect(0, 0, cw, ch);
+      mainCtx.fillStyle = '#FF4444';
+      mainCtx.font = '700 16px Fredoka, sans-serif';
+      mainCtx.textAlign = 'center';
+      mainCtx.fillText('TAP A PIECE TO REMOVE IT', cw / 2, 30);
+    }
+
+    // Continue animation if torches exist
+    if (hasTorches || dragging) {
+      animFrame = requestAnimationFrame(render);
+    }
+  }
+
+  function startRender() {
+    cancelAnimationFrame(animFrame);
+    animFrame = requestAnimationFrame(render);
+  }
+
+  /* =============== BUILD TOOLBAR =============== */
+  const toolbar = document.getElementById('toolbar');
+
+  function buildToolbar() {
+    toolbar.innerHTML = '';
+    PIECES.forEach((p, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'piece-btn' + (p.id === selectedPiece && !eraseMode ? ' active' : '');
+      btn.dataset.piece = p.id;
+
+      const prev = document.createElement('canvas');
+      prev.width = 48; prev.height = 48;
+      drawPiecePreview(prev, p);
+      btn.appendChild(prev);
+
+      const label = document.createElement('span');
+      label.className = 'btn-label';
+      label.textContent = p.label;
+      btn.appendChild(label);
+
+      btn.addEventListener('click', () => selectPiece(p.id));
+      toolbar.appendChild(btn);
+    });
+
+    // Separator
+    const sep = document.createElement('div');
+    sep.className = 'deco-sep';
+    toolbar.appendChild(sep);
+
+    DECORATIONS.forEach(p => {
+      const btn = document.createElement('button');
+      btn.className = 'piece-btn' + (p.id === selectedPiece && !eraseMode ? ' active' : '');
+      btn.dataset.piece = p.id;
+
+      const prev = document.createElement('canvas');
+      prev.width = 48; prev.height = 48;
+      drawPiecePreview(prev, p);
+      btn.appendChild(prev);
+
+      const label = document.createElement('span');
+      label.className = 'btn-label';
+      label.textContent = p.label;
+      btn.appendChild(label);
+
+      btn.addEventListener('click', () => selectPiece(p.id));
+      toolbar.appendChild(btn);
+    });
+  }
+
+  function drawPiecePreview(canvas, piece) {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, 48, 48);
+    // Scale to fit in 48x48
+    const scale = Math.min(48 / (piece.w * CELL), 48 / (piece.h * CELL));
+    ctx.save();
+    ctx.scale(scale, scale);
+    const offX = (48 / scale - piece.w * CELL) / 2 / CELL;
+    const offY = (48 / scale - piece.h * CELL) / 2 / CELL;
+    renderPiece(ctx, piece.id, offX, offY, piece.w, piece.h, T());
+    ctx.restore();
+  }
+
+  function selectPiece(id) {
+    selectedPiece = id;
+    eraseMode = false;
+    updateEraseBtn();
+    updateToolbarActive();
+    SFX.click();
+  }
+
+  function updateToolbarActive() {
+    toolbar.querySelectorAll('.piece-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.piece === selectedPiece && !eraseMode);
+    });
+  }
+
+  function refreshPreviews() {
+    toolbar.querySelectorAll('.piece-btn').forEach(btn => {
+      const pid = btn.dataset.piece;
+      const piece = ALL_PIECES.find(p => p.id === pid);
+      if (piece) {
+        const prev = btn.querySelector('canvas');
+        if (prev) drawPiecePreview(prev, piece);
+      }
+    });
+  }
+
+  buildToolbar();
+
+  /* =============== ERASE MODE =============== */
+  const eraseBtn = document.getElementById('btn-erase');
+  function updateEraseBtn() {
+    eraseBtn.style.background = eraseMode ? '#FF6B6B' : '';
+    eraseBtn.style.color = eraseMode ? '#fff' : '';
+    eraseBtn.style.borderColor = eraseMode ? '#FF4444' : '';
+  }
+  eraseBtn.addEventListener('click', () => {
+    eraseMode = !eraseMode;
+    if (eraseMode) {
+      selectedPiece = null;
+      updateToolbarActive();
+    } else {
+      selectedPiece = 'tower';
+      updateToolbarActive();
+    }
+    updateEraseBtn();
+    SFX.click();
+    startRender();
+  });
+
+  /* =============== INTERACTION =============== */
+  function getEventPos(e) {
+    const rect = canvasArea.getBoundingClientRect();
+    let cx, cy;
+    if (e.touches && e.touches.length > 0) {
+      cx = e.touches[0].clientX - rect.left;
+      cy = e.touches[0].clientY - rect.top;
+    } else if (e.changedTouches && e.changedTouches.length > 0) {
+      cx = e.changedTouches[0].clientX - rect.left;
+      cy = e.changedTouches[0].clientY - rect.top;
+    } else {
+      cx = e.clientX - rect.left;
+      cy = e.clientY - rect.top;
+    }
+    return { x: cx, y: cy };
+  }
+
+  function findPieceAt(gx, gy) {
+    // Find topmost piece at grid position (search in reverse for z-order)
+    for (let i = placed.length - 1; i >= 0; i--) {
+      const p = placed[i];
+      if (gx >= p.gridX && gx < p.gridX + p.w && gy >= p.gridY && gy < p.gridY + p.h) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  function onPointerDown(e) {
+    e.preventDefault();
+    const pos = getEventPos(e);
+    const gx = Math.floor(pos.x / CELL);
+    const gy = Math.floor(pos.y / CELL);
+
+    if (eraseMode) {
+      const idx = findPieceAt(gx, gy);
+      if (idx >= 0) {
+        placed.splice(idx, 1);
+        SFX.erase();
+        startRender();
+      }
+      return;
+    }
+
+    if (!selectedPiece) return;
+
+    const pieceDef = ALL_PIECES.find(p => p.id === selectedPiece);
+    if (!pieceDef) return;
+
+    dragging = true;
+    dragPiece = pieceDef;
+    dragX = pos.x - (pieceDef.w * CELL) / 2;
+    dragY = pos.y - (pieceDef.h * CELL) / 2;
+    startRender();
+  }
+
+  function onPointerMove(e) {
+    if (!dragging) return;
+    e.preventDefault();
+    const pos = getEventPos(e);
+    dragX = pos.x - (dragPiece.w * CELL) / 2;
+    dragY = pos.y - (dragPiece.h * CELL) / 2;
+  }
+
+  function onPointerUp(e) {
+    if (!dragging || !dragPiece) {
+      dragging = false;
+      return;
+    }
+    e.preventDefault();
+    const pos = getEventPos(e);
+    const gx = Math.round((pos.x - (dragPiece.w * CELL) / 2) / CELL);
+    const gy = Math.round((pos.y - (dragPiece.h * CELL) / 2) / CELL);
+
+    // Place piece
+    placed.push({
+      id: dragPiece.id,
+      gridX: gx,
+      gridY: gy,
+      w: dragPiece.w,
+      h: dragPiece.h,
+    });
+
+    SFX.place();
+    dragging = false;
+    dragPiece = null;
+    startRender();
+    checkCelebration();
+  }
+
+  mainCanvas.addEventListener('mousedown', onPointerDown);
+  mainCanvas.addEventListener('mousemove', onPointerMove);
+  mainCanvas.addEventListener('mouseup', onPointerUp);
+  mainCanvas.addEventListener('mouseleave', () => { dragging = false; startRender(); });
+  mainCanvas.addEventListener('touchstart', onPointerDown, { passive: false });
+  mainCanvas.addEventListener('touchmove', onPointerMove, { passive: false });
+  mainCanvas.addEventListener('touchend', onPointerUp);
+  mainCanvas.addEventListener('touchcancel', () => { dragging = false; startRender(); });
+  mainCanvas.addEventListener('contextmenu', e => e.preventDefault());
+
+  /* =============== CELEBRATION / FIREWORKS =============== */
+  const fwCanvas = document.getElementById('fireworks-canvas');
+  const fwCtx = fwCanvas.getContext('2d');
+  let celebrationShown = new Set();
+  let fireworks = [];
+  let fwAnimating = false;
+
+  function checkCelebration() {
+    const count = placed.length;
+    const thresholds = [5, 10, 15, 25];
+    for (const th of thresholds) {
+      if (count >= th && !celebrationShown.has(th)) {
+        celebrationShown.add(th);
+        launchFireworks();
+        SFX.celebrate();
+        break;
+      }
+    }
+  }
+
+  function launchFireworks() {
+    const rect = canvasArea.getBoundingClientRect();
+    fwCanvas.width = rect.width * window.devicePixelRatio;
+    fwCanvas.height = rect.height * window.devicePixelRatio;
+    fwCanvas.style.width = rect.width + 'px';
+    fwCanvas.style.height = rect.height + 'px';
+    fwCtx.setTransform(window.devicePixelRatio, 0, 0, window.devicePixelRatio, 0, 0);
+    fwCanvas.style.display = 'block';
+
+    const colors = ['#FF6B6B','#FFD700','#69FF69','#69BFFF','#FF69FF','#FF9F43','#54E3FF'];
+    fireworks = [];
+
+    // Launch multiple bursts
+    for (let b = 0; b < 6; b++) {
+      const bx = rect.width * (0.15 + Math.random() * 0.7);
+      const by = rect.height * (0.1 + Math.random() * 0.4);
+      const color = colors[Math.floor(Math.random() * colors.length)];
+      const delay = b * 300 + Math.random() * 200;
+
+      setTimeout(() => {
+        for (let i = 0; i < 30; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          const speed = 1 + Math.random() * 3;
+          fireworks.push({
+            x: bx, y: by,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            life: 1,
+            decay: 0.008 + Math.random() * 0.012,
+            color: color,
+            size: 2 + Math.random() * 3,
+          });
+        }
+      }, delay);
+    }
+
+    if (!fwAnimating) {
+      fwAnimating = true;
+      animateFireworks();
+    }
+
+    // Hide after animation
+    setTimeout(() => {
+      fwCanvas.style.display = 'none';
+      fwAnimating = false;
+      fireworks = [];
+    }, 3500);
+  }
+
+  function animateFireworks() {
+    if (!fwAnimating) return;
+
+    const rect = canvasArea.getBoundingClientRect();
+    fwCtx.clearRect(0, 0, rect.width, rect.height);
+
+    for (let i = fireworks.length - 1; i >= 0; i--) {
+      const p = fireworks[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.03; // gravity
+      p.life -= p.decay;
+
+      if (p.life <= 0) {
+        fireworks.splice(i, 1);
+        continue;
+      }
+
+      fwCtx.globalAlpha = p.life;
+      fwCtx.fillStyle = p.color;
+      fwCtx.beginPath();
+      fwCtx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+      fwCtx.fill();
+
+      // Sparkle trail
+      fwCtx.fillStyle = '#FFFFFF';
+      fwCtx.globalAlpha = p.life * 0.5;
+      fwCtx.beginPath();
+      fwCtx.arc(p.x - p.vx, p.y - p.vy, p.size * 0.5 * p.life, 0, Math.PI * 2);
+      fwCtx.fill();
+    }
+    fwCtx.globalAlpha = 1;
+
+    requestAnimationFrame(animateFireworks);
+  }
+
+  /* =============== CLEAR =============== */
+  document.getElementById('btn-clear').addEventListener('click', () => {
+    if (placed.length === 0) return;
+    document.getElementById('confirm-overlay').classList.add('open');
+  });
+  document.getElementById('confirm-yes').addEventListener('click', () => {
+    placed = [];
+    celebrationShown.clear();
+    document.getElementById('confirm-overlay').classList.remove('open');
+    SFX.clear();
+    startRender();
+  });
+  document.getElementById('confirm-no').addEventListener('click', () => {
+    document.getElementById('confirm-overlay').classList.remove('open');
+    SFX.click();
+  });
+
+  /* =============== SAVE =============== */
+  document.getElementById('btn-save').addEventListener('click', () => {
+    // Render current canvas to a downloadable PNG
+    const rect = canvasArea.getBoundingClientRect();
+    const exportCanvas = document.createElement('canvas');
+    exportCanvas.width = rect.width * 2;
+    exportCanvas.height = rect.height * 2;
+    const ec = exportCanvas.getContext('2d');
+    ec.scale(2, 2);
+
+    // Draw sky
+    const t = T();
+    const grad = ec.createLinearGradient(0, 0, 0, rect.height);
+    grad.addColorStop(0, t.sky[0]);
+    grad.addColorStop(0.65, t.sky[1]);
+    grad.addColorStop(1, t.sky[2]);
+    ec.fillStyle = grad;
+    ec.fillRect(0, 0, rect.width, rect.height);
+
+    // Ground
+    const groundY = rect.height - CELL * 2;
+    ec.fillStyle = t.ground;
+    ec.fillRect(0, groundY, rect.width, CELL * 2);
+    ec.fillStyle = t.groundDark;
+    ec.fillRect(0, groundY + CELL, rect.width, CELL);
+
+    // Pieces
+    for (const p of placed) {
+      renderPiece(ec, p.id, p.gridX, p.gridY, p.w, p.h, t);
+    }
+
+    const link = document.createElement('a');
+    link.download = 'my-castle.png';
+    link.href = exportCanvas.toDataURL('image/png');
+    link.click();
+    SFX.save();
+  });
+
+  /* =============== THEME SWITCHING =============== */
+  document.querySelectorAll('.theme-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      currentTheme = btn.dataset.theme;
+      document.querySelectorAll('.theme-btn').forEach(b => b.classList.toggle('active', b === btn));
+      refreshPreviews();
+      SFX.theme();
+      startRender();
+    });
+  });
+
+  /* =============== RESIZE =============== */
+  window.addEventListener('resize', () => {
+    recalcGrid();
+    startRender();
+  });
+
+  /* =============== PREVENT SCROLLING =============== */
+  document.addEventListener('touchmove', (e) => {
+    if (e.target === mainCanvas || e.target.closest('#canvas-area')) {
+      e.preventDefault();
+    }
+  }, { passive: false });
+
+  /* =============== RESUME AUDIO CONTEXT =============== */
+  document.addEventListener('touchstart', () => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      ctx.resume();
+    } catch(e) {}
+  }, { once: true });
+
+  /* =============== INIT =============== */
+  recalcGrid();
+  startRender();
+
+})();
+</script>
+</body>
+</html>
