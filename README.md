@@ -164,7 +164,7 @@ Every style has a unique aesthetic. Some are paired with tech guides and stories
 | korean-hanok | | |
 | leather-wood | | |
 | letterpress | Git | The Press |
-| library-card-catalog | | |
+| library-card-catalog | Emacs | |
 | light-academia | | |
 | liminal-space | | |
 | linocut | | |
