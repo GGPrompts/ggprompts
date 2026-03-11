@@ -1263,24 +1263,9 @@ timeline
         sequence: { useMaxWidth: false }
     });
     mermaid.run().then(() => {
-        // Fix node label contrast — mermaid theme primaryTextColor overrides
-        // per-node color in style directives (foreignObject doesn't inherit SVG styles)
-        document.querySelectorAll('.node').forEach(node => {
-            const shape = node.querySelector('rect, polygon, circle, ellipse');
-            if (!shape) return;
-            const style = shape.getAttribute('style') || '';
-            const fillMatch = style.match(/fill:\s*(#[0-9a-fA-F]{3,8})/);
-            if (!fillMatch) return;
-            const hex = fillMatch[1].replace('#', '');
-            if (hex.length < 6) return;
-            const r = parseInt(hex.substr(0, 2), 16);
-            const g = parseInt(hex.substr(2, 2), 16);
-            const b = parseInt(hex.substr(4, 2), 16);
-            const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-            const textColor = lum > 0.4 ? '#0a0010' : '#ffffff';
-            node.querySelectorAll('.nodeLabel').forEach(label => {
-                label.style.color = textColor;
-            });
+        // Fix node label contrast — wait a frame for styles to resolve
+        requestAnimationFrame(() => {
+            fixNodeLabelColors(document);
         });
 
         const expandIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`;
@@ -1296,6 +1281,41 @@ timeline
             }
         });
     });
+
+    function fixNodeLabelColors(root) {
+        root.querySelectorAll('.node').forEach(node => {
+            const shape = node.querySelector('rect, polygon, circle, ellipse, path');
+            if (!shape) return;
+
+            let r, g, b;
+            // Use getComputedStyle — works regardless of how fill is applied
+            try {
+                const fill = getComputedStyle(shape).fill;
+                const m = fill.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+                if (m) { r = +m[1]; g = +m[2]; b = +m[3]; }
+            } catch(e) {}
+
+            // Fallback: inline style or fill attribute
+            if (r === undefined) {
+                const src = (shape.getAttribute('style') || '') + ' ' + (shape.getAttribute('fill') || '');
+                const hm = src.match(/#([0-9a-fA-F]{6})/);
+                if (hm) { r = parseInt(hm[1].substr(0,2),16); g = parseInt(hm[1].substr(2,2),16); b = parseInt(hm[1].substr(4,2),16); }
+            }
+            if (r === undefined) return;
+
+            const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+            const textColor = lum > 0.4 ? '#0a0010' : '#ffffff';
+
+            // Force on all possible label elements — !important overrides theme CSS
+            node.querySelectorAll('foreignObject *').forEach(el => {
+                el.style.setProperty('color', textColor, 'important');
+            });
+            // SVG text elements (when htmlLabels is off or fallback)
+            node.querySelectorAll('text, tspan').forEach(el => {
+                el.setAttribute('fill', textColor);
+            });
+        });
+    }
 
     // Fullscreen state
     const overlay = document.getElementById('fsOverlay');
@@ -1316,7 +1336,9 @@ timeline
         if (!svg) return;
 
         content.innerHTML = '';
-        content.appendChild(svg.cloneNode(true));
+        const clone = svg.cloneNode(true);
+        content.appendChild(clone);
+        fixNodeLabelColors(clone);
 
         zoom = 1;
         panX = 0;
