@@ -154,7 +154,7 @@ Every style has a unique aesthetic. Some are paired with tech guides and stories
 | impressionism | | |
 | indian-rangoli | | |
 | industrial | nginx | |
-| infrared-thermal | | |
+| infrared-thermal | | OpenClaw |
 | japanese-zen | | The Way |
 | jrpg-menu | | |
 | kaleidoscope | | |
