@@ -93,6 +93,17 @@ Create the full HTML file with:
 - Use subgraphs to group related components
 - Use `<br/>` for multi-line node labels
 
+**Mermaid node text contrast (REQUIRED):**
+Mermaid's `primaryTextColor` theme variable overrides per-node `color` in style directives — the `color` doesn't propagate through `foreignObject` to HTML labels. You MUST include a post-render `fixNodeLabelColors` function that:
+1. Runs inside `mermaid.run().then()` wrapped in `requestAnimationFrame`
+2. Iterates all `.node` elements, reads the shape's fill via `getComputedStyle(shape).fill`
+3. Computes luminance: `(0.299*r + 0.587*g + 0.114*b) / 255`
+4. Sets text color on `foreignObject *` with `!important`: dark (`#0a0010`) if lum > 0.4, white (`#ffffff`) otherwise
+5. Also sets `fill` attribute on `text`/`tspan` elements for SVG text fallback
+6. Is also called on cloned SVGs in the fullscreen viewer (`fixNodeLabelColors(clone)`)
+
+Copy the implementation from `architecture/openclaw/index.html`.
+
 ### Agent 2 — Sections 08-12 + Finish
 
 Read the file, then append:
@@ -132,6 +143,7 @@ One **opus** subagent reads the complete file and:
 ## Reference
 
 - Template: `architecture/va-oit/index.html` (Federal Night style, ~1200 lines)
+- Mermaid contrast fix reference: `architecture/openclaw/index.html` (has `fixNodeLabelColors` implementation)
 - Style guides: `styles/{name}.html`
 - Available styles: **Style Guide Catalog** table in `README.md`
 - Mermaid docs: https://mermaid.js.org/syntax/flowchart.html
