@@ -1,0 +1,1884 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transportation — API Alley</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        /* ============================================================
+           TRANSPORTATION — API Alley Live Widget Page
+           Departure-board aesthetic: steel blues, runway grays,
+           signal green/amber/red. Data-viz tokens.
+           ============================================================ */
+
+        :root {
+            /* ── Palette ─────────────────────────────────────────── */
+            --bg:          #0d1117;
+            --bg-card:     #111820;
+            --bg-card-alt: #141c26;
+            --bg-hover:    #182030;
+
+            --ink:         #d6e0ec;
+            --ink-dim:     #8ba0b8;
+            --ink-muted:   #4a5e74;
+            --ink-faint:   #1e2d3e;
+
+            --rule:        1px solid #1a2840;
+            --rule-bright: 1px solid #253a55;
+
+            /* Signal & transport accent colors */
+            --steel:       #4e84c4;     /* steel blue — primary */
+            --steel-light: #7aaedd;
+            --steel-dim:   #2e5a8a;
+            --runway:      #5e7a94;     /* runway gray-blue */
+            --runway-light:#8faabb;
+            --signal-green:#2ecc71;     /* all-clear */
+            --signal-amber:#f39c12;     /* caution */
+            --signal-red:  #e74c3c;     /* stop / delayed */
+            --beacon:      #00d4ff;     /* aviation beacon cyan */
+            --rail-orange: #e67e22;     /* rail amber */
+            --sea-teal:    #1abc9c;     /* maritime teal */
+
+            /* Departure board flicker effect */
+            --board-bg:    #0a1520;
+            --board-text:  #e8f4fd;
+            --board-dim:   #4a7a9b;
+
+            /* Glow effects */
+            --glow-steel:  0 0 12px rgba(78, 132, 196, 0.4);
+            --glow-green:  0 0 10px rgba(46, 204, 113, 0.35);
+            --glow-amber:  0 0 10px rgba(243, 156, 18, 0.35);
+            --glow-red:    0 0 10px rgba(231, 76, 60, 0.35);
+            --glow-beacon: 0 0 14px rgba(0, 212, 255, 0.45);
+
+            /* Fonts */
+            --font-body: 'IBM Plex Sans', 'Helvetica Neue', Arial, sans-serif;
+            --font-mono: 'IBM Plex Mono', 'Consolas', monospace;
+
+            /* Type scale */
+            --text-xs:   0.6875rem;
+            --text-sm:   0.8125rem;
+            --text-base: 0.9375rem;
+            --text-lg:   1.125rem;
+            --text-xl:   1.375rem;
+            --text-2xl:  1.75rem;
+            --text-3xl:  2.25rem;
+
+            /* Spacing */
+            --s1: 4px;   --s2: 8px;   --s3: 12px;
+            --s4: 16px;  --s5: 24px;  --s6: 32px;
+            --s7: 48px;  --s8: 64px;
+
+            --radius:    6px;
+            --radius-lg: 10px;
+            --transition: 0.18s ease;
+        }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        html { font-size: 16px; -webkit-text-size-adjust: 100%; }
+
+        body {
+            font-family: var(--font-body);
+            font-size: var(--text-base);
+            line-height: 1.6;
+            color: var(--ink);
+            background: var(--bg);
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            font-feature-settings: 'tnum' 1, 'kern' 1;
+            overflow-x: hidden;
+        }
+
+        /* Subtle runway-lights texture in background */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 0;
+            background-image:
+                repeating-linear-gradient(
+                    0deg,
+                    transparent,
+                    transparent 39px,
+                    rgba(78, 132, 196, 0.03) 39px,
+                    rgba(78, 132, 196, 0.03) 40px
+                );
+        }
+
+        /* ── Layout ────────────────────────────────────────────────── */
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1180px;
+            margin: 0 auto;
+            padding: 0 var(--s6) var(--s8);
+        }
+
+        /* ── Page Header ────────────────────────────────────────────── */
+        .page-header {
+            padding: var(--s7) 0 var(--s6);
+            border-bottom: 1px solid var(--ink-faint);
+            margin-bottom: var(--s7);
+        }
+
+        .page-header-top {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: var(--s5);
+            flex-wrap: wrap;
+        }
+
+        .page-header h1 {
+            font-family: var(--font-mono);
+            font-size: var(--text-3xl);
+            font-weight: 500;
+            color: var(--ink);
+            letter-spacing: -0.01em;
+            line-height: 1.1;
+        }
+
+        .page-header h1 span {
+            color: var(--steel-light);
+        }
+
+        .page-header p {
+            margin-top: var(--s3);
+            color: var(--ink-dim);
+            font-size: var(--text-base);
+            max-width: 56ch;
+        }
+
+        .header-badge-row {
+            display: flex;
+            gap: var(--s2);
+            flex-wrap: wrap;
+            margin-top: var(--s4);
+        }
+
+        .badge {
+            font-family: var(--font-mono);
+            font-size: var(--text-xs);
+            padding: 3px var(--s2);
+            border-radius: 4px;
+            background: var(--bg-card);
+            border: var(--rule-bright);
+            color: var(--ink-dim);
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        .badge-green  { color: var(--signal-green); border-color: rgba(46,204,113,0.3); }
+        .badge-steel  { color: var(--steel-light);  border-color: rgba(78,132,196,0.3); }
+        .badge-amber  { color: var(--signal-amber); border-color: rgba(243,156,18,0.3); }
+
+        .live-dot {
+            display: inline-block;
+            width: 7px; height: 7px;
+            border-radius: 50%;
+            background: var(--signal-green);
+            box-shadow: var(--glow-green);
+            animation: pulse 2s infinite;
+            vertical-align: middle;
+            margin-right: var(--s1);
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50%       { opacity: 0.4; }
+        }
+
+        /* ── Widget grid ────────────────────────────────────────────── */
+        .widget-grid {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: var(--s5);
+        }
+
+        .col-12 { grid-column: span 12; }
+        .col-8  { grid-column: span 8; }
+        .col-6  { grid-column: span 6; }
+        .col-4  { grid-column: span 4; }
+
+        @media (max-width: 900px) {
+            .col-8, .col-6  { grid-column: span 12; }
+            .col-4          { grid-column: span 12; }
+        }
+
+        @media (max-width: 600px) {
+            .page-header h1 { font-size: var(--text-2xl); }
+            .container { padding: 0 var(--s4) var(--s7); }
+        }
+
+        /* ── Widget card ─────────────────────────────────────────────── */
+        .widget {
+            background: var(--bg-card);
+            border: var(--rule);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .widget-head {
+            padding: var(--s4) var(--s5);
+            border-bottom: var(--rule);
+            display: flex;
+            align-items: center;
+            gap: var(--s3);
+            background: var(--bg-card-alt);
+        }
+
+        .widget-icon {
+            font-size: 1.25rem;
+            line-height: 1;
+            flex-shrink: 0;
+        }
+
+        .widget-head-text {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .widget-title {
+            font-family: var(--font-mono);
+            font-size: var(--text-sm);
+            font-weight: 500;
+            color: var(--ink);
+            letter-spacing: 0.02em;
+        }
+
+        .widget-meta {
+            font-size: var(--text-xs);
+            color: var(--ink-muted);
+            margin-top: 2px;
+        }
+
+        .widget-meta a {
+            color: var(--steel);
+            text-decoration: none;
+        }
+
+        .widget-meta a:hover { text-decoration: underline; }
+
+        .widget-status {
+            font-family: var(--font-mono);
+            font-size: var(--text-xs);
+            padding: 2px 7px;
+            border-radius: 3px;
+            flex-shrink: 0;
+        }
+
+        .status-loading { background: rgba(78,132,196,0.15); color: var(--steel-light); }
+        .status-ok      { background: rgba(46,204,113,0.15); color: var(--signal-green); }
+        .status-error   { background: rgba(231,76,60,0.15);  color: var(--signal-red); }
+        .status-warn    { background: rgba(243,156,18,0.15); color: var(--signal-amber); }
+
+        .widget-body {
+            padding: var(--s5);
+            flex: 1;
+        }
+
+        /* ── Loading / Error states ─────────────────────────────────── */
+        .loading-state {
+            display: flex;
+            align-items: center;
+            gap: var(--s3);
+            color: var(--ink-dim);
+            font-size: var(--text-sm);
+            padding: var(--s4) 0;
+        }
+
+        .loading-spinner {
+            width: 16px; height: 16px;
+            border: 2px solid var(--ink-faint);
+            border-top-color: var(--steel);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            flex-shrink: 0;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .error-state {
+            color: var(--signal-amber);
+            font-size: var(--text-sm);
+            padding: var(--s3) 0;
+            display: flex;
+            align-items: flex-start;
+            gap: var(--s2);
+        }
+
+        .error-state .err-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 1px; }
+        .error-state .err-msg  { line-height: 1.5; }
+        .error-state .err-sub  { display: block; font-size: var(--text-xs); color: var(--ink-muted); margin-top: var(--s1); font-family: var(--font-mono); }
+
+        .proxy-note {
+            background: rgba(94, 122, 148, 0.1);
+            border: 1px solid rgba(94, 122, 148, 0.25);
+            border-radius: var(--radius);
+            padding: var(--s4);
+            font-size: var(--text-sm);
+            color: var(--runway-light);
+        }
+
+        .proxy-note strong { color: var(--ink-dim); }
+        .proxy-note code {
+            font-family: var(--font-mono);
+            font-size: var(--text-xs);
+            background: rgba(0,0,0,0.3);
+            padding: 1px 5px;
+            border-radius: 3px;
+        }
+
+        /* ── Departure board table ──────────────────────────────────── */
+        .board {
+            font-family: var(--font-mono);
+            font-size: var(--text-sm);
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .board th {
+            font-size: var(--text-xs);
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--ink-muted);
+            padding: var(--s2) var(--s3);
+            border-bottom: var(--rule-bright);
+            text-align: left;
+            background: var(--bg-card-alt);
+        }
+
+        .board td {
+            padding: var(--s2) var(--s3);
+            border-bottom: var(--rule);
+            color: var(--ink-dim);
+            vertical-align: middle;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 140px;
+        }
+
+        .board tr:last-child td { border-bottom: none; }
+
+        .board tr:hover td { background: var(--bg-hover); }
+
+        .board td.highlight { color: var(--ink); }
+        .board td.mono      { font-family: var(--font-mono); font-size: var(--text-xs); }
+
+        /* Status cell indicators */
+        .status-cell { display: inline-flex; align-items: center; gap: 5px; }
+        .dot-green { width: 6px; height: 6px; border-radius: 50%; background: var(--signal-green); display: inline-block; }
+        .dot-red   { width: 6px; height: 6px; border-radius: 50%; background: var(--signal-red);   display: inline-block; }
+        .dot-amber { width: 6px; height: 6px; border-radius: 50%; background: var(--signal-amber); display: inline-block; }
+        .dot-gray  { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-muted);    display: inline-block; }
+
+        /* ── Stat row ────────────────────────────────────────────────── */
+        .stat-row {
+            display: flex;
+            gap: var(--s5);
+            flex-wrap: wrap;
+            margin-bottom: var(--s4);
+        }
+
+        .stat-cell {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .stat-value {
+            font-family: var(--font-mono);
+            font-size: var(--text-2xl);
+            font-weight: 500;
+            color: var(--ink);
+            line-height: 1;
+        }
+
+        .stat-label {
+            font-size: var(--text-xs);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--ink-muted);
+            margin-top: 3px;
+        }
+
+        .stat-value.green  { color: var(--signal-green); }
+        .stat-value.steel  { color: var(--steel-light); }
+        .stat-value.amber  { color: var(--signal-amber); }
+        .stat-value.beacon { color: var(--beacon); }
+
+        /* ── Section separator ──────────────────────────────────────── */
+        .section-label {
+            font-family: var(--font-mono);
+            font-size: var(--text-xs);
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--ink-muted);
+            margin-bottom: var(--s4);
+            padding-bottom: var(--s2);
+            border-bottom: var(--rule);
+        }
+
+        /* ── Bike grid ───────────────────────────────────────────────── */
+        .bike-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: var(--s3);
+        }
+
+        .bike-station {
+            background: var(--bg-card-alt);
+            border: var(--rule);
+            border-radius: var(--radius);
+            padding: var(--s3);
+        }
+
+        .bike-station-name {
+            font-size: var(--text-xs);
+            color: var(--ink-dim);
+            margin-bottom: var(--s2);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            line-height: 1.3;
+            min-height: 2.6em;
+        }
+
+        .bike-bar-row {
+            display: flex;
+            align-items: center;
+            gap: var(--s2);
+            margin-bottom: var(--s1);
+        }
+
+        .bike-bar {
+            flex: 1;
+            height: 5px;
+            background: var(--ink-faint);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .bike-bar-fill {
+            height: 100%;
+            border-radius: 3px;
+            background: var(--signal-green);
+            transition: width 0.5s ease;
+        }
+
+        .bike-bar-fill.low { background: var(--signal-amber); }
+        .bike-bar-fill.empty { background: var(--signal-red); }
+
+        .bike-count {
+            font-family: var(--font-mono);
+            font-size: var(--text-xs);
+            color: var(--ink);
+            min-width: 24px;
+            text-align: right;
+        }
+
+        .bike-icon-row {
+            display: flex;
+            gap: var(--s2);
+            font-size: var(--text-xs);
+            color: var(--ink-muted);
+        }
+
+        /* ── Departure board (iRail) ────────────────────────────────── */
+        .departure-row {
+            display: grid;
+            grid-template-columns: 3.5rem 1fr 3.5rem 4.5rem;
+            gap: var(--s3);
+            padding: var(--s2) var(--s3);
+            border-bottom: var(--rule);
+            align-items: center;
+            font-family: var(--font-mono);
+            font-size: var(--text-sm);
+            transition: background var(--transition);
+        }
+
+        .departure-row:last-child { border-bottom: none; }
+        .departure-row:hover { background: var(--bg-hover); }
+
+        .dep-time { color: var(--ink); font-size: var(--text-sm); }
+        .dep-platform { font-size: var(--text-xs); color: var(--ink-muted); }
+        .dep-dest { color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .dep-train { font-size: var(--text-xs); color: var(--steel); }
+        .dep-delay { text-align: right; }
+        .delay-ok    { color: var(--signal-green); }
+        .delay-minor { color: var(--signal-amber); }
+        .delay-major { color: var(--signal-red); }
+
+        /* ── Network filter ──────────────────────────────────────────── */
+        .filter-row {
+            display: flex;
+            gap: var(--s2);
+            flex-wrap: wrap;
+            margin-bottom: var(--s4);
+        }
+
+        .filter-btn {
+            font-family: var(--font-mono);
+            font-size: var(--text-xs);
+            padding: 4px 10px;
+            border-radius: 4px;
+            border: var(--rule-bright);
+            background: transparent;
+            color: var(--ink-dim);
+            cursor: pointer;
+            transition: all var(--transition);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .filter-btn:hover { background: var(--bg-hover); color: var(--ink); }
+        .filter-btn.active { background: var(--steel-dim); border-color: var(--steel); color: var(--ink); }
+
+        /* ── Airport delay tiles ─────────────────────────────────────── */
+        .airport-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: var(--s3);
+        }
+
+        .airport-tile {
+            background: var(--bg-card-alt);
+            border: var(--rule);
+            border-radius: var(--radius);
+            padding: var(--s4);
+            text-align: center;
+        }
+
+        .airport-tile.delay-none  { border-color: rgba(46,204,113,0.3); }
+        .airport-tile.delay-minor { border-color: rgba(243,156,18,0.3); }
+        .airport-tile.delay-major { border-color: rgba(231,76,60,0.3); }
+        .airport-tile.delay-closed { border-color: rgba(94,122,148,0.3); }
+
+        .airport-code {
+            font-family: var(--font-mono);
+            font-size: var(--text-lg);
+            font-weight: 500;
+            color: var(--ink);
+            margin-bottom: var(--s1);
+        }
+
+        .airport-name {
+            font-size: var(--text-xs);
+            color: var(--ink-muted);
+            margin-bottom: var(--s2);
+            line-height: 1.3;
+        }
+
+        .airport-status-text {
+            font-family: var(--font-mono);
+            font-size: var(--text-xs);
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+
+        .apt-ok     { background: rgba(46,204,113,0.15); color: var(--signal-green); }
+        .apt-minor  { background: rgba(243,156,18,0.15); color: var(--signal-amber); }
+        .apt-major  { background: rgba(231,76,60,0.15);  color: var(--signal-red); }
+        .apt-closed { background: rgba(94,122,148,0.15); color: var(--runway-light); }
+
+        .airport-details {
+            font-size: var(--text-xs);
+            color: var(--ink-muted);
+            margin-top: var(--s2);
+            line-height: 1.4;
+        }
+
+        /* ── GTFS count display ──────────────────────────────────────── */
+        .gtfs-world {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+            gap: var(--s2);
+        }
+
+        .gtfs-country {
+            background: var(--bg-card-alt);
+            border: var(--rule);
+            border-radius: var(--radius);
+            padding: var(--s3);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .gtfs-flag { font-size: 1.1rem; line-height: 1; margin-bottom: var(--s1); }
+        .gtfs-country-name { font-size: var(--text-xs); color: var(--ink-dim); margin-bottom: var(--s1); }
+        .gtfs-count {
+            font-family: var(--font-mono);
+            font-size: var(--text-lg);
+            font-weight: 500;
+            color: var(--steel-light);
+        }
+        .gtfs-count-label { font-size: var(--text-xs); color: var(--ink-muted); }
+
+        /* ── OneBusAway arrivals ─────────────────────────────────────── */
+        .arrival-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: var(--s2) var(--s3);
+            border-bottom: var(--rule);
+            gap: var(--s3);
+        }
+
+        .arrival-row:last-child { border-bottom: none; }
+        .arrival-row:hover { background: var(--bg-hover); }
+
+        .arrival-route {
+            font-family: var(--font-mono);
+            font-size: var(--text-sm);
+            color: var(--ink);
+            min-width: 50px;
+        }
+
+        .arrival-dest {
+            flex: 1;
+            font-size: var(--text-sm);
+            color: var(--ink-dim);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .arrival-time {
+            font-family: var(--font-mono);
+            font-size: var(--text-sm);
+            color: var(--signal-green);
+            flex-shrink: 0;
+        }
+
+        .arrival-time.late { color: var(--signal-amber); }
+
+        /* ── Ship tracking notice ────────────────────────────────────── */
+        .ship-notice {
+            background: rgba(26, 188, 156, 0.06);
+            border: 1px solid rgba(26, 188, 156, 0.2);
+            border-radius: var(--radius);
+            padding: var(--s5);
+            text-align: center;
+        }
+
+        .ship-notice .ship-emoji { font-size: 2.5rem; display: block; margin-bottom: var(--s3); }
+        .ship-notice h4 { color: var(--ink); margin-bottom: var(--s2); font-size: var(--text-base); }
+        .ship-notice p { color: var(--ink-dim); font-size: var(--text-sm); max-width: 40ch; margin: 0 auto; }
+        .ship-notice a { color: var(--sea-teal); }
+
+        .ship-alt-links { margin-top: var(--s4); display: flex; gap: var(--s3); justify-content: center; flex-wrap: wrap; }
+
+        .alt-link {
+            font-family: var(--font-mono);
+            font-size: var(--text-xs);
+            padding: 4px 10px;
+            border: 1px solid rgba(26,188,156,0.3);
+            border-radius: 4px;
+            color: var(--sea-teal);
+            text-decoration: none;
+        }
+
+        .alt-link:hover { background: rgba(26,188,156,0.1); }
+
+        /* ── Refresh button ──────────────────────────────────────────── */
+        .refresh-btn {
+            font-family: var(--font-mono);
+            font-size: var(--text-xs);
+            padding: 3px 10px;
+            border-radius: 4px;
+            border: var(--rule-bright);
+            background: transparent;
+            color: var(--ink-dim);
+            cursor: pointer;
+            transition: all var(--transition);
+        }
+
+        .refresh-btn:hover { background: var(--bg-hover); color: var(--ink); }
+
+        /* ── Station selector ────────────────────────────────────────── */
+        .selector-row {
+            display: flex;
+            gap: var(--s2);
+            align-items: center;
+            margin-bottom: var(--s4);
+            flex-wrap: wrap;
+        }
+
+        .selector-label {
+            font-size: var(--text-xs);
+            color: var(--ink-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+        }
+
+        .station-select, .city-select {
+            font-family: var(--font-mono);
+            font-size: var(--text-sm);
+            background: var(--bg-card-alt);
+            color: var(--ink);
+            border: var(--rule-bright);
+            border-radius: 4px;
+            padding: 4px 10px;
+            cursor: pointer;
+            outline: none;
+        }
+
+        .station-select:focus, .city-select:focus {
+            border-color: var(--steel);
+            box-shadow: 0 0 0 2px rgba(78,132,196,0.2);
+        }
+
+        /* ── Footer ──────────────────────────────────────────────────── */
+        .page-footer {
+            padding: var(--s7) 0 var(--s5);
+            border-top: var(--rule);
+            margin-top: var(--s7);
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            flex-wrap: wrap;
+            gap: var(--s4);
+        }
+
+        .footer-info {
+            font-size: var(--text-xs);
+            color: var(--ink-muted);
+        }
+
+        .footer-info a { color: var(--steel); text-decoration: none; }
+        .footer-info a:hover { text-decoration: underline; }
+
+        /* ── Scrollable overflow in widget body ─────────────────────── */
+        .scrollable { max-height: 340px; overflow-y: auto; }
+
+        .scrollable::-webkit-scrollbar { width: 4px; }
+        .scrollable::-webkit-scrollbar-track { background: transparent; }
+        .scrollable::-webkit-scrollbar-thumb { background: var(--ink-faint); border-radius: 2px; }
+
+        /* ── Flicker animation for departure board feel ─────────────── */
+        @keyframes flipChar {
+            0%   { opacity: 0.4; transform: scaleY(0.8); }
+            100% { opacity: 1;   transform: scaleY(1); }
+        }
+
+        .flip-in {
+            animation: flipChar 0.15s ease forwards;
+        }
+
+        /* ── Region selector ─────────────────────────────────────────── */
+        .region-select {
+            font-family: var(--font-mono);
+            font-size: var(--text-sm);
+            background: var(--bg-card-alt);
+            color: var(--ink);
+            border: var(--rule-bright);
+            border-radius: 4px;
+            padding: 4px 10px;
+            cursor: pointer;
+            outline: none;
+        }
+
+        .region-select:focus {
+            border-color: var(--steel);
+            box-shadow: 0 0 0 2px rgba(78,132,196,0.2);
+        }
+
+        .small-note {
+            font-size: var(--text-xs);
+            color: var(--ink-muted);
+            margin-top: var(--s3);
+            font-family: var(--font-mono);
+        }
+
+        /* ── No data helper ─────────────────────────────────────────── */
+        .empty-note {
+            text-align: center;
+            padding: var(--s6);
+            color: var(--ink-muted);
+            font-size: var(--text-sm);
+        }
+
+        /* ── OpenSky specific ───────────────────────────────────────── */
+        .opensky-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: var(--s3);
+            margin-bottom: var(--s4);
+        }
+
+        .altitude-bar {
+            display: inline-block;
+            height: 3px;
+            background: var(--steel);
+            border-radius: 2px;
+            vertical-align: middle;
+            margin-left: var(--s1);
+            opacity: 0.7;
+        }
+
+        /* ── Connections bar ─────────────────────────────────────────── */
+        .connections-bar {
+            display: flex;
+            align-items: center;
+            gap: var(--s4);
+            padding: var(--s3) var(--s4);
+            background: var(--bg-card-alt);
+            border-bottom: var(--rule);
+            font-size: var(--text-xs);
+            font-family: var(--font-mono);
+            color: var(--ink-muted);
+            overflow-x: auto;
+            white-space: nowrap;
+        }
+
+        .connections-bar span { flex-shrink: 0; }
+        .conn-item { color: var(--ink-dim); }
+        .conn-sep { color: var(--ink-faint); }
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+    <!-- ── Page Header ─────────────────────────────────────────────── -->
+    <header class="page-header">
+        <div class="page-header-top">
+            <div>
+                <h1>✈ <span>Transportation</span> APIs</h1>
+                <p>Live flight tracking, bike sharing, Belgian trains, transit feeds, and airport delay boards — all in your browser, no API key required.</p>
+                <div class="header-badge-row">
+                    <span class="badge badge-green"><span class="live-dot"></span>Live data</span>
+                    <span class="badge badge-steel">6 widgets</span>
+                    <span class="badge badge-steel">no-auth APIs</span>
+                    <span class="badge badge-amber">CORS-enabled</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="widget-grid">
+
+        <!-- ── WIDGET 1: Live Flights (OpenSky Network) ─────────────── -->
+        <section class="widget col-12" id="widget-opensky">
+            <div class="connections-bar">
+                <span>✈ API_ALLEY/TRANSPORTATION</span>
+                <span class="conn-sep">·</span>
+                <span class="conn-item">opensky-network.org</span>
+                <span class="conn-sep">·</span>
+                <span class="conn-item">ADS-B · no-auth</span>
+                <span class="conn-sep">·</span>
+                <span class="conn-item" id="opensky-ts">--:--:-- UTC</span>
+            </div>
+            <div class="widget-head">
+                <span class="widget-icon">🛩</span>
+                <div class="widget-head-text">
+                    <div class="widget-title">Live Flights — OpenSky Network</div>
+                    <div class="widget-meta"><a href="https://opensky-network.org/apidoc/" target="_blank" rel="noopener">opensky-network.org/apidoc</a> · Real-time ADS-B airspace data</div>
+                </div>
+                <span class="widget-status status-loading" id="opensky-status">LOADING</span>
+            </div>
+            <div class="widget-body">
+                <div class="opensky-header">
+                    <div class="stat-row" id="opensky-stats">
+                        <div class="stat-cell">
+                            <span class="stat-value beacon" id="opensky-count">—</span>
+                            <span class="stat-label">aircraft in region</span>
+                        </div>
+                        <div class="stat-cell">
+                            <span class="stat-value steel" id="opensky-avg-alt">—</span>
+                            <span class="stat-label">avg altitude (m)</span>
+                        </div>
+                        <div class="stat-cell">
+                            <span class="stat-value green" id="opensky-avg-vel">—</span>
+                            <span class="stat-label">avg velocity (m/s)</span>
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:var(--s2);align-items:center;flex-wrap:wrap;">
+                        <span class="selector-label">Region:</span>
+                        <select class="region-select" id="opensky-region" onchange="loadOpenSky()">
+                            <option value="42,50,2,16">Central Europe</option>
+                            <option value="25,50,-130,-60">USA (conus)</option>
+                            <option value="49,62,-10,3">UK + Ireland</option>
+                            <option value="35,72,10,35">E. Mediterranean</option>
+                            <option value="22,35,100,145">SE Asia</option>
+                        </select>
+                        <button class="refresh-btn" onclick="loadOpenSky()">↺ Refresh</button>
+                    </div>
+                </div>
+                <div id="opensky-loading" class="loading-state">
+                    <div class="loading-spinner"></div>
+                    Querying airspace…
+                </div>
+                <div id="opensky-error" class="error-state" style="display:none">
+                    <span class="err-icon">✈️</span>
+                    <div class="err-msg">
+                        This flight has been delayed — API experiencing turbulence.
+                        <span class="err-sub" id="opensky-err-detail"></span>
+                    </div>
+                </div>
+                <div id="opensky-table" style="display:none">
+                    <div class="section-label">Aircraft currently airborne in selected region</div>
+                    <div class="scrollable">
+                        <table class="board" id="opensky-tbody-wrap">
+                            <thead>
+                                <tr>
+                                    <th>Callsign</th>
+                                    <th>Origin country</th>
+                                    <th>Altitude (m)</th>
+                                    <th>Velocity (m/s)</th>
+                                    <th>Heading</th>
+                                    <th>On ground</th>
+                                </tr>
+                            </thead>
+                            <tbody id="opensky-tbody"></tbody>
+                        </table>
+                    </div>
+                    <p class="small-note" id="opensky-note"></p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ── WIDGET 2: Bike Sharing (CityBikes) ─────────────────── -->
+        <section class="widget col-6" id="widget-bikes">
+            <div class="connections-bar">
+                <span>🚲 CITYBIKES_API</span>
+                <span class="conn-sep">·</span>
+                <span class="conn-item">api.citybik.es/v2</span>
+                <span class="conn-sep">·</span>
+                <span class="conn-item">400+ cities · no-auth</span>
+            </div>
+            <div class="widget-head">
+                <span class="widget-icon">🚲</span>
+                <div class="widget-head-text">
+                    <div class="widget-title">Bike Sharing — CityBikes</div>
+                    <div class="widget-meta"><a href="https://api.citybik.es/v2/" target="_blank" rel="noopener">api.citybik.es/v2</a> · Real-time dock availability</div>
+                </div>
+                <span class="widget-status status-loading" id="bikes-status">LOADING</span>
+            </div>
+            <div class="widget-body">
+                <div class="selector-row">
+                    <span class="selector-label">City network:</span>
+                    <select class="city-select" id="bikes-city" onchange="loadBikes()">
+                        <option value="velib">Paris — Vélib'</option>
+                        <option value="bixi-montreal">Montreal — Bixi</option>
+                        <option value="citi-bike-nyc">New York — Citi Bike</option>
+                        <option value="santander-cycles">London — Santander</option>
+                        <option value="bicing">Barcelona — Bicing</option>
+                        <option value="divvy-bikes">Chicago — Divvy</option>
+                        <option value="velo-antwerpen">Antwerp — Velo</option>
+                    </select>
+                    <button class="refresh-btn" onclick="loadBikes()">↺</button>
+                </div>
+                <div class="stat-row" id="bikes-stats" style="margin-bottom:var(--s4)">
+                    <div class="stat-cell">
+                        <span class="stat-value steel" id="bikes-stations">—</span>
+                        <span class="stat-label">stations</span>
+                    </div>
+                    <div class="stat-cell">
+                        <span class="stat-value green" id="bikes-available">—</span>
+                        <span class="stat-label">bikes available</span>
+                    </div>
+                    <div class="stat-cell">
+                        <span class="stat-value amber" id="bikes-empty">—</span>
+                        <span class="stat-label">empty slots</span>
+                    </div>
+                </div>
+                <div id="bikes-loading" class="loading-state">
+                    <div class="loading-spinner"></div>
+                    Fetching dock status…
+                </div>
+                <div id="bikes-error" class="error-state" style="display:none">
+                    <span class="err-icon">✈️</span>
+                    <div class="err-msg">
+                        This flight has been delayed — API experiencing turbulence.
+                        <span class="err-sub" id="bikes-err-detail"></span>
+                    </div>
+                </div>
+                <div id="bikes-grid" style="display:none">
+                    <div class="section-label">Station availability (sample)</div>
+                    <div class="bike-grid" id="bikes-stations-grid"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ── WIDGET 3: Belgian Trains (iRail) ─────────────────────── -->
+        <section class="widget col-6" id="widget-irail">
+            <div class="connections-bar">
+                <span>🚂 IRAIL_API</span>
+                <span class="conn-sep">·</span>
+                <span class="conn-item">api.irail.be</span>
+                <span class="conn-sep">·</span>
+                <span class="conn-item">Belgian railways · no-auth</span>
+            </div>
+            <div class="widget-head">
+                <span class="widget-icon">🚆</span>
+                <div class="widget-head-text">
+                    <div class="widget-title">Belgian Trains — iRail</div>
+                    <div class="widget-meta"><a href="https://docs.irail.be/" target="_blank" rel="noopener">docs.irail.be</a> · Live departure board</div>
+                </div>
+                <span class="widget-status status-loading" id="irail-status">LOADING</span>
+            </div>
+            <div class="widget-body">
+                <div class="selector-row">
+                    <span class="selector-label">Station:</span>
+                    <select class="station-select" id="irail-station" onchange="loadIRail()">
+                        <option value="Brussels-Central">Brussels Central</option>
+                        <option value="Bruges">Bruges</option>
+                        <option value="Ghent-Saint-Pieters">Ghent St-Pieters</option>
+                        <option value="Antwerp-Central">Antwerp Central</option>
+                        <option value="Liège-Guillemins">Liège-Guillemins</option>
+                        <option value="Leuven">Leuven</option>
+                    </select>
+                    <button class="refresh-btn" onclick="loadIRail()">↺</button>
+                </div>
+                <div id="irail-loading" class="loading-state">
+                    <div class="loading-spinner"></div>
+                    Checking platform board…
+                </div>
+                <div id="irail-error" class="error-state" style="display:none">
+                    <span class="err-icon">✈️</span>
+                    <div class="err-msg">
+                        This flight has been delayed — API experiencing turbulence.
+                        <span class="err-sub" id="irail-err-detail"></span>
+                    </div>
+                </div>
+                <div id="irail-board" style="display:none">
+                    <div style="display:grid;grid-template-columns:3.5rem 1fr 3.5rem 4.5rem;gap:var(--s3);padding:var(--s2) var(--s3);border-bottom:var(--rule-bright);">
+                        <span style="font-size:var(--text-xs);color:var(--ink-muted);text-transform:uppercase;letter-spacing:.07em;font-family:var(--font-mono);">Time</span>
+                        <span style="font-size:var(--text-xs);color:var(--ink-muted);text-transform:uppercase;letter-spacing:.07em;font-family:var(--font-mono);">Destination</span>
+                        <span style="font-size:var(--text-xs);color:var(--ink-muted);text-transform:uppercase;letter-spacing:.07em;font-family:var(--font-mono);">Platf.</span>
+                        <span style="font-size:var(--text-xs);color:var(--ink-muted);text-transform:uppercase;letter-spacing:.07em;font-family:var(--font-mono);text-align:right">Delay</span>
+                    </div>
+                    <div class="scrollable" id="irail-departures"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ── WIDGET 4: Transit Feeds (MobilityDatabase / Transitland) -->
+        <section class="widget col-4" id="widget-gtfs">
+            <div class="connections-bar">
+                <span>🗂 TRANSIT_FEEDS</span>
+                <span class="conn-sep">·</span>
+                <span class="conn-item">transit.land · no-auth</span>
+            </div>
+            <div class="widget-head">
+                <span class="widget-icon">🗂</span>
+                <div class="widget-head-text">
+                    <div class="widget-title">Global Transit Feeds</div>
+                    <div class="widget-meta"><a href="https://www.transit.land/documentation" target="_blank" rel="noopener">transit.land</a> · GTFS feed catalog</div>
+                </div>
+                <span class="widget-status status-loading" id="gtfs-status">LOADING</span>
+            </div>
+            <div class="widget-body">
+                <div class="stat-row" id="gtfs-stats" style="margin-bottom:var(--s4)">
+                    <div class="stat-cell">
+                        <span class="stat-value beacon" id="gtfs-count">—</span>
+                        <span class="stat-label">feeds found</span>
+                    </div>
+                    <div class="stat-cell">
+                        <span class="stat-value steel" id="gtfs-countries">—</span>
+                        <span class="stat-label">countries</span>
+                    </div>
+                </div>
+                <div id="gtfs-loading" class="loading-state">
+                    <div class="loading-spinner"></div>
+                    Scanning global transit catalog…
+                </div>
+                <div id="gtfs-error" class="error-state" style="display:none">
+                    <span class="err-icon">✈️</span>
+                    <div class="err-msg">
+                        This flight has been delayed — API experiencing turbulence.
+                        <span class="err-sub" id="gtfs-err-detail"></span>
+                    </div>
+                </div>
+                <div id="gtfs-data" style="display:none">
+                    <div class="section-label">Top feed sources by country</div>
+                    <div class="gtfs-world" id="gtfs-country-grid"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ── WIDGET 5: OneBusAway — Real-time Transit Arrivals ─────── -->
+        <section class="widget col-8" id="widget-oba">
+            <div class="connections-bar">
+                <span>🚌 ONEBUSAWAY</span>
+                <span class="conn-sep">·</span>
+                <span class="conn-item">api.onebusaway.org</span>
+                <span class="conn-sep">·</span>
+                <span class="conn-item">Seattle GTFS-RT · no-auth</span>
+            </div>
+            <div class="widget-head">
+                <span class="widget-icon">🚌</span>
+                <div class="widget-head-text">
+                    <div class="widget-title">Real-time Arrivals — OneBusAway</div>
+                    <div class="widget-meta"><a href="https://developer.onebusaway.org/api/where" target="_blank" rel="noopener">developer.onebusaway.org</a> · Seattle Metro / Sound Transit</div>
+                </div>
+                <span class="widget-status status-loading" id="oba-status">LOADING</span>
+            </div>
+            <div class="widget-body">
+                <div class="selector-row">
+                    <span class="selector-label">Stop:</span>
+                    <select class="station-select" id="oba-stop" onchange="loadOBA()">
+                        <option value="1_14411">Seattle — 3rd &amp; Pike</option>
+                        <option value="1_71330">Seattle — Convention Place</option>
+                        <option value="1_22610">Seattle — University Station</option>
+                        <option value="40_8600">King St Station (Amtrak)</option>
+                    </select>
+                    <button class="refresh-btn" onclick="loadOBA()">↺ Refresh</button>
+                </div>
+                <div id="oba-loading" class="loading-state">
+                    <div class="loading-spinner"></div>
+                    Requesting arrival times…
+                </div>
+                <div id="oba-error" class="error-state" style="display:none">
+                    <span class="err-icon">✈️</span>
+                    <div class="err-msg">
+                        This flight has been delayed — API experiencing turbulence.
+                        <span class="err-sub" id="oba-err-detail"></span>
+                    </div>
+                </div>
+                <div id="oba-data" style="display:none">
+                    <div class="section-label" id="oba-stop-name">Arrivals &amp; Departures</div>
+                    <div class="scrollable" id="oba-arrivals"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ── WIDGET 6: Ship Tracking — CORS Proxy Note ────────────── -->
+        <section class="widget col-6" id="widget-ships">
+            <div class="connections-bar">
+                <span>🚢 VESSEL_TRACKING</span>
+                <span class="conn-sep">·</span>
+                <span class="conn-item">AIS · maritime</span>
+            </div>
+            <div class="widget-head">
+                <span class="widget-icon">🚢</span>
+                <div class="widget-head-text">
+                    <div class="widget-title">Ship Tracking — AIS Data</div>
+                    <div class="widget-meta"><a href="https://www.aishub.net/" target="_blank" rel="noopener">aishub.net</a> · Global maritime AIS network</div>
+                </div>
+                <span class="widget-status status-warn">PROXY REQ.</span>
+            </div>
+            <div class="widget-body">
+                <div class="ship-notice">
+                    <span class="ship-emoji">🚢</span>
+                    <h4>Needs a server-side proxy</h4>
+                    <p>
+                        AIS vessel tracking APIs (AISHub, MyShipTracking, MarineTraffic)
+                        do not send <code>Access-Control-Allow-Origin</code> headers,
+                        so they cannot be fetched directly from a browser.
+                        You need a proxy to relay requests.
+                    </p>
+                    <div class="ship-alt-links">
+                        <a class="alt-link" href="https://www.marinetraffic.com" target="_blank" rel="noopener">MarineTraffic.com ↗</a>
+                        <a class="alt-link" href="https://www.vessel-finder.com" target="_blank" rel="noopener">VesselFinder ↗</a>
+                        <a class="alt-link" href="https://www.shipfinder.com" target="_blank" rel="noopener">ShipFinder ↗</a>
+                        <a class="alt-link" href="https://aisstream.io" target="_blank" rel="noopener">aisstream.io ↗</a>
+                    </div>
+                </div>
+                <div class="proxy-note" style="margin-top:var(--s4)">
+                    <strong>To enable in production:</strong> deploy a lightweight proxy endpoint
+                    (<code>GET /proxy/ais?mmsi=ALL</code>) that forwards to
+                    <code>aishub.net/api</code> and adds the CORS header.
+                    AISHub is free for non-commercial use with data sharing.
+                </div>
+            </div>
+        </section>
+
+        <!-- ── WIDGET 7: Airport Status (FAA ASDI / NASSTATUS) ──────── -->
+        <section class="widget col-6" id="widget-airports">
+            <div class="connections-bar">
+                <span>🛬 AIRPORT_STATUS</span>
+                <span class="conn-sep">·</span>
+                <span class="conn-item">sqa.link/faa-status · no-auth</span>
+            </div>
+            <div class="widget-head">
+                <span class="widget-icon">🛬</span>
+                <div class="widget-head-text">
+                    <div class="widget-title">US Airport Delay Status — FAA</div>
+                    <div class="widget-meta"><a href="https://nasstatus.faa.gov/" target="_blank" rel="noopener">nasstatus.faa.gov</a> · Ground delays, closures, flow restrictions</div>
+                </div>
+                <span class="widget-status status-loading" id="apt-status">LOADING</span>
+            </div>
+            <div class="widget-body">
+                <div id="apt-loading" class="loading-state">
+                    <div class="loading-spinner"></div>
+                    Checking NAS status…
+                </div>
+                <div id="apt-error" class="error-state" style="display:none">
+                    <span class="err-icon">✈️</span>
+                    <div class="err-msg">
+                        This flight has been delayed — API experiencing turbulence.
+                        <span class="err-sub" id="apt-err-detail"></span>
+                    </div>
+                </div>
+                <div id="apt-data" style="display:none">
+                    <div class="section-label">Major US hubs — ground delay / closure status</div>
+                    <div class="airport-grid" id="apt-grid"></div>
+                    <p class="small-note" id="apt-note"></p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ── WIDGET 8: SF Bay Area Transit — 511.org (key-free demo) -->
+        <section class="widget col-12" id="widget-sfbay">
+            <div class="connections-bar">
+                <span>🌉 SF_BAY_TRANSIT</span>
+                <span class="conn-sep">·</span>
+                <span class="conn-item">api.511.org</span>
+                <span class="conn-sep">·</span>
+                <span class="conn-item">GTFS-RT service alerts · key-free demo</span>
+            </div>
+            <div class="widget-head">
+                <span class="widget-icon">🌉</span>
+                <div class="widget-head-text">
+                    <div class="widget-title">SF Bay Area Transit Operators</div>
+                    <div class="widget-meta"><a href="https://511.org/open-data/transit" target="_blank" rel="noopener">511.org/open-data</a> · Operators served by 511 Open Data API</div>
+                </div>
+                <span class="widget-status status-loading" id="sfbay-status">LOADING</span>
+            </div>
+            <div class="widget-body">
+                <p style="font-size:var(--text-sm);color:var(--ink-dim);margin-bottom:var(--s4);">
+                    511 SF Bay publishes GTFS-Realtime service alerts and operator lists without a key for static agency data.
+                    The widget below fetches the live operators catalog directly.
+                </p>
+                <div id="sfbay-loading" class="loading-state">
+                    <div class="loading-spinner"></div>
+                    Connecting to 511 SF Bay…
+                </div>
+                <div id="sfbay-error" class="error-state" style="display:none">
+                    <span class="err-icon">✈️</span>
+                    <div class="err-msg">
+                        This flight has been delayed — API experiencing turbulence.
+                        <span class="err-sub" id="sfbay-err-detail"></span>
+                    </div>
+                </div>
+                <div id="sfbay-data" style="display:none">
+                    <div class="stat-row" style="margin-bottom:var(--s4)">
+                        <div class="stat-cell">
+                            <span class="stat-value steel" id="sfbay-count">—</span>
+                            <span class="stat-label">transit operators</span>
+                        </div>
+                    </div>
+                    <div class="section-label">Bay Area transit operators</div>
+                    <div class="scrollable">
+                        <table class="board">
+                            <thead>
+                                <tr>
+                                    <th>Code</th>
+                                    <th>Operator</th>
+                                    <th>Mode</th>
+                                    <th>Coverage</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sfbay-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- ── Footer ─────────────────────────────────────────────────── -->
+    <footer class="page-footer">
+        <div class="footer-info">
+            <strong style="color:var(--ink-dim);">Transportation APIs</strong> · Part of
+            <a href="../index.html">API Alley</a> ·
+            All data fetched live in the browser · No API keys required<br>
+            Sources: <a href="https://opensky-network.org" target="_blank" rel="noopener">OpenSky</a>,
+            <a href="https://api.citybik.es/v2/" target="_blank" rel="noopener">CityBikes</a>,
+            <a href="https://docs.irail.be/" target="_blank" rel="noopener">iRail</a>,
+            <a href="https://www.transit.land/documentation" target="_blank" rel="noopener">Transitland</a>,
+            <a href="https://developer.onebusaway.org" target="_blank" rel="noopener">OneBusAway</a>,
+            <a href="https://nasstatus.faa.gov/" target="_blank" rel="noopener">FAA NAS Status</a>
+        </div>
+        <div class="footer-info" id="footer-time"></div>
+    </footer>
+
+</div><!-- /container -->
+
+<script>
+/* ============================================================
+   TRANSPORTATION API ALLEY — Widget JS
+   ============================================================ */
+
+const TIMEOUT_MS = 5000;
+
+async function fetchWithTimeout(url, opts = {}) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+    try {
+        const resp = await fetch(url, { ...opts, signal: ctrl.signal });
+        clearTimeout(timer);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
+        return resp;
+    } catch(e) {
+        clearTimeout(timer);
+        throw e;
+    }
+}
+
+function setWidgetStatus(id, state) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.className = 'widget-status ' + {
+        loading: 'status-loading',
+        ok:      'status-ok',
+        error:   'status-error',
+        warn:    'status-warn',
+    }[state];
+    el.textContent = {
+        loading: 'LOADING',
+        ok:      'LIVE',
+        error:   'ERROR',
+        warn:    'WARN',
+    }[state];
+}
+
+function showError(prefix, msg) {
+    document.getElementById(prefix + '-loading').style.display = 'none';
+    const errEl = document.getElementById(prefix + '-error');
+    errEl.style.display = 'flex';
+    const detail = document.getElementById(prefix + '-err-detail');
+    if (detail) detail.textContent = msg;
+    setWidgetStatus(prefix + '-status', 'error');
+}
+
+function showLoading(prefix) {
+    document.getElementById(prefix + '-loading').style.display = 'flex';
+    const errEl = document.getElementById(prefix + '-error');
+    if (errEl) errEl.style.display = 'none';
+}
+
+/* ── UTC clock ──────────────────────────────────────────────── */
+function updateClock() {
+    const now = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const ts = `${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}:${pad(now.getUTCSeconds())} UTC`;
+    const el = document.getElementById('opensky-ts');
+    if (el) el.textContent = ts;
+    const fe = document.getElementById('footer-time');
+    if (fe) fe.textContent = 'Last render: ' + ts;
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+/* ══════════════════════════════════════════════════════════════
+   WIDGET 1 — OpenSky Network
+   ══════════════════════════════════════════════════════════════ */
+async function loadOpenSky() {
+    showLoading('opensky');
+    document.getElementById('opensky-table').style.display = 'none';
+    setWidgetStatus('opensky-status', 'loading');
+
+    const region = document.getElementById('opensky-region').value.split(',');
+    const [laMin, laMax, loMin, loMax] = region;
+    const url = `https://opensky-api.org/api/v2/states/all?lamin=${laMin}&lomin=${loMin}&lamax=${laMax}&lomax=${loMax}`;
+
+    try {
+        const resp = await fetchWithTimeout(url);
+        const data = await resp.json();
+        const states = (data.states || []).filter(s => s !== null);
+
+        // Stats
+        const altitudes = states.map(s => s[7]).filter(v => v != null && v > 0);
+        const velocities = states.map(s => s[9]).filter(v => v != null && v > 0);
+        const avgAlt = altitudes.length ? Math.round(altitudes.reduce((a,b) => a+b, 0) / altitudes.length) : 0;
+        const avgVel = velocities.length ? Math.round(velocities.reduce((a,b) => a+b, 0) / velocities.length) : 0;
+
+        document.getElementById('opensky-count').textContent = states.length.toLocaleString();
+        document.getElementById('opensky-avg-alt').textContent = avgAlt.toLocaleString();
+        document.getElementById('opensky-avg-vel').textContent = avgVel.toLocaleString();
+
+        // Table — show up to 50 rows, prefer airborne
+        const airborne = states.filter(s => !s[8]).slice(0, 50);
+        const tbody = document.getElementById('opensky-tbody');
+        tbody.innerHTML = airborne.map(s => {
+            const callsign = (s[1] || '').trim() || '—';
+            const country  = s[2] || '—';
+            const alt      = s[7] != null ? Math.round(s[7]).toLocaleString() : '—';
+            const vel      = s[9] != null ? Math.round(s[9]) : '—';
+            const heading  = s[10] != null ? Math.round(s[10]) + '°' : '—';
+            const onGround = s[8] ? '<span class="dot-amber"></span> Yes' : '<span class="dot-green"></span> No';
+            const barW = s[7] != null ? Math.min(100, Math.round(s[7] / 130)) : 0;
+            return `<tr>
+                <td class="highlight">${callsign}</td>
+                <td>${country}</td>
+                <td class="mono">${alt}<span class="altitude-bar" style="width:${barW}px"></span></td>
+                <td class="mono">${vel}</td>
+                <td class="mono">${heading}</td>
+                <td class="mono">${onGround}</td>
+            </tr>`;
+        }).join('');
+
+        document.getElementById('opensky-note').textContent =
+            `Showing ${airborne.length} of ${states.length} aircraft (airborne only). Data: OpenSky Network, refreshed on demand.`;
+
+        document.getElementById('opensky-loading').style.display = 'none';
+        document.getElementById('opensky-table').style.display = 'block';
+        setWidgetStatus('opensky-status', 'ok');
+
+    } catch(e) {
+        showError('opensky', e.message || 'Network error');
+    }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   WIDGET 2 — CityBikes
+   ══════════════════════════════════════════════════════════════ */
+async function loadBikes() {
+    showLoading('bikes');
+    document.getElementById('bikes-grid').style.display = 'none';
+    setWidgetStatus('bikes-status', 'loading');
+
+    const network = document.getElementById('bikes-city').value;
+    const url = `https://api.citybik.es/v2/networks/${network}?fields=stations`;
+
+    try {
+        const resp = await fetchWithTimeout(url);
+        const data = await resp.json();
+        const stations = (data.network && data.network.stations) || [];
+
+        // Stats
+        const totalBikes = stations.reduce((a, s) => a + (s.free_bikes || 0), 0);
+        const totalSlots  = stations.reduce((a, s) => a + (s.empty_slots || 0), 0);
+
+        document.getElementById('bikes-stations').textContent = stations.length.toLocaleString();
+        document.getElementById('bikes-available').textContent = totalBikes.toLocaleString();
+        document.getElementById('bikes-empty').textContent = totalSlots.toLocaleString();
+
+        // Grid — show up to 24 stations
+        const sample = stations.slice(0, 24);
+        const grid = document.getElementById('bikes-stations-grid');
+        grid.innerHTML = sample.map(s => {
+            const total = (s.free_bikes || 0) + (s.empty_slots || 0);
+            const pct = total > 0 ? Math.round((s.free_bikes || 0) / total * 100) : 0;
+            const cls = pct === 0 ? 'empty' : pct < 25 ? 'low' : '';
+            return `<div class="bike-station">
+                <div class="bike-station-name">${s.name || 'Station'}</div>
+                <div class="bike-bar-row">
+                    <div class="bike-bar"><div class="bike-bar-fill ${cls}" style="width:${pct}%"></div></div>
+                    <div class="bike-count">${s.free_bikes || 0}</div>
+                </div>
+                <div class="bike-icon-row">
+                    <span>🚲 ${s.free_bikes || 0} bikes</span>
+                    <span>🅿 ${s.empty_slots || 0} free</span>
+                </div>
+            </div>`;
+        }).join('');
+
+        document.getElementById('bikes-loading').style.display = 'none';
+        document.getElementById('bikes-grid').style.display = 'block';
+        setWidgetStatus('bikes-status', 'ok');
+
+    } catch(e) {
+        showError('bikes', e.message || 'Network error');
+    }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   WIDGET 3 — iRail Belgian Trains
+   ══════════════════════════════════════════════════════════════ */
+async function loadIRail() {
+    showLoading('irail');
+    document.getElementById('irail-board').style.display = 'none';
+    setWidgetStatus('irail-status', 'loading');
+
+    const station = document.getElementById('irail-station').value;
+    const url = `https://api.irail.be/liveboard/?station=${encodeURIComponent(station)}&format=json&lang=en&arrdep=DEP`;
+
+    try {
+        const resp = await fetchWithTimeout(url);
+        const data = await resp.json();
+        const deps = (data.departures && data.departures.departure) || [];
+
+        const board = document.getElementById('irail-departures');
+        board.innerHTML = deps.slice(0, 20).map(d => {
+            const time = new Date(parseInt(d.time) * 1000);
+            const hhmm = time.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+            const dest = d.station || '—';
+            const platform = d.platforminfo ? (d.platforminfo.name || '?') : '?';
+            const delayMin = Math.round((parseInt(d.delay) || 0) / 60);
+            const delayCls = delayMin === 0 ? 'delay-ok' : delayMin < 10 ? 'delay-minor' : 'delay-major';
+            const delayStr = delayMin === 0 ? 'On time' : `+${delayMin} min`;
+            const trainType = d.vehicle ? d.vehicle.replace('BE.NMBS.', '') : '—';
+            return `<div class="departure-row">
+                <span class="dep-time">${hhmm}</span>
+                <div>
+                    <span class="dep-dest">${dest}</span>
+                    <div class="dep-train">${trainType}</div>
+                </div>
+                <span class="dep-platform">${platform}</span>
+                <span class="dep-delay ${delayCls}">${delayStr}</span>
+            </div>`;
+        }).join('') || '<div class="empty-note">No departures found</div>';
+
+        document.getElementById('irail-loading').style.display = 'none';
+        document.getElementById('irail-board').style.display = 'block';
+        setWidgetStatus('irail-status', 'ok');
+
+    } catch(e) {
+        showError('irail', e.message || 'Network error');
+    }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   WIDGET 4 — Transitland GTFS feed catalog
+   ══════════════════════════════════════════════════════════════ */
+async function loadGTFS() {
+    showLoading('gtfs');
+    document.getElementById('gtfs-data').style.display = 'none';
+    setWidgetStatus('gtfs-status', 'loading');
+
+    // Transitland v2 public API — no auth required for browse queries
+    const url = 'https://transit.land/api/v2/rest/feeds?limit=100&format=json';
+
+    try {
+        const resp = await fetchWithTimeout(url);
+        const data = await resp.json();
+        const feeds = data.feeds || [];
+
+        // Count by country
+        const countryCounts = {};
+        feeds.forEach(f => {
+            const cc = (f.onestop_id || '').split('-')[1] || 'XX';
+            const upper = cc.toUpperCase().substring(0, 2);
+            countryCounts[upper] = (countryCounts[upper] || 0) + 1;
+        });
+
+        const sorted = Object.entries(countryCounts).sort((a, b) => b[1] - a[1]).slice(0, 12);
+
+        document.getElementById('gtfs-count').textContent = data.meta ? data.meta.after || feeds.length : feeds.length;
+        document.getElementById('gtfs-countries').textContent = Object.keys(countryCounts).length;
+
+        const countryNames = {
+            US: 'United States', GB: 'United Kingdom', DE: 'Germany', FR: 'France',
+            CA: 'Canada', AU: 'Australia', NL: 'Netherlands', IT: 'Italy',
+            ES: 'Spain', CH: 'Switzerland', BE: 'Belgium', AT: 'Austria',
+            SE: 'Sweden', NO: 'Norway', DK: 'Denmark', FI: 'Finland',
+            PL: 'Poland', CZ: 'Czech Rep.', PT: 'Portugal', NZ: 'New Zealand',
+            JP: 'Japan', MX: 'Mexico', BR: 'Brazil', ZA: 'South Africa',
+        };
+
+        const flagEmoji = cc => {
+            if (cc.length !== 2 || !/^[A-Z]{2}$/.test(cc)) return '🌐';
+            const base = 0x1F1E6;
+            return String.fromCodePoint(base + cc.charCodeAt(0) - 65) +
+                   String.fromCodePoint(base + cc.charCodeAt(1) - 65);
+        };
+
+        const grid = document.getElementById('gtfs-country-grid');
+        grid.innerHTML = sorted.map(([cc, count]) => `
+            <div class="gtfs-country">
+                <span class="gtfs-flag">${flagEmoji(cc)}</span>
+                <span class="gtfs-country-name">${countryNames[cc] || cc}</span>
+                <span class="gtfs-count">${count}</span>
+                <span class="gtfs-count-label">feeds</span>
+            </div>
+        `).join('');
+
+        document.getElementById('gtfs-loading').style.display = 'none';
+        document.getElementById('gtfs-data').style.display = 'block';
+        setWidgetStatus('gtfs-status', 'ok');
+
+    } catch(e) {
+        // Fallback: show static well-known data if API is down
+        const fallback = [
+            ['US', 512], ['GB', 148], ['DE', 132], ['FR', 104],
+            ['CA', 98],  ['AU', 72],  ['NL', 56],  ['IT', 50],
+        ];
+        document.getElementById('gtfs-count').textContent = '1200+';
+        document.getElementById('gtfs-countries').textContent = '80+';
+
+        const flagEmoji = cc => {
+            const base = 0x1F1E6;
+            return String.fromCodePoint(base + cc.charCodeAt(0) - 65) +
+                   String.fromCodePoint(base + cc.charCodeAt(1) - 65);
+        };
+        const names = { US:'United States', GB:'United Kingdom', DE:'Germany', FR:'France',
+                        CA:'Canada', AU:'Australia', NL:'Netherlands', IT:'Italy' };
+        const grid = document.getElementById('gtfs-country-grid');
+        grid.innerHTML = fallback.map(([cc, count]) => `
+            <div class="gtfs-country">
+                <span class="gtfs-flag">${flagEmoji(cc)}</span>
+                <span class="gtfs-country-name">${names[cc]}</span>
+                <span class="gtfs-count">~${count}</span>
+                <span class="gtfs-count-label">feeds (est.)</span>
+            </div>
+        `).join('');
+
+        document.getElementById('gtfs-loading').style.display = 'none';
+        document.getElementById('gtfs-data').style.display = 'block';
+
+        // Show warning status
+        const errEl = document.getElementById('gtfs-error');
+        const errDetail = document.getElementById('gtfs-err-detail');
+        if (errDetail) errDetail.textContent = `Live API unavailable (${e.message}) — showing estimated data`;
+        errEl.style.display = 'flex';
+        setWidgetStatus('gtfs-status', 'warn');
+    }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   WIDGET 5 — OneBusAway
+   ══════════════════════════════════════════════════════════════ */
+async function loadOBA() {
+    showLoading('oba');
+    document.getElementById('oba-data').style.display = 'none';
+    setWidgetStatus('oba-status', 'loading');
+
+    const stop = document.getElementById('oba-stop').value;
+    const url = `https://api.onebusaway.org/api/where/arrivals-and-departures-for-stop/${stop}.json?minutesBefore=2&minutesAfter=60&key=TEST`;
+
+    try {
+        const resp = await fetchWithTimeout(url);
+        const data = await resp.json();
+
+        if (data.code !== 200 || !data.data) throw new Error(`API returned code ${data.code}`);
+
+        const entry = data.data.entry;
+        const stopName = entry.stopName || stop;
+        const arrivals = (entry.arrivalsAndDepartures || []).slice(0, 18);
+
+        document.getElementById('oba-stop-name').textContent = `${stopName} — Next arrivals`;
+
+        const now = Date.now();
+        const container = document.getElementById('oba-arrivals');
+        container.innerHTML = arrivals.map(a => {
+            const route = a.routeShortName || a.routeId.split('_')[1] || '?';
+            const dest = a.tripHeadsign || a.routeLongName || '—';
+            const predictedMs = a.predictedDepartureTime || a.scheduledDepartureTime;
+            const schedMs = a.scheduledDepartureTime;
+            const minsAway = Math.round((predictedMs - now) / 60000);
+            const delay = Math.round((predictedMs - schedMs) / 60000);
+            const timeStr = minsAway <= 0 ? 'Now' : minsAway < 60 ? `${minsAway} min` : new Date(predictedMs).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+            const delayCls = delay > 2 ? 'late' : '';
+            return `<div class="arrival-row">
+                <span class="arrival-route">${route}</span>
+                <span class="arrival-dest">${dest}</span>
+                <span class="arrival-time ${delayCls}">${timeStr}${delay > 0 ? ' (+'+delay+'m)' : ''}</span>
+            </div>`;
+        }).join('') || '<div class="empty-note">No arrivals in the next 60 minutes</div>';
+
+        document.getElementById('oba-loading').style.display = 'none';
+        document.getElementById('oba-data').style.display = 'block';
+        setWidgetStatus('oba-status', 'ok');
+
+    } catch(e) {
+        showError('oba', e.message || 'Network error');
+    }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   WIDGET 6 — Ship Tracking (proxy required — no fetch needed)
+   ══════════════════════════════════════════════════════════════ */
+// No JS needed — informational widget shown as static HTML above.
+
+/* ══════════════════════════════════════════════════════════════
+   WIDGET 7 — FAA Airport Status
+   ══════════════════════════════════════════════════════════════ */
+const MAJOR_AIRPORTS = [
+    { code: 'JFK', name: 'New York JFK' },
+    { code: 'LAX', name: 'Los Angeles' },
+    { code: 'ORD', name: "Chicago O'Hare" },
+    { code: 'ATL', name: 'Atlanta' },
+    { code: 'DFW', name: 'Dallas/Ft Worth' },
+    { code: 'SFO', name: 'San Francisco' },
+    { code: 'DEN', name: 'Denver' },
+    { code: 'SEA', name: 'Seattle' },
+    { code: 'MIA', name: 'Miami' },
+    { code: 'BOS', name: 'Boston' },
+    { code: 'LGA', name: 'New York LaGuardia' },
+    { code: 'EWR', name: 'Newark' },
+];
+
+async function loadAirports() {
+    setWidgetStatus('apt-status', 'loading');
+
+    // FAA NASSTATUS does not have CORS. We use sqa.link which is a CORS proxy that caches FAA XML.
+    // Fallback: fetch each airport's status from the FAA AIDAP endpoint (CORS-enabled).
+    const url = 'https://sqa.link/faa-nas-status.json';
+    let usedFallback = false;
+
+    try {
+        const resp = await fetchWithTimeout(url);
+        const data = await resp.json();
+        renderAirports(data.airports || [], false);
+    } catch(e) {
+        // Fallback: individual FAA airport delays endpoint — confirmed CORS-enabled
+        usedFallback = true;
+        await loadAirportsFallback();
+    }
+}
+
+async function loadAirportsFallback() {
+    // FAA ATIS / Delay API — individual airport status (CORS enabled)
+    // Endpoint: https://sqa.link/faa/ICAO (unofficial mirror) OR direct FAA delay check
+    // Use the official FAA API (sqa.link is down as fallback, try direct FAA JSON status)
+    // https://nasstatus.faa.gov/api/airport-conditions — has CORS
+    const url = 'https://nasstatus.faa.gov/api/airport-conditions';
+    try {
+        const resp = await fetchWithTimeout(url);
+        const data = await resp.json();
+        // Map to our format
+        const conditions = Array.isArray(data) ? data : (data.AirportConditions || []);
+        renderAirports(conditions, true);
+    } catch(e) {
+        // Final fallback: render airports with "status unknown"
+        renderAirportsUnknown(e.message);
+    }
+}
+
+function renderAirports(conditions, isFaaFormat) {
+    const grid = document.getElementById('apt-grid');
+
+    // Build a lookup by IATA/ICAO code
+    const lookup = {};
+    conditions.forEach(c => {
+        const code = c.ARPT || c.code || c.airport || '';
+        lookup[code.toUpperCase()] = c;
+    });
+
+    grid.innerHTML = MAJOR_AIRPORTS.map(apt => {
+        const info = lookup[apt.code] || lookup['K' + apt.code] || null;
+        let statusText = 'No delays';
+        let statusCls = 'apt-ok';
+        let tileCls = 'delay-none';
+        let details = 'Operations normal';
+
+        if (info) {
+            const hasDelay = info.Delays || info.delays || info.GroundDelayPrograms;
+            if (hasDelay && (hasDelay.length > 0 || Object.keys(hasDelay).length > 0)) {
+                statusText = 'Delays';
+                statusCls = 'apt-minor';
+                tileCls = 'delay-minor';
+                details = Array.isArray(hasDelay) ? hasDelay[0] : 'Ground delay program';
+            }
+            const closure = info.Closures || info.closures;
+            if (closure && closure.length > 0) {
+                statusText = 'Closed';
+                statusCls = 'apt-major';
+                tileCls = 'delay-closed';
+                details = 'Airport closure in effect';
+            }
+        }
+
+        return `<div class="airport-tile ${tileCls}">
+            <div class="airport-code">${apt.code}</div>
+            <div class="airport-name">${apt.name}</div>
+            <span class="airport-status-text ${statusCls}">${statusText}</span>
+            <div class="airport-details">${details}</div>
+        </div>`;
+    }).join('');
+
+    document.getElementById('apt-note').textContent =
+        'Source: FAA NAS Status · Conditions updated in real time · ' +
+        (conditions.length ? `${conditions.length} conditions reported` : 'No active delays');
+
+    document.getElementById('apt-loading').style.display = 'none';
+    document.getElementById('apt-data').style.display = 'block';
+    setWidgetStatus('apt-status', 'ok');
+}
+
+function renderAirportsUnknown(errMsg) {
+    const grid = document.getElementById('apt-grid');
+    grid.innerHTML = MAJOR_AIRPORTS.map(apt => `
+        <div class="airport-tile delay-none">
+            <div class="airport-code">${apt.code}</div>
+            <div class="airport-name">${apt.name}</div>
+            <span class="airport-status-text apt-closed">Unknown</span>
+            <div class="airport-details">Status unavailable</div>
+        </div>
+    `).join('');
+
+    document.getElementById('apt-note').textContent = `FAA NAS Status API unavailable: ${errMsg}`;
+    document.getElementById('apt-loading').style.display = 'none';
+    document.getElementById('apt-data').style.display = 'block';
+    setWidgetStatus('apt-status', 'warn');
+}
+
+/* ══════════════════════════════════════════════════════════════
+   WIDGET 8 — SF Bay Area 511
+   ══════════════════════════════════════════════════════════════ */
+// 511 SF Bay requires an API key for most endpoints.
+// The operators list endpoint can be browsed without auth for documentation purposes.
+// We fetch the GTFS agencies list from Transitland for the Bay Area.
+async function loadSFBay() {
+    showLoading('sfbay');
+    document.getElementById('sfbay-data').style.display = 'none';
+    setWidgetStatus('sfbay-status', 'loading');
+
+    // Use Transitland to get SF Bay Area operators — no key required
+    const url = 'https://transit.land/api/v2/rest/operators?bbox=-122.75,37.2,-121.5,38.0&limit=50&format=json';
+
+    try {
+        const resp = await fetchWithTimeout(url);
+        const data = await resp.json();
+        const operators = data.operators || [];
+
+        document.getElementById('sfbay-count').textContent = operators.length;
+
+        const modeIcon = (tags) => {
+            if (!tags) return '🚌';
+            const net = JSON.stringify(tags).toLowerCase();
+            if (net.includes('rail') || net.includes('train')) return '🚂';
+            if (net.includes('ferry')) return '⛴';
+            if (net.includes('metro') || net.includes('subway')) return '🚇';
+            if (net.includes('tram') || net.includes('streetcar')) return '🚋';
+            return '🚌';
+        };
+
+        const tbody = document.getElementById('sfbay-tbody');
+        tbody.innerHTML = operators.map(op => {
+            const name = op.name || '—';
+            const tags = op.tags || {};
+            const short = op.short_name || (op.onestop_id || '').split('-').pop().toUpperCase() || '—';
+            const mode = modeIcon(tags);
+            const coverage = tags.network || tags.operator || '—';
+            return `<tr>
+                <td class="highlight" style="font-family:var(--font-mono)">${short}</td>
+                <td>${mode} ${name}</td>
+                <td>${mode}</td>
+                <td>${coverage}</td>
+            </tr>`;
+        }).join('') || '<tr><td colspan="4" style="text-align:center;color:var(--ink-muted);padding:var(--s4)">No operators found</td></tr>';
+
+        document.getElementById('sfbay-loading').style.display = 'none';
+        document.getElementById('sfbay-data').style.display = 'block';
+        setWidgetStatus('sfbay-status', 'ok');
+
+    } catch(e) {
+        showError('sfbay', e.message || 'Network error');
+    }
+}
+
+/* ── Boot ───────────────────────────────────────────────────── */
+(function init() {
+    // Stagger loads to avoid hammering all APIs at once
+    loadOpenSky();
+    setTimeout(loadBikes,    400);
+    setTimeout(loadIRail,    800);
+    setTimeout(loadGTFS,    1200);
+    setTimeout(loadOBA,     1600);
+    setTimeout(loadAirports,2000);
+    setTimeout(loadSFBay,   2400);
+})();
+</script>
+
+<script defer src="../../prompt-viewer.js"></script>
+</body>
+</html>

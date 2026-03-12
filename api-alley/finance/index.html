@@ -1,0 +1,1729 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Finance Terminal — API Alley</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    /* ================================================
+       FINANCE TERMINAL — API Alley
+       Dark data-viz aesthetic. Every number glows.
+    ================================================ */
+
+    :root {
+      --bg:           #0d0d1a;
+      --bg-panel:     #111122;
+      --bg-card:      #161628;
+      --bg-card-alt:  #1a1a30;
+      --border:       #252540;
+      --border-bright:#333355;
+      --text:         #c8ccd8;
+      --text-dim:     #7a7f99;
+      --text-bright:  #e8ebf5;
+      --text-muted:   #4d506a;
+      --green:        #27864a;
+      --green-bright: #33aa5e;
+      --green-glow:   rgba(39,134,74,0.18);
+      --red:          #c0392b;
+      --red-bright:   #e74c3c;
+      --red-glow:     rgba(192,57,43,0.18);
+      --amber:        #d4913a;
+      --amber-glow:   rgba(212,145,58,0.15);
+      --blue:         #3a7bd5;
+      --blue-glow:    rgba(58,123,213,0.15);
+      --cyan:         #2cb5a0;
+      --purple:       #8b5cf6;
+      --grid-line:    rgba(255,255,255,0.04);
+
+      --font-ui:      'IBM Plex Sans', 'Helvetica Neue', sans-serif;
+      --font-num:     'IBM Plex Mono', 'Consolas', monospace;
+
+      --radius:       4px;
+      --radius-lg:    8px;
+      --transition:   0.15s ease;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { font-size: 15px; }
+
+    body {
+      font-family: var(--font-ui);
+      background: var(--bg);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+      min-height: 100vh;
+      /* subtle scanline texture */
+      background-image:
+        repeating-linear-gradient(
+          0deg,
+          transparent,
+          transparent 2px,
+          rgba(0,0,0,0.08) 2px,
+          rgba(0,0,0,0.08) 4px
+        );
+    }
+
+    /* ---- TICKER TAPE ---- */
+    .ticker-wrap {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: #0a0a15;
+      border-bottom: 1px solid var(--border);
+      overflow: hidden;
+      height: 34px;
+      display: flex;
+      align-items: center;
+    }
+
+    .ticker-label {
+      font-family: var(--font-num);
+      font-size: 0.65rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      color: var(--amber);
+      background: #0a0a15;
+      padding: 0 12px;
+      white-space: nowrap;
+      border-right: 1px solid var(--border);
+      height: 100%;
+      display: flex;
+      align-items: center;
+      flex-shrink: 0;
+      z-index: 2;
+    }
+
+    .ticker-track {
+      flex: 1;
+      overflow: hidden;
+      position: relative;
+      height: 100%;
+    }
+
+    .ticker-inner {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      white-space: nowrap;
+      will-change: transform;
+      animation: tickerScroll 60s linear infinite;
+      height: 100%;
+    }
+
+    .ticker-inner:hover { animation-play-state: paused; }
+
+    @keyframes tickerScroll {
+      0%   { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+
+    .ticker-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 18px;
+      border-right: 1px solid var(--border);
+      font-family: var(--font-num);
+      font-size: 0.72rem;
+      height: 100%;
+    }
+
+    .ticker-symbol {
+      color: var(--text-bright);
+      font-weight: 600;
+      letter-spacing: 0.04em;
+    }
+
+    .ticker-price { color: var(--text); }
+
+    .ticker-change.up   { color: var(--green-bright); }
+    .ticker-change.down { color: var(--red-bright); }
+
+    /* ---- MAIN LAYOUT ---- */
+    .main {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 32px 24px 64px;
+    }
+
+    /* ---- PAGE HEADER ---- */
+    .page-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      margin-bottom: 36px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .page-header-left {}
+
+    .page-breadcrumb {
+      font-family: var(--font-num);
+      font-size: 0.65rem;
+      letter-spacing: 0.12em;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .page-breadcrumb a {
+      color: var(--text-muted);
+      text-decoration: none;
+    }
+
+    .page-breadcrumb a:hover { color: var(--text-dim); }
+
+    .page-title {
+      font-family: var(--font-num);
+      font-size: 1.9rem;
+      font-weight: 600;
+      color: var(--text-bright);
+      letter-spacing: -0.02em;
+      line-height: 1;
+    }
+
+    .page-title span {
+      color: var(--green-bright);
+    }
+
+    .page-subtitle {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      margin-top: 6px;
+      font-family: var(--font-num);
+    }
+
+    .page-meta {
+      text-align: right;
+      font-family: var(--font-num);
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      line-height: 1.8;
+    }
+
+    .page-meta strong {
+      color: var(--text-dim);
+    }
+
+    #clock {
+      font-size: 1rem;
+      color: var(--amber);
+      display: block;
+      margin-top: 2px;
+    }
+
+    /* ---- WIDGET GRID ---- */
+    .widget-grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 20px;
+    }
+
+    .w-full  { grid-column: span 12; }
+    .w-8     { grid-column: span 8; }
+    .w-6     { grid-column: span 6; }
+    .w-4     { grid-column: span 4; }
+    .w-5     { grid-column: span 5; }
+    .w-7     { grid-column: span 7; }
+
+    @media (max-width: 1100px) {
+      .w-8, .w-7 { grid-column: span 12; }
+      .w-4, .w-5 { grid-column: span 12; }
+      .w-6       { grid-column: span 12; }
+    }
+
+    @media (max-width: 768px) {
+      .widget-grid { gap: 14px; }
+      [class^="w-"] { grid-column: span 12; }
+      .page-header { flex-direction: column; gap: 16px; align-items: flex-start; }
+      .page-meta { text-align: left; }
+    }
+
+    /* ---- WIDGET CARD ---- */
+    .widget {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .widget-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 18px 10px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(0,0,0,0.2);
+    }
+
+    .widget-title-group {}
+
+    .widget-label {
+      font-family: var(--font-num);
+      font-size: 0.6rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 2px;
+    }
+
+    .widget-title {
+      font-family: var(--font-num);
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: var(--text-bright);
+      letter-spacing: -0.01em;
+    }
+
+    .widget-meta {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .widget-api-link {
+      font-family: var(--font-num);
+      font-size: 0.6rem;
+      letter-spacing: 0.08em;
+      color: var(--blue);
+      text-decoration: none;
+      text-transform: uppercase;
+      border: 1px solid rgba(58,123,213,0.3);
+      padding: 2px 7px;
+      border-radius: 2px;
+      transition: var(--transition);
+    }
+
+    .widget-api-link:hover {
+      background: var(--blue-glow);
+      color: #6da3ef;
+    }
+
+    .widget-refresh-btn {
+      background: none;
+      border: 1px solid var(--border-bright);
+      color: var(--text-dim);
+      cursor: pointer;
+      border-radius: 2px;
+      padding: 2px 7px;
+      font-family: var(--font-num);
+      font-size: 0.6rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      transition: var(--transition);
+    }
+
+    .widget-refresh-btn:hover {
+      border-color: var(--amber);
+      color: var(--amber);
+    }
+
+    .refresh-dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--green);
+      margin-right: 4px;
+      vertical-align: middle;
+    }
+
+    .refresh-dot.pulsing {
+      animation: dotPulse 1s ease-in-out infinite;
+    }
+
+    @keyframes dotPulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.3; transform: scale(0.7); }
+    }
+
+    .widget-body {
+      padding: 18px;
+      flex: 1;
+    }
+
+    /* ---- STATES ---- */
+    .state-loading,
+    .state-error {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 24px;
+      text-align: center;
+      gap: 10px;
+    }
+
+    .state-loading {
+      color: var(--text-muted);
+      font-family: var(--font-num);
+      font-size: 0.75rem;
+      letter-spacing: 0.08em;
+    }
+
+    .loading-bar {
+      width: 120px;
+      height: 2px;
+      background: var(--border);
+      border-radius: 1px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .loading-bar::after {
+      content: '';
+      position: absolute;
+      left: -40%;
+      top: 0;
+      width: 40%;
+      height: 100%;
+      background: var(--green);
+      animation: loadSweep 1.2s ease-in-out infinite;
+    }
+
+    @keyframes loadSweep {
+      0%   { left: -40%; }
+      100% { left: 140%; }
+    }
+
+    .state-error {
+      color: var(--red-bright);
+      font-family: var(--font-num);
+      font-size: 0.8rem;
+    }
+
+    .state-error .error-icon { font-size: 1.8rem; }
+
+    .state-error .error-msg {
+      color: var(--text-muted);
+      font-size: 0.7rem;
+      letter-spacing: 0.04em;
+      margin-top: 4px;
+    }
+
+    /* ---- CRYPTO TABLE ---- */
+    .crypto-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .crypto-table thead tr {
+      border-bottom: 1px solid var(--border);
+    }
+
+    .crypto-table th {
+      font-family: var(--font-num);
+      font-size: 0.6rem;
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      padding: 0 8px 10px;
+      text-align: right;
+    }
+
+    .crypto-table th:first-child { text-align: left; padding-left: 0; }
+    .crypto-table th:last-child  { padding-right: 0; }
+
+    .crypto-table tbody tr {
+      border-bottom: 1px solid var(--grid-line);
+      transition: background var(--transition);
+    }
+
+    .crypto-table tbody tr:hover {
+      background: rgba(255,255,255,0.025);
+    }
+
+    .crypto-table tbody tr:last-child { border-bottom: none; }
+
+    .crypto-table td {
+      font-family: var(--font-num);
+      font-size: 0.82rem;
+      padding: 9px 8px;
+      text-align: right;
+      color: var(--text);
+    }
+
+    .crypto-table td:first-child { text-align: left; padding-left: 0; }
+    .crypto-table td:last-child  { padding-right: 0; }
+
+    .coin-name-cell {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .coin-rank {
+      font-size: 0.6rem;
+      color: var(--text-muted);
+      width: 18px;
+      text-align: right;
+    }
+
+    .coin-symbol {
+      font-weight: 600;
+      color: var(--text-bright);
+      letter-spacing: 0.04em;
+    }
+
+    .coin-name {
+      font-size: 0.7rem;
+      color: var(--text-dim);
+    }
+
+    .coin-price { color: var(--text-bright); font-weight: 500; }
+
+    .change-cell.up   { color: var(--green-bright); }
+    .change-cell.down { color: var(--red-bright); }
+
+    .bar-cell { width: 80px; }
+
+    .mini-bar {
+      height: 3px;
+      border-radius: 2px;
+      min-width: 2px;
+    }
+
+    .mini-bar.up   { background: var(--green); }
+    .mini-bar.down { background: var(--red); }
+
+    /* ---- BTC MULTI-CURRENCY ---- */
+    .btc-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 10px;
+    }
+
+    .btc-card {
+      background: var(--bg-card-alt);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .btc-currency {
+      font-family: var(--font-num);
+      font-size: 0.62rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    .btc-price {
+      font-family: var(--font-num);
+      font-size: 0.92rem;
+      font-weight: 600;
+      color: var(--amber);
+    }
+
+    .btc-buy {
+      font-family: var(--font-num);
+      font-size: 0.65rem;
+      color: var(--text-muted);
+    }
+
+    /* ---- CURRENCY CONVERTER ---- */
+    .converter-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .converter-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      flex: 1;
+      min-width: 120px;
+    }
+
+    .converter-label {
+      font-family: var(--font-num);
+      font-size: 0.6rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    .converter-input,
+    .converter-select {
+      background: var(--bg);
+      border: 1px solid var(--border-bright);
+      border-radius: var(--radius);
+      color: var(--text-bright);
+      font-family: var(--font-num);
+      font-size: 0.9rem;
+      padding: 8px 10px;
+      width: 100%;
+      outline: none;
+      transition: border-color var(--transition);
+      -webkit-appearance: none;
+    }
+
+    .converter-input:focus,
+    .converter-select:focus {
+      border-color: var(--blue);
+    }
+
+    .converter-arrow {
+      font-size: 1.1rem;
+      color: var(--text-muted);
+      padding-top: 20px;
+      flex-shrink: 0;
+    }
+
+    .converter-result-box {
+      background: var(--bg-card-alt);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--green);
+      border-radius: var(--radius);
+      padding: 14px 18px;
+    }
+
+    .converter-result-label {
+      font-family: var(--font-num);
+      font-size: 0.6rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    .converter-result-value {
+      font-family: var(--font-num);
+      font-size: 1.6rem;
+      font-weight: 600;
+      color: var(--green-bright);
+    }
+
+    .converter-rate-info {
+      font-family: var(--font-num);
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      margin-top: 5px;
+    }
+
+    .convert-btn {
+      background: none;
+      border: 1px solid var(--green);
+      color: var(--green-bright);
+      font-family: var(--font-num);
+      font-size: 0.7rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 8px 18px;
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: var(--transition);
+      margin-top: 20px;
+      flex-shrink: 0;
+    }
+
+    .convert-btn:hover {
+      background: var(--green-glow);
+    }
+
+    /* ---- CURRENCY TABLE ---- */
+    .currency-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .currency-table thead tr {
+      border-bottom: 1px solid var(--border);
+    }
+
+    .currency-table th {
+      font-family: var(--font-num);
+      font-size: 0.6rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      padding: 0 10px 10px;
+      text-align: right;
+    }
+
+    .currency-table th:first-child { text-align: left; padding-left: 0; }
+
+    .currency-table tbody tr {
+      border-bottom: 1px solid var(--grid-line);
+      transition: background var(--transition);
+    }
+
+    .currency-table tbody tr:hover { background: rgba(255,255,255,0.025); }
+    .currency-table tbody tr:last-child { border-bottom: none; }
+
+    .currency-table td {
+      font-family: var(--font-num);
+      font-size: 0.8rem;
+      padding: 8px 10px;
+      color: var(--text);
+    }
+
+    .currency-table td:first-child { padding-left: 0; text-align: left; }
+    .currency-table td:not(:first-child) { text-align: right; }
+
+    .currency-flag {
+      font-size: 1rem;
+      margin-right: 7px;
+    }
+
+    .currency-code {
+      font-weight: 600;
+      color: var(--text-bright);
+    }
+
+    .currency-name-small {
+      font-size: 0.65rem;
+      color: var(--text-dim);
+      margin-left: 6px;
+    }
+
+    /* ---- FEAR & GREED GAUGE ---- */
+    .fg-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      padding: 10px 0;
+    }
+
+    .fg-gauge-wrap {
+      position: relative;
+      width: 240px;
+      height: 128px;
+    }
+
+    .fg-gauge-svg {
+      width: 100%;
+      height: 100%;
+    }
+
+    .fg-needle {
+      transform-origin: 50% 100%;
+      transition: transform 1.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .fg-value-display {
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      text-align: center;
+    }
+
+    .fg-number {
+      font-family: var(--font-num);
+      font-size: 2.4rem;
+      font-weight: 600;
+      line-height: 1;
+    }
+
+    .fg-classification {
+      font-family: var(--font-num);
+      font-size: 0.7rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-top: 3px;
+    }
+
+    .fg-meta {
+      font-family: var(--font-num);
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    .fg-history {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      width: 100%;
+    }
+
+    .fg-hist-item {
+      background: var(--bg-card-alt);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 8px 12px;
+      text-align: center;
+    }
+
+    .fg-hist-label {
+      font-family: var(--font-num);
+      font-size: 0.58rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 3px;
+    }
+
+    .fg-hist-value {
+      font-family: var(--font-num);
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+
+    .fg-hist-name {
+      font-family: var(--font-num);
+      font-size: 0.6rem;
+      color: var(--text-dim);
+      margin-top: 1px;
+    }
+
+    /* ---- SPARKLINE CHART ---- */
+    .sparkline-container {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .sparkline-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+
+    .sparkline-pair-label {
+      font-family: var(--font-num);
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text-bright);
+    }
+
+    .sparkline-pair-rate {
+      font-family: var(--font-num);
+      font-size: 0.7rem;
+      color: var(--text-dim);
+    }
+
+    .sparkline-current {
+      font-family: var(--font-num);
+      font-size: 1.7rem;
+      font-weight: 600;
+      color: var(--amber);
+    }
+
+    .sparkline-change-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .sparkline-change {
+      font-family: var(--font-num);
+      font-size: 0.75rem;
+    }
+
+    .sparkline-change.up   { color: var(--green-bright); }
+    .sparkline-change.down { color: var(--red-bright); }
+
+    .sparkline-period {
+      font-family: var(--font-num);
+      font-size: 0.65rem;
+      color: var(--text-muted);
+    }
+
+    .chart-wrapper {
+      position: relative;
+      width: 100%;
+      height: 120px;
+    }
+
+    .chart-svg {
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+    }
+
+    .chart-axis-label {
+      font-family: var(--font-num);
+      font-size: 0.6rem;
+      fill: var(--text-muted);
+    }
+
+    .sparkline-date-row {
+      display: flex;
+      justify-content: space-between;
+      font-family: var(--font-num);
+      font-size: 0.58rem;
+      color: var(--text-muted);
+      margin-top: -4px;
+    }
+
+    /* ---- SECTION DIVIDER ---- */
+    .section-divider {
+      grid-column: span 12;
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 4px 0;
+    }
+
+    /* ---- FOOTER ---- */
+    .page-footer {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 20px 24px 40px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--font-num);
+      font-size: 0.65rem;
+      color: var(--text-muted);
+    }
+
+    .page-footer a { color: var(--text-muted); text-decoration: none; }
+    .page-footer a:hover { color: var(--text-dim); }
+
+    /* ---- UTILITY ---- */
+    .up   { color: var(--green-bright); }
+    .down { color: var(--red-bright); }
+
+    .text-right  { text-align: right; }
+    .text-center { text-align: center; }
+
+    select option { background: #1a1a30; }
+  </style>
+</head>
+<body>
+
+<!-- ========================================================
+     TICKER TAPE (Widget 6)
+     API: CoinCap  https://api.coincap.io/v2/assets?limit=20
+======================================================== -->
+<div class="ticker-wrap">
+  <div class="ticker-label">&#9632; LIVE</div>
+  <div class="ticker-track">
+    <div class="ticker-inner" id="ticker-inner">
+      <!-- populated by JS -->
+      <span class="ticker-item">
+        <span class="ticker-symbol">LOADING</span>
+        <span class="ticker-price">——</span>
+        <span class="ticker-change">——</span>
+      </span>
+    </div>
+  </div>
+</div>
+
+<!-- ========================================================
+     MAIN CONTENT
+======================================================== -->
+<main class="main">
+
+  <!-- PAGE HEADER -->
+  <header class="page-header">
+    <div class="page-header-left">
+      <div class="page-breadcrumb">
+        <a href="../../index.html">HTML Style Guides</a>
+        &nbsp;/&nbsp;
+        <a href="../index.html">API Alley</a>
+        &nbsp;/&nbsp; Finance
+      </div>
+      <h1 class="page-title"><span>$</span> FINANCE TERMINAL</h1>
+      <p class="page-subtitle">Live market data · 7 free APIs · No auth required</p>
+    </div>
+    <div class="page-meta">
+      <strong>UTC</strong><br>
+      <span id="clock">——:——:——</span>
+      <br>Markets: <strong id="market-status">——</strong>
+    </div>
+  </header>
+
+  <!-- WIDGET GRID -->
+  <div class="widget-grid">
+
+    <!-- =====================================================
+         WIDGET 1 — Crypto Prices (Top 10)
+         API: CoinCap  https://api.coincap.io/v2/assets?limit=10
+    ===================================================== -->
+    <div class="widget w-8" id="widget-crypto">
+      <div class="widget-header">
+        <div class="widget-title-group">
+          <div class="widget-label">CoinCap API</div>
+          <div class="widget-title">Top 10 Cryptocurrencies</div>
+        </div>
+        <div class="widget-meta">
+          <a class="widget-api-link" href="https://docs.coincap.io" target="_blank" rel="noopener">Docs</a>
+          <button class="widget-refresh-btn" onclick="loadCryptoPrices()">&#x21BB; Refresh</button>
+          <span class="refresh-dot pulsing" id="dot-crypto" title="Auto-refreshes every 30s"></span>
+        </div>
+      </div>
+      <div class="widget-body" id="body-crypto">
+        <div class="state-loading">
+          <div class="loading-bar"></div>
+          <span>Fetching market data&hellip;</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- =====================================================
+         WIDGET 5 — Fear & Greed Index
+         API: Alternative.me  https://api.alternative.me/fng/
+    ===================================================== -->
+    <div class="widget w-4" id="widget-fg">
+      <div class="widget-header">
+        <div class="widget-title-group">
+          <div class="widget-label">Alternative.me</div>
+          <div class="widget-title">Fear &amp; Greed Index</div>
+        </div>
+        <div class="widget-meta">
+          <a class="widget-api-link" href="https://alternative.me/crypto/fear-and-greed-index/" target="_blank" rel="noopener">Docs</a>
+          <span class="refresh-dot pulsing" id="dot-fg"></span>
+        </div>
+      </div>
+      <div class="widget-body" id="body-fg">
+        <div class="state-loading">
+          <div class="loading-bar"></div>
+          <span>Reading the market's mood&hellip;</span>
+        </div>
+      </div>
+    </div>
+
+    <hr class="section-divider">
+
+    <!-- =====================================================
+         WIDGET 2 — Bitcoin in Multiple Currencies
+         API: Blockchain.com  https://blockchain.info/ticker?cors=true
+    ===================================================== -->
+    <div class="widget w-5" id="widget-btc">
+      <div class="widget-header">
+        <div class="widget-title-group">
+          <div class="widget-label">Blockchain.com</div>
+          <div class="widget-title">Bitcoin Exchange Rates</div>
+        </div>
+        <div class="widget-meta">
+          <a class="widget-api-link" href="https://www.blockchain.com/api" target="_blank" rel="noopener">Docs</a>
+          <span class="refresh-dot pulsing" id="dot-btc"></span>
+        </div>
+      </div>
+      <div class="widget-body" id="body-btc">
+        <div class="state-loading">
+          <div class="loading-bar"></div>
+          <span>Querying exchanges&hellip;</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- =====================================================
+         WIDGET 3 — Currency Converter
+         API: Frankfurter  https://api.frankfurter.app/latest
+    ===================================================== -->
+    <div class="widget w-7" id="widget-converter">
+      <div class="widget-header">
+        <div class="widget-title-group">
+          <div class="widget-label">Frankfurter (ECB)</div>
+          <div class="widget-title">Currency Converter</div>
+        </div>
+        <div class="widget-meta">
+          <a class="widget-api-link" href="https://frankfurter.dev" target="_blank" rel="noopener">Docs</a>
+          <span class="refresh-dot" id="dot-converter"></span>
+        </div>
+      </div>
+      <div class="widget-body" id="body-converter">
+        <div class="state-loading">
+          <div class="loading-bar"></div>
+          <span>Fetching ECB rates&hellip;</span>
+        </div>
+      </div>
+    </div>
+
+    <hr class="section-divider">
+
+    <!-- =====================================================
+         WIDGET 4 — Currency Table vs USD
+         API: ExchangeRate-API  https://api.exchangerate-api.com/v4/latest/USD
+    ===================================================== -->
+    <div class="widget w-6" id="widget-fxtable">
+      <div class="widget-header">
+        <div class="widget-title-group">
+          <div class="widget-label">ExchangeRate-API</div>
+          <div class="widget-title">Major Currencies vs USD</div>
+        </div>
+        <div class="widget-meta">
+          <a class="widget-api-link" href="https://www.exchangerate-api.com/docs/free" target="_blank" rel="noopener">Docs</a>
+          <span class="refresh-dot pulsing" id="dot-fxtable"></span>
+        </div>
+      </div>
+      <div class="widget-body" id="body-fxtable">
+        <div class="state-loading">
+          <div class="loading-bar"></div>
+          <span>Loading world currencies&hellip;</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- =====================================================
+         WIDGET 7 — EUR/USD Historical Sparkline (30 days)
+         API: Frankfurter  https://api.frankfurter.app/{from}..{to}
+    ===================================================== -->
+    <div class="widget w-6" id="widget-sparkline">
+      <div class="widget-header">
+        <div class="widget-title-group">
+          <div class="widget-label">Frankfurter (ECB) · Historical</div>
+          <div class="widget-title">EUR / USD — 30-Day Chart</div>
+        </div>
+        <div class="widget-meta">
+          <a class="widget-api-link" href="https://frankfurter.dev" target="_blank" rel="noopener">Docs</a>
+          <span class="refresh-dot" id="dot-sparkline"></span>
+        </div>
+      </div>
+      <div class="widget-body" id="body-sparkline">
+        <div class="state-loading">
+          <div class="loading-bar"></div>
+          <span>Loading 30-day history&hellip;</span>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /widget-grid -->
+</main>
+
+<footer class="page-footer">
+  <span>Finance Terminal &mdash; API Alley &mdash; HTML Style Guides</span>
+  <span>Data for educational use only. Not financial advice. <a href="../../index.html">↩ Home</a></span>
+</footer>
+
+<script defer src="../../prompt-viewer.js"></script>
+
+<script>
+/* ================================================================
+   FINANCE TERMINAL — Live API Widget Logic
+   All fetch() calls with AbortController 5s timeout + try/catch.
+================================================================ */
+
+'use strict';
+
+// ---- Helpers ----
+
+function fmt(n, decimals = 2) {
+  return Number(n).toLocaleString('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals
+  });
+}
+
+function fmtBig(n) {
+  n = Number(n);
+  if (n >= 1e12) return '$' + fmt(n / 1e12, 2) + 'T';
+  if (n >= 1e9)  return '$' + fmt(n / 1e9,  2) + 'B';
+  if (n >= 1e6)  return '$' + fmt(n / 1e6,  2) + 'M';
+  return '$' + fmt(n);
+}
+
+async function fetchWithTimeout(url, ms = 5000) {
+  const ctrl = new AbortController();
+  const id = setTimeout(() => ctrl.abort(), ms);
+  try {
+    const res = await fetch(url, { signal: ctrl.signal });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } finally {
+    clearTimeout(id);
+  }
+}
+
+function errorHTML(msg = '') {
+  return `<div class="state-error">
+    <div class="error-icon">📉</div>
+    <div style="color:var(--red-bright);font-weight:600;">Market data is down</div>
+    <div class="error-msg">— not just the prices —</div>
+    ${msg ? `<div class="error-msg" style="margin-top:8px;color:var(--text-muted);font-size:0.65rem;">${escHtml(msg)}</div>` : ''}
+  </div>`;
+}
+
+function escHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+}
+
+function setDotOk(id)  { const d = document.getElementById(id); if (d) { d.style.background = 'var(--green)'; d.classList.add('pulsing'); } }
+function setDotErr(id) { const d = document.getElementById(id); if (d) { d.style.background = 'var(--red)'; d.classList.remove('pulsing'); } }
+function setDotIdle(id){ const d = document.getElementById(id); if (d) { d.style.background = 'var(--amber)'; d.classList.remove('pulsing'); } }
+
+// ---- Clock & Market Status ----
+
+function updateClock() {
+  const now = new Date();
+  const hh = String(now.getUTCHours()).padStart(2,'0');
+  const mm = String(now.getUTCMinutes()).padStart(2,'0');
+  const ss = String(now.getUTCSeconds()).padStart(2,'0');
+  const el = document.getElementById('clock');
+  if (el) el.textContent = `${hh}:${mm}:${ss}`;
+
+  // US equity market: Mon–Fri 13:30–20:00 UTC
+  const day = now.getUTCDay();
+  const mins = now.getUTCHours() * 60 + now.getUTCMinutes();
+  const marketEl = document.getElementById('market-status');
+  if (marketEl) {
+    if (day >= 1 && day <= 5 && mins >= 810 && mins < 1200) {
+      marketEl.textContent = 'NYSE OPEN';
+      marketEl.style.color = 'var(--green-bright)';
+    } else {
+      marketEl.textContent = 'NYSE CLOSED';
+      marketEl.style.color = 'var(--text-muted)';
+    }
+  }
+}
+
+setInterval(updateClock, 1000);
+updateClock();
+
+// ================================================================
+// WIDGET 6 — Ticker Tape (CoinCap top 20, duplicate for seamless loop)
+// ================================================================
+
+async function loadTicker() {
+  try {
+    const data = await fetchWithTimeout('https://api.coincap.io/v2/assets?limit=20');
+    const coins = data.data || [];
+    if (!coins.length) return;
+
+    function itemHTML(c) {
+      const price = Number(c.priceUsd);
+      const chg   = Number(c.changePercent24Hr);
+      const cls   = chg >= 0 ? 'up' : 'down';
+      const arrow = chg >= 0 ? '▲' : '▼';
+      const priceStr = price >= 1 ? '$' + fmt(price) : '$' + Number(price).toFixed(6);
+      return `<span class="ticker-item">
+        <span class="ticker-symbol">${escHtml(c.symbol)}</span>
+        <span class="ticker-price">${priceStr}</span>
+        <span class="ticker-change ${cls}">${arrow} ${Math.abs(chg).toFixed(2)}%</span>
+      </span>`;
+    }
+
+    // Double the items for seamless loop
+    const html = coins.map(itemHTML).join('') + coins.map(itemHTML).join('');
+    const inner = document.getElementById('ticker-inner');
+    if (inner) {
+      inner.innerHTML = html;
+      // Reset animation
+      inner.style.animation = 'none';
+      void inner.offsetWidth;
+      inner.style.animation = '';
+    }
+  } catch (e) {
+    // Ticker failure is silent — just keep the loading placeholder
+    console.warn('Ticker load failed:', e.message);
+  }
+}
+
+// ================================================================
+// WIDGET 1 — Top 10 Crypto Prices (CoinCap)
+// Auto-refresh every 30s
+// ================================================================
+
+async function loadCryptoPrices() {
+  const body = document.getElementById('body-crypto');
+  try {
+    const data = await fetchWithTimeout('https://api.coincap.io/v2/assets?limit=10');
+    const coins = data.data || [];
+    if (!coins.length) throw new Error('Empty response');
+
+    const maxChange = Math.max(...coins.map(c => Math.abs(Number(c.changePercent24Hr))));
+
+    const rows = coins.map(c => {
+      const price = Number(c.priceUsd);
+      const chg   = Number(c.changePercent24Hr);
+      const mcap  = Number(c.marketCapUsd);
+      const vol   = Number(c.volumeUsd24Hr);
+      const cls   = chg >= 0 ? 'up' : 'down';
+      const arrow = chg >= 0 ? '▲' : '▼';
+      const barPct = (Math.abs(chg) / (maxChange || 1)) * 100;
+      const priceStr = price >= 1 ? '$' + fmt(price) : '$' + price.toFixed(6);
+
+      return `<tr>
+        <td>
+          <div class="coin-name-cell">
+            <span class="coin-rank">${escHtml(c.rank)}</span>
+            <div>
+              <div class="coin-symbol">${escHtml(c.symbol)}</div>
+              <div class="coin-name">${escHtml(c.name)}</div>
+            </div>
+          </div>
+        </td>
+        <td class="coin-price">${priceStr}</td>
+        <td class="change-cell ${cls}">${arrow} ${Math.abs(chg).toFixed(2)}%</td>
+        <td>${fmtBig(mcap)}</td>
+        <td>${fmtBig(vol)}</td>
+        <td class="bar-cell">
+          <div class="mini-bar ${cls}" style="width:${barPct.toFixed(1)}%"></div>
+        </td>
+      </tr>`;
+    }).join('');
+
+    body.innerHTML = `
+      <table class="crypto-table">
+        <thead>
+          <tr>
+            <th style="text-align:left">Asset</th>
+            <th>Price (USD)</th>
+            <th>24h Chg</th>
+            <th>Market Cap</th>
+            <th>24h Volume</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+    setDotOk('dot-crypto');
+  } catch (e) {
+    body.innerHTML = errorHTML(e.message);
+    setDotErr('dot-crypto');
+  }
+}
+
+// ================================================================
+// WIDGET 5 — Fear & Greed Index (Alternative.me)
+// ================================================================
+
+const FG_COLORS = {
+  'Extreme Fear': '#c0392b',
+  'Fear':         '#e67e22',
+  'Neutral':      '#f1c40f',
+  'Greed':        '#27ae60',
+  'Extreme Greed':'#16a085'
+};
+
+async function loadFearGreed() {
+  const body = document.getElementById('body-fg');
+  try {
+    const data = await fetchWithTimeout('https://api.alternative.me/fng/?limit=7');
+    const items = data.data || [];
+    if (!items.length) throw new Error('Empty response');
+
+    const current = items[0];
+    const val  = Number(current.value);
+    const cls  = current.value_classification;
+    const color = FG_COLORS[cls] || '#f1c40f';
+
+    // Needle angle: 0 → -90deg (extreme fear), 100 → +90deg (extreme greed)
+    const angle = (val / 100) * 180 - 90;
+
+    // History items (yesterday, last week, last month if available)
+    const histItems = [];
+    const histLabels = ['Yesterday', '1 Week Ago', '1 Month Ago'];
+    [1, 7, 30].forEach((offset, i) => {
+      // items are daily; find closest
+      const item = items[i + 1] || items[items.length - 1];
+      if (item) {
+        const c = item.value_classification;
+        const hColor = FG_COLORS[c] || '#f1c40f';
+        histItems.push(`
+          <div class="fg-hist-item">
+            <div class="fg-hist-label">${histLabels[i]}</div>
+            <div class="fg-hist-value" style="color:${hColor}">${item.value}</div>
+            <div class="fg-hist-name" style="color:${hColor}">${c}</div>
+          </div>`);
+      }
+    });
+
+    body.innerHTML = `
+      <div class="fg-container">
+        <div class="fg-gauge-wrap">
+          <svg class="fg-gauge-svg" viewBox="0 0 240 128">
+            <!-- Gauge arc segments -->
+            <defs>
+              <linearGradient id="gaugeFill" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%"   stop-color="#c0392b"/>
+                <stop offset="25%"  stop-color="#e67e22"/>
+                <stop offset="50%"  stop-color="#f1c40f"/>
+                <stop offset="75%"  stop-color="#27ae60"/>
+                <stop offset="100%" stop-color="#16a085"/>
+              </linearGradient>
+            </defs>
+            <!-- Background arc -->
+            <path d="M 20,120 A 100,100 0 0,1 220,120" fill="none" stroke="#252540" stroke-width="16" stroke-linecap="round"/>
+            <!-- Colored arc -->
+            <path d="M 20,120 A 100,100 0 0,1 220,120" fill="none" stroke="url(#gaugeFill)" stroke-width="12" stroke-linecap="round" opacity="0.85"/>
+            <!-- Labels -->
+            <text x="14" y="118" class="chart-axis-label" font-size="9" fill="#c0392b">FEAR</text>
+            <text x="176" y="118" class="chart-axis-label" font-size="9" fill="#16a085">GREED</text>
+            <!-- Needle group, rotated around bottom-center -->
+            <g class="fg-needle" id="fg-needle-el" style="transform: rotate(${angle}deg); transform-origin: 120px 120px;">
+              <line x1="120" y1="120" x2="120" y2="38" stroke="#e8ebf5" stroke-width="2" stroke-linecap="round"/>
+              <circle cx="120" cy="120" r="5" fill="#e8ebf5"/>
+            </g>
+          </svg>
+          <div class="fg-value-display">
+            <div class="fg-number" style="color:${color}">${val}</div>
+            <div class="fg-classification" style="color:${color}">${cls}</div>
+          </div>
+        </div>
+        <div class="fg-meta">
+          Updated: ${new Date(Number(current.timestamp) * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+        </div>
+        <div class="fg-history">${histItems.join('')}</div>
+      </div>`;
+    setDotOk('dot-fg');
+  } catch (e) {
+    body.innerHTML = errorHTML(e.message);
+    setDotErr('dot-fg');
+  }
+}
+
+// ================================================================
+// WIDGET 2 — Bitcoin Multi-Currency (Blockchain.com)
+// ================================================================
+
+const BTC_CURRENCIES = ['USD','EUR','GBP','JPY','CAD','AUD','CHF','CNY','SGD','HKD','INR','BRL'];
+
+async function loadBitcoin() {
+  const body = document.getElementById('body-btc');
+  try {
+    const data = await fetchWithTimeout('https://blockchain.info/ticker?cors=true');
+    const cards = BTC_CURRENCIES
+      .filter(c => data[c])
+      .map(code => {
+        const d = data[code];
+        const price = Number(d.last);
+        const buy   = Number(d.buy);
+        const sym   = d.symbol || '';
+        // Format: use locale with currency if possible
+        let priceStr;
+        try {
+          priceStr = price.toLocaleString('en-US', { style: 'currency', currency: code, maximumFractionDigits: code === 'JPY' ? 0 : 2 });
+        } catch(e) {
+          priceStr = sym + fmt(price, code === 'JPY' ? 0 : 2);
+        }
+        return `<div class="btc-card">
+          <div class="btc-currency">${code}</div>
+          <div class="btc-price">${priceStr}</div>
+          <div class="btc-buy">Buy: ${sym}${fmt(buy, code === 'JPY' ? 0 : 2)}</div>
+        </div>`;
+      }).join('');
+
+    body.innerHTML = `<div class="btc-grid">${cards}</div>`;
+    setDotOk('dot-btc');
+  } catch (e) {
+    body.innerHTML = errorHTML(e.message);
+    setDotErr('dot-btc');
+  }
+}
+
+// ================================================================
+// WIDGET 3 — Currency Converter (Frankfurter)
+// ================================================================
+
+let converterRates = null;
+let converterBase  = 'USD';
+
+const CONVERTER_CURRENCIES = [
+  'USD','EUR','GBP','JPY','CHF','CAD','AUD','CNY','HKD','SGD',
+  'INR','MXN','BRL','NOK','SEK','DKK','PLN','CZK','HUF','KRW'
+];
+
+async function loadConverter() {
+  const body = document.getElementById('body-converter');
+  try {
+    const data = await fetchWithTimeout('https://api.frankfurter.app/latest?from=USD');
+    converterRates = data.rates;
+    converterRates['USD'] = 1;
+    converterBase = 'USD';
+
+    const opts = CONVERTER_CURRENCIES.map(c =>
+      `<option value="${c}" ${c === 'USD' ? 'selected' : ''}>${c}</option>`
+    ).join('');
+
+    const optsTo = CONVERTER_CURRENCIES.map(c =>
+      `<option value="${c}" ${c === 'EUR' ? 'selected' : ''}>${c}</option>`
+    ).join('');
+
+    body.innerHTML = `
+      <div class="converter-row">
+        <div class="converter-group">
+          <div class="converter-label">Amount</div>
+          <input type="number" class="converter-input" id="conv-amount" value="1000" min="0" step="any">
+        </div>
+        <div class="converter-group">
+          <div class="converter-label">From</div>
+          <select class="converter-select" id="conv-from">${opts}</select>
+        </div>
+        <div class="converter-arrow">→</div>
+        <div class="converter-group">
+          <div class="converter-label">To</div>
+          <select class="converter-select" id="conv-to">${optsTo}</select>
+        </div>
+        <button class="convert-btn" onclick="doConvert()">Convert</button>
+      </div>
+      <div class="converter-result-box" id="conv-result-box">
+        <div class="converter-result-label">Result</div>
+        <div class="converter-result-value" id="conv-result">——</div>
+        <div class="converter-rate-info" id="conv-rate-info">Enter an amount and click Convert</div>
+      </div>`;
+
+    // Auto-convert on change
+    document.getElementById('conv-amount').addEventListener('input', doConvert);
+    document.getElementById('conv-from').addEventListener('change', () => rebaseConverter());
+    document.getElementById('conv-to').addEventListener('change', doConvert);
+
+    doConvert();
+    setDotIdle('dot-converter');
+  } catch (e) {
+    body.innerHTML = errorHTML(e.message);
+    setDotErr('dot-converter');
+  }
+}
+
+async function rebaseConverter() {
+  const fromSel = document.getElementById('conv-from');
+  if (!fromSel) return;
+  const from = fromSel.value;
+  try {
+    const data = await fetchWithTimeout(`https://api.frankfurter.app/latest?from=${from}`);
+    converterRates = data.rates;
+    converterRates[from] = 1;
+    converterBase = from;
+    doConvert();
+  } catch (e) {
+    doConvert();
+  }
+}
+
+function doConvert() {
+  const amountEl = document.getElementById('conv-amount');
+  const fromEl   = document.getElementById('conv-from');
+  const toEl     = document.getElementById('conv-to');
+  const resultEl = document.getElementById('conv-result');
+  const rateEl   = document.getElementById('conv-rate-info');
+  if (!amountEl || !fromEl || !toEl || !converterRates) return;
+
+  const amount = Number(amountEl.value);
+  const from   = fromEl.value;
+  const to     = toEl.value;
+
+  if (from === converterBase && converterRates[to]) {
+    const rate   = converterRates[to];
+    const result = amount * rate;
+    const dp = (to === 'JPY' || to === 'KRW') ? 0 : 4;
+    resultEl.textContent = result.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + to;
+    rateEl.textContent   = `1 ${from} = ${rate.toFixed(dp)} ${to}  ·  ECB rate`;
+  } else if (converterRates[from] && converterRates[to]) {
+    // Cross-rate via USD base
+    const toUsd  = 1 / converterRates[from];
+    const rate   = toUsd * converterRates[to];
+    const result = amount * rate;
+    resultEl.textContent = result.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + to;
+    const dp = (to === 'JPY' || to === 'KRW') ? 0 : 4;
+    rateEl.textContent   = `1 ${from} ≈ ${rate.toFixed(dp)} ${to}  ·  ECB cross-rate`;
+  } else {
+    resultEl.textContent = '——';
+    rateEl.textContent   = 'Rate unavailable';
+  }
+}
+
+// ================================================================
+// WIDGET 4 — Major Currencies vs USD (ExchangeRate-API)
+// ================================================================
+
+const FX_DISPLAY = [
+  { code: 'EUR', flag: '🇪🇺', name: 'Euro' },
+  { code: 'GBP', flag: '🇬🇧', name: 'British Pound' },
+  { code: 'JPY', flag: '🇯🇵', name: 'Japanese Yen' },
+  { code: 'CHF', flag: '🇨🇭', name: 'Swiss Franc' },
+  { code: 'CAD', flag: '🇨🇦', name: 'Canadian Dollar' },
+  { code: 'AUD', flag: '🇦🇺', name: 'Australian Dollar' },
+  { code: 'CNY', flag: '🇨🇳', name: 'Chinese Yuan' },
+  { code: 'HKD', flag: '🇭🇰', name: 'Hong Kong Dollar' },
+  { code: 'SGD', flag: '🇸🇬', name: 'Singapore Dollar' },
+  { code: 'INR', flag: '🇮🇳', name: 'Indian Rupee' },
+  { code: 'MXN', flag: '🇲🇽', name: 'Mexican Peso' },
+  { code: 'BRL', flag: '🇧🇷', name: 'Brazilian Real' },
+  { code: 'NOK', flag: '🇳🇴', name: 'Norwegian Krone' },
+  { code: 'SEK', flag: '🇸🇪', name: 'Swedish Krona' },
+  { code: 'KRW', flag: '🇰🇷', name: 'South Korean Won' },
+  { code: 'TRY', flag: '🇹🇷', name: 'Turkish Lira' },
+];
+
+async function loadFxTable() {
+  const body = document.getElementById('body-fxtable');
+  try {
+    const data = await fetchWithTimeout('https://api.exchangerate-api.com/v4/latest/USD');
+    const rates = data.rates || {};
+    const date  = data.date || '';
+
+    const rows = FX_DISPLAY
+      .filter(c => rates[c.code])
+      .map(c => {
+        const rate = rates[c.code];
+        const inverse = 1 / rate;
+        const dp = (c.code === 'JPY' || c.code === 'KRW') ? 2 : 4;
+        return `<tr>
+          <td>
+            <span class="currency-flag">${c.flag}</span>
+            <span class="currency-code">${c.code}</span>
+            <span class="currency-name-small">${c.name}</span>
+          </td>
+          <td style="color:var(--amber)">${rate.toFixed(dp)}</td>
+          <td style="color:var(--text-dim)">${inverse.toFixed(6)}</td>
+        </tr>`;
+      }).join('');
+
+    body.innerHTML = `
+      <div style="font-family:var(--font-num);font-size:0.62rem;color:var(--text-muted);margin-bottom:12px;letter-spacing:0.06em;">
+        Base: <strong style="color:var(--amber)">USD</strong>
+        &nbsp;·&nbsp; Date: <strong style="color:var(--text-dim)">${escHtml(date)}</strong>
+      </div>
+      <table class="currency-table">
+        <thead>
+          <tr>
+            <th>Currency</th>
+            <th>1 USD =</th>
+            <th>1 Unit = USD</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+    setDotOk('dot-fxtable');
+  } catch (e) {
+    body.innerHTML = errorHTML(e.message);
+    setDotErr('dot-fxtable');
+  }
+}
+
+// ================================================================
+// WIDGET 7 — EUR/USD Sparkline, 30 days (Frankfurter)
+// ================================================================
+
+async function loadSparkline() {
+  const body = document.getElementById('body-sparkline');
+  try {
+    const toDate   = new Date();
+    const fromDate = new Date();
+    fromDate.setDate(fromDate.getDate() - 32);
+
+    const toStr   = toDate.toISOString().slice(0, 10);
+    const fromStr = fromDate.toISOString().slice(0, 10);
+
+    const data = await fetchWithTimeout(
+      `https://api.frankfurter.app/${fromStr}..${toStr}?from=EUR&to=USD`
+    );
+
+    const entries = Object.entries(data.rates || {}).sort(([a],[b]) => a.localeCompare(b));
+    if (entries.length < 2) throw new Error('Insufficient data');
+
+    const dates  = entries.map(([d]) => d);
+    const values = entries.map(([, r]) => r.USD || r['USD']);
+
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const range = max - min || 0.001;
+    const current = values[values.length - 1];
+    const first   = values[0];
+    const absDiff = current - first;
+    const pctDiff = (absDiff / first) * 100;
+    const cls     = absDiff >= 0 ? 'up' : 'down';
+    const arrow   = absDiff >= 0 ? '▲' : '▼';
+
+    // SVG path (320 × 100 viewBox)
+    const W = 320, H = 100, PAD = 4;
+    const pts = values.map((v, i) => {
+      const x = PAD + (i / (values.length - 1)) * (W - PAD * 2);
+      const y = PAD + (1 - (v - min) / range) * (H - PAD * 2);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    });
+
+    // Area fill path
+    const lineCmd = 'M' + pts.join(' L');
+    const areaCmd = lineCmd +
+      ` L${(PAD + W - PAD * 2).toFixed(1)},${H} L${PAD},${H} Z`;
+
+    const lineColor = absDiff >= 0 ? 'var(--green-bright)' : 'var(--red-bright)';
+    const areaColor = absDiff >= 0 ? 'rgba(39,134,74,0.12)' : 'rgba(192,57,43,0.12)';
+
+    // Y-axis labels
+    const midVal = (min + max) / 2;
+
+    body.innerHTML = `
+      <div class="sparkline-container">
+        <div class="sparkline-header-row">
+          <div>
+            <div class="sparkline-pair-label">EUR / USD</div>
+            <div class="sparkline-pair-rate">European Central Bank · ${entries.length} trading days</div>
+          </div>
+          <div style="text-align:right">
+            <div class="sparkline-current">${current.toFixed(5)}</div>
+          </div>
+        </div>
+        <div class="sparkline-change-row">
+          <span class="sparkline-change ${cls}">${arrow} ${Math.abs(pctDiff).toFixed(3)}%</span>
+          <span class="sparkline-period">vs. ${escHtml(dates[0])}</span>
+        </div>
+        <div class="chart-wrapper">
+          <svg class="chart-svg" viewBox="0 0 340 110" preserveAspectRatio="none">
+            <!-- Grid lines -->
+            <line x1="0" y1="55" x2="340" y2="55" stroke="var(--grid-line)" stroke-width="1"/>
+            <line x1="0" y1="10" x2="340" y2="10" stroke="var(--grid-line)" stroke-width="1"/>
+            <line x1="0" y1="100" x2="340" y2="100" stroke="var(--grid-line)" stroke-width="1"/>
+            <!-- Y labels -->
+            <text x="335" y="13"  class="chart-axis-label" text-anchor="end" style="font-size:8px;fill:var(--text-muted)">${max.toFixed(4)}</text>
+            <text x="335" y="58"  class="chart-axis-label" text-anchor="end" style="font-size:8px;fill:var(--text-muted)">${midVal.toFixed(4)}</text>
+            <text x="335" y="103" class="chart-axis-label" text-anchor="end" style="font-size:8px;fill:var(--text-muted)">${min.toFixed(4)}</text>
+            <!-- Area fill -->
+            <path d="${areaCmd}" fill="${areaColor}"/>
+            <!-- Line -->
+            <path d="${lineCmd}" fill="none" stroke="${lineColor}" stroke-width="1.5" stroke-linejoin="round"/>
+            <!-- End dot -->
+            <circle cx="${pts[pts.length-1].split(',')[0]}" cy="${pts[pts.length-1].split(',')[1]}" r="3" fill="${lineColor}"/>
+          </svg>
+        </div>
+        <div class="sparkline-date-row">
+          <span>${escHtml(dates[0])}</span>
+          <span>${escHtml(dates[Math.floor(dates.length / 2)])}</span>
+          <span>${escHtml(dates[dates.length - 1])}</span>
+        </div>
+        <div style="font-family:var(--font-num);font-size:0.62rem;color:var(--text-muted);margin-top:8px;">
+          High: <span style="color:var(--text)">${max.toFixed(5)}</span>
+          &nbsp;·&nbsp;
+          Low: <span style="color:var(--text)">${min.toFixed(5)}</span>
+          &nbsp;·&nbsp;
+          Range: <span style="color:var(--text)">${(range).toFixed(5)}</span>
+        </div>
+      </div>`;
+    setDotOk('dot-sparkline');
+  } catch (e) {
+    body.innerHTML = errorHTML(e.message);
+    setDotErr('dot-sparkline');
+  }
+}
+
+// ================================================================
+// INIT — Load all widgets on page load
+// ================================================================
+
+async function init() {
+  // Fire all fetches in parallel
+  await Promise.all([
+    loadTicker(),
+    loadCryptoPrices(),
+    loadFearGreed(),
+    loadBitcoin(),
+    loadConverter(),
+    loadFxTable(),
+    loadSparkline(),
+  ]);
+}
+
+init();
+
+// Auto-refresh crypto prices & ticker every 30 seconds
+setInterval(() => {
+  loadCryptoPrices();
+  loadTicker();
+}, 30_000);
+
+</script>
+</body>
+</html>

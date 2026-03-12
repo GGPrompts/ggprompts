@@ -1,6 +1,6 @@
 # HTML Style Guides Project
 
-A collection of CSS design system showcases, interactive educational stories, styled tech reference guides, CSS architecture maps, a chiptune music studio, browser games, creative tools, and a daily AI newspaper. Everything runs on GitHub Pages with zero build tools or frameworks.
+A collection of CSS design system showcases, interactive educational stories, styled tech reference guides, CSS architecture maps, a chiptune music studio, browser games, creative tools, a daily AI newspaper, and a live API widget bazaar. Everything runs on GitHub Pages with zero build tools or frameworks.
 
 ## Project Structure
 
@@ -71,6 +71,12 @@ A collection of CSS design system showcases, interactive educational stories, st
 │   ├── briefs/             # Research briefs (Markdown)
 │   └── [project-name]/     # Each map in its own folder
 │       └── index.html      # Interactive architecture map
+├── api-alley/              # Live API widget bazaar (269 APIs, 18 categories)
+│   ├── CLAUDE.md           # How to build API Alley pages
+│   ├── index.html          # Hub page (neon alley aesthetic)
+│   ├── data/               # JSON catalogs of free APIs per category
+│   └── [category]/         # One page per category with live widgets
+│       └── index.html      # 6-8 widgets, data-viz style, real fetch() calls
 └── games/                  # Browser games (modular JS)
     ├── casino-audio-engine.js  # Shared CasinoAudio for casino games
     ├── casino-theme.css        # Shared Vegas palette for casino games
@@ -157,6 +163,7 @@ When adding new content, update the relevant index:
 - Tools: `/tools/index.html` (add Rococo card linking to the tool)
 - Kids: `/kids/index.html` (add card with big emoji icon)
 - Architecture: `/architecture/index.html` (add card in blueprint grid)
+- API Alley: `/api-alley/index.html` (add shop front card with neon glow)
 - News: `/news/index.html` (updated automatically by `/news` skill)
 
 Also update the counts/descriptions in the master `/index.html` nav links if applicable.
