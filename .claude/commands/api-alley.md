@@ -217,15 +217,15 @@ Agent(model="haiku", prompt="Search for free {category} APIs...", run_in_backgro
 ```
 
 ### Page-building agents (writing HTML/CSS/JS widget pages)
-Use `model: "sonnet"` — strong at producing quality frontend code:
+Use `model: "opus"` — strong at producing quality frontend code:
 ```
 Agent(model="sonnet", prompt="Build a live API widget page at...", run_in_background=true)
 ```
 
 ### Wave sizes
 - **Enriching `all`**: Launch 10 haiku search agents at a time (Wave 1: first 10, Wave 2: remaining 8)
-- **Building `all`**: Launch 10 sonnet page-build agents at a time
-- **Single category**: 3-5 haiku search agents in parallel, then 1 sonnet build agent
+- **Building `all`**: Launch 10 opus page-build agents at a time
+- **Single category**: 3-5 haiku search agents in parallel, then 1 opus build agent
 - Always deduplicate before writing JSON — check by API name AND base_endpoint
 
 ## Quality Rules
