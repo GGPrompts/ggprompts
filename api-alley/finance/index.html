@@ -903,7 +903,7 @@
 
 <!-- ========================================================
      TICKER TAPE (Widget 6)
-     API: CoinCap  https://api.coincap.io/v2/assets?limit=20
+     API: CoinGecko  https://api.coingecko.com/api/v3/coins/markets
 ======================================================== -->
 <div class="ticker-wrap">
   <div class="ticker-label">&#9632; LIVE</div>
@@ -948,16 +948,16 @@
 
     <!-- =====================================================
          WIDGET 1 — Crypto Prices (Top 10)
-         API: CoinCap  https://api.coincap.io/v2/assets?limit=10
+         API: CoinGecko  https://api.coingecko.com/api/v3/coins/markets
     ===================================================== -->
     <div class="widget w-8" id="widget-crypto">
       <div class="widget-header">
         <div class="widget-title-group">
-          <div class="widget-label">CoinCap API</div>
+          <div class="widget-label">CoinGecko API</div>
           <div class="widget-title">Top 10 Cryptocurrencies</div>
         </div>
         <div class="widget-meta">
-          <a class="widget-api-link" href="https://docs.coincap.io" target="_blank" rel="noopener">Docs</a>
+          <a class="widget-api-link" href="https://docs.coingecko.com/v3.0.1/reference/coins-markets" target="_blank" rel="noopener">Docs</a>
           <button class="widget-refresh-btn" onclick="loadCryptoPrices()">&#x21BB; Refresh</button>
           <span class="refresh-dot pulsing" id="dot-crypto" title="Auto-refreshes every 30s"></span>
         </div>
@@ -1182,23 +1182,22 @@ setInterval(updateClock, 1000);
 updateClock();
 
 // ================================================================
-// WIDGET 6 — Ticker Tape (CoinCap top 20, duplicate for seamless loop)
+// WIDGET 6 — Ticker Tape (CoinGecko top 20, duplicate for seamless loop)
 // ================================================================
 
 async function loadTicker() {
   try {
-    const data = await fetchWithTimeout('https://api.coincap.io/v2/assets?limit=20');
-    const coins = data.data || [];
+    const coins = await fetchWithTimeout('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=20&page=1');
     if (!coins.length) return;
 
     function itemHTML(c) {
-      const price = Number(c.priceUsd);
-      const chg   = Number(c.changePercent24Hr);
+      const price = c.current_price;
+      const chg   = c.price_change_percentage_24h || 0;
       const cls   = chg >= 0 ? 'up' : 'down';
       const arrow = chg >= 0 ? '▲' : '▼';
       const priceStr = price >= 1 ? '$' + fmt(price) : '$' + Number(price).toFixed(6);
       return `<span class="ticker-item">
-        <span class="ticker-symbol">${escHtml(c.symbol)}</span>
+        <span class="ticker-symbol">${escHtml(c.symbol.toUpperCase())}</span>
         <span class="ticker-price">${priceStr}</span>
         <span class="ticker-change ${cls}">${arrow} ${Math.abs(chg).toFixed(2)}%</span>
       </span>`;
@@ -1221,24 +1220,23 @@ async function loadTicker() {
 }
 
 // ================================================================
-// WIDGET 1 — Top 10 Crypto Prices (CoinCap)
+// WIDGET 1 — Top 10 Crypto Prices (CoinGecko)
 // Auto-refresh every 30s
 // ================================================================
 
 async function loadCryptoPrices() {
   const body = document.getElementById('body-crypto');
   try {
-    const data = await fetchWithTimeout('https://api.coincap.io/v2/assets?limit=10');
-    const coins = data.data || [];
+    const coins = await fetchWithTimeout('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=10&page=1');
     if (!coins.length) throw new Error('Empty response');
 
-    const maxChange = Math.max(...coins.map(c => Math.abs(Number(c.changePercent24Hr))));
+    const maxChange = Math.max(...coins.map(c => Math.abs(c.price_change_percentage_24h || 0)));
 
     const rows = coins.map(c => {
-      const price = Number(c.priceUsd);
-      const chg   = Number(c.changePercent24Hr);
-      const mcap  = Number(c.marketCapUsd);
-      const vol   = Number(c.volumeUsd24Hr);
+      const price = c.current_price;
+      const chg   = c.price_change_percentage_24h || 0;
+      const mcap  = c.market_cap;
+      const vol   = c.total_volume;
       const cls   = chg >= 0 ? 'up' : 'down';
       const arrow = chg >= 0 ? '▲' : '▼';
       const barPct = (Math.abs(chg) / (maxChange || 1)) * 100;
@@ -1247,9 +1245,9 @@ async function loadCryptoPrices() {
       return `<tr>
         <td>
           <div class="coin-name-cell">
-            <span class="coin-rank">${escHtml(c.rank)}</span>
+            <span class="coin-rank">${c.market_cap_rank}</span>
             <div>
-              <div class="coin-symbol">${escHtml(c.symbol)}</div>
+              <div class="coin-symbol">${escHtml(c.symbol.toUpperCase())}</div>
               <div class="coin-name">${escHtml(c.name)}</div>
             </div>
           </div>
@@ -1383,7 +1381,7 @@ const BTC_CURRENCIES = ['USD','EUR','GBP','JPY','CAD','AUD','CHF','CNY','SGD','H
 async function loadBitcoin() {
   const body = document.getElementById('body-btc');
   try {
-    const data = await fetchWithTimeout('https://blockchain.info/ticker?cors=true');
+    const data = await fetchWithTimeout('https://blockchain.info/ticker');
     const cards = BTC_CURRENCIES
       .filter(c => data[c])
       .map(code => {
