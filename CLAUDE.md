@@ -7,6 +7,11 @@ A collection of CSS design system showcases, interactive educational stories, st
 ```
 /
 ├── index.html              # Master index (links to all sections)
+├── prompt-viewer.js        # Floating source/prompt viewer (loaded by all pages)
+├── prompts/                # Archived build prompts + manifest
+│   ├── manifest.json       # Maps page paths → prompt file paths
+│   ├── README.md           # Index of all 70 archived prompts
+│   └── *.md                # Individual prompt files (beads exports)
 ├── styles/                 # 204 CSS design system showcases
 │   └── CLAUDE.md           # How to build style guides
 ├── stories/                # 45 interactive educational stories
@@ -85,6 +90,34 @@ A collection of CSS design system showcases, interactive educational stories, st
 - Stories, games, and tools can use multiple files (shared JS, theme configs, JSON data, media assets).
 - The only hard rule: it must work on GitHub Pages with no build step.
 - Stories may embed YouTube iframes and link to external resources (Wikipedia, etc.).
+
+## Prompt Viewer (`prompt-viewer.js`)
+
+Every HTML page loads `prompt-viewer.js` via `<script defer>`. It adds a floating button cluster in the bottom-right corner:
+
+- **GitHub icon** (always) — opens the page's source on GitHub
+- **Prompt icon** (when available) — opens a modal showing the build prompt(s) used to generate the page
+
+### How it works
+- On load, fetches `prompts/manifest.json` which maps page paths → prompt file paths
+- Manifest values can be a single string or an array (pages built with multiple prompts)
+- The modal fetches raw `.md` files from the site and displays them with a copy button
+- Buttons are invisible until the user hovers near the bottom-right corner (tiny dot hint)
+
+### Prompt sources
+- `/prompts/*.md` — 70 archived worker prompts from beads (games, tools, music, animation, landing page)
+- `/stories/briefs/*.md` — 31 story research briefs
+- `/architecture/briefs/*.md` — 18 architecture research briefs
+- ~26% of pages have explicit prompts; the rest were built from slash command skills or ad-hoc conversations
+
+### When adding new pages
+1. Add `<script defer src="RELATIVE_PATH/prompt-viewer.js"></script>` before `</body>`
+2. If the page has a build prompt, add the mapping to `prompts/manifest.json`
+
+### TODO (GGPrompts rebrand)
+- Add slash command / skill info to section index pages (for pages without individual prompts)
+- Point `ggprompts.com` DNS to GitHub Pages
+- Update page titles / meta tags for rebrand
 
 ## Shared Modules
 
