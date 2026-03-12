@@ -25,19 +25,53 @@ You are an autonomous API discovery and page-building agent for the API Alley se
 
 When enriching a category:
 
-1. **Read the current JSON** to see what APIs are already cataloged
-2. **Launch 3-5 haiku web search agents in parallel**, each with different search queries:
+1. **Read the current JSON** to get the list of already-cataloged API names
+2. **Launch 3-5 haiku agents in parallel** (model: "haiku"), each with:
+   - A different search angle (see queries below)
+   - The list of **existing API names** so they skip duplicates
+   - The path to the JSON file
+   - Instructions to **write new finds directly to a temp file** (e.g., `/tmp/api-alley-{category}-{n}.json`)
+
+   Search query angles:
    - `"free {category} API no authentication 2025 2026"`
    - `"open source {category} API CORS browser"`
    - `"public {category} API free tier no key"`
    - `"awesome {category} API github list"`
    - `"{category} REST API free open data"`
-3. Each agent should:
+
+3. Each haiku agent should:
    - Do 3-5 web searches with varied queries
-   - Return a JSON array of new API finds (NOT duplicates of existing ones)
-   - Include: name, url, base_endpoint, auth, description, sample_endpoint, response_format, cors, status
-4. **Merge results** into the existing JSON, deduplicating by name or base_endpoint
+   - For each API found, record: name, url, base_endpoint, auth, description, sample_endpoint, response_format, cors, status
+   - **Skip any API whose name matches the existing list**
+   - Write results to its temp file as a JSON array
+
+4. After all agents complete, **merge all temp files** into the main JSON:
+   - Read the existing JSON
+   - Read each temp file
+   - Deduplicate by name (case-insensitive) and base_endpoint
+   - Write the merged result back to the data JSON
+   - Clean up temp files
+
 5. **Verify CORS** where possible by checking if the API docs mention CORS headers
+
+### Example haiku agent prompt
+
+```
+You are searching for free public APIs in the "{category}" category.
+
+ALREADY CATALOGED (skip these): {comma-separated list of existing API names}
+
+Do 3-5 web searches using queries like:
+- "free {category} API no authentication"
+- "{category} open data REST API"
+- "awesome {category} API list github"
+
+For each NEW API found (not in the skip list), record:
+- name, url, base_endpoint, auth ("none" or "key-free-tier"), description,
+  sample_endpoint, response_format ("json"), cors (true/false), status ("active")
+
+Write results as a JSON array to /tmp/api-alley-{category}-1.json
+```
 
 ### Data JSON Format
 
@@ -174,7 +208,22 @@ git config --global credential.helper store && echo "https://GGPrompts:$(gh auth
 
 ## Parallelization Strategy
 
-- **Enriching `all`**: Launch 10 haiku search agents at a time (Wave 1: first 9, Wave 2: remaining 9)
+**IMPORTANT: Always specify the `model` parameter when launching agents via the Agent tool.**
+
+### Discovery agents (web searching for APIs)
+Use `model: "haiku"` — fast, cheap, great for web searches:
+```
+Agent(model="haiku", prompt="Search for free {category} APIs...", run_in_background=true)
+```
+
+### Page-building agents (writing HTML/CSS/JS widget pages)
+Use `model: "sonnet"` — strong at producing quality frontend code:
+```
+Agent(model="sonnet", prompt="Build a live API widget page at...", run_in_background=true)
+```
+
+### Wave sizes
+- **Enriching `all`**: Launch 10 haiku search agents at a time (Wave 1: first 10, Wave 2: remaining 8)
 - **Building `all`**: Launch 10 sonnet page-build agents at a time
 - **Single category**: 3-5 haiku search agents in parallel, then 1 sonnet build agent
 - Always deduplicate before writing JSON — check by API name AND base_endpoint
