@@ -219,7 +219,7 @@ Agent(model="haiku", prompt="Search for free {category} APIs...", run_in_backgro
 ### Page-building agents (writing HTML/CSS/JS widget pages)
 Use `model: "opus"` — strong at producing quality frontend code:
 ```
-Agent(model="sonnet", prompt="Build a live API widget page at...", run_in_background=true)
+Agent(model="opus", prompt="Build a live API widget page at...", run_in_background=true)
 ```
 
 ### Wave sizes
