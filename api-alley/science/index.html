@@ -844,27 +844,21 @@
 <div class="widget-grid">
 
     <!-- ══════════════════════════════════════════
-         WIDGET 1 — NUMBER TRIVIA (Numbers API)
+         WIDGET 1 — RANDOM FACTS (Useless Facts API)
          ══════════════════════════════════════════ -->
     <div class="widget w-6" id="widget-numbers">
         <div class="widget-header">
             <div>
-                <div class="widget-api-name"><a href="https://numbersapi.com/" target="_blank" rel="noopener">Numbers API</a></div>
-                <div class="widget-title">Number Trivia</div>
+                <div class="widget-api-name"><a href="https://uselessfacts.jsph.pl/" target="_blank" rel="noopener">Useless Facts API</a></div>
+                <div class="widget-title">Random Science &amp; Trivia Facts</div>
             </div>
             <div class="widget-status">
                 <div class="status-dot" id="numbers-dot"></div>
-                <span id="numbers-status-text">–</span>
+                <span id="numbers-status-text">--</span>
             </div>
         </div>
         <div class="widget-body">
             <div class="controls">
-                <select class="select" id="numbers-type" aria-label="Fact type">
-                    <option value="trivia">trivia</option>
-                    <option value="math">math</option>
-                    <option value="date">date</option>
-                    <option value="year">year</option>
-                </select>
                 <button class="btn" id="numbers-btn" onclick="fetchNumberFact()">
                     ↺ New Fact
                 </button>
@@ -875,7 +869,7 @@
                     <span class="state-loading-text">Fetching…</span>
                 </div>
             </div>
-            <div class="annotation">Returns a random number in the chosen category — integer ranges vary by type.</div>
+            <div class="annotation">A random fact from the Useless Facts database — sometimes surprisingly useful.</div>
         </div>
     </div>
 
@@ -1075,7 +1069,7 @@
                 <a href="../index.html">← API Alley</a>
             </span>
             <span class="footer-note">
-                APIs: <a href="https://numbersapi.com/" target="_blank" rel="noopener">Numbers</a> ·
+                APIs: <a href="https://uselessfacts.jsph.pl/" target="_blank" rel="noopener">Useless Facts</a> ·
                 <a href="https://newton.vercel.app/" target="_blank" rel="noopener">Newton</a> ·
                 <a href="https://github.com/Bowserinator/periodic-table-data" target="_blank" rel="noopener">Periodic Table</a> ·
                 <a href="https://api.nasa.gov/" target="_blank" rel="noopener">NASA</a> ·
@@ -1128,11 +1122,10 @@ async function fetchWithTimeout(url, options = {}, timeout = 5000) {
 }
 
 /* ============================================================
-   WIDGET 1 — NUMBER TRIVIA
+   WIDGET 1 — RANDOM FACTS (Useless Facts API)
    ============================================================ */
 
 async function fetchNumberFact() {
-    const type = document.getElementById('numbers-type').value;
     const btn = document.getElementById('numbers-btn');
     const outputId = 'numbers-output';
 
@@ -1140,21 +1133,8 @@ async function fetchNumberFact() {
     setStatus('numbers-dot', 'numbers-status-text', 'loading', 'loading');
     showLoading(outputId);
 
-    // Pick a random number appropriate to the type
-    let num;
-    if (type === 'date') {
-        // month/day format
-        const month = Math.floor(Math.random() * 12) + 1;
-        const day = Math.floor(Math.random() * 28) + 1;
-        num = `${month}/${day}`;
-    } else if (type === 'year') {
-        num = Math.floor(Math.random() * 2000) + 1;
-    } else {
-        num = Math.floor(Math.random() * 9999) + 1;
-    }
-
     try {
-        const url = `https://numbersapi.com/${num}/${type}?json`;
+        const url = 'https://uselessfacts.jsph.pl/api/v2/facts/random?language=en';
         const res = await fetchWithTimeout(url);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
@@ -1162,11 +1142,11 @@ async function fetchNumberFact() {
         setStatus('numbers-dot', 'numbers-status-text', 'live', 'live');
         document.getElementById(outputId).innerHTML = `
             <div class="data-fact">
-                <strong class="data-number">${escHtml(String(data.number))}</strong> — ${escHtml(data.text)}
+                ${escHtml(data.text)}
             </div>
             <div style="display:flex;gap:var(--space-2);flex-wrap:wrap;">
-                <span class="chip chip-blue">${escHtml(data.type || type)}</span>
-                ${data.found ? '<span class="chip chip-green">found</span>' : '<span class="chip">approximate</span>'}
+                <span class="chip chip-blue">trivia</span>
+                ${data.source ? `<span class="chip">src: ${escHtml(data.source)}</span>` : ''}
             </div>`;
     } catch (e) {
         setStatus('numbers-dot', 'numbers-status-text', 'error', 'error');
@@ -1319,7 +1299,7 @@ async function fetchElement() {
 }
 
 /* ============================================================
-   WIDGET 4 — NASA APOD
+   WIDGET 4 — NASA APOD (with date fallback chain)
    ============================================================ */
 
 async function fetchAPOD() {
@@ -1327,37 +1307,49 @@ async function fetchAPOD() {
     setStatus('apod-dot', 'apod-status-text', 'loading', 'loading');
     showLoading(outputId);
 
-    try {
-        const url = 'https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY&thumbs=true';
-        const res = await fetchWithTimeout(url, {}, 8000);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
+    const now = new Date();
+    const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    // Try today, then yesterday, then random
+    const attempts = [
+        `https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY&thumbs=true&date=${fmt(now)}`,
+        `https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY&thumbs=true&date=${fmt(new Date(now.getTime() - 86400000))}`,
+        'https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY&count=1'
+    ];
 
-        setStatus('apod-dot', 'apod-status-text', 'live', 'live');
+    for (const url of attempts) {
+        try {
+            const res = await fetchWithTimeout(url, {}, 8000);
+            if (!res.ok) continue;
+            let data = await res.json();
+            // count=1 returns an array
+            if (Array.isArray(data)) data = data[0];
 
-        let mediaHtml = '';
-        if (data.media_type === 'video') {
-            const thumb = data.thumbnail_url;
-            if (thumb) {
-                mediaHtml = `<div class="apod-image-wrap"><img src="${escHtml(thumb)}" alt="APOD thumbnail" loading="lazy"></div>`;
+            setStatus('apod-dot', 'apod-status-text', 'live', 'live');
+
+            let mediaHtml = '';
+            if (data.media_type === 'video') {
+                const thumb = data.thumbnail_url;
+                if (thumb) {
+                    mediaHtml = `<div class="apod-image-wrap"><img src="${escHtml(thumb)}" alt="APOD thumbnail" loading="lazy"></div>`;
+                } else {
+                    mediaHtml = `<div class="apod-iframe-wrap"><iframe src="${escHtml(data.url)}" allowfullscreen title="APOD Video"></iframe></div>`;
+                }
             } else {
-                mediaHtml = `<div class="apod-iframe-wrap"><iframe src="${escHtml(data.url)}" allowfullscreen title="APOD Video"></iframe></div>`;
+                const imgSrc = data.hdurl || data.url;
+                mediaHtml = `<div class="apod-image-wrap"><img src="${escHtml(imgSrc)}" alt="${escHtml(data.title)}" loading="lazy"></div>`;
             }
-        } else {
-            const imgSrc = data.hdurl || data.url;
-            mediaHtml = `<div class="apod-image-wrap"><img src="${escHtml(imgSrc)}" alt="${escHtml(data.title)}" loading="lazy"></div>`;
-        }
 
-        document.getElementById(outputId).innerHTML = `
-            ${mediaHtml}
-            <div class="apod-date data-number">${escHtml(data.date)}</div>
-            <div class="apod-title">${escHtml(data.title)}</div>
-            <div class="apod-explanation">${escHtml(data.explanation)}</div>
-            ${data.copyright ? `<div class="annotation" style="margin-top:var(--space-3)">© ${escHtml(data.copyright)}</div>` : ''}`;
-    } catch (e) {
-        setStatus('apod-dot', 'apod-status-text', 'error', 'error');
-        showError(outputId, e.name === 'AbortError' ? 'Request timed out after 8 s' : e.message);
+            document.getElementById(outputId).innerHTML = `
+                ${mediaHtml}
+                <div class="apod-date data-number">${escHtml(data.date)}</div>
+                <div class="apod-title">${escHtml(data.title)}</div>
+                <div class="apod-explanation">${escHtml(data.explanation)}</div>
+                ${data.copyright ? `<div class="annotation" style="margin-top:var(--space-3)">&copy; ${escHtml(data.copyright)}</div>` : ''}`;
+            return;
+        } catch(e) { /* try next */ }
     }
+    setStatus('apod-dot', 'apod-status-text', 'error', 'error');
+    showError(outputId, 'APOD API not responding');
 }
 
 /* ============================================================

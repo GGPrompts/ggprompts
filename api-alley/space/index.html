@@ -1114,7 +1114,7 @@
             </div>
             <div class="widget-status">
                 <span class="status-dot loading" id="astros-dot"></span>
-                <a href="http://open-notify.org/Open-Notify-API/" target="_blank" rel="noopener" class="widget-api-tag">Open Notify</a>
+                <a href="https://thespacedevs.com/llapi" target="_blank" rel="noopener" class="widget-api-tag">SpaceDevs LL2</a>
             </div>
         </div>
         <div class="widget-body" id="astros-body">
@@ -1229,12 +1229,12 @@
                 <span class="widget-icon icon-gold">🌙</span>
                 <div>
                     <div class="widget-title">Moon Phases</div>
-                    <div class="widget-subtitle">USNO Astronomical Applications</div>
+                    <div class="widget-subtitle">Lunar Calendar</div>
                 </div>
             </div>
             <div class="widget-status">
                 <span class="status-dot loading" id="moon-dot"></span>
-                <a href="https://aa.usno.navy.mil/data/api" target="_blank" rel="noopener" class="widget-api-tag">USNO API</a>
+                <a href="https://www.icalendar37.net/lunar/api/" target="_blank" rel="noopener" class="widget-api-tag">iCalendar37</a>
             </div>
         </div>
         <div class="widget-body" id="moon-body">
@@ -1254,15 +1254,15 @@
         <p class="footer-title">Data Sources</p>
         <div class="footer-sources">
             <a href="https://wheretheiss.at/w/developer" target="_blank" rel="noopener" class="footer-source">Where the ISS at API</a>
-            <a href="http://open-notify.org/Open-Notify-API/" target="_blank" rel="noopener" class="footer-source">Open Notify (Astronauts)</a>
+            <a href="https://thespacedevs.com/llapi" target="_blank" rel="noopener" class="footer-source">SpaceDevs LL2 (Astronauts)</a>
             <a href="https://api.nasa.gov/" target="_blank" rel="noopener" class="footer-source">NASA APOD API</a>
             <a href="https://api.nasa.gov/" target="_blank" rel="noopener" class="footer-source">NASA NeoWs API</a>
             <a href="https://github.com/r-spacex/SpaceX-API" target="_blank" rel="noopener" class="footer-source">SpaceX API (Community)</a>
             <a href="https://thespacedevs.com/llapi" target="_blank" rel="noopener" class="footer-source">TheSpaceDevs Launch Library 2</a>
             <a href="https://www.swpc.noaa.gov/content/data-access" target="_blank" rel="noopener" class="footer-source">NOAA Space Weather Prediction Center</a>
-            <a href="https://aa.usno.navy.mil/data/api" target="_blank" rel="noopener" class="footer-source">U.S. Naval Observatory Astronomical Applications</a>
+            <a href="https://www.icalendar37.net/lunar/api/" target="_blank" rel="noopener" class="footer-source">iCalendar37 Lunar API</a>
         </div>
-        <p class="footer-note">All data fetched live in your browser. NASA APOD &amp; NeoWs use DEMO_KEY (rate limited to 30 req/hr). No data is stored or proxied.</p>
+        <p class="footer-note">All data fetched live in your browser. NASA APOD &amp; NeoWs use DEMO_KEY (rate limited to 30 req/hr). SpaceDevs LL2 dev server used for astronaut data. No data is stored or proxied.</p>
     </div>
 </footer>
 
@@ -1414,40 +1414,43 @@ loadISS();
 setInterval(loadISS, 10000);
 
 /* ================================================================
-   2. PEOPLE IN SPACE — Open Notify
+   2. PEOPLE IN SPACE — SpaceDevs Launch Library 2
    ================================================================ */
 async function loadAstros() {
     setDot('astros', 'loading');
     try {
-        const d = await fetchWithTimeout('https://corsproxy.io/?url=http://api.open-notify.org/astros.json', 8000);
+        const d = await fetchWithTimeout('https://lldev.thespacedevs.com/2.2.0/astronaut/?in_space=true&format=json&limit=50', 12000);
         setDot('astros', 'live');
         renderAstros(d);
     } catch(e) {
-        // fallback: try direct
-        try {
-            const d2 = await fetchWithTimeout('http://api.open-notify.org/astros.json', 5000);
-            setDot('astros', 'live');
-            renderAstros(d2);
-        } catch(e2) {
-            setDot('astros', 'error');
-            setBody('astros', errorHTML('Astronaut manifest unavailable'));
-        }
+        setDot('astros', 'error');
+        setBody('astros', errorHTML('Astronaut manifest unavailable'));
     }
 }
 
+function inferCraft(astro) {
+    const agency = (astro.agency && astro.agency.abbrev) || '';
+    if (agency === 'CNSA') return 'Tiangong';
+    if (agency === 'ROSCOSMOS' || agency === 'NASA' || agency === 'ESA' || agency === 'JAXA' || agency === 'CSA') return 'ISS';
+    if (agency === 'SpaceX') return 'Dragon';
+    return agency || 'Unknown';
+}
+
 function renderAstros(d) {
-    if (!d || !d.people) {
+    if (!d || !d.results || d.results.length === 0) {
         setBody('astros', errorHTML('No crew data returned'));
         return;
     }
-    const people = d.people;
-    const count  = d.number || people.length;
+    // Filter out non-human entries (e.g. Starman)
+    const people = d.results.filter(a => a.type !== 'Non-Human');
+    const count  = people.length;
 
     // group by craft
     const byCraft = {};
     people.forEach(p => {
-        if (!byCraft[p.craft]) byCraft[p.craft] = [];
-        byCraft[p.craft].push(p.name);
+        const craft = inferCraft(p);
+        if (!byCraft[craft]) byCraft[craft] = [];
+        byCraft[craft].push(p.name);
     });
 
     const crafts = Object.entries(byCraft);
@@ -1476,18 +1479,30 @@ function renderAstros(d) {
 loadAstros();
 
 /* ================================================================
-   3. NASA APOD
+   3. NASA APOD (with date fallback chain)
    ================================================================ */
 async function loadAPOD() {
     setDot('apod', 'loading');
-    try {
-        const d = await fetchWithTimeout('https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY', 10000);
-        setDot('apod', 'live');
-        renderAPOD(d);
-    } catch(e) {
-        setDot('apod', 'error');
-        setBody('apod', errorHTML('APOD API not responding · ' + e.message));
+    const today = new Date();
+    const fmt = d => `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+    // Try today, then yesterday, then random
+    const attempts = [
+        `https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY&date=${fmt(today)}`,
+        `https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY&date=${fmt(new Date(today.getTime() - 86400000))}`,
+        'https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY&count=1'
+    ];
+    for (const url of attempts) {
+        try {
+            const d = await fetchWithTimeout(url, 10000);
+            // count=1 returns an array
+            const entry = Array.isArray(d) ? d[0] : d;
+            setDot('apod', 'live');
+            renderAPOD(entry);
+            return;
+        } catch(e) { /* try next */ }
     }
+    setDot('apod', 'error');
+    setBody('apod', errorHTML('APOD API not responding'));
 }
 
 function renderAPOD(d) {
@@ -1817,75 +1832,76 @@ function renderWeather(kpData, windData) {
 loadWeather();
 
 /* ================================================================
-   8. MOON PHASES — USNO Astronomical Applications
+   8. MOON PHASES — iCalendar37 Lunar API
    ================================================================ */
 async function loadMoon() {
     setDot('moon', 'loading');
     try {
-        const year = new Date().getFullYear();
-        const d    = await fetchWithTimeout(`https://aa.usno.navy.mil/api/moon/phases/year?year=${year}&nump=99`, 10000);
+        const now   = new Date();
+        const month = now.getMonth() + 1;
+        const year  = now.getFullYear();
+        const day   = now.getDate();
+        const d     = await fetchWithTimeout(`https://www.icalendar37.net/lunar/api/?lang=en&month=${month}&year=${year}`, 10000);
         setDot('moon', 'live');
-        renderMoon(d);
+        renderMoon(d, day, month, year);
     } catch(e) {
         setDot('moon', 'error');
-        setBody('moon', errorHTML('USNO moon phase API not responding'));
+        setBody('moon', errorHTML('Moon phase API not responding'));
     }
 }
 
-function renderMoon(d) {
-    if (!d || !d.phasedata || d.phasedata.length === 0) {
+function renderMoon(d, today, month, year) {
+    if (!d || !d.phase) {
         setBody('moon', errorHTML('No phase data returned'));
         return;
     }
 
-    const phases     = d.phasedata;
-    const phaseEmoji = { 'New Moon': '🌑', 'First Quarter': '🌓', 'Full Moon': '🌕', 'Last Quarter': '🌗' };
-    const now        = new Date();
-    now.setHours(0,0,0,0);
+    const phaseEmoji = { 'New Moon': '🌑', 'First quarter': '🌓', 'Full moon': '🌕', 'Last quarter': '🌗', 'Waxing': '🌔', 'Waning': '🌘' };
+    const todayData  = d.phase[String(today)];
 
-    // Find nearest past and next upcoming phases
-    const withDate = phases.map(p => {
-        const dt = new Date(`${p.year}-${pad2(p.month)}-${pad2(p.day)}T${p.time || '00:00'}:00Z`);
-        return { ...p, dt };
-    });
+    const currentPhase = todayData ? todayData.phaseName : 'Unknown';
+    const currentEmoji = phaseEmoji[currentPhase] || '🌙';
+    const illum        = todayData ? Math.round(todayData.lighting) : '—';
 
-    // Phase current: find most recent past phase
-    const past   = withDate.filter(p => p.dt <= now).slice(-1)[0];
-    const future = withDate.filter(p => p.dt > now).slice(0, 4);
-
-    // Compute approximate illumination
-    function calcIllumination(phaseName) {
-        const map = { 'New Moon': 0, 'First Quarter': 50, 'Full Moon': 100, 'Last Quarter': 50 };
-        return map[phaseName] !== undefined ? map[phaseName] : '—';
+    // Find upcoming major phases (isPhaseLimit !== false)
+    const upcoming = [];
+    // Check remaining days in current month
+    for (let day = today + 1; day <= (d.daysMonth || 31); day++) {
+        const p = d.phase[String(day)];
+        if (p && p.isPhaseLimit !== false && p.isPhaseLimit !== 0) {
+            upcoming.push({ phase: p.phaseName, day, month, time: p.timeEvent || '' });
+        }
     }
 
-    const currentPhase = past ? past.phase : 'Unknown';
-    const currentEmoji = phaseEmoji[currentPhase] || '🌙';
-    const illum        = calcIllumination(currentPhase);
-
+    // Show up to 4 upcoming major phases
+    const nextPhases = upcoming.slice(0, 4);
     let nextHtml = '';
-    future.forEach(p => {
+    nextPhases.forEach(p => {
         const em = phaseEmoji[p.phase] || '🌙';
-        const isPast = p.dt < now;
-        nextHtml += `<div class="phase-item${isPast ? '' : ' current-future'}">
+        nextHtml += `<div class="phase-item current-future">
             <span class="phase-emoji">${em}</span>
             <span class="phase-label">${p.phase}</span>
-            <span class="phase-date">${p.month}/${p.day}</span>
+            <span class="phase-date">${p.month}/${p.day}${p.time ? ' · ' + p.time.slice(0,5) : ''}</span>
         </div>`;
     });
+
+    // If fewer than 4, note there's more next month
+    if (nextPhases.length === 0) {
+        nextHtml = '<p class="sub-value">No major phase transitions remaining this month</p>';
+    }
 
     setBody('moon', `
         <div class="moon-phase-display">
             <div class="moon-icon">${currentEmoji}</div>
             <div class="moon-info">
                 <div class="moon-phase-name">${currentPhase}</div>
-                <div class="moon-illumination">~${illum}% illumination (approximate)</div>
-                ${past ? `<div class="sub-value">Since ${past.month}/${past.day}/${past.year}</div>` : ''}
+                <div class="moon-illumination">${illum}% illumination</div>
+                <div class="sub-value">${d.monthName || ''} ${today}, ${year}</div>
             </div>
         </div>
         <div class="divider-label" style="margin-top:var(--s4)">Upcoming Phases</div>
         <div class="moon-phases-row">${nextHtml}</div>
-        <p style="font-family:var(--font-mono);font-size:var(--text-xs);color:var(--ink-muted);margin-top:var(--s4)">Data: U.S. Naval Observatory · ${d.year || new Date().getFullYear()}</p>
+        <p style="font-family:var(--font-mono);font-size:var(--text-xs);color:var(--ink-muted);margin-top:var(--s4)">Data: iCalendar37 Lunar API · ${d.monthName || ''} ${year}</p>
     `);
 }
 

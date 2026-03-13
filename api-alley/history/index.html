@@ -810,12 +810,12 @@
         </div>
 
         <!-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-             4. GREEK MYTHOLOGY — Greek Myth API
+             4. GREEK MYTHOLOGY — Wikipedia API
              ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
         <div class="widget col-7" id="w-myth">
             <div class="widget-header">
                 <span class="widget-title">Greek Mythology</span>
-                <a class="widget-source" href="https://thegreekmythapi.vercel.app" target="_blank" rel="noopener">greekmythapi.com ↗</a>
+                <a class="widget-source" href="https://en.wikipedia.org/wiki/Greek_mythology" target="_blank" rel="noopener">Wikipedia ↗</a>
             </div>
             <div class="widget-divider"></div>
 
@@ -884,7 +884,7 @@
             <a href="../index.html">← API Alley</a>
         </span>
         <span class="footer-text">
-            Wikimedia · Nobel Prize API · Nager.Date · Greek Myth API · Nationalize.io · Genderize.io
+            Wikimedia · Nobel Prize API · Nager.Date · Wikipedia · Nationalize.io · Genderize.io
         </span>
     </footer>
 
@@ -1146,9 +1146,20 @@ async function loadHolidays() {
 }
 
 /* ──────────────────────────────────────────────────────────
-   4. GREEK MYTHOLOGY — Greek Myth API
+   4. GREEK MYTHOLOGY — Wikipedia API
    ────────────────────────────────────────────────────────── */
-let mythCache = null;
+
+const MYTH_DATA = {
+    god: ['Zeus', 'Hera', 'Poseidon', 'Athena', 'Apollo', 'Artemis', 'Ares', 'Aphrodite', 'Hephaestus', 'Hermes', 'Demeter', 'Dionysus', 'Hades', 'Persephone', 'Hestia', 'Eros'],
+    titan: ['Cronus', 'Rhea_(mythology)', 'Atlas_(mythology)', 'Prometheus', 'Hyperion_(Titan)', 'Mnemosyne', 'Themis', 'Oceanus', 'Coeus', 'Phoebe_(Titaness)', 'Iapetus', 'Tethys_(mythology)'],
+    hero: ['Heracles', 'Achilles', 'Odysseus', 'Perseus', 'Theseus', 'Jason', 'Bellerophon', 'Orpheus', 'Atalanta', 'Cadmus', 'Meleager', 'Diomedes'],
+    monster: ['Medusa', 'Minotaur', 'Hydra_(mythology)', 'Chimera_(mythology)', 'Typhon', 'Cerberus', 'Cyclops', 'Sphinx', 'Scylla', 'Charybdis', 'Echidna_(mythology)'],
+    creature: ['Pegasus', 'Phoenix_(mythology)', 'Griffin', 'Centaur', 'Satyr', 'Siren_(mythology)', 'Harpy', 'Nymph_(mythology)', 'Muse', 'Dryad']
+};
+
+function getAllMyths() {
+    return Object.entries(MYTH_DATA).flatMap(([type, names]) => names.map(n => ({ name: n, type })));
+}
 
 async function loadMyth() {
     const typeFilter = document.getElementById('myth-type').value;
@@ -1156,49 +1167,36 @@ async function loadMyth() {
     el.innerHTML = '<div class="loading">Consulting the Oracle</div>';
 
     try {
-        // Fetch all characters if not cached
-        if (!mythCache) {
-            const data = await apiFetch('https://api.greekmythapi.com/characters');
-            mythCache = Array.isArray(data) ? data : (data.characters || data.results || []);
-        }
+        let pool = typeFilter ? (MYTH_DATA[typeFilter] || []) : getAllMyths().map(m => m.name);
+        if (!pool.length) pool = getAllMyths().map(m => m.name);
 
-        let pool = mythCache;
-        if (typeFilter) {
-            pool = mythCache.filter(c => {
-                const t = (c.type || c.category || '').toLowerCase();
-                return t.includes(typeFilter.toLowerCase());
-            });
-        }
+        const pick = pool[Math.floor(Math.random() * pool.length)];
+        const title = typeof pick === 'string' ? pick : pick.name;
+        const type = typeFilter || getAllMyths().find(m => m.name === title)?.type || '';
 
-        if (!pool.length) pool = mythCache;
+        // Fetch Wikipedia summary
+        const data = await apiFetch(
+            `https://en.wikipedia.org/w/api.php?action=query&format=json&origin=*&titles=${encodeURIComponent(title)}&prop=extracts|pageimages&exintro=true&explaintext=true&exsentences=4&piprop=thumbnail&pithumbsize=200`
+        );
 
-        const char = pool[Math.floor(Math.random() * pool.length)];
-        renderMyth(char);
+        const pages = data?.query?.pages || {};
+        const page = Object.values(pages)[0];
+        if (!page || page.missing !== undefined) throw new Error('Not found');
+
+        const displayName = page.title.replace(/ \(.*\)$/, '');
+        const desc = page.extract || '';
+
+        el.innerHTML = `<div class="myth-card">
+            <div class="myth-name">${escHtml(displayName)}</div>
+            ${type ? `<div class="myth-type">${escHtml(type)}</div>` : ''}
+            ${desc ? `<div class="myth-description">${escHtml(desc.slice(0, 600))}${desc.length > 600 ? '…' : ''}</div>` : ''}
+            <div class="myth-attrs">
+                <a href="https://en.wikipedia.org/wiki/${encodeURIComponent(title)}" target="_blank" rel="noopener" class="myth-attr" style="text-decoration:none;cursor:pointer;">Read on Wikipedia ↗</a>
+            </div>
+        </div>`;
     } catch (_) {
         showError(el);
     }
-}
-
-function renderMyth(char) {
-    const el = document.getElementById('myth-result');
-    if (!char) { showError(el); return; }
-
-    const name  = char.name || 'Unknown';
-    const type  = char.type || char.category || char.role || '';
-    const desc  = char.description || char.story || char.bio || char.excerpt || '';
-    const attrs = [
-        ...(char.attributes || []),
-        ...(char.domains || []),
-        ...(char.symbols || []),
-        ...(char.powers || [])
-    ].filter(Boolean).slice(0, 10);
-
-    el.innerHTML = `<div class="myth-card">
-        <div class="myth-name">${escHtml(name)}</div>
-        ${type ? `<div class="myth-type">${escHtml(type)}</div>` : ''}
-        ${desc ? `<div class="myth-description">${escHtml(desc.slice(0, 500))}${desc.length > 500 ? '…' : ''}</div>` : ''}
-        ${attrs.length ? `<div class="myth-attrs">${attrs.map(a => `<span class="myth-attr">${escHtml(String(a))}</span>`).join('')}</div>` : ''}
-    </div>`;
 }
 
 /* ──────────────────────────────────────────────────────────
