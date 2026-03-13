@@ -1004,7 +1004,7 @@
         <h1>World Data</h1>
         <p class="subtitle">
             Countries, cities, populations, and the geography of our pale blue dot.
-            Live data from 8 public APIs — no keys required.
+            Live data from 7 public APIs — no keys required.
         </p>
         <div class="api-badge-row">
             <a class="api-badge" href="https://restcountries.com/" target="_blank" rel="noopener">
@@ -1027,9 +1027,6 @@
             </a>
             <a class="api-badge" href="https://countriesnow.space/" target="_blank" rel="noopener">
                 <span class="dot"></span>CountriesNow
-            </a>
-            <a class="api-badge" href="https://datausa.io/about/api/" target="_blank" rel="noopener">
-                <span class="dot"></span>Data USA
             </a>
         </div>
     </div>
@@ -1275,26 +1272,26 @@
 </div>
 
 <!-- =====================================================
-     WIDGET 8 — US STATE DEMOGRAPHICS (DATA USA)
+     WIDGET 8 — WORLD POPULATION BY COUNTRY (REST Countries)
 ===================================================== -->
-<div class="widget pop-accent span-7" id="w-datausa">
+<div class="widget pop-accent span-7" id="w-worldpop">
     <div class="widget-head">
         <div class="widget-title-block">
-            <div class="widget-name">Data USA API</div>
-            <div class="widget-title">US State Population Rankings</div>
+            <div class="widget-name">REST Countries API</div>
+            <div class="widget-title">World Population by Country</div>
         </div>
         <div class="widget-actions">
-            <button class="refresh-btn" id="datausa-refresh">Refresh</button>
-            <a class="widget-docs" href="https://datausa.io/about/api/" target="_blank" rel="noopener">docs &#8599;</a>
+            <button class="refresh-btn" id="worldpop-refresh">Refresh</button>
+            <a class="widget-docs" href="https://restcountries.com/" target="_blank" rel="noopener">docs &#8599;</a>
         </div>
     </div>
     <div class="widget-body">
-        <div id="datausa-loading" class="loading-state">
+        <div id="worldpop-loading" class="loading-state">
             <div class="spinner"></div>
-            <span>Loading US Census data...</span>
+            <span>Loading world population data...</span>
         </div>
-        <div id="datausa-error" class="error-state hidden"></div>
-        <div id="datausa-result" class="hidden"></div>
+        <div id="worldpop-error" class="error-state hidden"></div>
+        <div id="worldpop-result" class="hidden"></div>
     </div>
 </div>
 
@@ -2103,51 +2100,60 @@ function randomGeoError() {
 
 
 /* ============================================================
-   WIDGET 8 — US STATE DEMOGRAPHICS (Data USA API)
+   WIDGET 8 — WORLD POPULATION BY COUNTRY (REST Countries API)
 ============================================================ */
 (function() {
-    var loadEl = document.getElementById('datausa-loading');
-    var errEl  = document.getElementById('datausa-error');
-    var resEl  = document.getElementById('datausa-result');
-    var refreshBtn = document.getElementById('datausa-refresh');
+    var loadEl = document.getElementById('worldpop-loading');
+    var errEl  = document.getElementById('worldpop-error');
+    var resEl  = document.getElementById('worldpop-result');
+    var refreshBtn = document.getElementById('worldpop-refresh');
 
-    var STATE_COLORS = [
-        'linear-gradient(90deg, #b03040, #d85060)',
-        'linear-gradient(90deg, #9a2838, #c84050)',
-        'linear-gradient(90deg, #842030, #b83848)',
-        'linear-gradient(90deg, #6e1828, #a03040)',
-        'linear-gradient(90deg, #581020, #882838)',
+    var POP_COLORS = [
+        'linear-gradient(90deg, #0d3b5e, #1a5c8a)',
+        'linear-gradient(90deg, #1a5c8a, #2680b4)',
+        'linear-gradient(90deg, #2680b4, #5ba3cc)',
+        'linear-gradient(90deg, #2d4a1e, #4a7a2e)',
+        'linear-gradient(90deg, #4a7a2e, #7aab5e)',
     ];
 
     async function loadData() {
         showLoading(loadEl, errEl, resEl);
         try {
             var data = await fetchWithTimeout(
-                'https://datausa.io/api/data?drilldowns=State&measures=Population&year=latest',
-                8000
+                'https://restcountries.com/v3.1/all?fields=name,population,region,flag',
+                10000
             );
 
-            var states = data.data || [];
-            if (!states.length) throw new Error('No state data returned');
+            if (!Array.isArray(data) || !data.length) throw new Error('No country data returned');
+
+            // Filter out tiny territories (pop < 1000)
+            var countries = data.filter(function(c) { return c.population > 1000; });
 
             // Sort by population descending
-            states.sort(function(a, b) { return b.Population - a.Population; });
+            countries.sort(function(a, b) { return b.population - a.population; });
 
-            // Top 15
-            var top = states.slice(0, 15);
-            var maxPop = top[0].Population;
-            var totalPop = states.reduce(function(sum, s) { return sum + s.Population; }, 0);
-            var year = top[0].Year || 'Latest';
+            // Top 20
+            var top = countries.slice(0, 20);
+            var maxPop = top[0].population;
+            var totalPop = countries.reduce(function(sum, c) { return sum + c.population; }, 0);
 
-            var bars = top.map(function(s, i) {
-                var pct = (s.Population / maxPop) * 100;
-                var colorIdx = Math.min(i, STATE_COLORS.length - 1);
+            // Region counts
+            var regions = {};
+            countries.forEach(function(c) {
+                var r = c.region || 'Other';
+                regions[r] = (regions[r] || 0) + 1;
+            });
+
+            var bars = top.map(function(c, i) {
+                var pct = (c.population / maxPop) * 100;
+                var colorIdx = Math.min(i, POP_COLORS.length - 1);
+                var name = (c.flag || '') + ' ' + (c.name.common || c.name.official || 'Unknown');
                 return '<div class="state-bar-row">' +
-                    '<div class="state-bar-label">' + s.State + '</div>' +
+                    '<div class="state-bar-label">' + name + '</div>' +
                     '<div class="state-bar-track">' +
-                        '<div class="state-bar-fill" style="width:' + pct.toFixed(1) + '%; background:' + STATE_COLORS[colorIdx] + ';"></div>' +
+                        '<div class="state-bar-fill" style="width:' + pct.toFixed(1) + '%; background:' + POP_COLORS[colorIdx] + ';"></div>' +
                     '</div>' +
-                    '<div class="state-bar-value">' + fmt(s.Population) + '</div>' +
+                    '<div class="state-bar-value">' + fmt(c.population) + '</div>' +
                 '</div>';
             }).join('');
 
@@ -2155,18 +2161,18 @@ function randomGeoError() {
                 '<div class="stat-row" style="margin-bottom:var(--sp-4);">' +
                     '<div class="stat-card">' +
                         '<div class="stat-big">' + fmt(totalPop) + '</div>' +
-                        '<div class="stat-label">Total US Pop.</div>' +
+                        '<div class="stat-label">World Pop.</div>' +
                     '</div>' +
                     '<div class="stat-card">' +
-                        '<div class="stat-big">' + states.length + '</div>' +
-                        '<div class="stat-label">States + DC</div>' +
+                        '<div class="stat-big">' + countries.length + '</div>' +
+                        '<div class="stat-label">Countries</div>' +
                     '</div>' +
                     '<div class="stat-card">' +
-                        '<div class="stat-big">' + year + '</div>' +
-                        '<div class="stat-label">Census Year</div>' +
+                        '<div class="stat-big">' + Object.keys(regions).length + '</div>' +
+                        '<div class="stat-label">Regions</div>' +
                     '</div>' +
                 '</div>' +
-                '<div class="geo-section-label">Top 15 States by Population</div>' +
+                '<div class="geo-section-label">Top 20 Countries by Population</div>' +
                 '<div style="display:flex; flex-direction:column; gap:4px; margin-top:var(--sp-2);">' + bars + '</div>';
 
             showResult(loadEl, resEl, html);

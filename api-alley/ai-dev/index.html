@@ -1242,30 +1242,30 @@
             </div>
         </div>
 
-        <!-- 8: Ollama Model Library -->
-        <div class="widget w-full" id="widget-ollama">
+        <!-- 8: Hugging Face Datasets -->
+        <div class="widget w-full" id="widget-hf-datasets">
             <div class="widget-header">
                 <div class="widget-title-group">
-                    <span class="widget-icon">&#x1F999;</span>
-                    <span class="widget-name">Ollama Model Library</span>
-                    <span class="widget-badge badge-green">local llm</span>
+                    <span class="widget-icon">&#x1F4CA;</span>
+                    <span class="widget-name">Hugging Face Datasets</span>
+                    <span class="widget-badge badge-green">trending</span>
                 </div>
                 <div class="widget-actions">
-                    <button class="refresh-btn" onclick="loadOllamaLibrary()" title="Refresh">&#x21BB;</button>
-                    <a class="docs-link" href="https://ollama.com/library" target="_blank" rel="noopener">docs &#x2197;</a>
+                    <button class="refresh-btn" onclick="loadHFDatasets()" title="Refresh">&#x21BB;</button>
+                    <a class="docs-link" href="https://huggingface.co/docs/hub/api#get-apidatasets" target="_blank" rel="noopener">docs &#x2197;</a>
                 </div>
             </div>
             <div class="widget-body">
                 <div class="ctrl-row">
-                    <input type="text" class="ctrl-input" id="ollama-filter" placeholder="Filter models... (e.g. llama, mistral, phi)">
+                    <input type="text" class="ctrl-input" id="hf-ds-filter" placeholder="Filter datasets... (e.g. code, chat, instruct)">
                 </div>
-                <div id="ollama-output">
-                    <div class="loading-text"><div class="spinner"></div> Fetching Ollama model library...</div>
+                <div id="hf-ds-output">
+                    <div class="loading-text"><div class="spinner"></div> Fetching trending datasets...</div>
                 </div>
             </div>
             <div class="status-bar">
-                <div class="status-dot" id="ollama-status-dot"></div>
-                <span id="ollama-status-text">Connecting to ollama.com...</span>
+                <div class="status-dot" id="hf-ds-status-dot"></div>
+                <span id="hf-ds-status-text">Connecting to Hugging Face Hub...</span>
             </div>
         </div>
 
@@ -1286,7 +1286,7 @@
             <a href="https://openrouter.ai" target="_blank" rel="noopener">OpenRouter</a> &middot;
             <a href="https://crates.io" target="_blank" rel="noopener">Crates.io</a> &middot;
             <a href="https://registry.modelcontextprotocol.io" target="_blank" rel="noopener">MCP Registry</a> &middot;
-            <a href="https://ollama.com" target="_blank" rel="noopener">Ollama</a>
+            <a href="https://huggingface.co/datasets" target="_blank" rel="noopener">HF Datasets</a>
         </div>
     </footer>
 
@@ -1880,119 +1880,92 @@ loadMCPRegistry();
 
 
 /* ================================================================
-   WIDGET 8: Ollama Model Library
+   WIDGET 8: Hugging Face Datasets
    ================================================================ */
-var ollamaModels = [];
+var hfDatasets = [];
 
-async function loadOllamaLibrary() {
-    var output = document.getElementById('ollama-output');
-    output.innerHTML = '<div class="loading-text"><div class="spinner"></div> Fetching Ollama model library...</div>';
-    setStatus('ollama-status-dot', 'ollama-status-text', 'loading', 'Fetching from ollama.com...');
+async function loadHFDatasets() {
+    var output = document.getElementById('hf-ds-output');
+    output.innerHTML = '<div class="loading-text"><div class="spinner"></div> Fetching trending datasets...</div>';
+    setStatus('hf-ds-status-dot', 'hf-ds-status-text', 'loading', 'Fetching from Hugging Face Hub...');
 
     try {
         var t0 = performance.now();
-        // Ollama's public library API — search endpoint
-        var r = await fetchWithTimeout('https://ollama.com/api/tags');
+        var r = await fetchWithTimeout('https://huggingface.co/api/datasets?sort=likes&direction=-1&limit=30');
         if (!r.ok) throw new Error('HTTP ' + r.status);
         var data = await r.json();
         var elapsed = Math.round(performance.now() - t0);
 
-        ollamaModels = data.models || data || [];
-        if (!Array.isArray(ollamaModels)) {
-            // Try to handle different response shapes
-            if (data.tags) ollamaModels = data.tags;
-            else ollamaModels = [];
-        }
+        hfDatasets = Array.isArray(data) ? data : [];
 
-        setStatus('ollama-status-dot', 'ollama-status-text', 'ok',
-            ollamaModels.length + ' models loaded in ' + elapsed + 'ms');
-        renderOllamaModels();
+        setStatus('hf-ds-status-dot', 'hf-ds-status-text', 'ok',
+            hfDatasets.length + ' datasets loaded in ' + elapsed + 'ms');
+        renderHFDatasets();
     } catch (e) {
-        // Fallback: show a curated list of popular Ollama models
-        output.innerHTML = '';
-        var popular = [
-            { name: 'llama3.3', desc: 'Meta Llama 3.3 \u2014 latest multilingual LLM with 70B parameters', params: '70B', size: '43GB' },
-            { name: 'deepseek-r1', desc: 'DeepSeek R1 \u2014 reasoning model rivaling OpenAI o1', params: '671B', size: '404GB' },
-            { name: 'qwen2.5', desc: 'Alibaba Qwen 2.5 \u2014 strong multilingual model', params: '72B', size: '47GB' },
-            { name: 'phi4', desc: 'Microsoft Phi-4 \u2014 small efficient reasoning model', params: '14B', size: '9.1GB' },
-            { name: 'mistral', desc: 'Mistral 7B \u2014 fast and efficient foundation model', params: '7B', size: '4.1GB' },
-            { name: 'gemma2', desc: 'Google Gemma 2 \u2014 lightweight open model', params: '27B', size: '16GB' },
-            { name: 'codellama', desc: 'Meta Code Llama \u2014 code generation specialist', params: '70B', size: '39GB' },
-            { name: 'nomic-embed-text', desc: 'Nomic Embed \u2014 text embedding model for RAG', params: '137M', size: '274MB' }
-        ];
-
-        var html = '<div style="padding:var(--s2) 0;font-family:var(--font-mono);font-size:var(--text-xs);color:var(--amber);margin-bottom:var(--s3)">' +
-            '\u26A0 Ollama API unreachable \u2014 showing popular model catalog' +
-        '</div>';
-        html += '<div class="scroll-terminal" style="max-height:340px">';
-        html += '<div class="llm-header"><span>Model</span><span style="text-align:right">Params</span><span style="text-align:right">Size</span><span style="text-align:right">Link</span></div>';
-
-        popular.forEach(function(m) {
-            html += '<div class="llm-row">' +
-                '<span class="name" title="' + escHtml(m.desc) + '">' + escHtml(m.name) + '</span>' +
-                '<span class="ctx" style="color:var(--purple)">' + m.params + '</span>' +
-                '<span class="price-in" style="color:var(--amber)">' + m.size + '</span>' +
-                '<span class="price-out"><a href="https://ollama.com/library/' + escHtml(m.name) + '" target="_blank" rel="noopener" style="color:var(--blue);text-decoration:none">view \u2197</a></span>' +
-            '</div>';
-        });
-        html += '</div>';
-        html += '<div style="margin-top:var(--s3);padding:var(--s3);background:var(--bg-terminal);border:var(--rule);border-radius:var(--radius);font-family:var(--font-mono);font-size:var(--text-sm);color:var(--green)">ollama pull llama3.3</div>';
-
-        output.innerHTML = html;
-        setStatus('ollama-status-dot', 'ollama-status-text', 'error', 'API unreachable \u2014 showing curated catalog (' + e.message + ')');
+        output.innerHTML = '<div style="padding:var(--s4);font-family:var(--font-mono);color:var(--red)">' +
+            'Failed to load datasets: ' + escHtml(e.message) + '</div>';
+        setStatus('hf-ds-status-dot', 'hf-ds-status-text', 'error', 'API error (' + e.message + ')');
     }
 }
 
-function renderOllamaModels() {
-    var output = document.getElementById('ollama-output');
-    var filter = document.getElementById('ollama-filter').value.toLowerCase().trim();
+function renderHFDatasets() {
+    var output = document.getElementById('hf-ds-output');
+    var filter = document.getElementById('hf-ds-filter').value.toLowerCase().trim();
 
-    var filtered = ollamaModels;
+    var filtered = hfDatasets;
     if (filter) {
-        filtered = ollamaModels.filter(function(m) {
-            var name = (m.name || m.model || '').toLowerCase();
-            return name.indexOf(filter) !== -1;
+        filtered = hfDatasets.filter(function(d) {
+            var id = (d.id || '').toLowerCase();
+            var tags = (d.tags || []).join(' ').toLowerCase();
+            return id.indexOf(filter) !== -1 || tags.indexOf(filter) !== -1;
         });
     }
 
-    if (!filtered.length && ollamaModels.length > 0) {
-        output.innerHTML = '<div style="padding:var(--s4);font-family:var(--font-mono);color:var(--ink-muted)">No models matching "' + escHtml(filter) + '"</div>';
+    if (!filtered.length && hfDatasets.length > 0) {
+        output.innerHTML = '<div style="padding:var(--s4);font-family:var(--font-mono);color:var(--ink-muted)">No datasets matching "' + escHtml(filter) + '"</div>';
         return;
     }
 
     var display = filtered.slice(0, 20);
 
     var html = '<div class="scroll-terminal" style="max-height:340px">';
-    html += '<div class="llm-header"><span>Model</span><span class="ctx-h" style="text-align:right">Modified</span><span style="text-align:right">Size</span><span style="text-align:right">Link</span></div>';
+    html += '<div class="llm-header"><span>Dataset</span><span style="text-align:right">Likes</span><span style="text-align:right">Downloads</span><span style="text-align:right">Link</span></div>';
 
-    display.forEach(function(m) {
-        var name = m.name || m.model || 'unknown';
-        var size = m.size ? (m.size / 1e9).toFixed(1) + ' GB' : '\u2014';
-        var modified = m.modified_at ? timeAgo(m.modified_at) : '\u2014';
+    display.forEach(function(d) {
+        var id = d.id || 'unknown';
+        var likes = typeof d.likes === 'number' ? d.likes.toLocaleString() : '\u2014';
+        var downloads = typeof d.downloads === 'number' ? formatCount(d.downloads) : '\u2014';
 
         html += '<div class="llm-row">' +
-            '<span class="name">' + escHtml(name) + '</span>' +
-            '<span class="ctx">' + modified + '</span>' +
-            '<span class="price-in" style="color:var(--amber)">' + size + '</span>' +
-            '<span class="price-out"><a href="https://ollama.com/library/' + encodeURIComponent(name.split(':')[0]) + '" target="_blank" rel="noopener" style="color:var(--blue);text-decoration:none">view \u2197</a></span>' +
+            '<span class="name" title="' + escHtml((d.tags || []).slice(0, 5).join(', ')) + '">' + escHtml(id) + '</span>' +
+            '<span class="ctx" style="color:var(--purple)">\u2764 ' + likes + '</span>' +
+            '<span class="price-in" style="color:var(--amber)">\u2B07 ' + downloads + '</span>' +
+            '<span class="price-out"><a href="https://huggingface.co/datasets/' + encodeURIComponent(id) + '" target="_blank" rel="noopener" style="color:var(--blue);text-decoration:none">view \u2197</a></span>' +
         '</div>';
     });
     html += '</div>';
 
     if (filtered.length > display.length) {
         html += '<div style="padding:var(--s2) var(--s3);font-family:var(--font-mono);font-size:var(--text-xs);color:var(--ink-muted)">' +
-            'Showing ' + display.length + ' of ' + filtered.length + ' models' +
+            'Showing ' + display.length + ' of ' + filtered.length + ' datasets' +
         '</div>';
     }
 
     output.innerHTML = html;
 }
 
-document.getElementById('ollama-filter').addEventListener('input', function() {
-    if (ollamaModels.length) renderOllamaModels();
+function formatCount(n) {
+    if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B';
+    if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+    if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+    return String(n);
+}
+
+document.getElementById('hf-ds-filter').addEventListener('input', function() {
+    if (hfDatasets.length) renderHFDatasets();
 });
 
-loadOllamaLibrary();
+loadHFDatasets();
 
 </script>
 

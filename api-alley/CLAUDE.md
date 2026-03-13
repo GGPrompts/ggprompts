@@ -70,28 +70,29 @@ Key fields:
 - **Graceful failure** — APIs die. Every widget needs an error state that's funny, not broken
 - **Credit sources** — every widget links back to the API docs
 
-## Categories to Build
+## Categories (19 live, 453 APIs)
 
-Potential categories (one page each, many APIs per page):
+All categories are built and live (one page each, many APIs per page):
 
-- Weather & Climate
-- Space & Astronomy
-- Animals & Nature
-- Finance & Crypto
-- Games & Trivia
-- Food & Drink
-- Government & Public Data
-- Music & Art
-- Science & Math
-- Sports
-- Transportation
-- World Data & Geography
-- Random Generators
-- Dev Tools & Meta APIs
-- Health & Fitness
-- News & Media
-- Language & Text
-- History & Culture
+- AI & Dev Tools (ai-dev)
+- Animals & Nature (animals)
+- Dev Tools & Meta APIs (dev-tools)
+- Finance & Crypto (finance)
+- Food & Drink (food)
+- Games & Trivia (games)
+- Government & Public Data (government)
+- Health & Fitness (health)
+- History & Culture (history)
+- Language & Text (language)
+- Music & Art (music-art)
+- News & Media (news-media)
+- Random Generators (random)
+- Science & Math (science)
+- Space & Astronomy (space)
+- Sports (sports)
+- Transportation (transportation)
+- Weather & Climate (weather)
+- World Data & Geography (world-data)
 
 ## Hub Page (index.html)
 

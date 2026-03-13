@@ -1083,17 +1083,17 @@
     <hr class="section-divider">
 
     <!-- =====================================================
-         WIDGET 8 — Stock Market Quotes
-         API: Stock Prices Dev  https://stockprices.dev/api/stocks/{TICKER}
+         WIDGET 8 — Live Asset Tracker (Supply & VWAP)
+         API: CoinCap  https://api.coincap.io/v2/assets
     ===================================================== -->
     <div class="widget w-7" id="widget-stocks">
       <div class="widget-header">
         <div class="widget-title-group">
-          <div class="widget-label">Stock Prices Dev</div>
-          <div class="widget-title">US Stock Quotes</div>
+          <div class="widget-label">CoinCap</div>
+          <div class="widget-title">Live Asset Tracker</div>
         </div>
         <div class="widget-meta">
-          <a class="widget-api-link" href="https://stockprices.dev" target="_blank" rel="noopener">Docs</a>
+          <a class="widget-api-link" href="https://docs.coincap.io" target="_blank" rel="noopener">Docs</a>
           <button class="widget-refresh-btn" onclick="loadStockQuotes()">&#x21BB; Refresh</button>
           <span class="refresh-dot pulsing" id="dot-stocks"></span>
         </div>
@@ -1101,7 +1101,7 @@
       <div class="widget-body" id="body-stocks">
         <div class="state-loading">
           <div class="loading-bar"></div>
-          <span>Fetching stock quotes&hellip;</span>
+          <span>Fetching live asset data&hellip;</span>
         </div>
       </div>
     </div>
@@ -1812,48 +1812,45 @@ async function loadSparkline() {
 }
 
 // ================================================================
-// WIDGET 8 — US Stock Quotes (Stock Prices Dev)
-// No auth, no rate limits, CORS enabled, 1-min cache
+// WIDGET 8 — Live Asset Tracker (CoinCap)
+// No auth, CORS enabled, real-time supply & VWAP data
 // ================================================================
-
-const STOCK_TICKERS = ['AAPL','MSFT','GOOGL','AMZN','NVDA','TSLA','META','JPM','V','WMT'];
 
 async function loadStockQuotes() {
   const body = document.getElementById('body-stocks');
   try {
-    // Fetch all tickers in parallel
-    const results = await Promise.allSettled(
-      STOCK_TICKERS.map(t => fetchWithTimeout(`https://stockprices.dev/api/stocks/${t}`))
-    );
+    const data = await fetchWithTimeout('https://api.coincap.io/v2/assets?limit=10');
+    const assets = data.data;
+    if (!assets || !assets.length) throw new Error('No asset data returned');
 
-    const stocks = results
-      .map((r, i) => r.status === 'fulfilled' ? r.value : null)
-      .filter(Boolean);
-
-    if (!stocks.length) throw new Error('No stock data returned');
-
-    const rows = stocks.map(s => {
-      const chg = s.ChangePercentage || 0;
-      const chgAmt = s.ChangeAmount || 0;
+    const rows = assets.map(a => {
+      const price = parseFloat(a.priceUsd) || 0;
+      const chg = parseFloat(a.changePercent24Hr) || 0;
+      const supply = parseFloat(a.supply) || 0;
+      const maxSup = parseFloat(a.maxSupply) || 0;
+      const vwap = parseFloat(a.vwap24Hr) || 0;
       const cls = chg >= 0 ? 'up' : 'down';
       const arrow = chg >= 0 ? '\u25B2' : '\u25BC';
+      const priceStr = price >= 1 ? '$' + fmt(price) : '$' + price.toFixed(6);
+      const supplyPct = maxSup > 0 ? ((supply / maxSup) * 100).toFixed(1) + '%' : '\u221E';
 
       return `<tr>
         <td>
           <div class="stock-ticker-cell">
             <div>
-              <div class="stock-ticker">${escHtml(s.Ticker)}</div>
-              <div class="stock-name">${escHtml(s.Name)}</div>
+              <div class="stock-ticker">${escHtml(a.symbol)}</div>
+              <div class="stock-name">#${a.rank} ${escHtml(a.name)}</div>
             </div>
           </div>
         </td>
-        <td class="stock-price">$${fmt(s.Price)}</td>
+        <td class="stock-price">${priceStr}</td>
         <td>
           <div class="stock-change-cell">
             <span class="stock-change-pct ${cls}">${arrow} ${Math.abs(chg).toFixed(2)}%</span>
-            <span class="stock-change-abs">${chgAmt >= 0 ? '+' : ''}${fmt(chgAmt)}</span>
           </div>
         </td>
+        <td style="text-align:right;font-family:var(--font-num);font-size:0.72rem;color:var(--text-dim);">$${vwap >= 1 ? fmt(vwap) : vwap.toFixed(6)}</td>
+        <td style="text-align:right;font-family:var(--font-num);font-size:0.72rem;color:${maxSup > 0 ? 'var(--amber)' : 'var(--text-muted)'};">${supplyPct}</td>
       </tr>`;
     }).join('');
 
@@ -1861,15 +1858,17 @@ async function loadStockQuotes() {
       <table class="stock-table">
         <thead>
           <tr>
-            <th style="text-align:left">Ticker</th>
+            <th style="text-align:left">Asset</th>
             <th>Price</th>
-            <th>Change</th>
+            <th>24h Chg</th>
+            <th style="text-align:right">VWAP 24h</th>
+            <th style="text-align:right">Supply %</th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
       </table>
       <div style="font-family:var(--font-num);font-size:0.58rem;color:var(--text-muted);margin-top:12px;letter-spacing:0.06em;">
-        Data cached ~1 min · No auth required · 10 tickers
+        CoinCap · No auth required · VWAP = volume-weighted avg price · Supply % = circulating / max
       </div>`;
     setDotOk('dot-stocks');
   } catch (e) {

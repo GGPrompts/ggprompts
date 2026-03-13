@@ -71,7 +71,7 @@ A collection of CSS design system showcases, interactive educational stories, st
 │   ├── briefs/             # Research briefs (Markdown)
 │   └── [project-name]/     # Each map in its own folder
 │       └── index.html      # Interactive architecture map
-├── api-alley/              # Live API widget bazaar (269 APIs, 18 categories)
+├── api-alley/              # Live API widget bazaar (453 APIs, 19 categories)
 │   ├── CLAUDE.md           # How to build API Alley pages
 │   ├── index.html          # Hub page (neon alley aesthetic)
 │   ├── data/               # JSON catalogs of free APIs per category
