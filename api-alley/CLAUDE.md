@@ -70,20 +70,28 @@ Key fields:
 - **Graceful failure** — APIs die. Every widget needs an error state that's funny, not broken
 - **Credit sources** — every widget links back to the API docs
 
-## Categories (19 live, 453 APIs)
+## Categories (27 live, 540 APIs)
 
 All categories are built and live (one page each, many APIs per page):
 
 - AI & Dev Tools (ai-dev)
 - Animals & Nature (animals)
+- Anime, Manga & Comics (anime)
+- Calendars, Time & Holidays (calendars-time)
+- Cryptocurrency & Blockchain (crypto)
 - Dev Tools & Meta APIs (dev-tools)
-- Finance & Crypto (finance)
+- Emojis, Icons & Avatars (emojis-icons)
+- Entertainment — Movies & TV (entertainment)
+- Environment, Climate & Energy (environment)
+- Finance (finance)
 - Food & Drink (food)
 - Games & Trivia (games)
+- Geography, Geocoding & GIS (geography)
 - Government & Public Data (government)
 - Health & Fitness (health)
 - History & Culture (history)
 - Language & Text (language)
+- Museums, Archives & Libraries (museums)
 - Music & Art (music-art)
 - News & Media (news-media)
 - Random Generators (random)

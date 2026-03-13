@@ -1,31 +1,39 @@
 # API Alley — Complete API Catalog
 
-**453 APIs across 19 categories** — [Browse live](https://ggprompts.github.io/htmlstyleguides/api-alley/)
+**540 APIs across 27 categories** — [Browse live](https://ggprompts.github.io/htmlstyleguides/api-alley/)
 
 ## Summary
 
 | Category | APIs | No-Auth | Free Tier |
 |----------|------|---------|-----------|
 | Ai Dev | 19 | 10 | 9 |
-| Animals | 31 | 24 | 6 |
-| Dev Tools | 38 | 30 | 8 |
-| Finance | 20 | 10 | 10 |
-| Food | 19 | 12 | 7 |
-| Games | 24 | 18 | 6 |
-| Government | 28 | 12 | 16 |
-| Health | 23 | 14 | 5 |
-| History | 21 | 16 | 5 |
-| Language | 21 | 16 | 5 |
-| Music Art | 21 | 15 | 6 |
-| News Media | 19 | 7 | 12 |
-| Random | 24 | 23 | 1 |
-| Science | 23 | 19 | 4 |
-| Space | 22 | 13 | 9 |
+| Animals | 34 | 27 | 6 |
+| Anime | 7 | 7 | 0 |
+| Calendars Time | 3 | 3 | 0 |
+| Crypto | 6 | 6 | 0 |
+| Dev Tools | 46 | 38 | 8 |
+| Emojis Icons | 6 | 6 | 0 |
+| Entertainment | 5 | 5 | 0 |
+| Environment | 5 | 5 | 0 |
+| Finance | 22 | 12 | 10 |
+| Food | 20 | 13 | 7 |
+| Games | 31 | 25 | 6 |
+| Geography | 5 | 5 | 0 |
+| Government | 30 | 14 | 16 |
+| Health | 24 | 15 | 5 |
+| History | 23 | 18 | 5 |
+| Language | 24 | 19 | 5 |
+| Museums | 4 | 4 | 0 |
+| Music Art | 22 | 16 | 6 |
+| News Media | 19 | 8 | 11 |
+| Random | 26 | 25 | 1 |
+| Science | 27 | 24 | 3 |
+| Space | 29 | 18 | 11 |
 | Sports | 24 | 11 | 13 |
-| Transportation | 18 | 15 | 3 |
-| Weather | 19 | 11 | 8 |
+| Transportation | 21 | 18 | 3 |
+| Weather | 19 | 10 | 9 |
 | World Data | 39 | 26 | 13 |
-| **Total** | **453** | **302** | **146** |
+| **Total** | **540** | **388** | **147** |
 
 ## Ai Dev
 *AI tools, agents, prompt libraries, MCP servers, TUI frameworks, and developer-facing AI resources — many searchable by GitHub stars*
@@ -36,8 +44,7 @@
 | [npm Registry API](https://github.com/npm/registry/blob/main/docs/REGISTRY-API.md) | `none` | Yes | Search npm packages — find Claude SDKs, MCP tools, AI agent frameworks by downlo |
 | [PyPI JSON API](https://wiki.python.org/moin/PyPIJSON) | `none` | Yes | Python package metadata — find AI/ML libraries, Claude SDK, agent frameworks |
 | [Hugging Face API](https://huggingface.co/docs/hub/api) | `none` | Yes | Browse AI models, datasets, and spaces — sorted by likes/downloads |
-| [Ollama Library API](https://ollama.com/library) | `none` | No | (CORS blocked) Browse local LLM models available for Ollama — model cards, sizes, tags |
-| [Hugging Face Datasets API](https://huggingface.co/docs/hub/api#get-apimodels) | `none` | Yes | Browse and search Hugging Face datasets with metadata, download counts, and tags |
+| [Hugging Face Datasets API](https://huggingface.co/docs/hub/api#get-apidatasets) | `none` | Yes | Browse trending AI/ML datasets — sorted by likes, downloads, or recent activity |
 | [Crates.io API](https://crates.io/) | `none` | Yes | Rust package registry — find TUI frameworks (ratatui, crossterm), CLI tools by d |
 | [Libraries.io API](https://libraries.io/api) | `key` | Yes | Cross-platform package search across npm, PyPI, crates.io — dependency graphs an |
 | [OpenRouter API](https://openrouter.ai/docs) | `none` | Yes | List available LLM models with pricing, context windows, and capabilities |
@@ -79,17 +86,53 @@
 | [Animals API](https://api.api-ninjas.com) | `key` | Yes | Scientific facts about thousands of animal species. Provides taxonomy, locations |
 | [Axolotl API](https://theaxolotlapi.netlify.app) | `none` | No | Collection of axolotl pictures and facts. Provides random axolotl images with ed |
 | [Dog Facts API](https://dogapi.dog) | `none` | Yes | Information on over 340 dog breeds, 20 breed groups, and fun facts about dogs. P |
-| [FishWatch API](https://www.fishwatch.gov) | `none` | No | (dead — redirecting) NOAA Fisheries API providing information about fish species and seafood sustaina |
-| [iNaturalist API](https://api.inaturalist.org/v1/) | `none` | Yes | Community science platform with millions of wildlife observations, species data, and photos |
+| [FishWatch API](https://www.fishwatch.gov) | `none` | No | NOAA Fisheries API providing information about fish species and seafood sustaina |
+| [iNaturalist API](https://www.inaturalist.org/) | `none` | Yes | Community-sourced biodiversity observations with photos, species IDs, and locati |
 | [Insects-API](https://bugs.verfasor.com) | `none` | Yes | Collection of insect data from BugGuide.net with approximately 40,511 records. S |
 | [Movebank API](https://api.movebank.org) | `none` | Yes | Free, online database for animal tracking and movement data. Provides RESTful JS |
-| [Random Duck API](https://random-d.uk) | `none` | No | (CORS blocked) Provides random duck images. Supports multiple endpoints for retrieving duck pho |
+| [Random Duck API](https://random-d.uk) | `none` | No | Provides random duck images. Supports multiple endpoints for retrieving duck pho |
 | [RescueGroups.org API](https://rescuegroups.org) | `key` | Yes | HTTP/JSON API for live queries on adoptable animals. Search by postal code, dist |
 | [Animals API by API Ninjas](https://api.api-ninjas.com/v1/animals) | `key` | Yes | Scientific facts on thousands of different animal species, including taxonomy, l |
 | [Free Birds API](https://freetestapi.com/api/v1/birds) | `none` | Yes | Bird species data with images and sounds. Supports searching, sorting, and limit |
 | [PhyloPic API](https://www.phylopic.org/api) | `none` | Yes | Free silhouette images of animals, plants, and life forms under Creative Commons |
 | [eBird API](https://ebird.org/api/keygen) | `key` | Yes | Bird observation and species data from eBird database. Provides recent observati |
 | [AnimalsAPI (GitHub)](https://github.com/treboryx/animalsAPI) | `none` | Yes | All-in-one API for random animal images. Aggregates multiple sources for various |
+| [FishWatch](https://www.fishwatch.gov/) | `none` | Yes | NOAA fish species profiles with images, health data, and habitat info |
+| [Dog Facts](https://github.com/kinduff/dog-api) | `none` | Yes | Random interesting facts about dogs |
+
+## Anime
+*Anime, manga, and comics databases with character data, images, and series information*
+
+| API | Auth | CORS | Description |
+|-----|------|------|-------------|
+| [Jikan](https://jikan.moe/) | `none` | Yes | Unofficial MyAnimeList API — anime, manga, characters, seasons, reviews. 60 req/ |
+| [Dragon Ball API](https://dragonball-api.com/) | `none` | Yes | Characters, transformations, planets from the Dragon Ball universe |
+| [One Piece API](https://api-onepiece.com/) | `none` | Yes | Sagas, devil fruits, characters, crews, chapters from One Piece |
+| [Dattebayo API](https://dattebayo-api.onrender.com/) | `none` | Yes | Naruto characters, clans, villages, and kekkei-genkai data |
+| [Waifu.im](https://waifu.im/) | `none` | Yes | 4,000+ curated anime images with multiple tags and metadata |
+| [NekosBest](https://nekos.best/) | `none` | Yes | Neko images and anime roleplaying GIFs with artist attribution |
+| [Trace Moe](https://soruly.github.io/trace.moe-api/) | `none` | Yes | Reverse image search — upload a screenshot, get the exact anime scene and timest |
+
+## Calendars Time
+*Public holidays, timezone data, and calendar information for countries worldwide*
+
+| API | Auth | CORS | Description |
+|-----|------|------|-------------|
+| [Nager.Date](https://date.nager.at/) | `none` | Yes | Public holidays for 100+ countries. Long weekend detection. No rate limits |
+| [TimeAPI.io](https://timeapi.io/) | `none` | Yes | Timezone conversions, current time, DST tracking. <1ms response time |
+| [UK Bank Holidays](https://www.gov.uk/bank-holidays) | `none` | Yes | Official UK government bank holidays data |
+
+## Crypto
+*Cryptocurrency prices, market data, DeFi analytics, and blockchain information*
+
+| API | Auth | CORS | Description |
+|-----|------|------|-------------|
+| [CoinCap](https://docs.coincap.io/) | `none` | Yes | Real-time prices for 2,000+ crypto assets, plus WebSocket streaming. 200 req/min |
+| [Coinpaprika](https://api.coinpaprika.com/) | `none` | Yes | Prices, volumes, market caps, OHLCV, exchanges for thousands of coins |
+| [CoinLore](https://www.coinlore.com/cryptocurrency-data-api) | `none` | Yes | Global crypto market stats, coin data, and exchange information |
+| [Alternative.me Crypto](https://alternative.me/crypto/api/) | `none` | Yes | CoinMarketCap-compatible API plus the famous Fear & Greed Index |
+| [GeckoTerminal](https://www.geckoterminal.com/) | `none` | Yes | DEX/DeFi data across multiple blockchains from CoinGecko |
+| [DEX Screener](https://dexscreener.com/) | `none` | Yes | Real-time decentralized exchange token pair data, prices, and liquidity |
 
 ## Dev Tools
 *APIs about APIs — meta tools for developers and code nerds*
@@ -125,6 +168,9 @@
 | [Mockfly](https://mockfly.dev) | `none` | Yes | Free online mock API tool. Create mock REST APIs in seconds. Generate fake JSON  |
 | [JSON Server](https://github.com/typicode/json-server) | `none` | Yes | Open-source tool to get a full fake REST API with zero coding in less than 30 se |
 | [StatDNS REST API](https://www.statdns.com/api/) | `none` | Yes | Free REST DNS API for performing DNS queries over HTTP. Returns JSON-encoded DNS |
+| [Hacker News API](https://github.com/HackerNews/API) | `none` | Yes | Official Hacker News API powered by Firebase. Access top, new, and best stories, |
+| [Dev.to API](https://developers.forem.com/api) | `none` | Yes | Developer community articles, reactions, comments, and user profiles. No authent |
+| [Lobsters API](https://lobste.rs/about) | `none` | Yes | Computing-focused link aggregation community. JSON feeds of hottest and newest s |
 | [QrGen.cc](https://qrgen.cc) | `none` | Yes | Free open-source QR code generator and URL shortener. Create QR codes and get sh |
 | [ngrok](https://ngrok.com) | `key` | Yes | Free secure tunneling service for exposing local services to internet. Supports  |
 | [Zerocode Mock Server](https://github.com/authorjapps/zerocode) | `none` | Yes | Free, open-source automation testing lib. Create mock servers for API testing vi |
@@ -134,6 +180,45 @@
 | [LinkMeta](https://linkmeta.dev/) | `none` | Yes | Free URL metadata extraction API. Extract Open Graph, Twitter Cards, favicons, a |
 | [JsonLink](https://jsonlink.io/) | `none` | Yes | Free metadata scraper API for extracting website previews (title, description, i |
 | [URL Meta](https://urlmeta.org/) | `none` | Yes | Extract meta tags, screenshots, and DNS records from any URL. No signup required |
+| [Agify.io](https://agify.io/) | `none` | Yes | Predict age from a first name using statistical modeling |
+| [Nationalize.io](https://nationalize.io/) | `none` | Yes | Predict nationality from a name with probability scores |
+| [Microlink](https://microlink.io/) | `none` | Yes | Extract metadata, screenshots, and structured data from any URL |
+| [FakerAPI](https://fakerapi.it/) | `none` | Yes | Generate fake data: persons, addresses, books, companies, credit cards |
+| [QR Server](https://goqr.me/api/) | `none` | Yes | Generate and read QR codes in PNG, SVG, EPS. Customizable colors and sizes |
+
+## Emojis Icons
+*Emoji databases, icon libraries, avatar generators, and visual asset APIs*
+
+| API | Auth | CORS | Description |
+|-----|------|------|-------------|
+| [EmojiHub](https://github.com/cheatsnake/emojihub) | `none` | Yes | 1,791 emojis by category/group with HTML codes and Unicode |
+| [Iconify](https://iconify.design/) | `none` | Yes | 200,000+ icons from Material Design, Font Awesome, Heroicons, and 150+ other set |
+| [DiceBear](https://www.dicebear.com/) | `none` | Yes | Deterministic SVG/PNG avatars in 30+ styles. MIT licensed |
+| [RoboHash](https://robohash.org/) | `none` | Yes | Unique robot/monster/human images generated from any text string |
+| [UI Avatars](https://ui-avatars.com/) | `none` | Yes | Initial-based avatars with customizable size, colors, and rounding |
+| [Multiavatar](https://multiavatar.com/) | `none` | Yes | 12 billion unique multicultural avatars in PNG and SVG |
+
+## Entertainment
+*Movies, TV shows, and entertainment databases with episode guides and cast info*
+
+| API | Auth | CORS | Description |
+|-----|------|------|-------------|
+| [TVMaze](https://www.tvmaze.com/api) | `none` | Yes | Comprehensive TV show data — episodes, cast, schedule, crew for thousands of sho |
+| [STAPI (Star Trek)](https://stapi.co/) | `none` | Yes | Star Trek universe database — characters, species, spacecraft, episodes across a |
+| [An API of Ice And Fire](https://anapioficeandfire.com/) | `none` | Yes | Game of Thrones / ASOIAF books, characters, and houses |
+| [Final Space API](https://finalspaceapi.com/) | `none` | Yes | Characters, episodes, and locations from the animated series |
+| [Free Movie/Series DB](https://imdb.iamidiotareyoutoo.com/) | `none` | Yes | Search movies/series by title or IMDb ID. ~97% uptime |
+
+## Environment
+*Climate data, air quality monitoring, carbon emissions, and environmental forecasts*
+
+| API | Auth | CORS | Description |
+|-----|------|------|-------------|
+| [Open-Meteo Air Quality](https://open-meteo.com/en/docs/air-quality-api) | `none` | Yes | PM2.5, PM10, ozone, NO2 forecasts globally using CAMS data |
+| [Open-Meteo Climate](https://open-meteo.com/en/docs/climate-api) | `none` | Yes | CMIP6 climate model projections (1950-2050) at 10km resolution |
+| [Open-Meteo Flood](https://open-meteo.com/en/docs/flood-api) | `none` | Yes | Global river discharge forecasts based on GloFAS data |
+| [Carbon Intensity (UK Grid)](https://carbonintensity.org.uk/) | `none` | Yes | Real-time and forecast carbon intensity of GB electricity, regional breakdowns,  |
+| [Website Carbon](https://www.websitecarbon.com/) | `none` | Yes | Calculate CO2 emissions of any website |
 
 ## Finance
 *Money, markets, and magic internet coins*
@@ -156,10 +241,12 @@
 | [CoinAPI](https://www.coinapi.io) | `key` | No | Crypto data from 400+ exchanges, real-time and historical markets |
 | [Finnhub](https://finnhub.io) | `key` | Yes | Real-time stock, forex, crypto, company fundamentals, economic data |
 | [CoinLore API](https://coinlore.com) | `none` | No | Cryptocurrency price data for 14,000+ coins and 300+ exchanges. Provides real-ti |
-| [Stock Prices Dev](https://stockprices.dev) | `none` | No | (CORS blocked) Real-time stock and ETF price quotes. No authentication required and no rate lim |
+| [Stock Prices Dev](https://stockprices.dev) | `none` | No | Real-time stock and ETF price quotes. No authentication required and no rate lim |
 | [FCS API](https://fcsapi.com) | `key` | No | Real-time forex, cryptocurrency, and stock market data. Free tier includes 500 A |
 | [FRED (Federal Reserve Economic Data)](https://fred.stlouisfed.org) | `key` | No | 800,000+ economic time series from the Federal Reserve Bank of St. Louis. Covers |
 | [ForexRateAPI](https://forexrateapi.com) | `key` | No | Current and historical foreign exchange rates for 150+ currencies. Free tier ava |
+| [ExchangeRate-API (Open)](https://www.exchangerate-api.com/) | `none` | Yes | Free exchange rates for 150+ currencies, no rate limits on open endpoint |
+| [Razorpay IFSC](https://ifsc.razorpay.com/) | `none` | Yes | Indian bank IFSC code lookup — bank name, branch, address, city |
 
 ## Food
 *Recipes, cocktails, nutrition, and culinary data*
@@ -185,6 +272,7 @@
 | [FatSecret Platform API](https://platform.fatsecret.com/platform-api) | `key` | No | Large global nutrition database with recipe and food API. Free tier provides bas |
 | [Free Food Menus API](https://github.com/igdev116/free-food-menus-api) | `none` | Yes | Free API with ~700 dishes across 15 menus (burgers, pizzas, desserts, drinks, et |
 | [Nutritionix API](https://developer.nutritionix.com/) | `key` | No | Natural language food and exercise parsing API. Includes nutrition lookup, UPC s |
+| [Whisky Hunter](https://whiskyhunter.net/api/) | `none` | Yes | Whisky auction data with distillery info and pricing trends |
 
 ## Games
 *Trivia, jokes, riddles, and game data galore*
@@ -206,8 +294,8 @@
 | [D&D 5E API](https://www.dnd5eapi.co/) | `none` | Yes | Complete REST API for D&D 5th Edition SRD including monsters, spells, classes, e |
 | [Open5e](https://open5e.com/) | `none` | Yes | D&D API with SRD content plus OGL sources including monsters, spells, equipment, |
 | [Dice API](https://dice-api.genzouw.com/) | `none` | Yes | Simple web API that randomly generates dice rolls (d6) and returns results as JS |
-| [Free-To-Play Games Database API](https://www.freetogame.com/api-doc) | `none` | No | (CORS blocked) Database of free-to-play games with filtering by platform, genre, and sorting op |
-| [CheapShark API](https://www.cheapshark.com/api) | `none` | Yes | Video game deals aggregator across multiple digital stores with price comparison and alerts |
+| [Free-To-Play Games Database API](https://www.freetogame.com/api-doc) | `none` | No | Database of free-to-play games with filtering by platform, genre, and sorting op |
+| [CheapShark Game Deals API](https://apidocs.cheapshark.com/) | `none` | Yes | Free API for searching game deals across multiple stores (Steam, GOG, Humble Bun |
 | [Board Game Geek API](https://boardgamegeek.com/xmlapi2/) | `none` | No | XML API for accessing board games, expansions, video games, RPG items. No authen |
 | [Board Game Atlas API](https://www.boardgameatlas.com/api/docs) | `none` | Yes | Free board game database API for non-commercial and commercial projects. No auth |
 | [RAWG Video Games Database API](https://rawg.io/apidocs) | `key` | Yes | Large video game database with game info, screenshots, ratings. Free for persona |
@@ -216,6 +304,23 @@
 | [QuizAPI](https://quizapi.io/) | `key` | Yes | Quiz and technical knowledge API. Free tier: 5 quizzes, 500 API calls/month. |
 | [Trivia API by API Ninjas](https://api-ninjas.com/api/trivia) | `key` | Yes | Trivia questions API. Free tier: 100 questions, Premium: 100k+ questions. |
 | [GRID Open Access](https://grid.gg/open-access/) | `key` | Yes | Esports game data API. Free for pre-revenue startups, academics, indie devs. CS2 |
+| [CheapShark](https://www.cheapshark.com/) | `none` | Yes | PC game price comparison across Steam, GOG, Humble Bundle, and more |
+| [Scryfall](https://scryfall.com/docs/api) | `none` | Yes | Comprehensive Magic: The Gathering card database with images and search |
+| [AmiiboAPI](https://www.amiiboapi.com/) | `none` | Yes | Complete Nintendo Amiibo database — figures, cards, by game series |
+| [TCGdex](https://tcgdex.dev/) | `none` | Yes | Pokemon Trading Card Game sets, cards, and types |
+| [Hyrule Compendium](https://gadhagod.github.io/Hyrule-Compendium-API/) | `none` | Yes | Zelda: Breath of the Wild creatures, equipment, materials, monsters |
+| [XIVAPI](https://xivapi.com/) | `none` | Yes | Final Fantasy XIV game data — items, actions, achievements, NPCs |
+
+## Geography
+*Geocoding, geolocation, elevation data, and geographic information services*
+
+| API | Auth | CORS | Description |
+|-----|------|------|-------------|
+| [BigDataCloud](https://www.bigdatacloud.com/) | `none` | Yes | Client-side reverse geocoding. Explicitly designed for browser use without API k |
+| [GeoJS](https://www.geojs.io/) | `none` | Yes | IP-based geolocation — country, city, coordinates, timezone |
+| [Country.is](https://country.is/) | `none` | Yes | Simple IP-to-country geolocation. Minimal and fast |
+| [Open Topo Data](https://www.opentopodata.org/) | `none` | Yes | Elevation/topography data from multiple global datasets |
+| [Nominatim](https://nominatim.org/) | `none` | Yes | OpenStreetMap forward/reverse geocoding. 1 req/sec, requires User-Agent header |
 
 ## Government
 *Public data from Uncle Sam and friends*
@@ -250,6 +355,8 @@
 | [USGS Water Data APIs](https://api.waterdata.usgs.gov/) | `key` | Yes | Modernized access to water data including continuous measurements of streamflow, |
 | [EPA Envirofacts Data Service API](https://www.epa.gov/enviro/envirofacts-data-service-api) | `none` | No | RESTful API providing direct programmatic access to EPA environmental data table |
 | [NOAA NCEI Data Service API](https://www.ncei.noaa.gov/support/access-data-service-api-user-documentation) | `none` | Yes | National Centers for Environmental Information RESTful API for accessing and sub |
+| [Federal Register](https://www.federalregister.gov/developers/documentation/api/v1) | `none` | Yes | US Federal Register documents — executive orders, rules, notices |
+| [Police.uk](https://data.police.uk/docs/) | `none` | Yes | UK street-level crime data with outcomes and neighborhood info |
 
 ## Health
 *Workouts, nutrition, diseases, and data to keep you alive*
@@ -260,7 +367,7 @@
 | [Open Food Facts API](https://openfoodfacts.github.io/openfoodfacts-server/api/) | `none` | Yes | Database of 2.9M+ food products with nutrition data, ingredients, and allergen i |
 | [USDA FoodData Central API](https://fdc.nal.usda.gov/api-guide/) | `key` | Yes | USDA government nutrition database with 300K+ food items, nutrient data, and pub |
 | [openFDA Drug API](https://open.fda.gov/apis/) | `none` | Yes | FDA public dataset with drug labeling, adverse events, and enforcement reports |
-| [WHO Global Health Observatory (GHO) API](https://www.who.int/data/gho/info/gho-odata-api) | `none` | Yes | WHO epidemiological data with 1000+ health indicators across 194 member states |
+| [World Bank Health Indicators API](https://datahelpdesk.worldbank.org/knowledgebase/topics/125589) | `none` | Yes | World Bank development indicators including life expectancy, health spending, mo |
 | [disease.sh - Open Disease API](https://disease.sh/) | `none` | Yes | Real-time COVID-19 and Influenza data with global statistics, vaccines, and hist |
 | [Yoga API](https://github.com/alexcumplido/yoga-api) | `none` | Yes | REST API with yoga asanas, poses, categories, difficulty levels, and SVG/PNG ima |
 | [NIH Clinical Table Search Service - Conditions API](https://clinicaltables.nlm.nih.gov/apidoc/conditions/v3/doc.html) | `none` | Yes | NIH database of 2,400+ medical conditions with ICD-10-CM and ICD-9-CM codes |
@@ -274,11 +381,12 @@
 | [Exercises API (API Ninjas)](https://www.api-ninjas.com/api/exercises) | `key` | Yes | Comprehensive exercise database with 3000+ exercises including muscle groups, eq |
 | [wger Workout Manager API](https://wger.de/en/software/api) | `key` | Yes | Open source fitness/workout, nutrition and weight tracker with REST API for exer |
 | [Open NHS Scotland Data API](https://publicapis.dev/category/health) | `none` | Yes | Medical reference data and statistics by Public Health Scotland. Provides public |
-| [NPPES (National Plan & Provider Enumeration System)](https://publicapis.dev/category/health) | `none` | No | (CORS blocked) Information on healthcare providers registered in the US. Free access to NPI dat |
+| [NPPES (National Plan & Provider Enumeration System)](https://npiregistry.cms.hhs.gov/) | `none` | No | Information on healthcare providers registered in the US. Free access to NPI dat |
 | [HealthCare.gov API](https://www.healthcare.gov/developers/) | `none` | Yes | US Health Insurance Marketplace educational resources and content available in m |
 | [CDC APIs](https://open.cdc.gov/apis.html) | `none` | Yes | Center for Disease Control APIs including vocabulary services, content syndicati |
 | [Strava API](https://developers.strava.com/) | `key` | Yes | REST API for fitness and activity data including athletes, activities, segments, |
 | [Nutritionix API](https://developer.nutritionix.com/) | `key` | No | Comprehensive nutrition API with data on 800,000+ packaged products and restaura |
+| [openFDA](https://open.fda.gov/) | `none` | Yes | FDA drug labels, adverse events, recalls, device data |
 
 ## History
 *Historical events, holidays, Nobel Prizes, mythology, religious texts, and cultural data*
@@ -286,7 +394,7 @@
 | API | Auth | CORS | Description |
 |-----|------|------|-------------|
 | [Day in History API](https://dayinhistory.dev/) | `none` | Yes | Free historical events API providing events, births, deaths, and milestones for  |
-| [Wikimedia Feed API - On This Day](https://en.wikipedia.org/api/rest_v1) | `none` | Yes | Wikipedia on-this-day events including births, deaths, and holidays from Wikimed |
+| [Wikipedia REST API - On This Day](https://en.wikipedia.org/api/rest_v1/#/Feed/onThisDay) | `none` | Yes | Wikipedia on-this-day events including births, deaths, and holidays via the Wiki |
 | [MuffinLabs History API](https://history.muffinlabs.com/) | `none` | Yes | Simple JavaScript API parsing Wikipedia data into this-day-in-history events, bi |
 | [Nobel Prize API](https://www.nobelprize.org/about/developer-zone-2/) | `none` | Yes | Official Nobel Prize and Nobel Laureate data (CC0 public domain), including all  |
 | [The Greek Myth API](https://thegreekmythapi.vercel.app) | `none` | Yes | Free forever mythology API providing gods, titans, monsters, heroes, and charact |
@@ -305,7 +413,9 @@
 | [Metropolitan Museum of Art Collection API](https://metmuseum.github.io/) | `none` | Yes | Access metadata and high-resolution images of 470,000+ artworks and historical a |
 | [Harvard Art Museums API](https://harvardartmuseums.org/collections/api) | `none` | Yes | Access Harvard Art Museums collection data including artworks, artifacts, and cu |
 | [Cleveland Museum of Art Open Access API](https://openaccess-api.clevelandart.org/) | `none` | Yes | Access 64,000+ artwork records from the Cleveland Museum of Art collection with  |
-| [Walters Art Museum API](https://api.thewalters.org/) | `none` | No | (CORS blocked) Query 10,000+ digital records of art and historical artifacts from the Walters A |
+| [Walters Art Museum API](https://api.thewalters.org/) | `none` | Yes | Query 10,000+ digital records of art and historical artifacts from the Walters A |
+| [Chronicling America](https://chroniclingamerica.loc.gov/about/api/) | `none` | Yes | Library of Congress digitized US newspapers, 1770-1963 |
+| [Wikipedia On-This-Day](https://en.wikipedia.org/api/rest_v1/) | `none` | Yes | Historical events on any date via Wikipedia REST API |
 
 ## Language
 *Words, translations, definitions, and linguistic data*
@@ -320,7 +430,7 @@
 | [Big Huge Thesaurus API](https://words.bighugelabs.com/site/api) | `none` | No | REST API for retrieving synonyms and antonyms for English words (requires free k |
 | [LanguageTool API](https://languagetool.org/lp/api) | `none` | Yes | Free grammar and spell check API supporting 20+ languages with Hunspell dictiona |
 | [Lorem Ipsum API (API Ninjas)](https://api-ninjas.com/api/loremipsum) | `none` | Yes | Free placeholder text generator for configurable paragraphs, sentences, or words |
-| [Loripsum API](https://loripsum.net/) | `none` | No | (dead) Simple lorem ipsum generator with options for plain text or HTML output |
+| [Loripsum API](https://loripsum.net/) | `none` | Yes | Simple lorem ipsum generator with options for plain text or HTML output |
 | [Bacon Ipsum API](https://baconipsum.com/) | `none` | Yes | Meat-themed placeholder text generator as alternative to lorem ipsum |
 | [toPhonetics](https://tophonetics.com/) | `none` | No | IPA (International Phonetic Alphabet) transcription converter supporting English |
 | [WordsAPI](https://www.wordsapi.com/) | `key` | Yes | Word definitions, examples, synonyms, antonyms, rhymes, and frequency data |
@@ -328,11 +438,24 @@
 | [Lorem.place](https://lorem.place/) | `none` | Yes | Free lorem ipsum generator with API support for text in various formats |
 | [JSpell API](https://www.jspell.com/) | `none` | No | Free spell check API supporting English, French, Spanish, Italian, and German |
 | [Forvo Pronunciation API](https://api.forvo.com/) | `key` | No | Access 6+ million audio pronunciations and translations in 430+ languages. Free  |
-| [Quotable API](https://github.com/lukePeavey/quotable) | `none` | No | (dead — cert expired) Free, open-source random quotes API. Get random quotes with filtering by tags, a |
+| [DummyJSON Quotes](https://dummyjson.com/docs/quotes) | `none` | Yes | Random quotes from a collection of 1300+ quotes. No API key needed, CORS enabled |
 | [Wiktionary REST API](https://en.wiktionary.org/wiki/api) | `none` | No | Access multilingual dictionary with definitions, etymology, pronunciation, synon |
 | [Languagelayer API](https://languagelayer.com/) | `key` | No | Free language detection API for 173 languages. Supports single and batch text re |
 | [Word Game Dictionary API](https://www.wordgamedictionary.com/api/) | `key` | No | Validate words for Scrabble and Words with Friends games. Free tier: 100 calls p |
 | [Free Translate API (ftapi)](https://ftapi.pythonanywhere.com/) | `none` | Yes | Translation API with auto-language detection. Note: The hosted instance is demo- |
+| [PoetryDB](https://poetrydb.org/) | `none` | Yes | Vast poetry collection searchable by author, title, lines, and line count |
+| [Bible API](https://bible-api.com/) | `none` | Yes | Bible verses in multiple translations and languages |
+| [Quran Cloud](https://alquran.cloud/api) | `none` | Yes | Full Quran text in multiple languages and translations |
+
+## Museums
+*Museum collections, library catalogs, and digital archives from world-class institutions*
+
+| API | Auth | CORS | Description |
+|-----|------|------|-------------|
+| [Metropolitan Museum of Art](https://metmuseum.github.io/) | `none` | Yes | 470,000+ artworks with images, departments, and search. CC0 images. 80 req/sec |
+| [Art Institute of Chicago](https://api.artic.edu/docs/) | `none` | Yes | Hundreds of thousands of artworks with IIIF image URLs, artist data, and rich me |
+| [Cleveland Museum of Art](https://openaccess-api.clevelandart.org/) | `none` | Yes | 64,000+ artwork records with 37,000+ CC0-licensed images |
+| [Open Library](https://openlibrary.org/developers/api) | `none` | Yes | 3M+ books from Internet Archive. Search by title, author, ISBN, subject |
 
 ## Music Art
 *Sounds, paintings, colors, and creative data*
@@ -358,8 +481,9 @@
 | [ListenBrainz API](https://listenbrainz.org/) | `key` | Yes | Music listening history and statistics platform. Track songs you listen to, get  |
 | [Discogs API](https://www.discogs.com/) | `none` | Yes | Crowdsourced music database and marketplace with 15+ million releases. Comprehen |
 | [Harvard Art Museums API](https://harvardartmuseums.org/collections/api) | `key` | No | REST API for Harvard Art Museums collections (3 museums: Harvard Art Museums, Fo |
-| [Walters Art Museum API](https://api.thewalters.org/) | `none` | No | (CORS blocked) Open data API for Walters Art Museum collection. 10,000+ digital records of artw |
+| [Walters Art Museum API](https://api.thewalters.org/) | `none` | No | Open data API for Walters Art Museum collection. 10,000+ digital records of artw |
 | [Wikidata SPARQL Endpoint](https://www.wikidata.org/wiki/Wikidata:SPARQL_query_service) | `none` | Yes | Query service for Wikidata structured data including paintings, artworks, artist |
+| [Radio Browser API](https://www.radio-browser.info/) | `none` | Yes | Community-driven directory of internet radio stations worldwide. Search by tag,  |
 
 ## News Media
 *Headlines, wikis, movies, books, and media of all kinds*
@@ -371,7 +495,7 @@
 | [MediaWiki Action API (Wikipedia)](https://www.mediawiki.org/wiki/API:Action_API) | `none` | No | Query-based API for Wikipedia page operations, search, and metadata access |
 | [TVmaze API](https://www.tvmaze.com/api) | `none` | Yes | Free REST API for TV shows, episodes, cast information and search (CC BY-SA lice |
 | [Open Library API](https://openlibrary.org/dev/docs/api) | `none` | Yes | Free book search and metadata API covering 3M+ books with search by ISBN, OCLC,  |
-| [Google Books API](https://developers.google.com/books) | `key` | Yes | (429 rate limiting) Search book text and retrieve book information from Google's massive catalog |
+| [Crossref API](https://www.crossref.org/documentation/retrieve-metadata/rest-api/) | `none` | Yes | Free metadata API for 150M+ scholarly articles, books, and proceedings with no a |
 | [RSS2JSON](https://rss2json.com/) | `none` | Yes | Convert any RSS/Atom feed to JSON format with no authentication required |
 | [Feed2JSON (Toptal)](https://www.toptal.com/developers/feed2json/) | `none` | Yes | Fast and simple RSS/Atom to JSON conversion API |
 | [NewsData.io API](https://newsdata.io/) | `key` | Yes | Real-time global news with 200 credits/day (10 articles per credit), 30 credits  |
@@ -392,15 +516,15 @@
 | API | Auth | CORS | Description |
 |-----|------|------|-------------|
 | [Random User Generator](https://randomuser.me/) | `none` | Yes | Generate random user profiles with photos, names, emails, and personal details f |
-| [Quotable API](https://github.com/lukePeavey/quotable) | `none` | No | (dead — cert expired) Freely inspirational quotes database with filtering by tags and authors |
-| [Zen Quotes API](https://zenquotes.io/) | `none` | No | (CORS blocked) Daily inspirational quotes with author and text attributes |
+| [Quotable API](https://github.com/lukePeavey/quotable) | `none` | No | Freely inspirational quotes database with filtering by tags and authors |
+| [Zen Quotes API](https://zenquotes.io/) | `none` | No | Daily inspirational quotes with author and text attributes |
 | [DummyJSON Quotes](https://dummyjson.com/) | `none` | Yes | Fake REST API for placeholder JSON data including quotes, products, users, and m |
 | [UUIDTools UUID Generator](https://www.uuidtools.com/) | `none` | Yes | Generate RFC 4122 compliant UUIDs (v1, v3, v4, v5) with bulk generation support  |
 | [Lorem Picsum](https://picsum.photos/) | `none` | Yes | Random placeholder images from Unsplash with customizable sizes and filtering |
 | [Placehold Image Service](https://placehold.co/) | `none` | Yes | Simple, fast placeholder images in multiple formats (SVG, PNG, JPEG, GIF, WebP,  |
 | [LoremFlickr](https://loremflickr.com/) | `none` | Yes | Placeholder images with search terms for specific content categories |
 | [Lorem Ipsum API (API Ninjas)](https://api-ninjas.com/api/loremipsum) | `key` | Yes | Configurable lorem ipsum text generator for paragraphs, sentences, or words |
-| [Loripsum Text API](https://loripsum.com/) | `none` | No | (dead) Generate random paragraphs, sentences, or words of Lorem Ipsum text |
+| [Loripsum Text API](https://loripsum.com/) | `none` | No | Generate random paragraphs, sentences, or words of Lorem Ipsum text |
 | [Bacon Ipsum API](https://baconipsum.com/) | `none` | Yes | Meaty placeholder text generator in JSON or plain text formats |
 | [Randommer Random Data API](https://randommer.io/) | `none` | Yes | Generate random names, emails, phone numbers, addresses, and more with 1000 dail |
 | [Open Trivia Database](https://opentdb.com/) | `none` | Yes | Free trivia questions database with multiple choice answers and difficulty level |
@@ -410,8 +534,10 @@
 | [Official Joke API](https://official-joke-api.appspot.com/) | `none` | Yes | Free API serving random jokes. Supports filtering by category (programming, knoc |
 | [JokeAPI](https://sv443.net/jokeapi/v2/) | `none` | Yes | Feature-rich joke API with categories (Pun, Dark, Spooky, etc.), filtering optio |
 | [Advice Slip API](https://api.adviceslip.com/) | `none` | Yes | Free API returning random pieces of advice. Serves over 10 million pieces of adv |
-| [Random Words API](https://random-words-api.kushcreates.com/) | `none` | No | (CORS blocked) Free word database API for fetching random words. Supports filtering by category |
-| [Random Word API (Vercel)](https://random-word-api.vercel.app/) | `none` | No | (dead) Simple free random word generator API. Supports word count, word length, and fir |
+| [Random Words API](https://random-words-api.kushcreates.com/) | `none` | No | Free word database API for fetching random words. Supports filtering by category |
+| [Random Word API (Vercel)](https://random-word-api.vercel.app/) | `none` | No | Simple free random word generator API. Supports word count, word length, and fir |
+| [Datamuse API](https://www.datamuse.com/api/) | `none` | Yes | Word-finding query engine with related words, rhymes, suggestions, and more. 100 |
+| [Free Dictionary API](https://dictionaryapi.dev/) | `none` | Yes | Free dictionary API with definitions, phonetics, synonyms, and examples for Engl |
 | [Cat Facts API](https://catfact.ninja/) | `none` | Yes | Free API serving random cat facts. Simple endpoint returning interesting cat tri |
 | [Random.dog](https://random.dog/) | `none` | Yes | Free API for random dog images and facts. Unlimited requests, no authentication  |
 | [Dog Facts API](https://www.dogfactsapi.ducnguyen.dev/) | `none` | Yes | Free API providing random dog facts. Can fetch individual facts or retrieve all  |
@@ -424,7 +550,7 @@
 | [Numbers API](https://numbersapi.com/) | `none` | No | Interesting facts and trivia about numbers, dates, and years |
 | [Useless Facts API](https://uselessfacts.jsph.pl/) | `none` | Yes | Random interesting and useless facts with source attribution |
 | [Newton API](https://newton.vercel.app/) | `none` | Yes | Perform mathematical calculations, derivatives, integrals, and algebra |
-| [NASA Open APIs](https://api.nasa.gov/) | `key` | Yes | Astronomy pictures, Mars rover photos, Earth imagery, NEO data, and more |
+| [NASA Image & Video Library](https://images.nasa.gov/) | `none` | Yes | Search NASA's public archive of space images and videos — no API key needed |
 | [Arcsecond.io](https://api.arcsecond.io/) | `none` | Yes | Unified REST APIs for world-wide astronomical data (positions, observations) |
 | [Periodic Table API](https://github.com/neelpatel05/periodic-table-api) | `none` | Yes | Fetch chemical elements with properties from the periodic table |
 | [PubChem API](https://pubchem.ncbi.nlm.nih.gov/docs/pug-rest) | `none` | Yes | Chemical compound data, structure search, properties, and descriptors |
@@ -438,20 +564,24 @@
 | [WeatherAPI](https://www.weatherapi.com/) | `key` | Yes | Current weather, forecasts, historical data, and astronomy data |
 | [Open Astronomy Catalog API](https://github.com/astrocatalogs/OACAPI) | `none` | Yes | Lightweight access to astronomical catalogs (supernovae, transients) |
 | [World Bank Climate API](https://data.worldbank.org/) | `none` | Yes | Climate data, environmental indicators, and development statistics |
-| [Semantic Scholar Academic Graph API](https://www.semanticscholar.org/product/api) | `none` | No | (CORS blocked) AI-powered academic search engine with ~200 million papers across all discipline |
+| [Semantic Scholar Academic Graph API](https://www.semanticscholar.org/product/api) | `none` | No | AI-powered academic search engine with ~200 million papers across all discipline |
 | [CORE API](https://core.ac.uk/services/api) | `none` | Yes | Free access to the world's largest collection of open access research papers. Re |
 | [Unpaywall API](https://unpaywall.org/products/api) | `none` | No | Free programmatic access to 20+ million open access scholarly articles from 50,0 |
 | [Crossref REST API](https://www.crossref.org/documentation/retrieve-metadata/rest-api/) | `none` | Yes | Free scholarly metadata for works, journals, members, funders, licenses, and typ |
 | [ENA Taxonomy REST API](https://ena-docs.readthedocs.io/en/latest/retrieval/programmatic-access/taxon-api.html) | `none` | No | Query taxonomy information by scientific name, common name, or taxonomy ID. Rate |
 | [Stars API (API Ninjas)](https://api-ninjas.com/api/stars) | `key` | Yes | Star data including constellation, right ascension (RA) and declination (DEC) co |
+| [USGS Earthquake Hazards](https://earthquake.usgs.gov/fdsnws/event/1/) | `none` | Yes | Real-time and historical earthquake data from the USGS. GeoJSON feeds updated ev |
+| [Nobel Prize API](https://www.nobelprize.org/about/developer-zone-2/) | `none` | Yes | Official Nobel Prize data and laureates from the Nobel Foundation |
+| [Newton Math](https://newton.vercel.app/) | `none` | Yes | Symbolic math operations — derive, integrate, factor, simplify, find zeroes |
+| [Crossref](https://www.crossref.org/documentation/) | `none` | Yes | 150M+ scholarly article metadata — DOIs, citations, authors, journals |
 
 ## Space
 *APIs from beyond the atmosphere — planets, stars, launches, and the ISS*
 
 | API | Auth | CORS | Description |
 |-----|------|------|-------------|
-| [NASA APOD (Astronomy Picture of the Day)](https://api.nasa.gov/) | `key` | Yes | (DEMO_KEY broken) Daily astronomical image with detailed explanation and metadata |
-| [NASA Image and Video Library](https://images.nasa.gov/docs/images.nasa.gov%20API.pdf) | `none` | Yes | Search NASA's media archive of 140,000+ images, videos, and audio files |
+| [NASA APOD (Astronomy Picture of the Day)](https://api.nasa.gov/) | `key` | Yes | Daily astronomical image with detailed explanation and metadata |
+| [NASA Mars Rover Photos API](https://api.nasa.gov/) | `key` | Yes | Photos from Mars rovers Curiosity and Perseverance with camera metadata and sol/ |
 | [NASA NeoWs (Near Earth Object Web Service)](https://api.nasa.gov/) | `key` | Yes | Search and browse near-Earth asteroids with close approach dates and physical ch |
 | [SpaceX API](https://github.com/r-spacex/SpaceX-API) | `none` | Yes | Community-maintained REST API for SpaceX launches, rockets, cores, capsules, lau |
 | [Open Notify ISS Location API](http://open-notify.org/Open-Notify-API/) | `none` | Yes | Current real-time latitude and longitude position of the International Space Sta |
@@ -464,15 +594,21 @@
 | [Astronomy API (AstronomyAPI)](https://docs.astronomyapi.com/) | `key` | Yes | Star charts, constellation data, and astronomical positions for observation plan |
 | [U.S. Naval Observatory Astronomical Applications API](https://aa.usno.navy.mil/data/api) | `none` | Yes | Moon phases, lunar illumination, sunrise/sunset times, and celestial event predi |
 | [iCalendar37 Lunar API](https://www.icalendar37.net/lunar/api/) | `none` | Yes | Moon phase data with illumination percentage, phase names, and SVG visualization |
-| [NOAA Space Weather API](https://www.swpc.noaa.gov/content/data-access) | `none` | Yes | Real-time solar wind speed, magnetic field data, and Kp index for space weather  |
+| [NOAA Space Weather API](https://www.swpc.noaa.gov/content/data-access) | `none` | No | Real-time solar wind speed, magnetic field data, and Kp index for space weather  |
+| [NASA DONKI (Space Weather Database Of Notifications)](https://api.nasa.gov/) | `key` | Yes | Solar flares, coronal mass ejections, geomagnetic storms, and other space weathe |
 | [Rocket Launch API (RocketLaunch.Live)](https://www.rocketlaunch.live/api) | `key` | Yes | Curated upcoming rocket launch schedule with real-time updates throughout the da |
 | [NASA EONET (Events) API](https://api.nasa.gov/) | `none` | Yes | Natural events detected from NASA satellites (fires, floods, volcanoes, storms)  |
 | [Le Système Solaire API](https://api.le-systeme-solaire.net/) | `key` | Yes | Comprehensive solar system data API providing planets, moons, dwarf planets, ast |
 | [JPL Small-Body Database (SBDB) API](https://ssd-api.jpl.nasa.gov/sbdb.html) | `none` | Yes | NASA/JPL API for asteroid and comet data including orbital elements, physical pa |
-| [JPL Close-Approach Data API](https://ssd-api.jpl.nasa.gov/doc/cad.html) | `none` | Yes | NASA/JPL API for asteroid and comet close-approach data relative to Earth. Retur |
+| [JPL Close-Approach Data API](https://ssd-api.jpl.nasa.gov/doc/cad.html) | `none` | No | NASA/JPL API for asteroid and comet close-approach data relative to Earth. Retur |
 | [RocketLaunch.Live API](https://www.rocketlaunch.live/api) | `key` | Yes | Manually curated rocket launch database API providing launch schedules, vehicle  |
 | [Open Astronomy Catalog API](https://github.com/astrocatalogs/OACAPI) | `none` | Yes | Free API providing access to astronomical catalogs including supernova, kilonova |
+| [Sunrise-Sunset API](https://sunrise-sunset.org/api) | `none` | Yes | Sunrise, sunset, solar noon, civil twilight, and day length for any location on  |
+| [Open-Meteo UV Index & Solar Radiation](https://open-meteo.com/) | `none` | Yes | Real-time UV index and direct solar radiation data for any location, no API key  |
 | [FLARECAST Solar Flares API](https://api.flarecast.eu/) | `key` | No | Automated solar flare forecasting API providing annual probability predictions f |
+| [Solar System OpenData](https://api.le-systeme-solaire.net/en/) | `none` | Yes | All celestial bodies — planets, moons, asteroids, comets with orbital parameters |
+| [Sunrise-Sunset](https://sunrise-sunset.org/api) | `none` | Yes | Sunrise, sunset, and twilight times for any coordinates worldwide |
+| [TLE API](https://tle.ivanstanojevic.me/) | `none` | Yes | Two-Line Element satellite tracking data — search by name or NORAD ID |
 
 ## Sports
 *Scores, stats, and athletic data from every league*
@@ -509,8 +645,9 @@
 
 | API | Auth | CORS | Description |
 |-----|------|------|-------------|
-| [DB Transport REST API (v6)](https://v6.db.transport.rest/) | `none` | No | (dead — 500 errors) Community-maintained Deutsche Bahn API providing real-time German train departur |
-| [OpenChargeMap API](https://openchargemap.org/site/develop/api) | `none` | Yes | Open data registry of EV charging stations worldwide with real-time availability |
+| [DB Transport REST API (v6)](https://v6.db.transport.rest/) | `none` | Yes | Community-maintained Deutsche Bahn API providing real-time German train departur |
+| [OpenChargeMap API](https://openchargemap.org/) | `none` | No | Global EV charging station directory with location, operator, power level, conne |
+| [World Bank Transport Indicators](https://data.worldbank.org/) | `none` | Yes | Motor vehicles per 1,000 people (IS.VEH.NVEH.P3) and other transport indicators  |
 | [CityBikes API](https://api.citybik.es/v2/) | `none` | Yes | Bike sharing networks around the world covering 400+ cities, real-time station a |
 | [REST Countries API](https://restcountries.com/) | `none` | Yes | Country data including driving side (left/right), car registration signs, flags, |
 | [Open-Meteo Marine API](https://open-meteo.com/en/docs/marine-weather-api) | `none` | Yes | Marine weather data including wave height, wave period, wave direction, swell he |
@@ -528,6 +665,7 @@
 | [MyTTC API (Toronto Transit Commission)](https://myttc.ca/developers) | `none` | Yes | Toronto transit data including routes, stops, real-time vehicle positions, and a |
 | [transport.rest](https://transport.rest/) | `none` | Yes | Community-maintained public transit APIs for multiple European cities. Supports  |
 | [511 Open Data (Transit)](https://511.org/open-data) | `key` | Yes | Free real-time transit data for California Bay Area and statewide. Includes aler |
+| [CityBikes](https://api.citybik.es/) | `none` | Yes | Real-time bike-sharing data for 800+ cities worldwide |
 
 ## Weather
 *Atmospheric data from around the globe*
@@ -540,17 +678,17 @@
 | [7Timer Weather API](https://www.7timer.info/doc.php) | `none` | No | Global numerical weather forecast derived from NOAA/NCEP GFS model, no API key r |
 | [Current UV Index API](https://currentuvindex.com/api) | `none` | Yes | Real-time UV Index and 120-hour hourly forecast globally, no signup required, 50 |
 | [Open-Meteo Air Quality API](https://open-meteo.com/en/docs/air-quality-api) | `none` | Yes | Free air quality forecast API with global coverage, real-time and historical dat |
-| [OpenAQ](https://openaq.org/) | `none` | No | (dead — 410 Gone) Global air quality data from 11,000+ monitoring stations, open-source platform,  |
+| [OpenAQ](https://openaq.org/) | `none` | No | BROKEN: API returns 410 Gone and blocks CORS. Replaced by Open-Meteo Air Composi |
 | [AQICN.org Air Quality](https://aqicn.org/api/) | `key` | Yes | Real-time air quality data from 11,000+ stations, free API access with token, JS |
-| [Weatherstack](https://weatherstack.com/) | `key` | No | (CORS blocked, needs API key) Current weather data, historical weather, and forecasts |
+| [Weatherstack](https://weatherstack.com/) | `key` | No | BROKEN: Free tier is HTTP-only (mixed content on HTTPS pages) and now requires A |
+| [Open-Meteo Marine API](https://open-meteo.com/en/docs/marine-weather-api) | `none` | Yes | Free marine weather API with wave height, wave direction, swell, ocean current d |
 | [WeatherAPI.com](https://www.weatherapi.com/) | `key` | Yes | Free weather API with hourly, daily, 15-minute interval data, historical data, a |
 | [U.S. EPA Air Quality System (AQS)](https://aqs.epa.gov/aqsweb/documents/data_api.html) | `key` | No | U.S. ambient air quality data from thousands of monitors, historical and current |
 | [Google Maps Air Quality API](https://developers.google.com/maps/documentation/air-quality/overview) | `key` | Yes | Real-time air quality data and forecasts with health recommendations, 250 free r |
 | [Visual Crossing Weather API](https://www.visualcrossing.com/weather-api/) | `key` | Yes | Current conditions, historical data, and weather forecast, 1000 free weather rec |
 | [NOAA Climate Data Online (CDO)](https://www.ncdc.noaa.gov/cdo-web/webservices/v2) | `key` | No | Historical climate and weather data from NOAA, requires free token, 5 requests/s |
-| [AviationWeather Data API](https://aviationweather.gov/data/api/) | `none` | No | (CORS blocked) Aviation weather data (METAR, TAF, SIGMET), redeveloped in 2025, public API with |
-| [Aviation Weather Data API](https://aviationweather.gov/data/api/) | `none` | No | (CORS blocked) Free aviation weather data including METAR, TAF, G-AIRMETs, SIGMETs. US governme |
-| [Iowa Environmental Mesonet (IEM) API](https://mesonet.agron.iastate.edu/) | `none` | No | (dead — 422 errors) Free access to 25+ years of ASOS/METAR observations, daily summaries, radar data |
+| [AviationWeather Data API](https://aviationweather.gov/data/api/) | `none` | No | BROKEN for browser use: CORS blocked. Aviation weather data (METAR, TAF, SIGMET) |
+| [Iowa Environmental Mesonet (IEM) API](https://mesonet.agron.iastate.edu/) | `none` | No | BROKEN: Returns 422 Unprocessable Content and blocks CORS. Replaced by Open-Mete |
 | [Storm Glass Marine Weather API](https://stormglass.io/) | `key` | Yes | High-resolution marine weather forecasts including waves, tides, currents. Free  |
 | [Ambee Pollen API](https://www.getambee.com/api/pollen) | `key` | Yes | Hyperlocal multi-species pollen count and allergy forecasts. Free tier: 100 API  |
 
@@ -579,7 +717,7 @@
 | [Countries & Cities API](https://countriesnow.space/) | `none` | Yes | Free API providing population and geographical data for countries and cities. Re |
 | [WorldPop API](https://www.worldpop.org/sdi/introapi/) | `none` | No | REST API for accessing WorldPop population, births, and pregnancies datasets. Pr |
 | [Population.io](https://population.io/) | `none` | No | Open demographic data API providing population tables, population rank, and life |
-| [Data USA API](https://datausa.io/about/api/) | `none` | No | (dead, CORS blocked) Free API providing access to US Census and demographic data. Replaced by REST Countries for live widgets |
+| [Data USA API](https://datausa.io/about/api/) | `none` | No | Free API providing access to US Census and demographic data. Query population, e |
 | [Geoapify Geocoding API](https://www.geoapify.com/geocoding-api/) | `key` | Yes | Free geocoding and reverse geocoding API with focus on global coverage and Europ |
 | [LocationIQ Reverse Geocoding](https://locationiq.com/) | `key` | Yes | Free reverse geocoding API converting coordinates to addresses. Free tier provid |
 | [Geocode.maps.co](https://geocode.maps.co/) | `key` | Yes | Free geocoding API supporting both forward (address to coordinates) and reverse  |
