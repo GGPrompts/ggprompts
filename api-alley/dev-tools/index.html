@@ -928,6 +928,72 @@
             letter-spacing: 0.06em;
         }
 
+        /* Dev News Feed */
+        .feed-filters {
+            display: flex;
+            gap: var(--s2);
+            margin-bottom: var(--s3);
+            flex-wrap: wrap;
+        }
+        .feed-filter {
+            font-family: var(--font-mono);
+            font-size: var(--text-xs);
+            padding: 3px 10px;
+            border: 1px solid var(--ink-faint);
+            background: transparent;
+            color: var(--ink-muted);
+            cursor: pointer;
+            transition: all var(--transition);
+        }
+        .feed-filter:hover { border-color: var(--cyan-dim); color: var(--cyan-dim); }
+        .feed-filter.active { background: var(--cyan-dim); color: var(--bg); border-color: var(--cyan-dim); }
+        .feed-list { list-style: none; padding: 0; margin: 0; }
+        .feed-item {
+            display: flex;
+            gap: var(--s3);
+            align-items: baseline;
+            padding: var(--s2) 0;
+            border-bottom: 1px solid var(--ink-faint);
+        }
+        .feed-item:last-child { border-bottom: none; }
+        .feed-src {
+            font-family: var(--font-mono);
+            font-size: 9px;
+            font-weight: 700;
+            padding: 2px 5px;
+            flex-shrink: 0;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .feed-src-hn { background: #ff6600; color: #fff; }
+        .feed-src-dev { background: #3b49df; color: #fff; }
+        .feed-src-lob { background: #ac0000; color: #fff; }
+        .feed-src-gh { background: #238636; color: #fff; }
+        .feed-content { flex: 1; min-width: 0; }
+        .feed-title {
+            font-family: var(--font-mono);
+            font-size: var(--text-sm);
+            line-height: 1.4;
+        }
+        .feed-title a {
+            color: var(--ink);
+            text-decoration: none;
+            transition: color var(--transition);
+        }
+        .feed-title a:hover { color: var(--orange); }
+        .feed-meta {
+            font-family: var(--font-mono);
+            font-size: var(--text-xs);
+            color: var(--ink-muted);
+            margin-top: 2px;
+            display: flex;
+            gap: var(--s3);
+            flex-wrap: wrap;
+        }
+        .feed-score { color: var(--orange); }
+        .feed-comments { color: var(--cyan-dim); }
+        .feed-author { color: var(--green-dim); }
+
         /* Footer */
         .site-footer {
             margin-top: var(--s8);
@@ -1263,6 +1329,36 @@
             </div>
         </div>
 
+        <!-- 9: Dev News Feed (HN + Dev.to + Lobsters + GitHub Trending) -->
+        <div class="widget w-full" id="widget-devfeed">
+            <div class="widget-header">
+                <div class="widget-title-group">
+                    <span class="widget-icon">&#x1F4F0;</span>
+                    <span class="widget-name">Dev News Feed</span>
+                    <span class="widget-badge badge-orange">4 sources</span>
+                </div>
+                <div class="widget-actions">
+                    <button class="refresh-btn" onclick="loadDevFeed()" title="Refresh">&#x21BB;</button>
+                </div>
+            </div>
+            <div class="widget-body">
+                <div class="feed-filters">
+                    <button class="feed-filter active" data-src="all">All</button>
+                    <button class="feed-filter" data-src="hn">HN</button>
+                    <button class="feed-filter" data-src="dev">Dev.to</button>
+                    <button class="feed-filter" data-src="lob">Lobsters</button>
+                    <button class="feed-filter" data-src="gh">GitHub</button>
+                </div>
+                <div id="devfeed-output">
+                    <div class="loading-text"><div class="spinner"></div> Loading dev news&#x2026;</div>
+                </div>
+            </div>
+            <div class="status-bar">
+                <div class="status-dot" id="devfeed-status-dot"></div>
+                <span id="devfeed-status-text">Fetching from 4 sources&#x2026;</span>
+            </div>
+        </div>
+
     </div>
     <!-- /widget-grid -->
 
@@ -1270,7 +1366,7 @@
     <footer class="site-footer">
         <div class="footer-text">
             API Alley / <a href="../index.html">dev-tools</a> &#x2014;
-            8 widgets, 0 API keys, all CORS-safe
+            9 widgets, 0 API keys, all CORS-safe
         </div>
         <div class="footer-text">
             Sources: <a href="https://www.ipify.org/" target="_blank" rel="noopener">ipify</a> &#xB7;
@@ -1280,7 +1376,11 @@
             <a href="https://www.dicebear.com" target="_blank" rel="noopener">DiceBear</a> &#xB7;
             <a href="https://fakestoreapi.com" target="_blank" rel="noopener">FakeStore</a> &#xB7;
             <a href="https://reqres.in" target="_blank" rel="noopener">ReqRes</a> &#xB7;
-            <a href="https://dummyjson.com/" target="_blank" rel="noopener">DummyJSON</a>
+            <a href="https://dummyjson.com/" target="_blank" rel="noopener">DummyJSON</a> &#xB7;
+            <a href="https://github.com/HackerNews/API" target="_blank" rel="noopener">Hacker News</a> &#xB7;
+            <a href="https://dev.to/api" target="_blank" rel="noopener">Dev.to</a> &#xB7;
+            <a href="https://lobste.rs" target="_blank" rel="noopener">Lobsters</a> &#xB7;
+            <a href="https://docs.github.com/en/rest/search" target="_blank" rel="noopener">GitHub Trending</a>
         </div>
     </footer>
 
@@ -1909,6 +2009,134 @@ document.getElementById('dummy-tabs').addEventListener('click', function(e) {
 });
 
 loadDummyResource('products');
+
+
+/* ================================================================
+   WIDGET 9: Dev News Feed (HN + Dev.to + Lobsters + GitHub Trending)
+   ================================================================ */
+var devFeedCache = [];
+var devFeedFilter = 'all';
+
+function renderFeedItem(item) {
+    return '<li class="feed-item" data-src="' + item.src + '">' +
+        '<span class="feed-src feed-src-' + item.src + '">' + item.srcLabel + '</span>' +
+        '<div class="feed-content">' +
+            '<div class="feed-title"><a href="' + escHtml(item.url) + '" target="_blank" rel="noopener">' + escHtml(item.title) + '</a></div>' +
+            '<div class="feed-meta">' +
+                '<span class="feed-score">\u25B2 ' + item.score + '</span>' +
+                (item.author ? '<span class="feed-author">' + escHtml(item.author) + '</span>' : '') +
+                (item.comments != null ? '<span class="feed-comments">' + item.comments + ' comments</span>' : '') +
+            '</div>' +
+        '</div>' +
+    '</li>';
+}
+
+function renderDevFeed() {
+    var output = document.getElementById('devfeed-output');
+    var items = devFeedFilter === 'all' ? devFeedCache : devFeedCache.filter(function(x) { return x.src === devFeedFilter; });
+    if (!items.length) {
+        output.innerHTML = '<div class="loading-text">No stories from this source yet</div>';
+        return;
+    }
+    output.innerHTML = '<ul class="feed-list">' + items.map(renderFeedItem).join('') + '</ul>';
+}
+
+async function loadDevFeed() {
+    var output = document.getElementById('devfeed-output');
+    output.innerHTML = '<div class="loading-text"><div class="spinner"></div> Fetching from 4 sources\u2026</div>';
+    setStatus('devfeed-status-dot', 'devfeed-status-text', 'loading', 'Fetching from 4 sources\u2026');
+    var t0 = performance.now();
+    var results = [];
+    var sources = 0;
+
+    // Fetch all 4 in parallel
+    var [hnRes, devRes, lobRes, ghRes] = await Promise.allSettled([
+        // Hacker News
+        fetchWithTimeout('https://hacker-news.firebaseio.com/v0/topstories.json')
+            .then(function(r) { return r.json(); })
+            .then(function(ids) {
+                return Promise.all(ids.slice(0, 5).map(function(id) {
+                    return fetchWithTimeout('https://hacker-news.firebaseio.com/v0/item/' + id + '.json').then(function(r) { return r.json(); });
+                }));
+            })
+            .then(function(stories) {
+                sources++;
+                return stories.map(function(s) {
+                    return { src: 'hn', srcLabel: 'HN', title: s.title, url: s.url || ('https://news.ycombinator.com/item?id=' + s.id), score: s.score || 0, author: s.by, comments: s.descendants || 0 };
+                });
+            }),
+
+        // Dev.to
+        fetchWithTimeout('https://dev.to/api/articles?top=1&per_page=5')
+            .then(function(r) { return r.json(); })
+            .then(function(articles) {
+                sources++;
+                return articles.map(function(a) {
+                    return { src: 'dev', srcLabel: 'DEV', title: a.title, url: a.url, score: a.positive_reactions_count || 0, author: a.user && a.user.username, comments: a.comments_count || 0 };
+                });
+            }),
+
+        // Lobsters
+        fetchWithTimeout('https://lobste.rs/hottest.json')
+            .then(function(r) { return r.json(); })
+            .then(function(stories) {
+                sources++;
+                return stories.slice(0, 5).map(function(s) {
+                    return { src: 'lob', srcLabel: 'LOB', title: s.title, url: s.url || s.comments_url, score: s.score || 0, author: s.submitter_user && s.submitter_user.username, comments: s.comment_count || 0 };
+                });
+            }),
+
+        // GitHub Trending (repos created in last 7 days, sorted by stars)
+        (function() {
+            var d = new Date(); d.setDate(d.getDate() - 7);
+            var since = d.toISOString().slice(0, 10);
+            return fetchWithTimeout('https://api.github.com/search/repositories?q=created:>' + since + '&sort=stars&per_page=5')
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    sources++;
+                    return (data.items || []).map(function(r) {
+                        return { src: 'gh', srcLabel: 'GH', title: r.full_name + ' \u2014 ' + (r.description || '').slice(0, 80), url: r.html_url, score: r.stargazers_count || 0, author: r.owner && r.owner.login, comments: null };
+                    });
+                });
+        })()
+    ]);
+
+    // Merge results, interleave sources
+    var bySource = { hn: [], dev: [], lob: [], gh: [] };
+    [hnRes, devRes, lobRes, ghRes].forEach(function(r) {
+        if (r.status === 'fulfilled' && Array.isArray(r.value)) {
+            r.value.forEach(function(item) { bySource[item.src].push(item); });
+        }
+    });
+
+    // Interleave: take 1 from each source in round-robin
+    var merged = [];
+    var maxLen = Math.max(bySource.hn.length, bySource.dev.length, bySource.lob.length, bySource.gh.length);
+    for (var i = 0; i < maxLen; i++) {
+        if (bySource.hn[i]) merged.push(bySource.hn[i]);
+        if (bySource.dev[i]) merged.push(bySource.dev[i]);
+        if (bySource.lob[i]) merged.push(bySource.lob[i]);
+        if (bySource.gh[i]) merged.push(bySource.gh[i]);
+    }
+
+    devFeedCache = merged;
+    var elapsed = Math.round(performance.now() - t0);
+    renderDevFeed();
+    setStatus('devfeed-status-dot', 'devfeed-status-text', sources > 0 ? 'ok' : 'error',
+        sources + '/4 sources \u00B7 ' + merged.length + ' stories \u00B7 ' + elapsed + 'ms');
+}
+
+// Filter buttons
+document.querySelectorAll('.feed-filter').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        document.querySelectorAll('.feed-filter').forEach(function(b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        devFeedFilter = btn.getAttribute('data-src');
+        renderDevFeed();
+    });
+});
+
+loadDevFeed();
 
 </script>
 
