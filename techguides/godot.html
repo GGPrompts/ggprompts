@@ -1,0 +1,4268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Godot Engine — Tech Guide</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Bungee+Shade&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        /* ================================================================
+           GL1TCH_ART // GODOT ENGINE TECH GUIDE
+           ================================================================
+           Chromatic aberration, scanlines, CRT artifacts, data corruption
+           aesthetics applied to a comprehensive Godot Engine reference.
+           ================================================================ */
+
+        /* --- DESIGN TOKENS --- */
+        :root {
+            /* RGB CHANNEL PALETTE */
+            --red: #ff0040;
+            --red-glow: rgba(255, 0, 64, 0.6);
+            --green: #00ff41;
+            --green-glow: rgba(0, 255, 65, 0.6);
+            --blue: #0080ff;
+            --blue-glow: rgba(0, 128, 255, 0.6);
+            --cyan: #00e5ff;
+            --cyan-glow: rgba(0, 229, 255, 0.5);
+            --magenta: #ff00ff;
+            --magenta-glow: rgba(255, 0, 255, 0.5);
+            --yellow: #ffee00;
+            --yellow-glow: rgba(255, 238, 0, 0.5);
+            --white: #e8e8e8;
+
+            /* BACKGROUNDS */
+            --bg-void: #000000;
+            --bg-primary: #0a0a0c;
+            --bg-secondary: #111115;
+            --bg-elevated: #1a1a20;
+            --bg-surface: #222228;
+
+            /* TEXT */
+            --text-primary: #e0e0e8;
+            --text-secondary: #a0a0b0;
+            --text-muted: #707080;
+
+            /* BORDERS */
+            --border-dim: rgba(0, 229, 255, 0.15);
+            --border-glow: rgba(0, 229, 255, 0.4);
+            --border-glitch: rgba(255, 0, 64, 0.3);
+
+            /* TYPOGRAPHY */
+            --font-display: 'Bungee Shade', sans-serif;
+            --font-heading: 'Space Mono', monospace;
+            --font-body: 'Share Tech Mono', monospace;
+
+            /* SPACING */
+            --space-xs: 4px;
+            --space-sm: 8px;
+            --space-md: 16px;
+            --space-lg: 32px;
+            --space-xl: 48px;
+            --space-2xl: 64px;
+            --space-3xl: 96px;
+
+            /* EFFECTS */
+            --aberration-offset: 3px;
+            --scanline-opacity: 0.05;
+
+            /* TRANSITIONS */
+            --transition-fast: 0.1s ease;
+            --transition-base: 0.25s ease;
+
+            /* SECTION ACCENT CYCLING */
+            --accent-1: var(--red);
+            --accent-2: var(--green);
+            --accent-3: var(--blue);
+            --accent-4: var(--cyan);
+            --accent-5: var(--magenta);
+            --accent-6: var(--yellow);
+        }
+
+        /* --- KEYFRAME ANIMATIONS --- */
+
+        @keyframes glitch-clip {
+            0% { clip-path: inset(40% 0 61% 0); }
+            5% { clip-path: inset(10% 0 85% 0); }
+            10% { clip-path: inset(80% 0 5% 0); }
+            15% { clip-path: inset(25% 0 58% 0); }
+            20% { clip-path: inset(62% 0 12% 0); }
+            25% { clip-path: inset(5% 0 90% 0); }
+            30% { clip-path: inset(70% 0 15% 0); }
+            35% { clip-path: inset(15% 0 72% 0); }
+            40% { clip-path: inset(88% 0 2% 0); }
+            45% { clip-path: inset(33% 0 50% 0); }
+            50% { clip-path: inset(55% 0 30% 0); }
+            55% { clip-path: inset(8% 0 78% 0); }
+            60% { clip-path: inset(45% 0 40% 0); }
+            65% { clip-path: inset(92% 0 1% 0); }
+            70% { clip-path: inset(18% 0 65% 0); }
+            75% { clip-path: inset(75% 0 10% 0); }
+            80% { clip-path: inset(3% 0 88% 0); }
+            85% { clip-path: inset(60% 0 25% 0); }
+            90% { clip-path: inset(28% 0 55% 0); }
+            95% { clip-path: inset(85% 0 8% 0); }
+            100% { clip-path: inset(42% 0 53% 0); }
+        }
+
+        @keyframes glitch-clip-2 {
+            0% { clip-path: inset(55% 0 30% 0); }
+            5% { clip-path: inset(85% 0 8% 0); }
+            10% { clip-path: inset(12% 0 75% 0); }
+            15% { clip-path: inset(68% 0 18% 0); }
+            20% { clip-path: inset(35% 0 48% 0); }
+            25% { clip-path: inset(90% 0 3% 0); }
+            30% { clip-path: inset(20% 0 65% 0); }
+            35% { clip-path: inset(50% 0 35% 0); }
+            40% { clip-path: inset(5% 0 82% 0); }
+            45% { clip-path: inset(72% 0 12% 0); }
+            50% { clip-path: inset(30% 0 55% 0); }
+            55% { clip-path: inset(95% 0 1% 0); }
+            60% { clip-path: inset(15% 0 70% 0); }
+            65% { clip-path: inset(60% 0 25% 0); }
+            70% { clip-path: inset(42% 0 42% 0); }
+            75% { clip-path: inset(8% 0 85% 0); }
+            80% { clip-path: inset(78% 0 8% 0); }
+            85% { clip-path: inset(25% 0 60% 0); }
+            90% { clip-path: inset(65% 0 20% 0); }
+            95% { clip-path: inset(48% 0 38% 0); }
+            100% { clip-path: inset(58% 0 28% 0); }
+        }
+
+        @keyframes data-corrupt {
+            0%, 92%, 100% { opacity: 1; transform: translateX(0); }
+            93% { opacity: 0.8; transform: translateX(-3px); }
+            94% { opacity: 1; transform: translateX(3px); }
+            95% { opacity: 0.6; transform: translateX(-2px) skewX(-2deg); }
+            96% { opacity: 1; transform: translateX(0); }
+            97% { opacity: 0.9; transform: translateX(4px); }
+            98% { opacity: 1; transform: translateX(-1px); }
+        }
+
+        @keyframes rgb-drift {
+            0%, 100% { text-shadow: -2px 0 var(--red), 2px 0 var(--cyan); }
+            25% { text-shadow: -3px 1px var(--red), 3px -1px var(--cyan); }
+            50% { text-shadow: -1px -1px var(--red), 1px 1px var(--cyan); }
+            75% { text-shadow: -4px 0 var(--red), 4px 0 var(--cyan); }
+        }
+
+        @keyframes flicker {
+            0%, 100% { opacity: 1; }
+            41% { opacity: 1; }
+            42% { opacity: 0.6; }
+            43% { opacity: 1; }
+            44% { opacity: 0.7; }
+            45% { opacity: 1; }
+        }
+
+        @keyframes bar-scroll {
+            0% { transform: translateY(-100%); }
+            100% { transform: translateY(100%); }
+        }
+
+        @keyframes pixel-sort-line {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+
+        @keyframes scanline-crawl {
+            0% { transform: translateY(-100%); }
+            100% { transform: translateY(100vh); }
+        }
+
+        @keyframes border-pulse {
+            0%, 100% { border-color: var(--border-dim); }
+            50% { border-color: var(--border-glow); }
+        }
+
+        /* --- RESET & BASE --- */
+
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            font-size: 16px;
+            scroll-behavior: smooth;
+            scroll-padding-top: 60px;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        body {
+            font-family: var(--font-body);
+            font-size: 0.9375rem;
+            line-height: 1.7;
+            color: var(--text-primary);
+            background: var(--bg-void);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* --- SCANLINE OVERLAY --- */
+
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 9999;
+            background: repeating-linear-gradient(
+                0deg,
+                rgba(0, 0, 0, var(--scanline-opacity)) 0px,
+                rgba(0, 0, 0, var(--scanline-opacity)) 1px,
+                transparent 1px,
+                transparent 3px
+            );
+        }
+
+        /* --- CRT ROLLING BAR --- */
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 120px;
+            background: linear-gradient(
+                180deg,
+                transparent,
+                rgba(255, 255, 255, 0.012),
+                transparent
+            );
+            animation: bar-scroll 8s linear infinite;
+            pointer-events: none;
+            z-index: 9998;
+            will-change: transform;
+        }
+
+        /* --- CONTAINER --- */
+
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1060px;
+            margin: 0 auto;
+            padding: 0 var(--space-lg);
+        }
+
+        /* --- BACK LINK --- */
+
+        .back-link {
+            display: inline-block;
+            font-family: var(--font-body);
+            font-size: 0.8rem;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--cyan);
+            text-decoration: none;
+            padding: var(--space-md) var(--space-lg);
+            transition: color var(--transition-base), text-shadow var(--transition-base);
+        }
+
+        .back-link:hover {
+            color: var(--green);
+            text-shadow: 0 0 8px var(--green-glow);
+        }
+
+        /* --- PAGE HEADER --- */
+
+        .page-header {
+            text-align: center;
+            padding: var(--space-xl) var(--space-md) var(--space-2xl);
+            position: relative;
+        }
+
+        .page-header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 400px;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--red), var(--cyan), var(--green), transparent);
+        }
+
+        .page-header::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 300px;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--border-glow), transparent);
+        }
+
+        .page-title {
+            font-family: var(--font-display);
+            font-size: clamp(2.5rem, 8vw, 5rem);
+            font-weight: 400;
+            color: var(--white);
+            letter-spacing: 0.1em;
+            position: relative;
+            display: inline-block;
+            animation: data-corrupt 8s infinite;
+        }
+
+        .page-title::before,
+        .page-title::after {
+            content: attr(data-text);
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .page-title::before {
+            color: var(--red);
+            z-index: -1;
+            animation: glitch-clip 6s infinite linear alternate-reverse;
+            left: -3px;
+            will-change: clip-path;
+        }
+
+        .page-title::after {
+            color: var(--cyan);
+            z-index: -1;
+            animation: glitch-clip-2 6s infinite linear alternate-reverse;
+            left: 3px;
+            will-change: clip-path;
+        }
+
+        .page-tagline {
+            font-family: var(--font-heading);
+            font-size: 0.9375rem;
+            color: var(--text-secondary);
+            letter-spacing: 0.35em;
+            text-transform: uppercase;
+            margin-top: var(--space-md);
+        }
+
+        .page-tagline span {
+            color: var(--red);
+        }
+
+        .page-meta {
+            font-family: var(--font-body);
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: var(--space-sm);
+            letter-spacing: 0.1em;
+        }
+
+        /* --- STICKY JUMP NAVIGATION --- */
+
+        .jump-nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            gap: 0;
+            padding: 0;
+            background: var(--bg-void);
+            border-bottom: 1px solid var(--border-glow);
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            white-space: nowrap;
+            box-shadow: 0 4px 24px rgba(0, 229, 255, 0.08), 0 1px 0 var(--border-glow);
+            scrollbar-width: none;
+        }
+
+        .jump-nav::-webkit-scrollbar {
+            display: none;
+        }
+
+        .jump-nav a {
+            display: inline-block;
+            padding: 12px 16px;
+            font-family: var(--font-heading);
+            font-size: 0.65rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+            text-decoration: none;
+            transition: color var(--transition-fast), background var(--transition-fast), box-shadow var(--transition-fast);
+            flex-shrink: 0;
+            border-right: 1px solid rgba(0, 229, 255, 0.08);
+            position: relative;
+        }
+
+        .jump-nav a:last-child {
+            border-right: none;
+        }
+
+        .jump-nav a:hover {
+            color: var(--cyan);
+            background: rgba(0, 229, 255, 0.06);
+            box-shadow: inset 0 -2px 0 var(--cyan);
+        }
+
+        .jump-nav a .nav-num {
+            color: var(--red);
+            margin-right: 4px;
+        }
+
+        /* --- SECTIONS --- */
+
+        .section {
+            position: relative;
+            margin-bottom: var(--space-2xl);
+            padding: var(--space-lg);
+            background: var(--bg-primary);
+            border: 1px solid var(--border-dim);
+            overflow: hidden;
+        }
+
+        /* Pixel-sort strip on left edge */
+        .section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background: linear-gradient(
+                180deg,
+                var(--red) 0%,
+                var(--magenta) 15%,
+                var(--blue) 30%,
+                var(--cyan) 50%,
+                var(--green) 70%,
+                var(--yellow) 85%,
+                var(--red) 100%
+            );
+            background-size: 100% 200%;
+            animation: pixel-sort-line 6s linear infinite;
+        }
+
+        .section:hover {
+            border-color: var(--border-glitch);
+        }
+
+        /* Section accent color cycling */
+        .section:nth-child(6n+1) { --section-accent: var(--red); }
+        .section:nth-child(6n+2) { --section-accent: var(--green); }
+        .section:nth-child(6n+3) { --section-accent: var(--blue); }
+        .section:nth-child(6n+4) { --section-accent: var(--cyan); }
+        .section:nth-child(6n+5) { --section-accent: var(--magenta); }
+        .section:nth-child(6n+6) { --section-accent: var(--yellow); }
+
+        .section-header {
+            margin-bottom: var(--space-lg);
+        }
+
+        .section-number {
+            font-family: var(--font-body);
+            font-size: 0.6875rem;
+            font-weight: 400;
+            letter-spacing: 0.3em;
+            text-transform: uppercase;
+            color: var(--section-accent, var(--cyan));
+            background: rgba(0, 229, 255, 0.06);
+            display: inline-block;
+            padding: 2px 12px;
+            border: 1px solid rgba(0, 229, 255, 0.15);
+            margin-bottom: var(--space-sm);
+        }
+
+        .section-title {
+            font-family: var(--font-heading);
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--white);
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            padding-bottom: var(--space-sm);
+            border-bottom: 1px solid var(--border-dim);
+            text-shadow: -1px 0 var(--red), 1px 0 var(--cyan);
+        }
+
+        .section-description {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            margin-top: var(--space-md);
+            max-width: 65ch;
+            line-height: 1.8;
+        }
+
+        /* --- SUBSECTIONS --- */
+
+        .subsection {
+            margin-bottom: var(--space-xl);
+        }
+
+        .subsection:last-child {
+            margin-bottom: 0;
+        }
+
+        .subsection-title {
+            font-family: var(--font-heading);
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--cyan);
+            letter-spacing: 0.06em;
+            margin-bottom: var(--space-md);
+            padding-bottom: var(--space-xs);
+            border-bottom: 1px solid rgba(0, 229, 255, 0.1);
+            position: relative;
+        }
+
+        .subsection-title::before {
+            content: '>';
+            color: var(--red);
+            margin-right: var(--space-sm);
+            font-weight: 400;
+        }
+
+        .subsection-description {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            margin-bottom: var(--space-md);
+            line-height: 1.8;
+            max-width: 70ch;
+        }
+
+        /* --- CODE BLOCKS --- */
+
+        code {
+            font-family: var(--font-body);
+            font-size: 0.9em;
+        }
+
+        pre {
+            background: var(--bg-void);
+            border-left: 3px solid var(--green);
+            padding: var(--space-lg) var(--space-lg);
+            margin: var(--space-md) 0;
+            overflow-x: auto;
+            position: relative;
+        }
+
+        pre::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, var(--green), var(--cyan), transparent);
+        }
+
+        pre::after {
+            content: 'GDScript';
+            position: absolute;
+            top: 6px;
+            right: 12px;
+            font-family: var(--font-body);
+            font-size: 0.6rem;
+            color: var(--text-muted);
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            opacity: 0.5;
+        }
+
+        pre code {
+            display: block;
+            color: var(--green);
+            white-space: pre;
+            line-height: 1.65;
+            font-size: 0.85rem;
+        }
+
+        /* Inline code */
+        p code, li code, td code, .inline-code {
+            background: rgba(0, 229, 255, 0.08);
+            color: var(--cyan);
+            padding: 2px 7px;
+            font-size: 0.85em;
+            border: 1px solid rgba(0, 229, 255, 0.12);
+            overflow-wrap: break-word;
+            word-break: break-all;
+        }
+
+        /* --- TABLES --- */
+
+        .table-container {
+            margin: var(--space-lg) 0;
+            overflow-x: auto;
+            border: 1px solid var(--border-dim);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+
+        thead {
+            background: var(--bg-elevated);
+        }
+
+        thead th {
+            font-family: var(--font-heading);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            text-align: left;
+            padding: 10px var(--space-md);
+            font-size: 0.7rem;
+            color: var(--cyan);
+            border-bottom: 2px solid var(--cyan);
+        }
+
+        tbody {
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        tbody tr {
+            border-bottom: 1px solid rgba(0, 229, 255, 0.06);
+            transition: background var(--transition-fast);
+        }
+
+        tbody tr:nth-child(even) {
+            background: rgba(0, 229, 255, 0.02);
+        }
+
+        tbody tr:hover {
+            background: rgba(0, 229, 255, 0.06);
+        }
+
+        tbody td {
+            padding: 8px var(--space-md);
+            vertical-align: top;
+            color: var(--text-secondary);
+        }
+
+        tbody td:first-child {
+            font-weight: 400;
+            color: var(--text-primary);
+        }
+
+        /* --- COMMAND GRID --- */
+
+        .command-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: var(--space-md);
+            margin: var(--space-lg) 0;
+        }
+
+        .command-card {
+            background: var(--bg-secondary);
+            padding: var(--space-md);
+            border-left: 3px solid var(--section-accent, var(--cyan));
+            transition: all var(--transition-base);
+            position: relative;
+        }
+
+        .command-card::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            width: 1px;
+            background: linear-gradient(180deg, var(--border-dim), transparent);
+        }
+
+        .command-card:hover {
+            border-left-color: var(--white);
+            box-shadow: 0 0 16px rgba(0, 229, 255, 0.12);
+            transform: translateY(-2px);
+        }
+
+        .command-card .command {
+            font-family: var(--font-body);
+            font-size: 0.85rem;
+            color: var(--green);
+            margin-bottom: var(--space-xs);
+        }
+
+        .command-card .description {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        /* --- ALERT / CALLOUT BOXES --- */
+
+        .alert {
+            padding: var(--space-lg);
+            margin: var(--space-lg) 0;
+            position: relative;
+            background: var(--bg-secondary);
+        }
+
+        .alert::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+        }
+
+        .alert h4 {
+            font-family: var(--font-heading);
+            font-size: 0.9rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            margin-bottom: var(--space-sm);
+        }
+
+        .alert p {
+            font-size: 0.85rem;
+            line-height: 1.7;
+            color: var(--text-secondary);
+        }
+
+        .alert-info {
+            border-left: 3px solid var(--cyan);
+            background: rgba(0, 229, 255, 0.04);
+        }
+
+        .alert-info::before {
+            background: linear-gradient(90deg, var(--cyan), transparent);
+        }
+
+        .alert-info h4 {
+            color: var(--cyan);
+        }
+
+        .alert-info h4::before {
+            content: '[i] ';
+            color: var(--cyan);
+            opacity: 0.7;
+        }
+
+        .alert-warning {
+            border-left: 3px solid var(--yellow);
+            background: rgba(255, 238, 0, 0.04);
+        }
+
+        .alert-warning::before {
+            background: linear-gradient(90deg, var(--yellow), transparent);
+        }
+
+        .alert-warning h4 {
+            color: var(--yellow);
+        }
+
+        .alert-warning h4::before {
+            content: '[!] ';
+            color: var(--yellow);
+            opacity: 0.7;
+        }
+
+        .alert-tip {
+            border-left: 3px solid var(--green);
+            background: rgba(0, 255, 65, 0.04);
+        }
+
+        .alert-tip::before {
+            background: linear-gradient(90deg, var(--green), transparent);
+        }
+
+        .alert-tip h4 {
+            color: var(--green);
+        }
+
+        .alert-tip h4::before {
+            content: '[*] ';
+            color: var(--green);
+            opacity: 0.7;
+        }
+
+        /* --- BADGES --- */
+
+        .badge {
+            display: inline-block;
+            font-family: var(--font-body);
+            font-size: 0.65rem;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            padding: 2px 8px;
+            border: 1px solid;
+        }
+
+        .badge-red {
+            color: var(--red);
+            border-color: rgba(255, 0, 64, 0.4);
+            background: rgba(255, 0, 64, 0.08);
+        }
+
+        .badge-green {
+            color: var(--green);
+            border-color: rgba(0, 255, 65, 0.4);
+            background: rgba(0, 255, 65, 0.08);
+        }
+
+        .badge-blue {
+            color: var(--blue);
+            border-color: rgba(0, 128, 255, 0.4);
+            background: rgba(0, 128, 255, 0.08);
+        }
+
+        .badge-cyan {
+            color: var(--cyan);
+            border-color: rgba(0, 229, 255, 0.4);
+            background: rgba(0, 229, 255, 0.08);
+        }
+
+        .badge-magenta {
+            color: var(--magenta);
+            border-color: rgba(255, 0, 255, 0.4);
+            background: rgba(255, 0, 255, 0.08);
+        }
+
+        .badge-yellow {
+            color: var(--yellow);
+            border-color: rgba(255, 238, 0, 0.4);
+            background: rgba(255, 238, 0, 0.08);
+        }
+
+        /* --- CONTENT LISTS --- */
+
+        .content-list {
+            list-style: none;
+            margin: var(--space-md) 0;
+        }
+
+        .content-list li {
+            padding-left: var(--space-lg);
+            margin-bottom: var(--space-sm);
+            position: relative;
+            line-height: 1.7;
+            color: var(--text-secondary);
+        }
+
+        .content-list li::before {
+            content: '//';
+            position: absolute;
+            left: 0;
+            color: var(--red);
+            font-family: var(--font-body);
+            font-size: 0.8em;
+        }
+
+        /* --- PARAGRAPH --- */
+
+        .section-content p {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            line-height: 1.8;
+            margin-bottom: var(--space-md);
+            max-width: 70ch;
+        }
+
+        /* --- FOOTER --- */
+
+        .site-footer {
+            text-align: center;
+            padding: var(--space-2xl) var(--space-lg);
+            margin-top: var(--space-2xl);
+            border-top: 1px solid var(--border-dim);
+            position: relative;
+        }
+
+        .site-footer::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 200px;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+        }
+
+        .site-footer a {
+            font-family: var(--font-body);
+            font-size: 0.8rem;
+            color: var(--cyan);
+            text-decoration: none;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            transition: color var(--transition-base), text-shadow var(--transition-base);
+        }
+
+        .site-footer a:hover {
+            color: var(--green);
+            text-shadow: 0 0 8px var(--green-glow);
+        }
+
+        .site-footer .footer-glitch {
+            font-family: var(--font-body);
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            margin-top: var(--space-md);
+            letter-spacing: 0.2em;
+        }
+
+        /* --- RESPONSIVE --- */
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 0 var(--space-md);
+            }
+
+            .section {
+                padding: var(--space-md);
+                margin-bottom: var(--space-xl);
+            }
+
+            .page-title {
+                font-size: clamp(2rem, 10vw, 3rem);
+            }
+
+            .page-tagline {
+                font-size: 0.75rem;
+                letter-spacing: 0.2em;
+            }
+
+            .jump-nav a {
+                padding: 10px 12px;
+                font-size: 0.6rem;
+            }
+
+            .section-title {
+                font-size: 1.2rem;
+                letter-spacing: 0.08em;
+            }
+
+            .command-grid {
+                grid-template-columns: 1fr;
+            }
+
+            pre {
+                padding: var(--space-md);
+                font-size: 0.8rem;
+            }
+
+            pre::after {
+                display: none;
+            }
+
+            .table-container {
+                font-size: 0.8rem;
+            }
+
+            thead th,
+            tbody td {
+                padding: 6px 10px;
+            }
+
+            .alert {
+                padding: var(--space-md);
+            }
+        }
+
+        @media (max-width: 480px) {
+            .jump-nav a .nav-label {
+                display: none;
+            }
+
+            .jump-nav a .nav-num {
+                margin-right: 0;
+            }
+
+            .page-header {
+                padding: var(--space-lg) var(--space-sm) var(--space-xl);
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+    <a href="index.html" class="back-link">&larr; Tech Guides</a>
+
+    <header class="page-header">
+        <h1 class="page-title" data-text="GODOT ENGINE">GODOT ENGINE</h1>
+        <p class="page-tagline">Open-source game development <span>//</span> GDScript to shipping</p>
+        <p class="page-meta">v4.x reference // scene trees, nodes, physics, shaders, export</p>
+    </header>
+
+    <nav class="jump-nav">
+        <a href="#quick-reference"><span class="nav-num">01</span><span class="nav-label"> Quick Ref</span></a>
+        <a href="#installation"><span class="nav-num">02</span><span class="nav-label"> Setup</span></a>
+        <a href="#scene-system"><span class="nav-num">03</span><span class="nav-label"> Scenes</span></a>
+        <a href="#gdscript"><span class="nav-num">04</span><span class="nav-label"> GDScript</span></a>
+        <a href="#physics"><span class="nav-num">05</span><span class="nav-label"> Physics</span></a>
+        <a href="#2d-dev"><span class="nav-num">06</span><span class="nav-label"> 2D</span></a>
+        <a href="#3d-dev"><span class="nav-num">07</span><span class="nav-label"> 3D</span></a>
+        <a href="#ui-controls"><span class="nav-num">08</span><span class="nav-label"> UI</span></a>
+        <a href="#animation"><span class="nav-num">09</span><span class="nav-label"> Anim</span></a>
+        <a href="#audio-resources"><span class="nav-num">10</span><span class="nav-label"> Audio</span></a>
+        <a href="#ai-mcp"><span class="nav-num">11</span><span class="nav-label"> AI/MCP</span></a>
+        <a href="#export"><span class="nav-num">12</span><span class="nav-label"> Export</span></a>
+    </nav>
+
+    <!-- ============================================================
+         SECTION 01: QUICK REFERENCE
+         ============================================================ -->
+
+    <section id="quick-reference" class="section">
+        <div class="section-header">
+            <span class="section-number">// 01</span>
+            <h2 class="section-title">Quick Reference</h2>
+            <p class="section-description">Essential GDScript syntax, node types, and keyboard shortcuts at a glance. Keep this section bookmarked.</p>
+        </div>
+        <div class="section-content">
+
+            <div class="subsection">
+                <h3 class="subsection-title">GDScript Syntax Cheat Sheet</h3>
+                <div class="command-grid">
+                    <div class="command-card">
+                        <div class="command">var name = "Godot"</div>
+                        <div class="description">Variable declaration (inferred type)</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">var hp: int = 100</div>
+                        <div class="description">Typed variable declaration</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">const MAX = 999</div>
+                        <div class="description">Constant (compile-time)</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">@export var speed: float = 5.0</div>
+                        <div class="description">Exposed to Inspector panel</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">@onready var sprite = $Sprite2D</div>
+                        <div class="description">Assign after _ready()</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">func move(dir: Vector2) -> void:</div>
+                        <div class="description">Typed function signature</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">signal health_changed(new_hp)</div>
+                        <div class="description">Custom signal definition</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">emit_signal("health_changed", hp)</div>
+                        <div class="description">Emit signal with arguments</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">if / elif / else:</div>
+                        <div class="description">Conditional branching</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">for item in array:</div>
+                        <div class="description">Iterate over collection</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">match value:</div>
+                        <div class="description">Pattern matching (like switch)</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">await get_tree().create_timer(1.0).timeout</div>
+                        <div class="description">Async wait for 1 second</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Most-Used Node Types</h3>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Category</th>
+                                <th>Node</th>
+                                <th>Purpose</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><span class="badge badge-cyan">2D</span></td>
+                                <td><code>Sprite2D</code></td>
+                                <td>Displays a 2D texture</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge badge-cyan">2D</span></td>
+                                <td><code>CharacterBody2D</code></td>
+                                <td>Player/NPC with move_and_slide()</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge badge-cyan">2D</span></td>
+                                <td><code>RigidBody2D</code></td>
+                                <td>Physics-driven body (gravity, forces)</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge badge-cyan">2D</span></td>
+                                <td><code>TileMapLayer</code></td>
+                                <td>Tile-based level design</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge badge-cyan">2D</span></td>
+                                <td><code>Camera2D</code></td>
+                                <td>Viewport camera with smoothing/limits</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge badge-blue">3D</span></td>
+                                <td><code>MeshInstance3D</code></td>
+                                <td>Renders a 3D mesh</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge badge-blue">3D</span></td>
+                                <td><code>CharacterBody3D</code></td>
+                                <td>3D player/NPC movement</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge badge-blue">3D</span></td>
+                                <td><code>Camera3D</code></td>
+                                <td>3D viewport camera</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge badge-blue">3D</span></td>
+                                <td><code>DirectionalLight3D</code></td>
+                                <td>Sun/moon global lighting</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge badge-green">UI</span></td>
+                                <td><code>Control</code></td>
+                                <td>Base class for all UI nodes</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge badge-green">UI</span></td>
+                                <td><code>Label</code></td>
+                                <td>Text display</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge badge-green">UI</span></td>
+                                <td><code>Button</code></td>
+                                <td>Clickable button with signals</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge badge-green">UI</span></td>
+                                <td><code>VBoxContainer</code></td>
+                                <td>Vertical auto-layout</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge badge-magenta">Core</span></td>
+                                <td><code>Node</code></td>
+                                <td>Base class (script-only logic)</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge badge-magenta">Core</span></td>
+                                <td><code>Timer</code></td>
+                                <td>Countdown with timeout signal</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge badge-magenta">Core</span></td>
+                                <td><code>Area2D / Area3D</code></td>
+                                <td>Detect overlap / trigger zones</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Editor Keyboard Shortcuts</h3>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Context</th>
+                                <th>Shortcut</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><span class="badge badge-red">Editor</span></td>
+                                <td><code>F5</code></td>
+                                <td>Run project</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge badge-red">Editor</span></td>
+                                <td><code>F6</code></td>
+                                <td>Run current scene</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge badge-red">Editor</span></td>
+                                <td><code>F8</code></td>
+                                <td>Stop running scene</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge badge-red">Editor</span></td>
+                                <td><code>Ctrl+S</code></td>
+                                <td>Save scene</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge badge-red">Editor</span></td>
+                                <td><code>Ctrl+Shift+S</code></td>
+                                <td>Save all scenes</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge badge-yellow">Viewport</span></td>
+                                <td><code>Q</code></td>
+                                <td>Select mode</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge badge-yellow">Viewport</span></td>
+                                <td><code>W</code></td>
+                                <td>Move mode</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge badge-yellow">Viewport</span></td>
+                                <td><code>E</code></td>
+                                <td>Rotate mode</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge badge-yellow">Viewport</span></td>
+                                <td><code>S</code></td>
+                                <td>Scale mode</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge badge-cyan">Script</span></td>
+                                <td><code>Ctrl+Space</code></td>
+                                <td>Autocomplete</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge badge-cyan">Script</span></td>
+                                <td><code>Ctrl+D</code></td>
+                                <td>Duplicate line</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge badge-cyan">Script</span></td>
+                                <td><code>Ctrl+Shift+K</code></td>
+                                <td>Delete line</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge badge-cyan">Script</span></td>
+                                <td><code>Ctrl+K</code></td>
+                                <td>Toggle comment</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge badge-cyan">Script</span></td>
+                                <td><code>F1</code></td>
+                                <td>Open documentation for symbol</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge badge-cyan">Script</span></td>
+                                <td><code>Ctrl+Shift+F</code></td>
+                                <td>Search across all files</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Common Built-in Functions</h3>
+                <div class="command-grid">
+                    <div class="command-card">
+                        <div class="command">get_node("Path") / $Path</div>
+                        <div class="description">Access child node by path</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">get_tree()</div>
+                        <div class="description">Access the SceneTree singleton</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">queue_free()</div>
+                        <div class="description">Safely destroy node at end of frame</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">print() / push_error()</div>
+                        <div class="description">Console output / error logging</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">lerp(a, b, t)</div>
+                        <div class="description">Linear interpolation between values</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">clamp(val, min, max)</div>
+                        <div class="description">Restrict value to range</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">randf_range(0.0, 1.0)</div>
+                        <div class="description">Random float in range</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">Input.is_action_pressed("ui_right")</div>
+                        <div class="description">Check if input action is held</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">preload("res://scene.tscn")</div>
+                        <div class="description">Load resource at compile time</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">load("res://file.tres")</div>
+                        <div class="description">Load resource at runtime</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">instantiate()</div>
+                        <div class="description">Create instance from PackedScene</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">add_child(node)</div>
+                        <div class="description">Add node to the scene tree</div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- ============================================================
+         SECTION 02: INSTALLATION & SETUP
+         ============================================================ -->
+
+    <section id="installation" class="section">
+        <div class="section-header">
+            <span class="section-number">// 02</span>
+            <h2 class="section-title">Installation & Setup</h2>
+            <p class="section-description">Downloading Godot, understanding the editor layout, project structure, and choosing between the standard and .NET editions.</p>
+        </div>
+        <div class="section-content">
+
+            <div class="subsection">
+                <h3 class="subsection-title">Download Options</h3>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Method</th>
+                                <th>Command / URL</th>
+                                <th>Notes</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Official Site</td>
+                                <td><code>godotengine.org/download</code></td>
+                                <td>Recommended. Choose Standard or .NET</td>
+                            </tr>
+                            <tr>
+                                <td>Steam</td>
+                                <td>Search "Godot Engine" on Steam</td>
+                                <td>Free. Auto-updates. Standard edition only</td>
+                            </tr>
+                            <tr>
+                                <td>Homebrew (macOS)</td>
+                                <td><code>brew install --cask godot</code></td>
+                                <td>Standard edition via Homebrew Cask</td>
+                            </tr>
+                            <tr>
+                                <td>Flatpak (Linux)</td>
+                                <td><code>flatpak install flathub org.godotengine.Godot</code></td>
+                                <td>Sandboxed Linux package</td>
+                            </tr>
+                            <tr>
+                                <td>Scoop (Windows)</td>
+                                <td><code>scoop install godot</code></td>
+                                <td>Windows package manager</td>
+                            </tr>
+                            <tr>
+                                <td>Build from Source</td>
+                                <td><code>github.com/godotengine/godot</code></td>
+                                <td>Requires SCons, Python, C++ compiler</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Standard vs .NET Edition</h3>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Feature</th>
+                                <th>Standard</th>
+                                <th>.NET</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Scripting</td>
+                                <td>GDScript only</td>
+                                <td>GDScript + C#</td>
+                            </tr>
+                            <tr>
+                                <td>Download Size</td>
+                                <td>~40 MB</td>
+                                <td>~80 MB (includes .NET runtime)</td>
+                            </tr>
+                            <tr>
+                                <td>External IDE</td>
+                                <td>Optional (built-in editor is good)</td>
+                                <td>VS Code / Rider recommended for C#</td>
+                            </tr>
+                            <tr>
+                                <td>Dependencies</td>
+                                <td>None (single executable)</td>
+                                <td>Requires .NET 8 SDK</td>
+                            </tr>
+                            <tr>
+                                <td>Web Export</td>
+                                <td>Full support</td>
+                                <td>Limited (no C# in web builds)</td>
+                            </tr>
+                            <tr>
+                                <td>Best For</td>
+                                <td>Most projects, beginners</td>
+                                <td>Teams with C# experience, NuGet ecosystem</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="alert alert-tip">
+                    <h4>Start with Standard</h4>
+                    <p>Unless you have a strong reason to use C#, the standard edition with GDScript is simpler, exports to all platforms (including web), and has better documentation coverage. You can always switch later.</p>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Editor Layout Overview</h3>
+                <p class="subsection-description">Godot's editor has five main areas. Each can be resized or rearranged.</p>
+                <div class="command-grid">
+                    <div class="command-card">
+                        <div class="command">Scene Dock (top-left)</div>
+                        <div class="description">Node tree hierarchy for the current scene. Add, delete, reparent nodes here.</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">FileSystem Dock (bottom-left)</div>
+                        <div class="description">Project directory browser. Drag files into the scene or Inspector.</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">Viewport (center)</div>
+                        <div class="description">2D/3D canvas for placing and arranging nodes visually. Tabs for Script, AssetLib.</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">Inspector (right)</div>
+                        <div class="description">Properties panel for the selected node. Edit transforms, textures, physics, scripts.</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">Output / Debugger (bottom)</div>
+                        <div class="description">Console output, errors, profiler, and debugger breakpoints.</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Project File Types</h3>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Extension</th>
+                                <th>Type</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>project.godot</code></td>
+                                <td>Config</td>
+                                <td>Project settings (resolution, input maps, autoloads). The "root" file.</td>
+                            </tr>
+                            <tr>
+                                <td><code>.tscn</code></td>
+                                <td>Scene</td>
+                                <td>Text-based scene file (nodes, properties, connections). Version-control friendly.</td>
+                            </tr>
+                            <tr>
+                                <td><code>.gd</code></td>
+                                <td>Script</td>
+                                <td>GDScript source file. Attached to nodes.</td>
+                            </tr>
+                            <tr>
+                                <td><code>.tres</code></td>
+                                <td>Resource</td>
+                                <td>Text-based resource (themes, materials, custom resources).</td>
+                            </tr>
+                            <tr>
+                                <td><code>.res</code></td>
+                                <td>Resource</td>
+                                <td>Binary resource (faster loading, not human-readable).</td>
+                            </tr>
+                            <tr>
+                                <td><code>.gdshader</code></td>
+                                <td>Shader</td>
+                                <td>Godot's shader language file (GLSL-like).</td>
+                            </tr>
+                            <tr>
+                                <td><code>.import</code></td>
+                                <td>Meta</td>
+                                <td>Auto-generated import settings for assets. Commit these to VCS.</td>
+                            </tr>
+                            <tr>
+                                <td><code>.gdextension</code></td>
+                                <td>Plugin</td>
+                                <td>GDExtension configuration for native C/C++/Rust bindings.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Recommended Project Structure</h3>
+<pre><code>res://
+  project.godot
+  scenes/
+    player/
+      player.tscn
+      player.gd
+    enemies/
+      slime.tscn
+      slime.gd
+    levels/
+      level_01.tscn
+    ui/
+      hud.tscn
+      main_menu.tscn
+  scripts/
+    autoload/
+      game_manager.gd
+      audio_manager.gd
+    resources/
+      weapon_data.gd
+  assets/
+    sprites/
+    audio/
+      sfx/
+      music/
+    fonts/
+    shaders/
+  addons/           # third-party plugins
+  export_presets.cfg # export templates config</code></pre>
+                <div class="alert alert-info">
+                    <h4>res:// is your root</h4>
+                    <p>All paths in Godot start with <code>res://</code> (project root) or <code>user://</code> (user data directory for saves, settings). Never use absolute OS paths in your game code.</p>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Godot 4 vs 3 Key Migration Changes</h3>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Godot 3</th>
+                                <th>Godot 4</th>
+                                <th>Reason</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>KinematicBody2D</code></td>
+                                <td><code>CharacterBody2D</code></td>
+                                <td>Clearer naming</td>
+                            </tr>
+                            <tr>
+                                <td><code>move_and_slide(vel)</code></td>
+                                <td><code>velocity = vel; move_and_slide()</code></td>
+                                <td>Velocity is now a built-in property</td>
+                            </tr>
+                            <tr>
+                                <td><code>export var</code></td>
+                                <td><code>@export var</code></td>
+                                <td>Annotations replace keywords</td>
+                            </tr>
+                            <tr>
+                                <td><code>onready var</code></td>
+                                <td><code>@onready var</code></td>
+                                <td>Same annotation pattern</td>
+                            </tr>
+                            <tr>
+                                <td><code>yield()</code></td>
+                                <td><code>await</code></td>
+                                <td>Matches modern async patterns</td>
+                            </tr>
+                            <tr>
+                                <td><code>connect("signal", obj, "method")</code></td>
+                                <td><code>signal.connect(callable)</code></td>
+                                <td>Type-safe callable syntax</td>
+                            </tr>
+                            <tr>
+                                <td><code>TileMap</code></td>
+                                <td><code>TileMapLayer</code></td>
+                                <td>Per-layer nodes replace multi-layer TileMap</td>
+                            </tr>
+                            <tr>
+                                <td><code>Spatial</code></td>
+                                <td><code>Node3D</code></td>
+                                <td>Consistent 2D/3D naming</td>
+                            </tr>
+                            <tr>
+                                <td><code>Tween</code> (node)</td>
+                                <td><code>create_tween()</code> (method)</td>
+                                <td>Tweens are now lightweight, no scene tree needed</td>
+                            </tr>
+                            <tr>
+                                <td>GLES2 / GLES3</td>
+                                <td>Compatibility / Forward+ / Mobile</td>
+                                <td>Three rendering backends for different targets</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="alert alert-warning">
+                    <h4>Migration is not automatic</h4>
+                    <p>Godot 4 includes a project converter, but it handles only some renames. Scripts with <code>yield</code>, old signal syntax, and custom C++ modules need manual porting. For large projects, consider starting fresh in Godot 4 rather than converting.</p>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- ============================================================
+         SECTION 03: SCENE SYSTEM & NODES
+         ============================================================ -->
+
+    <section id="scene-system" class="section">
+        <div class="section-header">
+            <span class="section-number">// 03</span>
+            <h2 class="section-title">Scene System & Nodes</h2>
+            <p class="section-description">Godot's fundamental architecture: everything is a node, every game object is a scene, and scenes compose into trees.</p>
+        </div>
+        <div class="section-content">
+
+            <div class="subsection">
+                <h3 class="subsection-title">"Everything is a Node" Philosophy</h3>
+                <p class="subsection-description">In Godot, the smallest building block is a <code>Node</code>. Nodes have a name, belong to a tree, and can have child nodes. There is no separate entity/component system -- you compose behavior by combining specialized node types in a parent-child hierarchy.</p>
+                <p class="subsection-description">A <code>CharacterBody2D</code> is a node. Its <code>Sprite2D</code> child is a node. The <code>CollisionShape2D</code> attached to it is a node. The animation player controlling its sprites is a node. This tree of nodes, saved together, is called a <strong>scene</strong>.</p>
+                <div class="alert alert-info">
+                    <h4>Scenes are reusable blueprints</h4>
+                    <p>A player scene, an enemy scene, a bullet scene, a UI panel scene -- each is an independent <code>.tscn</code> file containing a node tree. Scenes can be instanced (spawned) into other scenes at any time. This is how you build modular, reusable game objects.</p>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Node Tree Concepts</h3>
+<pre><code># The scene tree is a hierarchy of nodes:
+Main (Node2D)
+  ├── Player (CharacterBody2D)
+  │     ├── Sprite2D
+  │     ├── CollisionShape2D
+  │     └── AnimationPlayer
+  ├── Enemies (Node2D)
+  │     ├── Slime (CharacterBody2D)
+  │     └── Bat (CharacterBody2D)
+  └── UI (CanvasLayer)
+        └── HUD (Control)
+
+# Accessing nodes from script:
+$Sprite2D               # shorthand for get_node("Sprite2D")
+$"../Enemies/Slime"     # relative path (up one, then down)
+%HUD                    # unique name shorthand (node marked as unique)
+get_node("/root/Main")  # absolute path from root</code></pre>
+                <p class="subsection-description">The <code>$</code> operator is syntactic sugar for <code>get_node()</code>. Use relative paths to keep scenes portable. The <code>%</code> operator accesses nodes marked as "unique name" in the editor (right-click node > Access as Unique Name).</p>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Scene Instancing with PackedScene</h3>
+                <p class="subsection-description">Scenes become objects in the game world through instancing. You load a <code>.tscn</code> file as a <code>PackedScene</code> resource, then call <code>instantiate()</code> to create a live copy.</p>
+<pre><code># Preload at compile time (preferred for frequently used scenes)
+const BulletScene = preload("res://scenes/bullet/bullet.tscn")
+
+func shoot():
+    var bullet = BulletScene.instantiate()
+    bullet.position = global_position
+    bullet.rotation = global_rotation
+    # Add to the scene tree so it becomes active
+    get_tree().current_scene.add_child(bullet)
+
+# Load at runtime (for dynamic or conditional loading)
+func spawn_enemy(type: String):
+    var scene = load("res://scenes/enemies/" + type + ".tscn")
+    var enemy = scene.instantiate()
+    $Enemies.add_child(enemy)</code></pre>
+                <div class="alert alert-tip">
+                    <h4>preload vs load</h4>
+                    <p><code>preload()</code> loads the resource during script compilation -- instant access at runtime but increases initial load time. <code>load()</code> loads at the moment it is called -- useful for dynamic paths but may cause frame hitches. For large assets, use <code>ResourceLoader.load_threaded_request()</code> for background loading.</p>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Node Lifecycle Callbacks</h3>
+                <p class="subsection-description">Every node has virtual methods that Godot calls at specific moments. Override them to add behavior.</p>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Callback</th>
+                                <th>When Called</th>
+                                <th>Typical Use</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>_init()</code></td>
+                                <td>Object constructed (before tree)</td>
+                                <td>Set default values, never access tree here</td>
+                            </tr>
+                            <tr>
+                                <td><code>_enter_tree()</code></td>
+                                <td>Node added to scene tree</td>
+                                <td>Called every time, including re-parenting</td>
+                            </tr>
+                            <tr>
+                                <td><code>_ready()</code></td>
+                                <td>Node + all children have entered tree</td>
+                                <td>One-time setup, access siblings, connect signals</td>
+                            </tr>
+                            <tr>
+                                <td><code>_process(delta)</code></td>
+                                <td>Every visual frame (~60/s)</td>
+                                <td>Non-physics logic: animations, UI updates, timers</td>
+                            </tr>
+                            <tr>
+                                <td><code>_physics_process(delta)</code></td>
+                                <td>Every physics tick (default 60/s)</td>
+                                <td>Movement, raycasts, physics queries</td>
+                            </tr>
+                            <tr>
+                                <td><code>_input(event)</code></td>
+                                <td>Any unhandled input event</td>
+                                <td>Global input (pause, screenshot, debug)</td>
+                            </tr>
+                            <tr>
+                                <td><code>_unhandled_input(event)</code></td>
+                                <td>Input not consumed by UI or _input</td>
+                                <td>Game input (movement, shooting, interaction)</td>
+                            </tr>
+                            <tr>
+                                <td><code>_exit_tree()</code></td>
+                                <td>Node removed from scene tree</td>
+                                <td>Cleanup: disconnect signals, free resources</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+<pre><code>extends CharacterBody2D
+
+@onready var sprite = $Sprite2D
+
+func _ready():
+    # Called once when node and children are in the tree
+    sprite.modulate = Color.GREEN
+
+func _physics_process(delta: float):
+    # Called every physics frame (fixed timestep)
+    var direction = Input.get_vector("left", "right", "up", "down")
+    velocity = direction * 200.0
+    move_and_slide()
+
+func _exit_tree():
+    print("Player removed from scene")</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Scene Management</h3>
+<pre><code># Change to a new scene (replaces current scene tree)
+get_tree().change_scene_to_file("res://scenes/levels/level_02.tscn")
+
+# Reload the current scene
+get_tree().reload_current_scene()
+
+# Change scene with a packed scene reference
+var next_level = preload("res://scenes/levels/level_02.tscn")
+get_tree().change_scene_to_packed(next_level)
+
+# Groups -- tag nodes for batch operations
+func _ready():
+    add_to_group("enemies")
+
+# Call a method on all nodes in a group
+get_tree().call_group("enemies", "take_damage", 10)
+
+# Get all nodes in a group
+var all_enemies = get_tree().get_nodes_in_group("enemies")
+for enemy in all_enemies:
+    enemy.queue_free()</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Autoload / Singleton Pattern</h3>
+                <p class="subsection-description">Autoloads are scripts (or scenes) that persist across scene changes. They appear at the root of the scene tree and are accessible globally. Perfect for game state, audio managers, save/load systems.</p>
+<pre><code># 1. Create the script: scripts/autoload/game_manager.gd
+extends Node
+
+var score: int = 0
+var current_level: int = 1
+var player_lives: int = 3
+
+signal score_changed(new_score)
+
+func add_score(amount: int):
+    score += amount
+    score_changed.emit(score)
+
+func reset():
+    score = 0
+    current_level = 1
+    player_lives = 3
+
+# 2. Register in Project Settings:
+#    Project > Project Settings > Autoload
+#    Path: res://scripts/autoload/game_manager.gd
+#    Name: GameManager
+
+# 3. Access from ANY script in the project:
+func _on_coin_collected():
+    GameManager.add_score(100)</code></pre>
+                <div class="alert alert-warning">
+                    <h4>Don't overuse autoloads</h4>
+                    <p>Autoloads are global state. Use them for truly cross-scene data (score, settings, audio). For scene-specific logic, prefer passing data through scene instancing or signals. Too many autoloads create hidden coupling between systems.</p>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- ============================================================
+         SECTION 04: GDSCRIPT FUNDAMENTALS
+         ============================================================ -->
+
+    <section id="gdscript" class="section">
+        <div class="section-header">
+            <span class="section-number">// 04</span>
+            <h2 class="section-title">GDScript Fundamentals</h2>
+            <p class="section-description">Godot's built-in scripting language: Python-like syntax, tight editor integration, and designed from the ground up for game development.</p>
+        </div>
+        <div class="section-content">
+
+            <div class="subsection">
+                <h3 class="subsection-title">Variable Declarations</h3>
+<pre><code># Untyped (dynamic)
+var health = 100
+var name = "Player"
+var items = ["sword", "shield"]
+
+# Typed (static -- enables better autocompletion & error checking)
+var health: int = 100
+var speed: float = 5.0
+var direction: Vector2 = Vector2.ZERO
+var enemies: Array[Enemy] = []
+
+# Type inference (type locked at assignment)
+var damage := 25          # inferred as int
+var pos := Vector2(10, 20) # inferred as Vector2
+
+# Constants (compile-time, must be literal or preload)
+const MAX_HEALTH = 100
+const GRAVITY = 980.0
+const PLAYER_SCENE = preload("res://scenes/player.tscn")
+
+# @export -- visible in the Inspector panel
+@export var move_speed: float = 300.0
+@export var jump_force: float = -400.0
+@export var max_health: int = 5
+
+# @onready -- assigned when _ready() is called
+@onready var sprite: Sprite2D = $Sprite2D
+@onready var anim: AnimationPlayer = $AnimationPlayer
+@onready var collision: CollisionShape2D = $CollisionShape2D</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Export Annotations Reference</h3>
+                <p class="subsection-description">The <code>@export</code> family controls how variables appear in the Inspector.</p>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Annotation</th>
+                                <th>Example</th>
+                                <th>Inspector Widget</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>@export</code></td>
+                                <td><code>@export var hp: int = 10</code></td>
+                                <td>Default widget for the type</td>
+                            </tr>
+                            <tr>
+                                <td><code>@export_range</code></td>
+                                <td><code>@export_range(0, 100, 5) var vol: int</code></td>
+                                <td>Slider with min/max/step</td>
+                            </tr>
+                            <tr>
+                                <td><code>@export_enum</code></td>
+                                <td><code>@export_enum("Fire", "Ice", "Shock") var el: int</code></td>
+                                <td>Dropdown selector</td>
+                            </tr>
+                            <tr>
+                                <td><code>@export_flags</code></td>
+                                <td><code>@export_flags("Run", "Jump", "Fly") var ab: int</code></td>
+                                <td>Checkbox flags (bitmask)</td>
+                            </tr>
+                            <tr>
+                                <td><code>@export_file</code></td>
+                                <td><code>@export_file("*.json") var config: String</code></td>
+                                <td>File picker dialog</td>
+                            </tr>
+                            <tr>
+                                <td><code>@export_dir</code></td>
+                                <td><code>@export_dir var save_path: String</code></td>
+                                <td>Directory picker dialog</td>
+                            </tr>
+                            <tr>
+                                <td><code>@export_multiline</code></td>
+                                <td><code>@export_multiline var desc: String</code></td>
+                                <td>Multi-line text area</td>
+                            </tr>
+                            <tr>
+                                <td><code>@export_color_no_alpha</code></td>
+                                <td><code>@export_color_no_alpha var c: Color</code></td>
+                                <td>Color picker (no alpha)</td>
+                            </tr>
+                            <tr>
+                                <td><code>@export_group</code></td>
+                                <td><code>@export_group("Movement")</code></td>
+                                <td>Collapsible group header in Inspector</td>
+                            </tr>
+                            <tr>
+                                <td><code>@export_subgroup</code></td>
+                                <td><code>@export_subgroup("Advanced")</code></td>
+                                <td>Nested group within a group</td>
+                            </tr>
+                            <tr>
+                                <td><code>@export_category</code></td>
+                                <td><code>@export_category("AI Settings")</code></td>
+                                <td>Top-level category divider</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+<pre><code># Organized export example:
+@export_category("Combat")
+
+@export_group("Offense")
+@export var damage: int = 10
+@export_range(0.1, 5.0, 0.1) var attack_speed: float = 1.0
+@export_enum("Melee", "Ranged", "Magic") var attack_type: int = 0
+
+@export_group("Defense")
+@export var armor: int = 5
+@export_range(0.0, 1.0, 0.05) var dodge_chance: float = 0.1
+
+@export_category("Visual")
+@export var sprite_texture: Texture2D
+@export_color_no_alpha var tint: Color = Color.WHITE</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Functions</h3>
+<pre><code># Basic function
+func greet():
+    print("Hello from Godot!")
+
+# With parameters and return type
+func calculate_damage(base: int, multiplier: float) -> int:
+    return int(base * multiplier)
+
+# Default parameter values
+func spawn_enemy(type: String = "slime", level: int = 1):
+    var enemy = load("res://scenes/enemies/" + type + ".tscn").instantiate()
+    enemy.level = level
+    add_child(enemy)
+
+# Static function (can be called without an instance)
+static func clamp_health(value: int) -> int:
+    return clampi(value, 0, 100)
+
+# Lambda / Callable (anonymous functions)
+var double = func(x): return x * 2
+print(double.call(5))  # prints 10
+
+# Passing callables
+var enemies_by_hp = enemies.duplicate()
+enemies_by_hp.sort_custom(func(a, b): return a.hp < b.hp)
+
+# Callable references to methods
+var callback: Callable = self.on_damage_taken
+callback.call(10)</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Signals</h3>
+                <p class="subsection-description">Signals are Godot's observer pattern. A node emits a signal; any number of other nodes connect to it and react. This keeps nodes decoupled.</p>
+<pre><code># Define a custom signal
+signal health_changed(new_health: int)
+signal died
+signal item_picked_up(item_name: String, quantity: int)
+
+# Emit signals
+func take_damage(amount: int):
+    health -= amount
+    health_changed.emit(health)
+    if health <= 0:
+        died.emit()
+
+# Connect in _ready() -- modern Godot 4 syntax
+func _ready():
+    # Connect to a method on this node
+    health_changed.connect(_on_health_changed)
+
+    # Connect to a method on another node
+    $Button.pressed.connect(_on_button_pressed)
+
+    # One-shot connection (auto-disconnects after first call)
+    died.connect(_on_player_died, CONNECT_ONE_SHOT)
+
+    # Connect with bound arguments
+    $Button.pressed.connect(_on_button_pressed.bind("start"))
+
+# Callback functions
+func _on_health_changed(new_health: int):
+    $HUD/HealthBar.value = new_health
+
+func _on_button_pressed():
+    get_tree().change_scene_to_file("res://scenes/game.tscn")
+
+func _on_player_died():
+    $DeathScreen.show()
+
+# Await a signal (pause execution until signal fires)
+func show_dialog(text: String):
+    $DialogBox.text = text
+    $DialogBox.show()
+    await $DialogBox.confirmed  # waits here until the signal
+    $DialogBox.hide()
+
+# Await a timer
+await get_tree().create_timer(2.0).timeout
+print("2 seconds have passed")</code></pre>
+                <div class="alert alert-info">
+                    <h4>Signal naming convention</h4>
+                    <p>Signal names use <code>snake_case</code> and describe what happened (past tense or state). Callback methods follow the pattern <code>_on_NodeName_signal_name</code>. The editor auto-generates this pattern when connecting signals via the GUI.</p>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Enums & Match Statements</h3>
+<pre><code># Named enum
+enum State { IDLE, RUNNING, JUMPING, FALLING, ATTACKING }
+var current_state: State = State.IDLE
+
+# Anonymous enum (constants at class scope)
+enum { NORTH, SOUTH, EAST, WEST }
+
+# Match statement (pattern matching)
+func handle_state(state: State):
+    match state:
+        State.IDLE:
+            play_animation("idle")
+        State.RUNNING:
+            play_animation("run")
+        State.JUMPING, State.FALLING:
+            play_animation("air")
+        State.ATTACKING:
+            play_animation("attack")
+        _:
+            push_warning("Unknown state: %s" % state)
+
+# Match with binding
+match typeof(value):
+    TYPE_INT:
+        print("It's an integer: ", value)
+    TYPE_STRING:
+        print("It's a string: ", value)
+    _:
+        print("Unknown type")
+
+# Match with arrays
+match command:
+    ["move", var direction]:
+        move(direction)
+    ["attack", var target, var damage]:
+        attack(target, int(damage))
+    ["heal"]:
+        heal()
+    _:
+        print("Unknown command")</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Classes & Inner Classes</h3>
+<pre><code># Every .gd file IS a class (extends a node or Resource)
+# player.gd
+extends CharacterBody2D
+class_name Player  # registers a global class name
+
+var health: int = 100
+
+func take_damage(amount: int):
+    health -= amount
+
+# Inner class (defined inside another script)
+class Inventory:
+    var items: Array[String] = []
+    var capacity: int = 20
+
+    func add_item(item: String) -> bool:
+        if items.size() >= capacity:
+            return false
+        items.append(item)
+        return true
+
+    func has_item(item: String) -> bool:
+        return item in items
+
+# Usage
+var inventory = Inventory.new()
+inventory.add_item("health_potion")
+
+# Custom Resource class (for data objects)
+# weapon_data.gd
+extends Resource
+class_name WeaponData
+
+@export var name: String = ""
+@export var damage: int = 10
+@export var attack_speed: float = 1.0
+@export var sprite: Texture2D
+
+# Create instances in the editor or via code:
+var sword = WeaponData.new()
+sword.name = "Iron Sword"
+sword.damage = 15</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Properties (Getters & Setters)</h3>
+<pre><code># Property with setter (Godot 4 syntax)
+var health: int = 100:
+    set(value):
+        health = clampi(value, 0, max_health)
+        health_changed.emit(health)
+        if health <= 0:
+            died.emit()
+    get:
+        return health
+
+# Property with only a setter
+var score: int = 0:
+    set(value):
+        score = value
+        $HUD/ScoreLabel.text = "Score: %d" % score
+
+# Property with custom backing variable
+var _speed: float = 0.0
+var speed: float:
+    set(value):
+        _speed = clampf(value, 0.0, max_speed)
+    get:
+        return _speed</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Useful Built-in Functions</h3>
+                <div class="command-grid">
+                    <div class="command-card">
+                        <div class="command">get_node() / $ / %</div>
+                        <div class="description">Access nodes by path, shorthand, or unique name</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">is_instance_of(obj, class)</div>
+                        <div class="description">Runtime type checking</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">str() / int() / float()</div>
+                        <div class="description">Type conversion functions</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">lerp() / lerpf() / lerp_angle()</div>
+                        <div class="description">Interpolation (value, float, angle)</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">move_toward(from, to, delta)</div>
+                        <div class="description">Move value toward target by fixed step</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">remap(val, istart, istop, ostart, ostop)</div>
+                        <div class="description">Map value from one range to another</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">randi_range(min, max)</div>
+                        <div class="description">Random integer in inclusive range</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">"text %s %d" % [a, b]</div>
+                        <div class="description">String formatting (printf-style)</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">Array.filter() / .map() / .reduce()</div>
+                        <div class="description">Functional array methods (use lambdas)</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">Dictionary.get(key, default)</div>
+                        <div class="description">Safe dictionary access with fallback</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">JSON.parse_string(json_text)</div>
+                        <div class="description">Parse JSON string to Variant</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">FileAccess.open("path", mode)</div>
+                        <div class="description">Read/write files (saves, configs)</div>
+                    </div>
+                </div>
+<pre><code># Practical examples of common patterns
+
+# Smooth camera follow
+camera.position = camera.position.lerp(target.position, 5.0 * delta)
+
+# Random item from array
+var loot = ["gold", "potion", "sword", "shield"]
+var drop = loot.pick_random()
+
+# Filtering arrays
+var alive_enemies = enemies.filter(func(e): return e.health > 0)
+var total_hp = enemies.reduce(func(sum, e): return sum + e.health, 0)
+var names = enemies.map(func(e): return e.name)
+
+# Save game data as JSON
+func save_game():
+    var data = {"score": score, "level": level, "items": items}
+    var file = FileAccess.open("user://save.json", FileAccess.WRITE)
+    file.store_string(JSON.stringify(data, "\t"))
+
+func load_game():
+    if not FileAccess.file_exists("user://save.json"):
+        return
+    var file = FileAccess.open("user://save.json", FileAccess.READ)
+    var data = JSON.parse_string(file.get_as_text())
+    score = data.get("score", 0)
+    level = data.get("level", 1)</code></pre>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- ============================================================
+         SECTION 05: PHYSICS & COLLISION
+         ============================================================ -->
+
+    <section id="physics" class="section">
+        <div class="section-header">
+            <span class="section-number">// 05</span>
+            <h2 class="section-title">Physics & Collision</h2>
+            <p class="section-description">Physics bodies, collision layers, raycasting, and the move_and_slide() workflow. Everything you need to make objects interact in physical space.</p>
+        </div>
+        <div class="section-content">
+
+            <div class="subsection">
+                <h3 class="subsection-title">Physics Body Types</h3>
+                <p class="subsection-description">Godot provides four physics body types, each suited to different gameplay roles. Choosing the right one is the first decision for every physical game object.</p>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Node</th>
+                                <th>Use Case</th>
+                                <th>Movement</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>StaticBody2D/3D</code></td>
+                                <td>Walls, floors, immovable objects</td>
+                                <td>None (or animated via AnimatableBody)</td>
+                            </tr>
+                            <tr>
+                                <td><code>RigidBody2D/3D</code></td>
+                                <td>Physics-simulated objects (crates, balls)</td>
+                                <td>Driven by physics engine</td>
+                            </tr>
+                            <tr>
+                                <td><code>CharacterBody2D/3D</code></td>
+                                <td>Player characters, NPCs</td>
+                                <td>Manual via <code>move_and_slide()</code></td>
+                            </tr>
+                            <tr>
+                                <td><code>Area2D/3D</code></td>
+                                <td>Triggers, hitboxes, pickups</td>
+                                <td>Detects overlap only</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">CharacterBody2D</h3>
+                <p class="subsection-description">The workhorse node for player and NPC movement. You control velocity directly and call <code>move_and_slide()</code> to handle collisions and sliding automatically.</p>
+<pre><code># Standard platformer movement
+extends CharacterBody2D
+const SPEED = 300.0
+const JUMP_VELOCITY = -400.0
+var gravity = ProjectSettings.get_setting("physics/2d/default_gravity")
+
+func _physics_process(delta):
+    if not is_on_floor():
+        velocity.y += gravity * delta
+    if Input.is_action_just_pressed("ui_accept") and is_on_floor():
+        velocity.y = JUMP_VELOCITY
+    var direction = Input.get_axis("ui_left", "ui_right")
+    velocity.x = direction * SPEED
+    move_and_slide()</code></pre>
+                <div class="alert alert-warning">
+                    <h4>Godot 4 API change</h4>
+                    <p><code>move_and_slide()</code> takes NO parameters in Godot 4. Set the <code>velocity</code> property directly on the node before calling it. In Godot 3, velocity was passed as an argument.</p>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Motion Modes</h3>
+                <p class="subsection-description"><code>MOTION_MODE_GROUNDED</code> (default) is designed for platformers with floor/wall/ceiling detection. <code>MOTION_MODE_FLOATING</code> disables floor logic and is ideal for top-down games.</p>
+<pre><code># Top-down movement (MOTION_MODE_FLOATING)
+func _physics_process(delta):
+    var dir = Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down")
+    velocity = dir * SPEED
+    move_and_slide()</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Collision Response</h3>
+                <p class="subsection-description">After calling <code>move_and_slide()</code>, iterate over slide collisions to react to what was hit.</p>
+<pre><code>move_and_slide()
+for i in get_slide_collision_count():
+    var col = get_slide_collision(i)
+    print("Hit: ", col.get_collider().name)
+    print("Normal: ", col.get_normal())</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">move_and_collide()</h3>
+                <p class="subsection-description">Unlike <code>move_and_slide()</code>, this stops on the first collision and returns a <code>KinematicCollision2D</code> object. Good for bouncing projectiles or custom physics.</p>
+<pre><code>var collision = move_and_collide(velocity * delta)
+if collision:
+    velocity = velocity.bounce(collision.get_normal())</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">RigidBody2D</h3>
+                <p class="subsection-description">For fully physics-driven objects. Use <code>_integrate_forces(state)</code> instead of <code>_physics_process()</code> to apply forces safely within the physics step.</p>
+<pre><code>extends RigidBody2D
+func _integrate_forces(state):
+    # Continuous force (like thrust)
+    apply_central_force(Vector2(100, 0))
+    # One-time impulse (like a jump)
+    apply_central_impulse(Vector2(0, -300))</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Area2D</h3>
+                <p class="subsection-description">Detects overlap without physical collision. Connect to its signals for trigger zones, hitboxes, and pickups.</p>
+<pre><code>extends Area2D
+func _ready():
+    body_entered.connect(_on_body_entered)
+    area_entered.connect(_on_area_entered)
+
+func _on_body_entered(body):
+    if body.is_in_group("player"):
+        body.take_damage(10)</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Collision Layers & Masks</h3>
+                <p class="subsection-description">Every physics object has a <strong>collision layer</strong> (what I am) and a <strong>collision mask</strong> (what I detect). Two objects only interact if one's mask includes the other's layer.</p>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Layer</th>
+                                <th>Purpose</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><span class="badge badge-cyan">1</span></td>
+                                <td>World / Terrain</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge badge-green">2</span></td>
+                                <td>Player</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge badge-red">3</span></td>
+                                <td>Enemies</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge badge-magenta">4</span></td>
+                                <td>Projectiles</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge badge-yellow">5</span></td>
+                                <td>Pickups / Triggers</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+<pre><code># Player: IS on layer 2, DETECTS layers 1 (world) and 5 (pickups)
+$Player.set_collision_layer_value(2, true)
+$Player.set_collision_mask_value(1, true)
+$Player.set_collision_mask_value(5, true)</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Raycasting</h3>
+                <p class="subsection-description">Two approaches: a persistent <code>RayCast2D</code> node that polls every physics frame, or a one-shot query using <code>PhysicsRayQueryParameters2D</code>.</p>
+                <p class="subsection-description"><span class="badge badge-cyan">Method 1</span> RayCast2D node (persistent, polls every physics frame):</p>
+<pre><code>@onready var ray = $RayCast2D
+func _physics_process(delta):
+    if ray.is_colliding():
+        var hit = ray.get_collider()
+        var pos = ray.get_collision_point()</code></pre>
+                <p class="subsection-description"><span class="badge badge-green">Method 2</span> PhysicsRayQueryParameters2D (one-shot):</p>
+<pre><code>func _physics_process(delta):
+    var space = get_world_2d().direct_space_state
+    var query = PhysicsRayQueryParameters2D.create(
+        global_position, global_position + Vector2(0, 200))
+    query.collision_mask = 0b0001
+    query.exclude = [self.get_rid()]
+    var result = space.intersect_ray(query)
+    if result:
+        print("Hit: ", result.collider.name)</code></pre>
+                <p class="subsection-description"><span class="badge badge-blue">3D Mouse Picking</span> Cast a ray from camera through click position:</p>
+<pre><code>func _input(event):
+    if event is InputEventMouseButton and event.pressed:
+        var cam = $Camera3D
+        var from = cam.project_ray_origin(event.position)
+        var to = from + cam.project_ray_normal(event.position) * 1000
+        var space = get_world_3d().direct_space_state
+        var query = PhysicsRayQueryParameters3D.create(from, to)
+        var result = space.intersect_ray(query)</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Collision Shapes</h3>
+                <p class="subsection-description">Every physics body requires at least one <code>CollisionShape2D/3D</code> child. Choose the simplest shape that fits your object for best performance.</p>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Shape (2D)</th>
+                                <th>3D Equivalent</th>
+                                <th>Best For</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>RectangleShape2D</code></td>
+                                <td><code>BoxShape3D</code></td>
+                                <td>Boxes, platforms, walls</td>
+                            </tr>
+                            <tr>
+                                <td><code>CircleShape2D</code></td>
+                                <td><code>SphereShape3D</code></td>
+                                <td>Balls, coins, radial triggers</td>
+                            </tr>
+                            <tr>
+                                <td><code>CapsuleShape2D</code></td>
+                                <td><code>CapsuleShape3D</code></td>
+                                <td>Characters, humanoids</td>
+                            </tr>
+                            <tr>
+                                <td><code>ConvexPolygonShape2D</code></td>
+                                <td><code>ConvexPolygonShape3D</code></td>
+                                <td>Irregular convex objects</td>
+                            </tr>
+                            <tr>
+                                <td><code>ConcavePolygonShape2D</code></td>
+                                <td><code>ConcavePolygonShape3D</code></td>
+                                <td>Static terrain, complex meshes (static only)</td>
+                            </tr>
+                            <tr>
+                                <td><code>WorldBoundaryShape2D</code></td>
+                                <td><code>WorldBoundaryShape3D</code></td>
+                                <td>Infinite planes (kill zones, boundaries)</td>
+                            </tr>
+                            <tr>
+                                <td><code>SeparationRayShape2D</code></td>
+                                <td><code>SeparationRayShape3D</code></td>
+                                <td>Character feet, slope snapping</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="alert alert-tip">
+                    <h4>Performance tip</h4>
+                    <p>Circle/Sphere and Rectangle/Box are the fastest shapes. Use ConcavePolygon only for static bodies (terrain). For moving objects with complex silhouettes, approximate with 2-3 simple shapes instead of one concave polygon.</p>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- ============================================================
+         SECTION 06: 2D DEVELOPMENT
+         ============================================================ -->
+
+    <section id="2d-dev" class="section">
+        <div class="section-header">
+            <span class="section-number">// 06</span>
+            <h2 class="section-title">2D Development</h2>
+            <p class="section-description">Sprites, animations, tilemaps, cameras, parallax, particles, and all the nodes that make 2D games come alive.</p>
+        </div>
+        <div class="section-content">
+
+            <div class="subsection">
+                <h3 class="subsection-title">Sprite2D</h3>
+                <p class="subsection-description">The basic node for displaying 2D textures. Supports sprite sheets via <code>hframes</code>/<code>vframes</code>, flipping, and region-based atlases.</p>
+<pre><code>@onready var sprite = $Sprite2D
+func _ready():
+    sprite.texture = preload("res://player.png")
+    sprite.hframes = 4   # columns in sprite sheet
+    sprite.vframes = 2   # rows in sprite sheet
+    sprite.frame = 0     # current frame index</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">AnimatedSprite2D</h3>
+                <p class="subsection-description">Uses a <code>SpriteFrames</code> resource to manage named animations. Call <code>play()</code> to switch between them based on game state.</p>
+<pre><code>extends AnimatedSprite2D
+func _physics_process(delta):
+    if velocity.x != 0:
+        play("walk")
+        flip_h = velocity.x < 0
+    elif not is_on_floor():
+        play("jump")
+    else:
+        play("idle")</code></pre>
+                <p class="subsection-description">You can also create <code>SpriteFrames</code> dynamically from code:</p>
+<pre><code>var frames = SpriteFrames.new()
+frames.add_animation("run")
+frames.set_animation_speed("run", 8)
+frames.add_frame("run", preload("res://run_1.png"))</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">TileMapLayer (Godot 4.3+)</h3>
+                <div class="alert alert-warning">
+                    <h4>TileMap is deprecated</h4>
+                    <p>The monolithic <code>TileMap</code> node is deprecated in Godot 4.3+. Use one <code>TileMapLayer</code> node per layer instead. This gives you more control over z-ordering, physics, and per-layer properties.</p>
+                </div>
+<pre><code># Recommended node structure:
+# Node2D (WorldMap)
+# ├── TileMapLayer (ground)
+# ├── TileMapLayer (decorations)
+# └── TileMapLayer (foreground)</code></pre>
+                <p class="subsection-description">Setting cells, erasing, terrain autotiling, and coordinate conversion:</p>
+<pre><code>@onready var ground: TileMapLayer = $WorldMap/Ground
+
+# Set a cell: position, source_id, atlas_coords
+ground.set_cell(Vector2i(5, 3), 0, Vector2i(1, 0))
+
+# Erase a cell
+ground.erase_cell(Vector2i(5, 3))
+
+# Terrain autotiling (auto-selects correct tile variant)
+var cells = [Vector2i(0,0), Vector2i(1,0), Vector2i(2,0)]
+ground.set_cells_terrain_connect(cells, 0, 0)
+
+# Coordinate conversion (world <-> map)
+var map_pos = ground.local_to_map(to_local(global_position))
+var world_pos = ground.map_to_local(map_pos)</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Camera2D</h3>
+                <p class="subsection-description">Attach as a child of the player node for automatic following. Configure smoothing and limits to keep the camera within your level bounds.</p>
+<pre><code>func _ready():
+    position_smoothing_enabled = true
+    position_smoothing_speed = 5.0
+    limit_left = 0
+    limit_right = 2048
+    limit_top = 0
+    limit_bottom = 1024</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">ParallaxBackground</h3>
+                <p class="subsection-description">Create depth illusion with multiple layers that scroll at different speeds. Each <code>ParallaxLayer</code> has a <code>motion_scale</code> controlling how fast it moves relative to the camera.</p>
+<pre><code># Node structure:
+# ParallaxBackground
+# ├── ParallaxLayer (sky)       motion_scale=(0.1, 0.1)
+# ├── ParallaxLayer (mountains) motion_scale=(0.3, 0.2)
+# └── ParallaxLayer (trees)     motion_scale=(0.6, 0.4)</code></pre>
+<pre><code>$SkyLayer.motion_scale = Vector2(0.1, 0.0)
+$SkyLayer.motion_mirroring = Vector2(512, 0)  # seamless tiling</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">CanvasLayer</h3>
+                <p class="subsection-description">Renders on a separate layer that does not move with the camera. Essential for HUD elements, menus, and overlays that should stay fixed on screen.</p>
+<pre><code>extends CanvasLayer
+func _ready():
+    layer = 10  # Always on top of other canvas layers</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Line2D</h3>
+                <p class="subsection-description">Draws connected line segments. Useful for trails, ropes, laser beams, and debug path visualization.</p>
+<pre><code>func add_trail_point(pos: Vector2):
+    $Line2D.add_point(pos)
+    if $Line2D.get_point_count() > 30:
+        $Line2D.remove_point(0)  # limit trail length</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">GPUParticles2D</h3>
+                <p class="subsection-description">GPU-accelerated particle systems for visual effects like explosions, fire, rain, and dust. Key properties control the behavior of the particle system.</p>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Property</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>amount</code></td>
+                                <td>Number of particles alive at once</td>
+                            </tr>
+                            <tr>
+                                <td><code>lifetime</code></td>
+                                <td>How long each particle lives (seconds)</td>
+                            </tr>
+                            <tr>
+                                <td><code>one_shot</code></td>
+                                <td>Emit once then stop (explosions)</td>
+                            </tr>
+                            <tr>
+                                <td><code>process_material</code></td>
+                                <td><code>ParticleProcessMaterial</code> controlling velocity, gravity, color, scale curves</td>
+                            </tr>
+                            <tr>
+                                <td><code>texture</code></td>
+                                <td>Sprite for each particle</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="alert alert-tip">
+                    <h4>CPU fallback</h4>
+                    <p>Use <code>CPUParticles2D</code> for compatibility with older hardware or the Compatibility renderer. It has the same API but runs on the CPU instead of the GPU.</p>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- ============================================================
+         SECTION 07: 3D DEVELOPMENT
+         ============================================================ -->
+
+    <section id="3d-dev" class="section">
+        <div class="section-header">
+            <span class="section-number">// 07</span>
+            <h2 class="section-title">3D Development</h2>
+            <p class="section-description">Meshes, materials, lighting, cameras, environments, and shaders. Building 3D worlds in Godot's Forward+ or Mobile renderers.</p>
+        </div>
+        <div class="section-content">
+
+            <div class="subsection">
+                <h3 class="subsection-title">Node3D</h3>
+                <p class="subsection-description">The base spatial node. Every 3D object inherits from <code>Node3D</code>, which provides position, rotation, and scale in 3D space.</p>
+<pre><code>position = Vector3(0, 1, -5)
+rotation_degrees = Vector3(0, 45, 0)
+rotate_y(delta * 1.0)                          # continuous rotation
+look_at(target.global_position, Vector3.UP)    # face a target</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">MeshInstance3D</h3>
+                <p class="subsection-description">Renders a 3D mesh. Create primitive meshes in code or import <code>.glb</code>/<code>.gltf</code> models from Blender and other tools.</p>
+<pre><code># Create a mesh from code
+var mesh_instance = MeshInstance3D.new()
+var box = BoxMesh.new()
+box.size = Vector3(1, 1, 1)
+mesh_instance.mesh = box
+
+var mat = StandardMaterial3D.new()
+mat.albedo_color = Color.FIREBRICK
+mesh_instance.set_surface_override_material(0, mat)
+add_child(mesh_instance)</code></pre>
+                <p class="subsection-description">Importing .glb/.gltf models:</p>
+<pre><code># Import a 3D model exported from Blender
+var scene = preload("res://models/character.glb")
+var instance = scene.instantiate()
+add_child(instance)</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">StandardMaterial3D</h3>
+                <p class="subsection-description">Godot's PBR material. Controls how surfaces look under lighting with physically-based properties.</p>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Property</th>
+                                <th>Range</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>albedo_color</code></td>
+                                <td>Color</td>
+                                <td>Base color / texture</td>
+                            </tr>
+                            <tr>
+                                <td><code>metallic</code></td>
+                                <td>0.0 - 1.0</td>
+                                <td>0 = dielectric, 1 = metal</td>
+                            </tr>
+                            <tr>
+                                <td><code>roughness</code></td>
+                                <td>0.0 - 1.0</td>
+                                <td>0 = mirror, 1 = matte</td>
+                            </tr>
+                            <tr>
+                                <td><code>emission</code></td>
+                                <td>Color</td>
+                                <td>Self-illumination (glow)</td>
+                            </tr>
+                            <tr>
+                                <td><code>normal_enabled</code></td>
+                                <td>bool</td>
+                                <td>Enable normal mapping for surface detail</td>
+                            </tr>
+                            <tr>
+                                <td><code>transparency</code></td>
+                                <td>enum</td>
+                                <td>ALPHA, ALPHA_SCISSOR, ALPHA_HASH, etc.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+<pre><code># Full PBR material setup
+var mat = StandardMaterial3D.new()
+mat.albedo_color = Color(0.8, 0.2, 0.1)
+mat.metallic = 0.3
+mat.roughness = 0.7
+mat.normal_enabled = true
+mat.normal_texture = preload("res://textures/brick_normal.png")
+mat.emission_enabled = true
+mat.emission = Color(1, 0.5, 0)
+mat.emission_energy_multiplier = 2.0
+mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+mat.albedo_color.a = 0.8</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Lighting</h3>
+                <p class="subsection-description">Three light types cover all common scenarios. Each can cast shadows and be configured for energy, color, and attenuation.</p>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Light</th>
+                                <th>Type</th>
+                                <th>Use Case</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>DirectionalLight3D</code></td>
+                                <td>Parallel rays</td>
+                                <td>Sun, moon (infinite distance)</td>
+                            </tr>
+                            <tr>
+                                <td><code>OmniLight3D</code></td>
+                                <td>Point (all directions)</td>
+                                <td>Bulbs, torches, campfires</td>
+                            </tr>
+                            <tr>
+                                <td><code>SpotLight3D</code></td>
+                                <td>Cone beam</td>
+                                <td>Flashlights, ceiling fixtures, headlights</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+<pre><code># Directional light (sun)
+var sun = DirectionalLight3D.new()
+sun.light_energy = 1.2
+sun.shadow_enabled = true
+sun.rotation_degrees = Vector3(-45, 30, 0)
+add_child(sun)
+
+# Omni light (torch)
+var torch = OmniLight3D.new()
+torch.light_energy = 3.0
+torch.light_color = Color(1.0, 0.7, 0.3)
+torch.omni_range = 8.0
+torch.shadow_enabled = true
+add_child(torch)
+
+# Spot light (flashlight)
+var flash = SpotLight3D.new()
+flash.light_energy = 5.0
+flash.spot_range = 20.0
+flash.spot_angle = 25.0
+flash.shadow_enabled = true
+add_child(flash)</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">WorldEnvironment</h3>
+                <p class="subsection-description">Controls the sky, ambient lighting, fog, volumetric effects, and post-processing (glow, SSAO, SSR, tone mapping). Add one to your main scene.</p>
+<pre><code>var env = Environment.new()
+var sky = Sky.new()
+var sky_mat = ProceduralSkyMaterial.new()
+sky_mat.sky_top_color = Color(0.1, 0.2, 0.5)
+sky.sky_material = sky_mat
+env.sky = sky
+env.background_mode = Environment.BG_SKY
+env.fog_enabled = true
+env.glow_enabled = true
+$WorldEnvironment.environment = env</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">CSGShape3D</h3>
+                <p class="subsection-description">Constructive Solid Geometry nodes for rapid prototyping. Combine shapes with union, subtraction, and intersection operations.</p>
+                <div class="alert alert-warning">
+                    <h4>Prototyping only</h4>
+                    <p>CSG shapes have no LOD, no lightmap UV generation, and are more expensive to render than static meshes. Use them for blocking out levels, then replace with proper meshes before shipping.</p>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Camera3D</h3>
+                <p class="subsection-description">The viewport camera. Configure FOV, near/far clipping planes, and projection type. The example below implements first-person mouse look.</p>
+<pre><code>func _input(event):
+    if event is InputEventMouseMotion:
+        rotate_y(-event.relative.x * 0.002)
+        $Head.rotate_x(-event.relative.y * 0.002)
+        $Head.rotation.x = clamp($Head.rotation.x, -PI/2, PI/2)</code></pre>
+                <div class="alert alert-tip">
+                    <h4>Capture the mouse</h4>
+                    <p>Call <code>Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)</code> in <code>_ready()</code> to lock the cursor for FPS controls. Toggle back with <code>MOUSE_MODE_VISIBLE</code> on pause.</p>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">GridMap</h3>
+                <p class="subsection-description">The 3D equivalent of TileMap. Place 3D mesh tiles in a grid for level building. Uses a <code>MeshLibrary</code> resource.</p>
+<pre><code>@onready var grid: GridMap = $GridMap
+
+# Place a cell: position, item_index, orientation
+grid.set_cell_item(Vector3i(0, 0, 0), 0)
+grid.set_cell_item(Vector3i(1, 0, 0), 0, 4)  # rotated
+
+# Convert world position to grid coordinates
+var grid_pos = grid.local_to_map(to_local(pos))</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">ShaderMaterial</h3>
+                <p class="subsection-description">Write custom spatial shaders for effects the standard material cannot achieve. Godot's shader language is GLSL-like with built-in engine variables.</p>
+<pre><code># Water wave shader (attach as .gdshader file or inline)
+shader_type spatial;
+uniform float wave_speed = 1.0;
+uniform float wave_height = 0.3;
+
+void vertex() {
+    VERTEX.y += sin(VERTEX.x * 2.0 + TIME * wave_speed) * wave_height;
+}
+
+void fragment() {
+    ALBEDO = vec3(0.1, 0.4, 0.8);
+    ROUGHNESS = 0.1;
+    METALLIC = 0.5;
+}</code></pre>
+                <p class="subsection-description">Set shader parameters from GDScript at runtime:</p>
+<pre><code>$WaterMesh.material_override.set_shader_parameter("wave_speed", 2.0)</code></pre>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- ============================================================
+         SECTION 08: UI & CONTROLS
+         ============================================================ -->
+
+    <section id="ui-controls" class="section">
+        <div class="section-header">
+            <span class="section-number">// 08</span>
+            <h2 class="section-title">UI &amp; Controls</h2>
+            <p class="section-description">Control is the base node for all UI elements. Godot's anchor and margin system lets you build resolution-independent interfaces with container-based layouts, theme overrides, and focus navigation.</p>
+        </div>
+        <div class="section-content">
+
+            <div class="subsection">
+                <h3 class="subsection-title">Control Node Hierarchy</h3>
+                <p class="subsection-description"><code>Control</code> is the root of the UI tree. Every UI widget inherits from it. Position is driven by <strong>anchors</strong> (0.0 - 1.0 relative to parent) and <strong>offsets</strong> (pixel distance from anchor). Anchors pin the node to a region of its parent; offsets fine-tune placement from there.</p>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Container Types</h3>
+                <p class="subsection-description">Containers automatically arrange their children. Nest them to build complex layouts without manual positioning.</p>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Container</th>
+                                <th>Layout</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>VBoxContainer</code></td>
+                                <td>Vertical stack</td>
+                            </tr>
+                            <tr>
+                                <td><code>HBoxContainer</code></td>
+                                <td>Horizontal stack</td>
+                            </tr>
+                            <tr>
+                                <td><code>GridContainer</code></td>
+                                <td>Grid (set columns)</td>
+                            </tr>
+                            <tr>
+                                <td><code>MarginContainer</code></td>
+                                <td>Padding around content</td>
+                            </tr>
+                            <tr>
+                                <td><code>ScrollContainer</code></td>
+                                <td>Scrollable area</td>
+                            </tr>
+                            <tr>
+                                <td><code>PanelContainer</code></td>
+                                <td>Background panel</td>
+                            </tr>
+                            <tr>
+                                <td><code>CenterContainer</code></td>
+                                <td>Centers child</td>
+                            </tr>
+                            <tr>
+                                <td><code>HSplitContainer</code></td>
+                                <td>Draggable horizontal split</td>
+                            </tr>
+                            <tr>
+                                <td><code>TabContainer</code></td>
+                                <td>Tabbed panels</td>
+                            </tr>
+                            <tr>
+                                <td><code>FlowContainer</code></td>
+                                <td>Wrapping flow layout</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Common Controls</h3>
+                <p class="subsection-description">Key widgets available out of the box:</p>
+                <div class="command-grid">
+                    <div class="command-card">
+                        <div class="command">Button, Label, LineEdit</div>
+                        <div class="description">Basic interaction, text display, single-line input</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">TextEdit, RichTextLabel</div>
+                        <div class="description">Multi-line text editing and BBCode-rich display</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">OptionButton, CheckBox, CheckButton</div>
+                        <div class="description">Dropdown select, toggle boxes, toggle buttons</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">SpinBox, HSlider, VSlider</div>
+                        <div class="description">Numeric input, horizontal and vertical range sliders</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">ProgressBar</div>
+                        <div class="description">Health bars, loading indicators, XP gauges</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">TextureRect, ColorRect, NinePatchRect</div>
+                        <div class="description">Image display, solid color fill, stretchable bordered sprites</div>
+                    </div>
+                </div>
+<pre><code># Simple HUD — attach to a CanvasLayer node
+extends CanvasLayer
+
+@onready var health_bar: ProgressBar = $VBox/HealthBar
+@onready var score_label: Label = $VBox/ScoreLabel
+
+func update_health(value: int):
+    health_bar.value = value
+
+func update_score(value: int):
+    score_label.text = "Score: %d" % value</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Theme System</h3>
+                <p class="subsection-description">Override theme properties per-node in code, or create a <code>Theme</code> resource in the editor and assign it to a root Control so all children inherit the look.</p>
+<pre><code># Override theme properties per-node
+var btn = Button.new()
+btn.add_theme_color_override("font_color", Color.CYAN)
+btn.add_theme_font_size_override("font_size", 24)
+btn.add_theme_stylebox_override("normal", stylebox)
+
+# Create StyleBoxFlat
+var style = StyleBoxFlat.new()
+style.bg_color = Color(0.1, 0.1, 0.2)
+style.corner_radius_top_left = 8
+style.corner_radius_top_right = 8
+style.border_width_bottom = 2
+style.border_color = Color.CYAN</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Focus &amp; Input</h3>
+                <p class="subsection-description">Controls can receive keyboard/gamepad focus. Set <code>focus_neighbor_*</code> properties to define navigation order. Connect the <code>gui_input</code> signal for custom input handling. The <code>focus_mode</code> property controls whether a control can receive focus at all: <code>FOCUS_NONE</code>, <code>FOCUS_CLICK</code>, or <code>FOCUS_ALL</code>.</p>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Responsive Layout</h3>
+                <p class="subsection-description">Use anchor presets and size flags to build UIs that adapt to any screen resolution.</p>
+<pre><code># Full-screen anchor
+control.anchor_left = 0
+control.anchor_top = 0
+control.anchor_right = 1
+control.anchor_bottom = 1
+
+# Size flags for containers
+label.size_flags_horizontal = Control.SIZE_EXPAND_FILL</code></pre>
+                <div class="alert alert-tip">
+                    <h4>Anchor presets</h4>
+                    <p>In the editor, select a Control and click the anchor preset button (green crosshair icon) to quickly set common layouts like "Full Rect", "Center", "Top Wide", or "Bottom Right".</p>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- ============================================================
+         SECTION 09: ANIMATION & SHADERS
+         ============================================================ -->
+
+    <section id="animation" class="section">
+        <div class="section-header">
+            <span class="section-number">// 09</span>
+            <h2 class="section-title">Animation &amp; Shaders</h2>
+            <p class="section-description">AnimationPlayer for timeline-based animation, AnimationTree for state machines and blend spaces, Tweens for procedural motion, and the Godot shading language for GPU-driven visual effects.</p>
+        </div>
+        <div class="section-content">
+
+            <div class="subsection">
+                <h3 class="subsection-title">AnimationPlayer</h3>
+                <p class="subsection-description">The core animation node. Create animations in the editor's timeline, then control playback from code. Animates any property on any node in the scene.</p>
+<pre><code>@onready var anim = $AnimationPlayer
+anim.play("walk")
+anim.play_backwards("walk")
+anim.queue("idle")
+anim.stop()
+anim.is_playing()
+
+# Signals
+anim.animation_finished.connect(_on_animation_finished)</code></pre>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Track Type</th>
+                                <th>Animates</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>Property</code></td>
+                                <td>Any node property (position, color, scale)</td>
+                            </tr>
+                            <tr>
+                                <td><code>Method Call</code></td>
+                                <td>Calls a method at a keyframe</td>
+                            </tr>
+                            <tr>
+                                <td><code>Bezier</code></td>
+                                <td>Smooth curves for float values</td>
+                            </tr>
+                            <tr>
+                                <td><code>Audio</code></td>
+                                <td>Plays audio at keyframes</td>
+                            </tr>
+                            <tr>
+                                <td><code>Animation</code></td>
+                                <td>Triggers other animations</td>
+                            </tr>
+                            <tr>
+                                <td><code>Expression</code></td>
+                                <td>Evaluates expressions</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">AnimationTree</h3>
+                <p class="subsection-description">Layer on top of AnimationPlayer for state machines, blend trees, and blend spaces. Essential for character animation with smooth transitions between states.</p>
+<pre><code>@onready var anim_tree: AnimationTree = $AnimationTree
+
+func _physics_process(delta):
+    var state_machine = anim_tree["parameters/playback"]
+
+    if is_on_floor():
+        if velocity.length() > 10:
+            state_machine.travel("walk")
+        else:
+            state_machine.travel("idle")
+    else:
+        state_machine.travel("jump")
+
+    # Blend spaces
+    anim_tree["parameters/BlendSpace2D/blend_position"] = velocity.normalized()</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Tween</h3>
+                <p class="subsection-description">Godot 4's procedural animation system. Create tweens from any node, chain operations, run in parallel, loop, and await completion. Perfect for UI transitions, camera effects, and juice.</p>
+<pre><code># Create a tween
+var tween = create_tween()
+tween.tween_property($Sprite2D, "modulate", Color.RED, 0.3)
+tween.tween_property($Sprite2D, "modulate", Color.WHITE, 0.3)
+
+# Chaining
+var tween = create_tween()
+tween.tween_property(self, "position:x", 400, 1.0)
+tween.tween_callback(func(): print("arrived!"))
+tween.tween_interval(0.5)
+tween.tween_property(self, "position:x", 0, 1.0)
+
+# Parallel tweens
+var tween = create_tween().set_parallel(true)
+tween.tween_property(self, "position", Vector2(400, 300), 1.0)
+tween.tween_property(self, "modulate:a", 0.0, 1.0)
+
+# Easing & transitions
+tween.tween_property(self, "position", target, 0.5) \
+    .set_trans(Tween.TRANS_BOUNCE) \
+    .set_ease(Tween.EASE_OUT)
+
+# Loop
+var tween = create_tween().set_loops()  # infinite
+
+# await completion
+await tween.finished</code></pre>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Transition Type</th>
+                                <th>Curve</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>TRANS_LINEAR</code></td>
+                                <td>Constant speed</td>
+                            </tr>
+                            <tr>
+                                <td><code>TRANS_SINE</code></td>
+                                <td>Smooth sine wave</td>
+                            </tr>
+                            <tr>
+                                <td><code>TRANS_QUAD</code></td>
+                                <td>Quadratic acceleration</td>
+                            </tr>
+                            <tr>
+                                <td><code>TRANS_CUBIC</code></td>
+                                <td>Cubic acceleration</td>
+                            </tr>
+                            <tr>
+                                <td><code>TRANS_QUART</code></td>
+                                <td>Quartic acceleration</td>
+                            </tr>
+                            <tr>
+                                <td><code>TRANS_QUINT</code></td>
+                                <td>Quintic acceleration</td>
+                            </tr>
+                            <tr>
+                                <td><code>TRANS_EXPO</code></td>
+                                <td>Exponential acceleration</td>
+                            </tr>
+                            <tr>
+                                <td><code>TRANS_CIRC</code></td>
+                                <td>Circular curve</td>
+                            </tr>
+                            <tr>
+                                <td><code>TRANS_ELASTIC</code></td>
+                                <td>Springy overshoot</td>
+                            </tr>
+                            <tr>
+                                <td><code>TRANS_BOUNCE</code></td>
+                                <td>Bouncing ball</td>
+                            </tr>
+                            <tr>
+                                <td><code>TRANS_BACK</code></td>
+                                <td>Slight overshoot</td>
+                            </tr>
+                            <tr>
+                                <td><code>TRANS_SPRING</code></td>
+                                <td>Damped spring oscillation</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Shaders</h3>
+                <p class="subsection-description">Godot has its own GLSL-like shading language. Shaders run on the GPU and are specified with a <code>shader_type</code> declaration. Write them inline or in <code>.gdshader</code> files.</p>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>Where</th>
+                                <th>Use</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>shader_type canvas_item</code></td>
+                                <td>2D nodes, Control</td>
+                                <td>Sprite effects, UI shaders</td>
+                            </tr>
+                            <tr>
+                                <td><code>shader_type spatial</code></td>
+                                <td>3D meshes</td>
+                                <td>Surface, lighting</td>
+                            </tr>
+                            <tr>
+                                <td><code>shader_type particles</code></td>
+                                <td>GPU particles</td>
+                                <td>Particle behavior</td>
+                            </tr>
+                            <tr>
+                                <td><code>shader_type sky</code></td>
+                                <td>WorldEnvironment</td>
+                                <td>Procedural skies</td>
+                            </tr>
+                            <tr>
+                                <td><code>shader_type fog</code></td>
+                                <td>FogVolume</td>
+                                <td>Volumetric fog</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="subsection-description">CRT scanline effect (canvas_item shader):</p>
+<pre><code>shader_type canvas_item;
+uniform float scan_line_count = 200.0;
+uniform float scan_line_strength = 0.1;
+uniform float aberration = 2.0;
+
+void fragment() {
+    vec2 uv = UV;
+    float r = texture(TEXTURE, uv + vec2(aberration / 1000.0, 0)).r;
+    float g = texture(TEXTURE, uv).g;
+    float b = texture(TEXTURE, uv - vec2(aberration / 1000.0, 0)).b;
+    vec3 color = vec3(r, g, b);
+    float scan = sin(uv.y * scan_line_count * 3.14159) * scan_line_strength;
+    COLOR = vec4(color - scan, texture(TEXTURE, uv).a);
+}</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Built-in Shader Variables</h3>
+                <p class="subsection-description">Key variables available in Godot shaders, depending on shader type.</p>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Variable</th>
+                                <th>Shader Type</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>VERTEX</code></td>
+                                <td>All</td>
+                                <td>Vertex position (read/write in vertex(), read in fragment())</td>
+                            </tr>
+                            <tr>
+                                <td><code>FRAGCOORD</code></td>
+                                <td>All</td>
+                                <td>Fragment screen-space coordinates</td>
+                            </tr>
+                            <tr>
+                                <td><code>UV</code></td>
+                                <td>All</td>
+                                <td>Texture coordinates</td>
+                            </tr>
+                            <tr>
+                                <td><code>COLOR</code></td>
+                                <td>canvas_item</td>
+                                <td>Output color (read/write)</td>
+                            </tr>
+                            <tr>
+                                <td><code>NORMAL</code></td>
+                                <td>spatial</td>
+                                <td>Surface normal vector</td>
+                            </tr>
+                            <tr>
+                                <td><code>TIME</code></td>
+                                <td>All</td>
+                                <td>Elapsed time in seconds</td>
+                            </tr>
+                            <tr>
+                                <td><code>SCREEN_UV</code></td>
+                                <td>canvas_item</td>
+                                <td>Screen-space UV for screen-reading effects</td>
+                            </tr>
+                            <tr>
+                                <td><code>ALBEDO</code></td>
+                                <td>spatial</td>
+                                <td>Base surface color</td>
+                            </tr>
+                            <tr>
+                                <td><code>ROUGHNESS</code></td>
+                                <td>spatial</td>
+                                <td>PBR roughness (0 = mirror, 1 = matte)</td>
+                            </tr>
+                            <tr>
+                                <td><code>METALLIC</code></td>
+                                <td>spatial</td>
+                                <td>PBR metallic (0 = dielectric, 1 = metal)</td>
+                            </tr>
+                            <tr>
+                                <td><code>EMISSION</code></td>
+                                <td>spatial</td>
+                                <td>Self-illumination color</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="alert alert-info">
+                    <h4>Visual Shader Editor</h4>
+                    <p>Godot includes a node-graph Visual Shader editor as an alternative to writing shader code. Create a <code>VisualShader</code> resource and open it in the editor to build effects by connecting nodes.</p>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Setting Uniforms from GDScript</h3>
+                <p class="subsection-description">Pass values from your game logic into shader uniforms at runtime.</p>
+<pre><code>material.set_shader_parameter("scan_line_count", 300.0)
+material.set_shader_parameter("aberration", 3.0)</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Common Shader Snippets</h3>
+                <p class="subsection-description">Reusable patterns for frequent visual effects.</p>
+<pre><code>// Grayscale
+void fragment() {
+    vec4 tex = texture(TEXTURE, UV);
+    float gray = dot(tex.rgb, vec3(0.299, 0.587, 0.114));
+    COLOR = vec4(vec3(gray), tex.a);
+}
+
+// Outline (canvas_item)
+uniform float outline_width = 1.0;
+uniform vec4 outline_color : source_color = vec4(1.0, 1.0, 1.0, 1.0);
+void fragment() {
+    vec4 tex = texture(TEXTURE, UV);
+    float a = texture(TEXTURE, UV + vec2(outline_width * TEXTURE_PIXEL_SIZE.x, 0)).a;
+    a += texture(TEXTURE, UV - vec2(outline_width * TEXTURE_PIXEL_SIZE.x, 0)).a;
+    a += texture(TEXTURE, UV + vec2(0, outline_width * TEXTURE_PIXEL_SIZE.y)).a;
+    a += texture(TEXTURE, UV - vec2(0, outline_width * TEXTURE_PIXEL_SIZE.y)).a;
+    COLOR = mix(outline_color * ceil(clamp(a, 0.0, 1.0)), tex, tex.a);
+}
+
+// Dissolve
+uniform float threshold : hint_range(0.0, 1.0) = 0.5;
+uniform sampler2D noise_tex;
+void fragment() {
+    vec4 tex = texture(TEXTURE, UV);
+    float noise = texture(noise_tex, UV).r;
+    tex.a *= step(threshold, noise);
+    COLOR = tex;
+}</code></pre>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- ============================================================
+         SECTION 10: AUDIO & RESOURCES
+         ============================================================ -->
+
+    <section id="audio-resources" class="section">
+        <div class="section-header">
+            <span class="section-number">// 10</span>
+            <h2 class="section-title">Audio &amp; Resources</h2>
+            <p class="section-description">Audio playback nodes, the bus system with effects, supported stream formats, and the resource loading pipeline including preload, async loading, and custom Resource classes.</p>
+        </div>
+        <div class="section-content">
+
+            <div class="subsection">
+                <h3 class="subsection-title">Audio Players</h3>
+                <p class="subsection-description">Three audio player nodes cover all use cases, from global music to positional 3D sound.</p>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Node</th>
+                                <th>Positional</th>
+                                <th>Use Case</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>AudioStreamPlayer</code></td>
+                                <td>No</td>
+                                <td>Music, UI sounds</td>
+                            </tr>
+                            <tr>
+                                <td><code>AudioStreamPlayer2D</code></td>
+                                <td>2D</td>
+                                <td>Footsteps, impacts</td>
+                            </tr>
+                            <tr>
+                                <td><code>AudioStreamPlayer3D</code></td>
+                                <td>3D</td>
+                                <td>Environmental sounds</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+<pre><code>@onready var music = $AudioStreamPlayer
+@onready var sfx = $AudioStreamPlayer2D
+
+func _ready():
+    music.stream = preload("res://audio/bg_music.ogg")
+    music.bus = "Music"
+    music.play()
+
+func play_sfx(clip: AudioStream):
+    sfx.stream = clip
+    sfx.play()</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Audio Bus System</h3>
+                <p class="subsection-description">Route audio through buses for grouped volume control and effects. The Master bus always exists; add custom buses (Music, SFX, Ambient) in the Audio tab at the bottom of the editor.</p>
+<pre><code># Volume control (in dB)
+AudioServer.set_bus_volume_db(
+    AudioServer.get_bus_index("Music"), -10.0)
+
+# Mute
+AudioServer.set_bus_mute(
+    AudioServer.get_bus_index("SFX"), true)
+
+# Fade with tween
+var tween = create_tween()
+var bus_idx = AudioServer.get_bus_index("Music")
+tween.tween_method(
+    func(vol): AudioServer.set_bus_volume_db(bus_idx, vol),
+    0.0, -80.0, 2.0)  # fade out over 2 seconds</code></pre>
+                <div class="alert alert-info">
+                    <h4>Audio Effects</h4>
+                    <p>Add effects to any bus in the Audio tab: Reverb, Compressor, EQ, Limiter, Chorus, Delay, Distortion, Phaser, and more. Effects are processed in order from top to bottom on each bus.</p>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Stream Types</h3>
+                <p class="subsection-description">Godot supports multiple audio formats, each suited to different use cases.</p>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Stream Type</th>
+                                <th>Format</th>
+                                <th>Best For</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>AudioStreamOggVorbis</code></td>
+                                <td>.ogg</td>
+                                <td>Music (compressed, loops well)</td>
+                            </tr>
+                            <tr>
+                                <td><code>AudioStreamMP3</code></td>
+                                <td>.mp3</td>
+                                <td>Music (widely available format)</td>
+                            </tr>
+                            <tr>
+                                <td><code>AudioStreamWAV</code></td>
+                                <td>.wav</td>
+                                <td>Short SFX (no decode latency)</td>
+                            </tr>
+                            <tr>
+                                <td><code>AudioStreamRandomizer</code></td>
+                                <td>wrapper</td>
+                                <td>Random pitch/volume variation</td>
+                            </tr>
+                            <tr>
+                                <td><code>AudioStreamPolyphonic</code></td>
+                                <td>wrapper</td>
+                                <td>Multiple simultaneous sounds</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="alert alert-warning">
+                    <h4>Format guidance</h4>
+                    <p>Use <code>.ogg</code> for music (compressed, loops cleanly with loop points). Use <code>.wav</code> for short sound effects (zero decode latency, instant playback). Avoid <code>.mp3</code> for looping music as it has gap issues at loop boundaries.</p>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Resource Loading</h3>
+                <p class="subsection-description">Godot provides compile-time, runtime, and async loading strategies. Choose based on when you know the asset path and how large the asset is.</p>
+<pre><code># preload — compile-time, cached (use for known assets)
+var tex = preload("res://icon.png")
+
+# load — runtime, cached after first load
+var tex = load("res://icon.png")
+
+# Async loading (ResourceLoader)
+ResourceLoader.load_threaded_request("res://levels/big_level.tscn")
+
+# Poll progress
+func _process(delta):
+    var progress = []
+    var status = ResourceLoader.load_threaded_get_status(
+        "res://levels/big_level.tscn", progress)
+    if status == ResourceLoader.THREAD_LOAD_LOADED:
+        var scene = ResourceLoader.load_threaded_get(
+            "res://levels/big_level.tscn")</code></pre>
+                <div class="alert alert-tip">
+                    <h4>preload vs load</h4>
+                    <p><code>preload()</code> embeds the resource at compile time -- use it when the path is a constant string and you want zero runtime cost. <code>load()</code> resolves at runtime and is needed when the path is dynamic (e.g., built from a variable).</p>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Custom Resources</h3>
+                <p class="subsection-description">Create your own data containers by extending <code>Resource</code>. Export properties to edit them in the Inspector. Save as <code>.tres</code> (text, version-control friendly) or <code>.res</code> (binary, smaller and faster to load).</p>
+<pre><code>class_name WeaponData
+extends Resource
+
+@export var name: String
+@export var damage: int
+@export var attack_speed: float
+@export var icon: Texture2D
+@export var rarity: int = 0</code></pre>
+                <div class="alert alert-info">
+                    <h4>.tres vs .res</h4>
+                    <p><code>.tres</code> files are human-readable text -- ideal for version control and debugging. <code>.res</code> files are binary -- smaller and faster to load but opaque. Use <code>resource.duplicate()</code> when you need a unique copy of a shared resource at runtime (e.g., giving each enemy its own health bar data).</p>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- ============================================================
+         SECTION 11: AI INTEGRATION & MCP
+         ============================================================ -->
+
+    <section id="ai-mcp" class="section">
+        <div class="section-header">
+            <span class="section-number">// 11</span>
+            <h2 class="section-title">AI Integration &amp; MCP</h2>
+            <p class="section-description">MCP servers for AI-assisted Godot development, coding assistant plugins, in-game LLM integration patterns, NPC dialogue systems with local models, and reinforcement learning workflows.</p>
+        </div>
+        <div class="section-content">
+
+            <div class="subsection">
+                <h3 class="subsection-title">Godot MCP Servers</h3>
+                <p class="subsection-description">MCP (Model Context Protocol) servers let AI coding assistants interact with the Godot editor and project files. Several community-built options target different workflows.</p>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Server</th>
+                                <th>Key Feature</th>
+                                <th>Best For</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>bradypp/godot-mcp</code></td>
+                                <td>Most complete, read-only mode, auto-detect</td>
+                                <td>Production projects</td>
+                            </tr>
+                            <tr>
+                                <td><code>LeeSinLiang/godot-mcp</code></td>
+                                <td>Remote debugger via WebSocket</td>
+                                <td>Debugging workflows</td>
+                            </tr>
+                            <tr>
+                                <td><code>Coding-Solo/godot-mcp</code></td>
+                                <td>Editor control (launch/run/stop)</td>
+                                <td>Getting started</td>
+                            </tr>
+                            <tr>
+                                <td><code>ee0pdt/Godot-MCP</code></td>
+                                <td>Scene creation, script editing</td>
+                                <td>Simple prototyping</td>
+                            </tr>
+                            <tr>
+                                <td><code>nguyenchiencong/godot-mcp-cli</code></td>
+                                <td>CLI-first, saves tokens</td>
+                                <td>Token-constrained setups</td>
+                            </tr>
+                            <tr>
+                                <td><code>viktorfaubl/Godot-MCP-server-for-local-LLM</code></td>
+                                <td>C# in-game MCP server</td>
+                                <td>Runtime AI in games</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <p class="subsection-description">Composite capabilities across all servers:</p>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Category</th>
+                                <th>Tools</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Editor Control</td>
+                                <td><code>launch_editor</code>, <code>run_project</code>, <code>stop_project</code></td>
+                            </tr>
+                            <tr>
+                                <td>Scene Editing</td>
+                                <td><code>create_scene</code>, <code>add_node</code>, <code>save_scene</code>, <code>load_sprite</code></td>
+                            </tr>
+                            <tr>
+                                <td>Script</td>
+                                <td><code>create_script</code>, <code>read_script</code>, <code>validate_gdscript</code></td>
+                            </tr>
+                            <tr>
+                                <td>Debug</td>
+                                <td><code>get_debug_output</code>, <code>capture_screenshot</code>, <code>remote_debugger</code></td>
+                            </tr>
+                            <tr>
+                                <td>Assets</td>
+                                <td><code>generate_2d_asset</code>, <code>project_visualizer</code></td>
+                            </tr>
+                            <tr>
+                                <td>Safety</td>
+                                <td><code>read_only_mode</code>, <code>get_uid</code>, <code>update_project_uids</code></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <p class="subsection-description">Claude Desktop configuration example:</p>
+<pre><code>{
+  "mcpServers": {
+    "godot": {
+      "command": "node",
+      "args": ["/path/to/godot-mcp/dist/index.js"]
+    }
+  }
+}</code></pre>
+                <div class="alert alert-tip">
+                    <h4>Read-Only Mode</h4>
+                    <p>The <code>bradypp/godot-mcp</code> server has a read-only mode for safe project analysis -- great for code review workflows where you want AI to inspect but never modify your project.</p>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">AI Coding Assistants</h3>
+                <p class="subsection-description">In-editor AI plugins that bring code completion, chat, and context-aware assistance directly into the Godot editor.</p>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Plugin</th>
+                                <th>Backend</th>
+                                <th>Feature</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>godot-copilot</code></td>
+                                <td>OpenAI / GitHub Copilot</td>
+                                <td>Caret-position completion with GDScript 4 injection</td>
+                            </tr>
+                            <tr>
+                                <td><code>AI Assistant Hub</code></td>
+                                <td>Local LLMs</td>
+                                <td>Code editor read/write, saveable prompt buttons</td>
+                            </tr>
+                            <tr>
+                                <td><code>Fuku</code></td>
+                                <td>Ollama, OpenAI, Claude, Gemini</td>
+                                <td>Multi-provider chat panel</td>
+                            </tr>
+                            <tr>
+                                <td><code>Itqan AI</code></td>
+                                <td>Gemini API</td>
+                                <td>In-editor assistant</td>
+                            </tr>
+                            <tr>
+                                <td><code>AI Context Generator</code></td>
+                                <td>Any LLM</td>
+                                <td>Export project structure as JSON for AI context</td>
+                            </tr>
+                            <tr>
+                                <td><code>Godot AI Suite</code></td>
+                                <td>Claude, Gemini, ChatGPT</td>
+                                <td>Masterprompt + Agent Mode</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <p class="subsection-description">Cursor IDE integration -- place a <code>.cursorrules</code> file at the project root:</p>
+<pre><code># godot.cursorrules (place at project root)
+- Target Godot 4.4, GDScript 2.0
+- Use @export, @onready, @tool annotations
+- CharacterBody2D/3D (NOT KinematicBody)
+- move_and_slide() takes no parameters
+- Use randf_range()/randi_range() (NOT rand_range())
+- Use deg_to_rad() (NOT deg2rad())</code></pre>
+
+                <p class="subsection-description">Common AI GDScript errors -- things AI models frequently get wrong:</p>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Wrong (Godot 3)</th>
+                                <th>Correct (Godot 4)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>KinematicBody2D</code></td>
+                                <td><code>CharacterBody2D</code></td>
+                            </tr>
+                            <tr>
+                                <td><code>move_and_slide(velocity)</code></td>
+                                <td><code>velocity = ...; move_and_slide()</code></td>
+                            </tr>
+                            <tr>
+                                <td><code>deg2rad()</code></td>
+                                <td><code>deg_to_rad()</code></td>
+                            </tr>
+                            <tr>
+                                <td><code>rand_range(a, b)</code></td>
+                                <td><code>randf_range(a, b)</code></td>
+                            </tr>
+                            <tr>
+                                <td><code>connect("sig", self, "fn")</code></td>
+                                <td><code>signal.connect(callable)</code></td>
+                            </tr>
+                            <tr>
+                                <td><code>yield(timer, "timeout")</code></td>
+                                <td><code>await timer.timeout</code></td>
+                            </tr>
+                            <tr>
+                                <td><code>export var</code></td>
+                                <td><code>@export var</code></td>
+                            </tr>
+                            <tr>
+                                <td><code>onready var</code></td>
+                                <td><code>@onready var</code></td>
+                            </tr>
+                            <tr>
+                                <td><code>instance()</code></td>
+                                <td><code>instantiate()</code></td>
+                            </tr>
+                            <tr>
+                                <td><code>extents</code> (Shape)</td>
+                                <td><code>size</code></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="alert alert-warning">
+                    <h4>AI &amp; GDScript 4.x</h4>
+                    <p>AI models have sparse GDScript 4.x training data. Always specify "Godot 4.4, GDScript 2.0" in prompts. The most common failure is generating Godot 3.x syntax -- especially <code>move_and_slide(velocity)</code>, <code>yield</code>, and old <code>connect()</code> syntax.</p>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">In-Game LLM Integration</h3>
+                <p class="subsection-description">Two main patterns for calling LLMs from GDScript: cloud APIs via HTTPRequest and local models via Ollama.</p>
+
+                <p><strong>Pattern 1: Cloud API via HTTPRequest</strong></p>
+<pre><code>extends Node
+
+var http: HTTPRequest
+
+func _ready():
+    http = HTTPRequest.new()
+    add_child(http)
+    http.request_completed.connect(_on_response)
+
+func ask_ai(prompt: String):
+    var headers = [
+        "Content-Type: application/json",
+        "Authorization: Bearer " + OS.get_environment("API_KEY")
+    ]
+    var body = JSON.stringify({
+        "model": "claude-sonnet-4-20250514",
+        "messages": [{"role": "user", "content": prompt}]
+    })
+    http.request("https://api.anthropic.com/v1/messages",
+        headers, HTTPClient.METHOD_POST, body)
+
+func _on_response(result, code, headers, body):
+    if code == 200:
+        var json = JSON.parse_string(body.get_string_from_utf8())
+        var reply = json["content"][0]["text"]</code></pre>
+
+                <p><strong>Pattern 2: Local LLM via Ollama</strong> (no API key, fully offline):</p>
+<pre><code>func ask_local(prompt: String):
+    var body = JSON.stringify({
+        "model": "llama3.2",
+        "prompt": prompt,
+        "stream": false
+    })
+    http.request("http://localhost:11434/api/generate",
+        ["Content-Type: application/json"],
+        HTTPClient.METHOD_POST, body)</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">NPC Dialogue with Local LLMs</h3>
+                <p class="subsection-description">GDExtension plugins that run LLMs directly inside the game process for zero-latency NPC dialogue.</p>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Plugin</th>
+                                <th>Architecture</th>
+                                <th>Key Feature</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>NobodyWho</code></td>
+                                <td>GDExtension + Vulkan</td>
+                                <td>Best ease-of-use, Metal support</td>
+                            </tr>
+                            <tr>
+                                <td><code>GDLlama</code></td>
+                                <td>GDExtension + llama.cpp</td>
+                                <td>Function calling, structured output</td>
+                            </tr>
+                            <tr>
+                                <td><code>godot-llm</code></td>
+                                <td>GDExtension + llama.cpp</td>
+                                <td>Vision (GDLlava), vector store</td>
+                            </tr>
+                            <tr>
+                                <td><code>godot-llm-framework</code></td>
+                                <td>HTTPRequest wrapper</td>
+                                <td>Cloud APIs (Anthropic, OpenAI)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <p class="subsection-description">NobodyWho example -- add a NobodyWhoModel node (shared) and NobodyWhoChat per NPC:</p>
+<pre><code># Add NobodyWhoModel node (shared, loads GGUF weights)
+# Add NobodyWhoChat node per NPC
+
+@onready var chat: NobodyWhoChat = $NobodyWhoChat
+
+func _ready():
+    chat.response_updated.connect(_on_token)
+    chat.system_prompt = "You are a gruff blacksmith in a medieval village."
+
+func player_speaks(text: String):
+    chat.say(text)
+
+func _on_token(token: String):
+    $DialogueLabel.text += token  # streams word by word</code></pre>
+                <div class="alert alert-tip">
+                    <h4>Share Model Weights</h4>
+                    <p>Share <code>NobodyWhoModel</code> nodes across NPCs -- model weights are expensive to load. Use one model node with many chat nodes to keep memory usage manageable.</p>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">ML &amp; Reinforcement Learning</h3>
+                <p class="subsection-description">Run trained neural networks inside Godot or train agents with reinforcement learning using the Godot RL Agents framework.</p>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Extension</th>
+                                <th>Runtime</th>
+                                <th>Format</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>godot_onnx_extension</code></td>
+                                <td>ONNX Runtime</td>
+                                <td><code>.onnx</code></td>
+                            </tr>
+                            <tr>
+                                <td><code>Godot-ONNX-AI-Models-Loaders</code></td>
+                                <td>ONNX Runtime</td>
+                                <td><code>.onnx</code></td>
+                            </tr>
+                            <tr>
+                                <td><code>iree.gd</code></td>
+                                <td>IREE (Google)</td>
+                                <td><code>.vmfb</code> (compiled from TFLite/PyTorch)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <p class="subsection-description"><strong>Godot RL Agents</strong> -- full reinforcement learning framework. Python side: <code>pip install godot-rl</code> (StableBaselines3, CleanRL, Ray RLLib). GDScript side: install plugin from AssetLib. Train agents, export to ONNX for in-game inference. Achieves 12k interactions/sec on 4 CPU cores.</p>
+<pre><code># ONNX inference example
+@onready var onnx: ONNXLoader = $ONNXLoader
+
+func _ready():
+    onnx.load_model("res://models/agent.onnx")
+
+func get_action(observation: Array) -> Array:
+    return onnx.predict(observation)</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">AI Best Practices</h3>
+                <div class="command-grid">
+                    <div class="command-card">
+                        <div class="command">Pin Godot Version</div>
+                        <div class="description">Always specify "Godot 4.4, GDScript 2.0" in all AI prompts to avoid Godot 3 syntax generation</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">Feed Project Context</div>
+                        <div class="description">Use AI Context Generator plugin to export project structure as JSON for AI consumption</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">Local for Shipping</div>
+                        <div class="description">Use NobodyWho/GDLlama for shipped games -- zero latency, no API costs, works offline</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">Cloud for Prototyping</div>
+                        <div class="description">Cloud APIs (Anthropic, OpenAI) are easier to start with and provide access to larger models</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">Structured Output</div>
+                        <div class="description">Use structured output / GBNF grammar for LLM output that feeds game logic directly</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">Test AI Code</div>
+                        <div class="description">Always test AI-generated GDScript before committing -- Godot 3/4 syntax errors are common</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">Shader Prompts</div>
+                        <div class="description">Use "Godot shading language" in prompts, not "GLSL" -- Godot shaders differ from standard GLSL</div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- ============================================================
+         SECTION 12: EXPORT & ECOSYSTEM
+         ============================================================ -->
+
+    <section id="export" class="section">
+        <div class="section-header">
+            <span class="section-number">// 12</span>
+            <h2 class="section-title">Export &amp; Ecosystem</h2>
+            <p class="section-description">Export templates and platform targets, command-line builds, resource packs for DLC/mods, debugging tools, GDExtension native bindings, AssetLib, performance tips, and community resources.</p>
+        </div>
+        <div class="section-content">
+
+            <div class="subsection">
+                <h3 class="subsection-title">Export Templates</h3>
+                <p class="subsection-description">Download export templates via Editor &gt; Manage Export Templates. Required before your first export to any platform.</p>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Platform</th>
+                                <th>Requirements</th>
+                                <th>Notes</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Windows</td>
+                                <td>Export template</td>
+                                <td><code>.exe</code> + <code>.pck</code></td>
+                            </tr>
+                            <tr>
+                                <td>macOS</td>
+                                <td>Export template</td>
+                                <td><code>.dmg</code> or <code>.app</code>, notarization for distribution</td>
+                            </tr>
+                            <tr>
+                                <td>Linux</td>
+                                <td>Export template</td>
+                                <td><code>.x86_64</code></td>
+                            </tr>
+                            <tr>
+                                <td>Android</td>
+                                <td>JDK, Android SDK, keystores</td>
+                                <td><code>.apk</code> or <code>.aab</code></td>
+                            </tr>
+                            <tr>
+                                <td>iOS</td>
+                                <td>macOS + Xcode required</td>
+                                <td><code>.ipa</code>, requires Apple Developer account</td>
+                            </tr>
+                            <tr>
+                                <td>Web</td>
+                                <td>Export template</td>
+                                <td><code>.html</code> + <code>.js</code> + <code>.wasm</code>, needs HTTPS for SharedArrayBuffer</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <p class="subsection-description">Command-line export:</p>
+<pre><code>godot --headless --export-release "Windows Desktop" game.exe
+godot --headless --export-release "Web" index.html
+godot --headless --export-debug "Android" game.apk</code></pre>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Resource Packs &amp; Storage</h3>
+                <p class="subsection-description">Use <code>.pck</code> resource packs for DLC and mods. Load them at runtime to extend your game without rebuilding.</p>
+<pre><code># Load a resource pack at runtime
+ProjectSettings.load_resource_pack("res://dlc/expansion.pck")
+var new_scene = load("res://dlc_scenes/bonus_level.tscn")</code></pre>
+
+                <p class="subsection-description">The <code>user://</code> path maps to persistent storage per platform:</p>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Platform</th>
+                                <th>Path</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Windows</td>
+                                <td><code>%APPDATA%\Godot\app_userdata\ProjectName\</code></td>
+                            </tr>
+                            <tr>
+                                <td>macOS</td>
+                                <td><code>~/Library/Application Support/Godot/app_userdata/ProjectName/</code></td>
+                            </tr>
+                            <tr>
+                                <td>Linux</td>
+                                <td><code>~/.local/share/godot/app_userdata/ProjectName/</code></td>
+                            </tr>
+                            <tr>
+                                <td>Android</td>
+                                <td>Internal storage (app-specific)</td>
+                            </tr>
+                            <tr>
+                                <td>iOS</td>
+                                <td>Documents directory</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Debugging Tools</h3>
+                <p class="subsection-description">Built-in debugging primitives, the remote scene inspector, profiler, and custom performance monitors.</p>
+                <div class="command-grid">
+                    <div class="command-card">
+                        <div class="command">print_debug()</div>
+                        <div class="description">Prints with file:line info for easy tracing</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">push_error() / push_warning()</div>
+                        <div class="description">Colored console output for errors and warnings</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">assert(condition, "msg")</div>
+                        <div class="description">Debug-only assertion, stripped in release builds</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">breakpoint</div>
+                        <div class="description">Keyword that triggers debugger pause at that line</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">Remote Debugger</div>
+                        <div class="description">Inspect running game's scene tree live from the editor</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">Profiler</div>
+                        <div class="description">Frame time, physics, GPU stats, and custom monitor metrics</div>
+                    </div>
+                </div>
+
+                <p class="subsection-description">Custom performance monitors:</p>
+<pre><code>func _ready():
+    Performance.add_custom_monitor("game/enemies",
+        func(): return get_tree().get_nodes_in_group("enemies").size())</code></pre>
+
+                <p class="subsection-description">Debug draw (only in debug builds):</p>
+<pre><code>func _process(delta):
+    if OS.is_debug_build():
+        queue_redraw()
+
+func _draw():
+    draw_circle(position, 32, Color.RED)
+    draw_line(pos_a, pos_b, Color.CYAN, 2.0)</code></pre>
+
+                <p class="subsection-description">Common errors and fixes:</p>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Error</th>
+                                <th>Cause</th>
+                                <th>Fix</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>"Invalid call. Nonexistent function"</td>
+                                <td>Wrong node type / Godot 3 API</td>
+                                <td>Check class docs</td>
+                            </tr>
+                            <tr>
+                                <td>"Node not found"</td>
+                                <td>Wrong path or not ready</td>
+                                <td>Use <code>@onready</code> or <code>call_deferred</code></td>
+                            </tr>
+                            <tr>
+                                <td>"Null instance"</td>
+                                <td>Node freed or never set</td>
+                                <td><code>is_instance_valid()</code> check</td>
+                            </tr>
+                            <tr>
+                                <td>"Cannot export"</td>
+                                <td>No export template</td>
+                                <td>Download via editor</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">AssetLib &amp; GDExtension</h3>
+                <p class="subsection-description"><strong>AssetLib</strong> -- browse in editor (AssetLib tab) or online. Installs plugins to the <code>addons/</code> folder. Enable in Project Settings &gt; Plugins.</p>
+
+                <p class="subsection-description"><strong>GDExtension</strong> -- native code extensions (C, C++, Rust, Go) that integrate with Godot without recompiling the engine:</p>
+<pre><code># GDExtension defined in .gdextension file
+[configuration]
+entry_symbol = "my_extension_init"
+
+[libraries]
+linux.x86_64 = "res://bin/libmy_extension.so"
+windows.x86_64 = "res://bin/my_extension.dll"
+macos = "res://bin/libmy_extension.dylib"</code></pre>
+
+                <div class="command-grid">
+                    <div class="command-card">
+                        <div class="command">GDQuest</div>
+                        <div class="description">Professional tutorials and courses for Godot development</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">KidsCanCode</div>
+                        <div class="description">Beginner-friendly Godot tutorials and recipes</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">Godot Shaders</div>
+                        <div class="description">Community shader repository with ready-to-use effects</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">Godot Forum</div>
+                        <div class="description">Official community Q&amp;A for troubleshooting and discussion</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">Godot Discord</div>
+                        <div class="description">Real-time help from the Godot community</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">Awesome Godot</div>
+                        <div class="description">Curated list of plugins, tools, and resources</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Performance Tips</h3>
+                <div class="command-grid">
+                    <div class="command-card">
+                        <div class="command">Physics Process</div>
+                        <div class="description">Use <code>_physics_process</code> only for physics code, <code>_process</code> for everything else</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">Object Pooling</div>
+                        <div class="description">Pool objects with <code>hide()</code>/<code>show()</code> instead of <code>queue_free()</code>/<code>instantiate()</code></div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">Typed Arrays</div>
+                        <div class="description">Use typed arrays (<code>Array[Enemy]</code>) for faster iteration and type safety</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">GPU Particles</div>
+                        <div class="description">Enable <code>use_gpu_particles</code> for particle effects to offload work to the GPU</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">Profile First</div>
+                        <div class="description">Profile before optimizing -- use the built-in Profiler to find actual bottlenecks</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">Visibility Signals</div>
+                        <div class="description">Use <code>visibility_changed</code> signal to pause off-screen logic and save CPU cycles</div>
+                    </div>
+                    <div class="command-card">
+                        <div class="command">move_toward()</div>
+                        <div class="description">Prefer <code>move_toward()</code> over manual lerp for consistent frame-rate behavior</div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+</div><!-- /.container -->
+
+    <footer class="site-footer">
+        <p class="footer-glitch">GODOT_ENGINE::TECH_GUIDE // GL1TCH_ART_SYSTEM</p>
+        <a href="index.html">&larr; Back to Tech Guides</a>
+    </footer>
+
+    <script defer src="../prompt-viewer.js"></script>
+</body>
+</html>

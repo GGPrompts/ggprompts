@@ -142,7 +142,7 @@ Every style has a unique aesthetic. Some are paired with tech guides and stories
 | gaming-esports | | |
 | geological-mineral | | |
 | glassmorphism | GitHub Copilot CLI | The Glassblower's Legacy |
-| glitch-art | | |
+| glitch-art | Godot Engine | |
 | goblincore | | |
 | gothic | | |
 | gothic-cathedral | | |
