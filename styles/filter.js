@@ -12,7 +12,7 @@
     'swiss':                    { theme: 'light',    cat: ['print'] },
     'vaporwave':                { theme: 'colorful', cat: ['retro'] },
     'editorial':                { theme: 'light',    cat: ['print'] },
-    'neumorphism':              { theme: 'light',    cat: ['material'] },
+    'neumorphism':              { theme: 'dark',     cat: ['material'] },
     'art-deco':                 { theme: 'dark',     cat: ['art', 'luxury'] },
     'terrazzo':                 { theme: 'light',    cat: ['material'] },
     'kinetic-flux':             { theme: 'dark',     cat: ['digital'] },
@@ -52,7 +52,7 @@
     'rts-hud':                  { theme: 'dark',     cat: ['digital', 'playful'] },
     'retro-futurism':           { theme: 'light',    cat: ['retro'] },
     'art-nouveau':              { theme: 'light',    cat: ['art'] },
-    'streamline-moderne':       { theme: 'light',    cat: ['art', 'luxury'] },
+    'streamline-moderne':       { theme: 'dark',     cat: ['art', 'luxury'] },
     'frutiger-aero':            { theme: 'light',    cat: ['retro'] },
     'corporate-memphis':        { theme: 'light',    cat: ['playful'] },
     'knolling':                 { theme: 'light',    cat: ['material'] },
@@ -199,7 +199,7 @@
     'pointillism':              { theme: 'colorful', cat: ['art'] },
     'polaroid':                 { theme: 'light',    cat: ['retro'] },
     'pressed-flowers':          { theme: 'light',    cat: ['nature'] },
-    'qr-code':                  { theme: 'light',    cat: ['digital'] },
+    'qr-code':                  { theme: 'dark',     cat: ['digital'] },
     'regencycore':              { theme: 'light',    cat: ['luxury'] },
     'silent-film':              { theme: 'dark',     cat: ['retro', 'moody'] },
     'slavic-folk-art':          { theme: 'dark',     cat: ['cultural'] },
@@ -210,7 +210,7 @@
     'soviet-space-program':     { theme: 'colorful', cat: ['cultural', 'retro'] },
     'carnival-fairground':      { theme: 'colorful', cat: ['playful'] },
     'terracotta-adobe':         { theme: 'light',    cat: ['cultural', 'material'] },
-    'nautical-maritime-flags':  { theme: 'light',    cat: ['cultural'] }
+    'nautical-maritime-flags':  { theme: 'dark',     cat: ['cultural'] }
   };
 
   var CATEGORIES = [
