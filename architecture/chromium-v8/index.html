@@ -1,0 +1,1485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chromium / V8 Architecture | Mono Developer View</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&family=Fira+Code:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-crust:    #11111b;
+            --bg-mantle:   #181825;
+            --bg-base:     #1e1e2e;
+            --bg-surface0: #313244;
+            --bg-surface1: #45475a;
+            --bg-surface2: #585b70;
+            --syn-keyword:  #89b4fa;
+            --syn-function: #fab387;
+            --syn-string:   #a6e3a1;
+            --syn-type:     #cba6f7;
+            --syn-number:   #f9e2af;
+            --syn-comment:  #6c7086;
+            --syn-error:    #f38ba8;
+            --syn-info:     #89dceb;
+            --syn-builtin:  #94e2d5;
+            --syn-regex:    #f5c2e7;
+            --text-primary:   #cdd6f4;
+            --text-secondary: #a6adc8;
+            --text-muted:     #6c7086;
+            --text-faint:     #45475a;
+            --border-color:   #313244;
+            --border-focus:   #89b4fa;
+            --cursor-color:   #89b4fa;
+            --font-display: 'JetBrains Mono', monospace;
+            --font-body:    'IBM Plex Mono', monospace;
+            --font-mono:    'Fira Code', monospace;
+            --radius: 6px;
+            --space-1: 0.5rem;
+            --space-2: 1rem;
+            --space-3: 1.5rem;
+            --space-4: 2rem;
+            --space-6: 3rem;
+            --transition-fast: 0.15s ease;
+        }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background: var(--bg-crust);
+            color: var(--text-primary);
+            font-family: var(--font-body);
+            font-size: 15px;
+            line-height: 1.65;
+            min-height: 100vh;
+        }
+        body::after {
+            content: '';
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 9998;
+            background: repeating-linear-gradient(
+                0deg,
+                rgba(17, 17, 27, 0.04) 0px,
+                transparent 1px,
+                transparent 3px
+            );
+        }
+
+        a { color: var(--syn-keyword); text-decoration: none; transition: color var(--transition-fast); }
+        a:hover { color: var(--syn-info); }
+
+        code {
+            font-family: var(--font-mono);
+            font-size: 0.85em;
+            background: var(--bg-surface0);
+            padding: 2px 6px;
+            border-radius: 3px;
+            color: var(--syn-function);
+        }
+
+        .back-link {
+            display: inline-block;
+            font-family: var(--font-display);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            padding: var(--space-2) var(--space-3);
+            color: var(--text-muted);
+        }
+        .back-link:hover { color: var(--syn-keyword); }
+
+        /* === Hero === */
+        .hero {
+            text-align: center;
+            padding: var(--space-6) var(--space-3) var(--space-4);
+            border-bottom: 1px solid var(--border-color);
+            position: relative;
+            background: linear-gradient(180deg, var(--bg-mantle) 0%, var(--bg-crust) 100%);
+        }
+        .hero::before {
+            content: '// chromium::architecture';
+            position: absolute;
+            top: var(--space-2);
+            left: var(--space-3);
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            color: var(--syn-comment);
+        }
+        .hero h1 {
+            font-family: var(--font-display);
+            font-size: 2.2rem;
+            font-weight: 800;
+            color: var(--text-primary);
+            letter-spacing: 0.08em;
+            margin-bottom: var(--space-1);
+        }
+        .hero h1 span { color: var(--syn-keyword); }
+        .hero .subtitle {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            color: var(--syn-string);
+            letter-spacing: 0.12em;
+        }
+
+        /* === Jump Nav === */
+        .jump-nav {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            justify-content: center;
+            padding: var(--space-1) var(--space-3);
+            background: var(--bg-mantle);
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .jump-nav a {
+            font-family: var(--font-display);
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            padding: 4px 8px;
+            border: 1px solid transparent;
+            border-radius: var(--radius);
+            letter-spacing: 0.04em;
+            white-space: nowrap;
+        }
+        .jump-nav a:hover {
+            color: var(--syn-keyword);
+            border-color: var(--syn-keyword);
+            background: rgba(137, 180, 250, 0.06);
+        }
+
+        /* === Sections === */
+        main { max-width: 1100px; margin: 0 auto; padding: 0 var(--space-3); }
+
+        .section {
+            padding: var(--space-4) 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .section-label {
+            font-family: var(--font-display);
+            font-size: 0.65rem;
+            color: var(--syn-comment);
+            letter-spacing: 0.15em;
+            margin-bottom: var(--space-1);
+        }
+        .section h2 {
+            font-family: var(--font-display);
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--syn-function);
+            letter-spacing: 0.06em;
+            margin-bottom: var(--space-2);
+        }
+        .section p {
+            max-width: 75ch;
+            margin-bottom: var(--space-2);
+            color: var(--text-secondary);
+        }
+
+        /* === Stat Row === */
+        .stat-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-2);
+            margin-bottom: var(--space-3);
+            justify-content: center;
+        }
+        .stat-card {
+            background: var(--bg-base);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            padding: var(--space-2) var(--space-3);
+            text-align: center;
+            min-width: 130px;
+            position: relative;
+        }
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, var(--syn-keyword), var(--syn-type), var(--syn-function), var(--syn-error));
+        }
+        .stat-value {
+            font-family: var(--font-display);
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--syn-string);
+            line-height: 1.2;
+        }
+        .stat-label {
+            font-family: var(--font-display);
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            letter-spacing: 0.08em;
+        }
+
+        /* === Diagram Container === */
+        .diagram-container {
+            position: relative;
+            background: var(--bg-mantle);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            padding: var(--space-3);
+            margin: var(--space-3) 0;
+            overflow-x: auto;
+            scrollbar-width: thin;
+            scrollbar-color: var(--bg-surface0) var(--bg-mantle);
+        }
+        .diagram-container::-webkit-scrollbar { height: 8px; }
+        .diagram-container::-webkit-scrollbar-track { background: var(--bg-mantle); border-radius: 4px; }
+        .diagram-container::-webkit-scrollbar-thumb { background: var(--bg-surface0); border-radius: 4px; }
+        .diagram-container::-webkit-scrollbar-thumb:hover { background: var(--bg-surface1); }
+        .diagram-label {
+            font-family: var(--font-display);
+            font-size: 0.65rem;
+            color: var(--syn-comment);
+            letter-spacing: 0.12em;
+            margin-bottom: var(--space-2);
+            padding-bottom: var(--space-1);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        /* === Info Cards === */
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: var(--space-2);
+            margin: var(--space-3) 0;
+        }
+        .info-card {
+            background: var(--bg-base);
+            border: 1px solid var(--border-color);
+            border-left: 3px solid var(--syn-keyword);
+            border-radius: var(--radius);
+            padding: var(--space-2) var(--space-3);
+        }
+        .info-card.fn { border-left-color: var(--syn-function); }
+        .info-card.str { border-left-color: var(--syn-string); }
+        .info-card.typ { border-left-color: var(--syn-type); }
+        .info-card.err { border-left-color: var(--syn-error); }
+        .info-card.num { border-left-color: var(--syn-number); }
+        .info-card.bi { border-left-color: var(--syn-builtin); }
+        .info-card.inf { border-left-color: var(--syn-info); }
+        .info-card h4 {
+            font-family: var(--font-display);
+            font-size: 0.8rem;
+            color: var(--text-primary);
+            letter-spacing: 0.05em;
+            margin-bottom: var(--space-1);
+        }
+        .info-card p {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin: 0;
+        }
+
+        /* === Data Table === */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: var(--space-3) 0;
+            font-size: 0.82rem;
+        }
+        .data-table th {
+            font-family: var(--font-display);
+            font-size: 0.65rem;
+            color: var(--syn-comment);
+            letter-spacing: 0.08em;
+            text-align: left;
+            padding: var(--space-1) var(--space-2);
+            border-bottom: 2px solid var(--border-color);
+            background: var(--bg-mantle);
+        }
+        .data-table td {
+            padding: var(--space-1) var(--space-2);
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-secondary);
+        }
+        .data-table tr:hover td { background: rgba(137, 180, 250, 0.04); }
+
+        /* === Callout === */
+        .callout {
+            background: var(--bg-base);
+            border: 1px solid var(--syn-keyword);
+            border-radius: var(--radius);
+            padding: var(--space-2) var(--space-3);
+            margin: var(--space-2) 0;
+            font-size: 0.88rem;
+        }
+        .callout strong { color: var(--text-primary); }
+
+        /* === Expand Button === */
+        .diagram-expand-btn {
+            position: absolute;
+            top: var(--space-1);
+            right: var(--space-1);
+            background: var(--bg-base);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            color: var(--text-muted);
+            padding: 6px 8px;
+            cursor: pointer;
+            font-size: 0.65rem;
+            font-family: var(--font-display);
+            letter-spacing: 0.04em;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            transition: all var(--transition-fast);
+            z-index: 2;
+        }
+        .diagram-expand-btn:hover {
+            color: var(--syn-keyword);
+            border-color: var(--syn-keyword);
+            background: rgba(137, 180, 250, 0.08);
+        }
+        .diagram-expand-btn svg { width: 14px; height: 14px; }
+
+        /* === Fullscreen Overlay === */
+        .fs-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            background: var(--bg-crust);
+            display: none;
+            flex-direction: column;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+        .fs-overlay.active { opacity: 1; }
+        .fs-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: var(--space-1) var(--space-3);
+            background: var(--bg-mantle);
+            border-bottom: 1px solid var(--border-color);
+            flex-shrink: 0;
+        }
+        .fs-toolbar-title {
+            font-family: var(--font-display);
+            font-size: 0.75rem;
+            color: var(--syn-comment);
+            letter-spacing: 0.06em;
+        }
+        .fs-controls { display: flex; gap: var(--space-1); align-items: center; }
+        .fs-btn {
+            background: var(--bg-base);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            color: var(--text-primary);
+            padding: 6px 12px;
+            cursor: pointer;
+            font-family: var(--font-display);
+            font-size: 0.75rem;
+            transition: all var(--transition-fast);
+        }
+        .fs-btn:hover { color: var(--syn-keyword); border-color: var(--syn-keyword); }
+        .fs-zoom-label {
+            font-family: var(--font-display);
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            min-width: 48px;
+            text-align: center;
+        }
+        .fs-close {
+            background: none;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            color: var(--text-primary);
+            padding: 6px 12px;
+            cursor: pointer;
+            font-family: var(--font-display);
+            font-size: 0.75rem;
+            transition: all var(--transition-fast);
+        }
+        .fs-close:hover { color: var(--syn-error); border-color: var(--syn-error); }
+        .fs-viewport { flex: 1; overflow: hidden; cursor: grab; position: relative; }
+        .fs-viewport:active { cursor: grabbing; }
+        .fs-content { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
+        .fs-content svg { max-width: none !important; height: auto !important; }
+        .fs-hint {
+            position: absolute;
+            bottom: var(--space-2);
+            left: 50%;
+            transform: translateX(-50%);
+            font-family: var(--font-display);
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            background: var(--bg-mantle);
+            padding: 4px 12px;
+            border-radius: var(--radius);
+            border: 1px solid var(--border-color);
+        }
+
+        /* === Footer === */
+        footer {
+            text-align: center;
+            padding: var(--space-4) var(--space-3);
+            font-family: var(--font-display);
+            font-size: 0.7rem;
+            color: var(--text-faint);
+            border-top: 1px solid var(--border-color);
+        }
+        footer a { color: var(--text-muted); }
+
+        /* === Responsive === */
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 1.3rem; }
+            .stat-row { gap: var(--space-1); }
+            .stat-card { min-width: 100px; padding: var(--space-1) var(--space-2); }
+            .stat-value { font-size: 1.1rem; }
+            .info-grid { grid-template-columns: 1fr; }
+            .jump-nav a { font-size: 0.58rem; padding: 3px 5px; }
+            .section h2 { font-size: 1rem; }
+            main { padding: 0 var(--space-2); }
+        }
+    </style>
+</head>
+<body>
+
+<a href="../index.html" class="back-link">&larr; Architecture Maps</a>
+
+<header class="hero">
+    <h1>Chromium <span>/</span> V8</h1>
+    <div class="subtitle">Multi-Process Browser Engine &mdash; Source-Level Architecture Map</div>
+</header>
+
+<nav class="jump-nav">
+    <a href="#overview">01 Overview</a>
+    <a href="#processes">02 Processes</a>
+    <a href="#blink">03 Blink Pipeline</a>
+    <a href="#v8">04 V8 Engine</a>
+    <a href="#gc">05 Memory &amp; GC</a>
+    <a href="#mojo">06 IPC &amp; Mojo</a>
+    <a href="#compositor">07 Compositor</a>
+    <a href="#network">08 Network Stack</a>
+    <a href="#extensions">09 Extensions</a>
+    <a href="#security">10 Security Model</a>
+    <a href="#devtools">11 DevTools</a>
+    <a href="#dataflow">12 System Flow</a>
+</nav>
+
+<main>
+
+    <!-- ============ 01: OVERVIEW ============ -->
+    <section id="overview" class="section">
+        <div class="section-label">// section 01</div>
+        <h2>Overview &amp; Scale</h2>
+
+        <div class="stat-row">
+            <div class="stat-card">
+                <div class="stat-value">36M+</div>
+                <div class="stat-label">Lines of Code</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">8</div>
+                <div class="stat-label">Major Subsystems</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">4-Tier</div>
+                <div class="stat-label">V8 JIT Pipeline</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">6-Stage</div>
+                <div class="stat-label">Render Pipeline</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">68%</div>
+                <div class="stat-label">Browser Market</div>
+            </div>
+        </div>
+
+        <p>Chromium is a multi-process, sandboxed browser engine that powers Chrome, Edge, Brave, Opera, and dozens of other browsers. It separates the browser chrome, web content rendering, GPU compositing, and networking into isolated processes communicating over Mojo IPC. V8, the JavaScript and WebAssembly engine, runs inside each renderer process with a 4-tier compilation pipeline from interpreter to optimizing JIT.</p>
+
+        <div class="diagram-container">
+            <div class="diagram-label">// high-level architecture overview</div>
+            <pre class="mermaid">
+graph TD
+    UI["&nbsp;Browser Process&nbsp;<br/>UI, Tabs, Navigation"]
+    R1["&nbsp;Renderer Process&nbsp;<br/>Blink + V8"]
+    R2["&nbsp;Renderer Process&nbsp;<br/>Blink + V8"]
+    GPU["&nbsp;GPU Process&nbsp;<br/>Viz + Compositing"]
+    NET["&nbsp;Network Service&nbsp;<br/>net/ library"]
+    STOR["&nbsp;Storage Service&nbsp;<br/>IndexedDB, Cache"]
+    EXT["&nbsp;Extension Process&nbsp;<br/>Isolated World"]
+    UTIL["&nbsp;Utility Process&nbsp;<br/>Audio, Decode"]
+
+    UI --> R1
+    UI --> R2
+    UI --> GPU
+    UI --> NET
+    UI --> STOR
+    UI --> EXT
+    UI --> UTIL
+    R1 --> GPU
+    R2 --> GPU
+    R1 --> NET
+
+    style UI fill:#89b4fa,stroke:#74a0e8,color:#11111b
+    style R1 fill:#fab387,stroke:#e89b72,color:#11111b
+    style R2 fill:#fab387,stroke:#e89b72,color:#11111b
+    style GPU fill:#a6e3a1,stroke:#8fd18a,color:#11111b
+    style NET fill:#cba6f7,stroke:#b48fe0,color:#11111b
+    style STOR fill:#f9e2af,stroke:#e5cf9a,color:#11111b
+    style EXT fill:#f5c2e7,stroke:#e0aed2,color:#11111b
+    style UTIL fill:#94e2d5,stroke:#7fcfc2,color:#11111b
+            </pre>
+        </div>
+    </section>
+
+    <!-- ============ 02: PROCESS ARCHITECTURE ============ -->
+    <section id="processes" class="section">
+        <div class="section-label">// section 02</div>
+        <h2>Process Architecture</h2>
+
+        <p>Each major responsibility runs in a separate OS process with its own address space. The browser process is the privileged coordinator that spawns and manages all other processes. Renderer processes run in a restrictive sandbox with no direct filesystem or network access.</p>
+
+        <div class="diagram-container">
+            <div class="diagram-label">// process model &amp; ipc topology</div>
+            <pre class="mermaid">
+graph TD
+    subgraph BROWSER["Browser Process"]
+        UI_T["UI Thread"]
+        IO_T["IO Thread"]
+        NAV["Navigation<br/>Controller"]
+    end
+    subgraph RENDERER["Renderer Process (per-site)"]
+        MAIN["Main Thread<br/>Blink + V8"]
+        COMP["Compositor<br/>Thread"]
+        WORK["Web Workers"]
+    end
+    subgraph GPUPROC["GPU Process"]
+        CMD["Command<br/>Buffer"]
+        VIZ["Viz Display<br/>Compositor"]
+    end
+    subgraph NETPROC["Network Service"]
+        URL["URLLoader<br/>Factory"]
+        CACHE["HTTP Cache"]
+    end
+
+    IO_T -->|"Mojo IPC"| MAIN
+    IO_T -->|"Mojo IPC"| CMD
+    IO_T -->|"Mojo IPC"| URL
+    COMP -->|"CompositorFrame"| VIZ
+    MAIN -->|"ResourceRequest"| URL
+
+    style BROWSER fill:#1e1e2e,stroke:#89b4fa,color:#cdd6f4
+    style RENDERER fill:#1e1e2e,stroke:#fab387,color:#cdd6f4
+    style GPUPROC fill:#1e1e2e,stroke:#a6e3a1,color:#cdd6f4
+    style NETPROC fill:#1e1e2e,stroke:#cba6f7,color:#cdd6f4
+    style UI_T fill:#89b4fa,stroke:#74a0e8,color:#11111b
+    style IO_T fill:#89b4fa,stroke:#74a0e8,color:#11111b
+    style NAV fill:#89b4fa,stroke:#74a0e8,color:#11111b
+    style MAIN fill:#fab387,stroke:#e89b72,color:#11111b
+    style COMP fill:#fab387,stroke:#e89b72,color:#11111b
+    style WORK fill:#fab387,stroke:#e89b72,color:#11111b
+    style CMD fill:#a6e3a1,stroke:#8fd18a,color:#11111b
+    style VIZ fill:#a6e3a1,stroke:#8fd18a,color:#11111b
+    style URL fill:#cba6f7,stroke:#b48fe0,color:#11111b
+    style CACHE fill:#cba6f7,stroke:#b48fe0,color:#11111b
+            </pre>
+        </div>
+
+        <div class="info-grid">
+            <div class="info-card">
+                <h4>Browser Process</h4>
+                <p>Privileged coordinator. Manages tabs, navigation, permissions, and spawns all child processes. Runs the UI thread and IO thread for IPC dispatch.</p>
+            </div>
+            <div class="info-card fn">
+                <h4>Renderer Process</h4>
+                <p>One per site (site isolation). Contains Blink rendering engine and V8 JS engine. Sandboxed with no direct OS access. Main thread + compositor thread.</p>
+            </div>
+            <div class="info-card str">
+                <h4>GPU Process</h4>
+                <p>Single process for all GPU operations. Hosts the Viz display compositor and command buffer. Rasterizes tiles and composites final frames to screen.</p>
+            </div>
+            <div class="info-card typ">
+                <h4>Network Service</h4>
+                <p>Sandboxed networking. Handles HTTP/HTTPS, DNS, cookies, cache, proxy resolution, and TLS. Runs as a Mojo service in its own process.</p>
+            </div>
+        </div>
+
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Process</th>
+                    <th>Sandboxed</th>
+                    <th>Threads</th>
+                    <th>Key Responsibility</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>Browser</td><td>No (privileged)</td><td>UI, IO, ThreadPool</td><td>Coordination, navigation, permissions</td></tr>
+                <tr><td>Renderer</td><td>Yes (strict)</td><td>Main, Compositor, Workers</td><td>DOM, JS execution, layout, paint</td></tr>
+                <tr><td>GPU</td><td>Partial</td><td>Main, Display Compositor</td><td>Rasterization, compositing, display</td></tr>
+                <tr><td>Network</td><td>Yes</td><td>IO</td><td>HTTP, DNS, TLS, caching</td></tr>
+                <tr><td>Utility</td><td>Yes</td><td>Varies</td><td>Audio decode, file ops, data decode</td></tr>
+                <tr><td>Extension</td><td>Yes</td><td>Main + Workers</td><td>Extension service workers, APIs</td></tr>
+            </tbody>
+        </table>
+    </section>
+
+    <!-- ============ 03: BLINK RENDERING PIPELINE ============ -->
+    <section id="blink" class="section">
+        <div class="section-label">// section 03</div>
+        <h2>Blink Rendering Pipeline</h2>
+
+        <p>Blink is Chromium's rendering engine (forked from WebKit in 2013). It transforms HTML/CSS into GPU-composited frames through a strict 6-stage pipeline. RenderingNG, a multi-year rewrite completed in 2022, eliminated reentrant code paths, making the pipeline fully deterministic and non-reentrant.</p>
+
+        <div class="diagram-container">
+            <div class="diagram-label">// rendering pipeline stages</div>
+            <pre class="mermaid">
+graph LR
+    DOM["&nbsp;DOM&nbsp;<br/>Parse HTML"]
+    STY["&nbsp;Style&nbsp;<br/>Cascade + Computed"]
+    LAY["&nbsp;Layout&nbsp;<br/>Fragment Tree"]
+    PPT["&nbsp;Pre-Paint&nbsp;<br/>Property Trees"]
+    PNT["&nbsp;Paint&nbsp;<br/>Display Lists"]
+    CMT["&nbsp;Commit&nbsp;<br/>to Compositor"]
+    LYR["&nbsp;Layerize&nbsp;<br/>cc::Layers"]
+    RAS["&nbsp;Raster&nbsp;<br/>GPU Tiles"]
+    DRW["&nbsp;Draw&nbsp;<br/>to Screen"]
+
+    DOM --> STY
+    STY --> LAY
+    LAY --> PPT
+    PPT --> PNT
+    PNT --> CMT
+    CMT --> LYR
+    LYR --> RAS
+    RAS --> DRW
+
+    style DOM fill:#f38ba8,stroke:#e07595,color:#11111b
+    style STY fill:#fab387,stroke:#e89b72,color:#11111b
+    style LAY fill:#f9e2af,stroke:#e5cf9a,color:#11111b
+    style PPT fill:#a6e3a1,stroke:#8fd18a,color:#11111b
+    style PNT fill:#89dceb,stroke:#74c7d6,color:#11111b
+    style CMT fill:#89b4fa,stroke:#74a0e8,color:#11111b
+    style LYR fill:#cba6f7,stroke:#b48fe0,color:#11111b
+    style RAS fill:#f5c2e7,stroke:#e0aed2,color:#11111b
+    style DRW fill:#94e2d5,stroke:#7fcfc2,color:#11111b
+            </pre>
+        </div>
+
+        <div class="info-grid">
+            <div class="info-card err">
+                <h4>DOM + Style</h4>
+                <p>Parse HTML into a DOM tree. Run the CSS cascade algorithm to compute final styles for each node. Invalidation is fine-grained &mdash; only dirty subtrees recompute.</p>
+            </div>
+            <div class="info-card num">
+                <h4>Layout</h4>
+                <p>Generate an immutable fragment tree with box sizes and positions. LayoutNG uses a constraint-based solver replacing the legacy recursive model.</p>
+            </div>
+            <div class="info-card str">
+                <h4>Pre-Paint + Paint</h4>
+                <p>Build property trees (transform, clip, effect, scroll). Convert LayoutObject tree into display item lists &mdash; GPU-ready drawing instructions.</p>
+            </div>
+            <div class="info-card typ">
+                <h4>Commit + Composite</h4>
+                <p>Copy property trees and display lists to the compositor thread. Layerize into cc::Layer list, rasterize GPU texture tiles, then composite and draw to screen via Viz.</p>
+            </div>
+        </div>
+
+        <div class="callout">
+            <strong>Thread boundary:</strong> Stages DOM through Paint run on the main thread. Commit transfers data to the compositor thread, which runs Layerize, Raster, and Draw independently &mdash; enabling smooth scrolling and animations even when the main thread is blocked by JavaScript.
+        </div>
+    </section>
+
+    <!-- ============ 04: V8 ENGINE ============ -->
+    <section id="v8" class="section">
+        <div class="section-label">// section 04</div>
+        <h2>V8 Engine Internals</h2>
+
+        <p>V8 is a register-based JavaScript and WebAssembly engine with a 4-tier compilation pipeline. Code starts in the Ignition interpreter and gets promoted through increasingly aggressive compilation tiers as it gets hotter, with deoptimization bail-outs when type assumptions break.</p>
+
+        <div class="diagram-container">
+            <div class="diagram-label">// compilation tier pipeline</div>
+            <pre class="mermaid">
+graph TD
+    SRC["&nbsp;JavaScript Source&nbsp;"]
+    PARSE["&nbsp;Parser&nbsp;<br/>AST Generation"]
+    BC["&nbsp;Bytecode&nbsp;<br/>Generator"]
+    IGN["&nbsp;Ignition&nbsp;<br/>Interpreter"]
+    SP["&nbsp;Sparkplug&nbsp;<br/>Baseline JIT"]
+    MG["&nbsp;Maglev&nbsp;<br/>Mid-Tier Optimizer"]
+    TF["&nbsp;TurboFan&nbsp;<br/>Optimizing JIT"]
+    DEOPT["&nbsp;Deoptimize&nbsp;<br/>Bail Out"]
+
+    SRC --> PARSE
+    PARSE --> BC
+    BC --> IGN
+    IGN -->|"warm"| SP
+    SP -->|"warmer"| MG
+    MG -->|"hot"| TF
+    TF -.->|"type guard fails"| DEOPT
+    MG -.->|"type guard fails"| DEOPT
+    DEOPT -.-> IGN
+
+    style SRC fill:#6c7086,stroke:#585b70,color:#cdd6f4
+    style PARSE fill:#89dceb,stroke:#74c7d6,color:#11111b
+    style BC fill:#89b4fa,stroke:#74a0e8,color:#11111b
+    style IGN fill:#a6e3a1,stroke:#8fd18a,color:#11111b
+    style SP fill:#f9e2af,stroke:#e5cf9a,color:#11111b
+    style MG fill:#fab387,stroke:#e89b72,color:#11111b
+    style TF fill:#f38ba8,stroke:#e07595,color:#11111b
+    style DEOPT fill:#f38ba8,stroke:#e07595,color:#11111b
+            </pre>
+        </div>
+
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Tier</th>
+                    <th>Type</th>
+                    <th>Compile Speed</th>
+                    <th>Code Quality</th>
+                    <th>When Used</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>Ignition</td><td>Interpreter</td><td>Instant (bytecode)</td><td>Baseline</td><td>All code initially</td></tr>
+                <tr><td>Sparkplug</td><td>Baseline JIT</td><td>Very fast (~1ms)</td><td>Good</td><td>Warm functions</td></tr>
+                <tr><td>Maglev</td><td>Mid-tier optimizer</td><td>Fast (~10ms)</td><td>Better</td><td>Warmer functions</td></tr>
+                <tr><td>TurboFan</td><td>Optimizing JIT</td><td>Slow (~100ms)</td><td>Best</td><td>Hot loops, stable types</td></tr>
+            </tbody>
+        </table>
+
+        <div class="info-grid">
+            <div class="info-card str">
+                <h4>Ignition Interpreter</h4>
+                <p>Register-based bytecode interpreter. Generates compact bytecode from the AST. Collects type feedback (inline caches) that drives optimization decisions in higher tiers.</p>
+            </div>
+            <div class="info-card num">
+                <h4>Sparkplug Baseline</h4>
+                <p>Non-optimizing compiler that directly translates bytecode to native machine code without an IR. No register allocation &mdash; mirrors Ignition's register layout. Near-instant compilation.</p>
+            </div>
+            <div class="info-card fn">
+                <h4>Maglev Mid-Tier</h4>
+                <p>Simple SSA-based optimizing compiler introduced in Chrome M117. ~10x slower to compile than Sparkplug but ~10x faster than TurboFan. Handles most warm code paths efficiently.</p>
+            </div>
+            <div class="info-card err">
+                <h4>TurboFan Optimizer</h4>
+                <p>Sea-of-nodes IR with aggressive speculative optimizations: inlining, escape analysis, bounds check elimination, and loop-invariant code motion. Produces the fastest code.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ 05: MEMORY & GC ============ -->
+    <section id="gc" class="section">
+        <div class="section-label">// section 05</div>
+        <h2>Memory &amp; Garbage Collection</h2>
+
+        <p>V8's Orinoco garbage collector uses a generational strategy based on the observation that most objects die young. The heap is split into a young generation (semi-space nursery) and an old generation (mark-compact). Orinoco introduced concurrent, parallel, and incremental GC to minimize pause times.</p>
+
+        <div class="diagram-container">
+            <div class="diagram-label">// generational heap layout &amp; gc strategy</div>
+            <pre class="mermaid">
+graph TD
+    ALLOC["&nbsp;Object Allocation&nbsp;"]
+    NURS["&nbsp;Nursery&nbsp;<br/>Young Gen: From-Space"]
+    TO["&nbsp;To-Space&nbsp;<br/>Scavenge Copy Target"]
+    INTER["&nbsp;Intermediate&nbsp;<br/>Survived 1 GC"]
+    OLD["&nbsp;Old Generation&nbsp;<br/>Long-Lived Objects"]
+    LO["&nbsp;Large Object Space&nbsp;<br/>Oversized Allocs"]
+    CODE["&nbsp;Code Space&nbsp;<br/>JIT Machine Code"]
+
+    ALLOC --> NURS
+    NURS -->|"Scavenger (Minor GC)"| TO
+    TO --> INTER
+    INTER -->|"Survives again"| OLD
+    OLD -->|"Mark-Compact (Major GC)"| OLD
+    ALLOC -->|"large"| LO
+
+    style ALLOC fill:#89b4fa,stroke:#74a0e8,color:#11111b
+    style NURS fill:#a6e3a1,stroke:#8fd18a,color:#11111b
+    style TO fill:#a6e3a1,stroke:#8fd18a,color:#11111b
+    style INTER fill:#f9e2af,stroke:#e5cf9a,color:#11111b
+    style OLD fill:#fab387,stroke:#e89b72,color:#11111b
+    style LO fill:#cba6f7,stroke:#b48fe0,color:#11111b
+    style CODE fill:#f5c2e7,stroke:#e0aed2,color:#11111b
+            </pre>
+        </div>
+
+        <div class="info-grid">
+            <div class="info-card str">
+                <h4>Scavenger (Minor GC)</h4>
+                <p>Collects young generation using semi-space copying. Copies live objects from From-Space to To-Space, then swaps. Parallel scavenging across multiple threads reduces pause to ~1ms.</p>
+            </div>
+            <div class="info-card fn">
+                <h4>Mark-Compact (Major GC)</h4>
+                <p>Collects old generation. Three phases: concurrent marking (off-main-thread), finalization (pause), and parallel compaction. Orinoco reduced compaction from ~7ms to under 2ms.</p>
+            </div>
+            <div class="info-card bi">
+                <h4>Concurrent Marking</h4>
+                <p>Worker threads traverse the object graph while JavaScript continues to run. Write barriers track mutations. Final marking pause only processes objects modified during concurrent phase.</p>
+            </div>
+            <div class="info-card typ">
+                <h4>Incremental GC</h4>
+                <p>Major GC work is broken into small increments interleaved with JavaScript execution. Prevents long pauses on heaps with millions of objects. Budget: ~1ms per increment.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ 06: IPC & MOJO ============ -->
+    <section id="mojo" class="section">
+        <div class="section-label">// section 06</div>
+        <h2>IPC &amp; Mojo</h2>
+
+        <p>Mojo is Chromium's cross-process communication framework, replacing the legacy IPC system. It provides language-agnostic interface definitions (Mojom IDL), type-safe message pipes, zero-copy data pipes, and shared memory buffers. Mojo is 3x faster than legacy IPC with one-third the context switching overhead.</p>
+
+        <div class="diagram-container">
+            <div class="diagram-label">// mojo ipc primitives</div>
+            <pre class="mermaid">
+graph TD
+    MOJOM["&nbsp;Mojom IDL&nbsp;<br/>Interface Definition"]
+    CODEGEN["&nbsp;Code Generation&nbsp;<br/>C++ / Java / JS"]
+    REMOTE["&nbsp;Remote&lt;T&gt;&nbsp;<br/>Send Messages"]
+    RECV["&nbsp;Receiver&lt;T&gt;&nbsp;<br/>Handle Messages"]
+    PIPE["&nbsp;Message Pipe&nbsp;<br/>Bidirectional Channel"]
+    DATA["&nbsp;Data Pipe&nbsp;<br/>Streaming Bytes"]
+    SHM["&nbsp;Shared Buffer&nbsp;<br/>Zero-Copy Memory"]
+
+    MOJOM --> CODEGEN
+    CODEGEN --> REMOTE
+    CODEGEN --> RECV
+    REMOTE --> PIPE
+    RECV --> PIPE
+    PIPE --> DATA
+    PIPE --> SHM
+
+    style MOJOM fill:#89b4fa,stroke:#74a0e8,color:#11111b
+    style CODEGEN fill:#89dceb,stroke:#74c7d6,color:#11111b
+    style REMOTE fill:#fab387,stroke:#e89b72,color:#11111b
+    style RECV fill:#fab387,stroke:#e89b72,color:#11111b
+    style PIPE fill:#a6e3a1,stroke:#8fd18a,color:#11111b
+    style DATA fill:#cba6f7,stroke:#b48fe0,color:#11111b
+    style SHM fill:#f9e2af,stroke:#e5cf9a,color:#11111b
+            </pre>
+        </div>
+
+        <div class="diagram-container">
+            <div class="diagram-label">// cross-process mojo connections</div>
+            <pre class="mermaid">
+graph LR
+    BP["&nbsp;Browser Process&nbsp;"]
+    RP["&nbsp;Renderer Process&nbsp;"]
+    GP["&nbsp;GPU Process&nbsp;"]
+    NP["&nbsp;Network Service&nbsp;"]
+
+    BP <-->|"content::mojom"| RP
+    BP <-->|"viz::mojom"| GP
+    BP <-->|"network::mojom"| NP
+    RP <-->|"CompositorFrameSink"| GP
+    RP -->|"URLLoaderFactory"| NP
+
+    style BP fill:#89b4fa,stroke:#74a0e8,color:#11111b
+    style RP fill:#fab387,stroke:#e89b72,color:#11111b
+    style GP fill:#a6e3a1,stroke:#8fd18a,color:#11111b
+    style NP fill:#cba6f7,stroke:#b48fe0,color:#11111b
+            </pre>
+        </div>
+
+        <div class="callout">
+            <strong>Mojom IDL:</strong> Interfaces are defined in <code>.mojom</code> files using a language-agnostic IDL. The build system generates type-safe bindings for C++, Java, and JavaScript. A single <code>.mojom</code> file can define interfaces used across all three languages.
+        </div>
+    </section>
+
+    <!-- ============ 07: COMPOSITOR ============ -->
+    <section id="compositor" class="section">
+        <div class="section-label">// section 07</div>
+        <h2>Compositor Architecture</h2>
+
+        <p>Chromium's compositor (the <code>cc</code> library) runs on a dedicated thread in the renderer process. It takes display lists from Blink, rasterizes them into GPU texture tiles, and submits compositor frames to the Viz display compositor in the GPU process, which aggregates frames from all sources and draws to the screen.</p>
+
+        <div class="diagram-container">
+            <div class="diagram-label">// frame production pipeline</div>
+            <pre class="mermaid">
+graph TD
+    BIF["&nbsp;BeginImplFrame&nbsp;<br/>VSync Signal"]
+    BMF["&nbsp;BeginMainFrame&nbsp;<br/>Main Thread Work"]
+    CMT["&nbsp;Commit&nbsp;<br/>Copy to Impl"]
+    ACT["&nbsp;Activate&nbsp;<br/>Pending to Active"]
+    RAS["&nbsp;Raster&nbsp;<br/>GPU Tile Worker"]
+    DRW["&nbsp;Draw&nbsp;<br/>Build Quads"]
+    SWAP["&nbsp;Submit Frame&nbsp;<br/>to Viz"]
+    AGG["&nbsp;Surface Aggregator&nbsp;<br/>Merge All Frames"]
+    DISP["&nbsp;Display&nbsp;<br/>to Screen"]
+
+    BIF --> BMF
+    BMF --> CMT
+    CMT --> ACT
+    ACT --> RAS
+    RAS --> DRW
+    DRW --> SWAP
+    SWAP --> AGG
+    AGG --> DISP
+
+    style BIF fill:#89b4fa,stroke:#74a0e8,color:#11111b
+    style BMF fill:#fab387,stroke:#e89b72,color:#11111b
+    style CMT fill:#f9e2af,stroke:#e5cf9a,color:#11111b
+    style ACT fill:#a6e3a1,stroke:#8fd18a,color:#11111b
+    style RAS fill:#94e2d5,stroke:#7fcfc2,color:#11111b
+    style DRW fill:#cba6f7,stroke:#b48fe0,color:#11111b
+    style SWAP fill:#f5c2e7,stroke:#e0aed2,color:#11111b
+    style AGG fill:#f38ba8,stroke:#e07595,color:#11111b
+    style DISP fill:#89dceb,stroke:#74c7d6,color:#11111b
+            </pre>
+        </div>
+
+        <div class="info-grid">
+            <div class="info-card">
+                <h4>cc Library</h4>
+                <p>Chrome Compositor library. Manages layer trees, tile management, rasterization scheduling, and frame submission. Runs on the compositor thread in each renderer process.</p>
+            </div>
+            <div class="info-card str">
+                <h4>Viz Service</h4>
+                <p>Display compositor in the GPU process. Aggregates CompositorFrames from all renderer processes and the browser process into a single frame per VSync via SurfaceAggregator.</p>
+            </div>
+            <div class="info-card fn">
+                <h4>Skia / Ganesh / Graphite</h4>
+                <p>2D graphics library used for rasterization. Ganesh is the OpenGL/Vulkan backend; Graphite is the next-gen backend with better batching and Dawn/WebGPU integration.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ 08: NETWORK STACK ============ -->
+    <section id="network" class="section">
+        <div class="section-label">// section 08</div>
+        <h2>Network Stack</h2>
+
+        <p>The network stack runs as an isolated Mojo service (formerly in-process). It handles DNS resolution, TLS negotiation, HTTP/2 and HTTP/3 (QUIC), proxy configuration, cookie management, and the HTTP cache. Renderers request resources via URLLoaderFactory, which the browser process creates with appropriate security restrictions.</p>
+
+        <div class="diagram-container">
+            <div class="diagram-label">// request lifecycle</div>
+            <pre class="mermaid">
+graph TD
+    REQ["&nbsp;Renderer&nbsp;<br/>fetch() / Resource"]
+    SW["&nbsp;Service Worker&nbsp;<br/>Intercept?"]
+    ULF["&nbsp;URLLoaderFactory&nbsp;<br/>Browser-Created"]
+    UL["&nbsp;URLLoader&nbsp;<br/>Network Service"]
+    DNS["&nbsp;Host Resolver&nbsp;<br/>DNS Lookup"]
+    TLS["&nbsp;SSL / TLS&nbsp;<br/>BoringSSL"]
+    HTTP["&nbsp;HTTP Transaction&nbsp;<br/>H2 / H3 / QUIC"]
+    CACHE["&nbsp;HTTP Cache&nbsp;<br/>Disk Backend"]
+
+    REQ --> SW
+    SW -->|"no intercept"| ULF
+    SW -->|"respond"| REQ
+    ULF --> UL
+    UL --> DNS
+    DNS --> TLS
+    TLS --> HTTP
+    UL --> CACHE
+
+    style REQ fill:#fab387,stroke:#e89b72,color:#11111b
+    style SW fill:#f5c2e7,stroke:#e0aed2,color:#11111b
+    style ULF fill:#89b4fa,stroke:#74a0e8,color:#11111b
+    style UL fill:#cba6f7,stroke:#b48fe0,color:#11111b
+    style DNS fill:#89dceb,stroke:#74c7d6,color:#11111b
+    style TLS fill:#f38ba8,stroke:#e07595,color:#11111b
+    style HTTP fill:#a6e3a1,stroke:#8fd18a,color:#11111b
+    style CACHE fill:#f9e2af,stroke:#e5cf9a,color:#11111b
+            </pre>
+        </div>
+
+        <div class="info-grid">
+            <div class="info-card typ">
+                <h4>URLLoaderFactory</h4>
+                <p>Browser-process creates factories with embedded security policies (CORS, CSP). Passes them to renderer via Mojo. Renderer cannot forge or modify factory restrictions.</p>
+            </div>
+            <div class="info-card inf">
+                <h4>Service Worker Interception</h4>
+                <p>Service workers sit between the renderer and network, intercepting fetch events. Can respond from cache, modify requests, or fall through to the network. Enables offline-first PWAs.</p>
+            </div>
+            <div class="info-card str">
+                <h4>QUIC / HTTP/3</h4>
+                <p>Chromium pioneered QUIC (now IETF HTTP/3). UDP-based, 0-RTT connection establishment, multiplexed streams without head-of-line blocking, built-in encryption via TLS 1.3.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ 09: EXTENSIONS ============ -->
+    <section id="extensions" class="section">
+        <div class="section-label">// section 09</div>
+        <h2>Extensions System</h2>
+
+        <p>Chrome extensions run in isolated processes with controlled API access. Manifest V3 replaced persistent background pages with event-driven service workers. Content scripts run in an isolated JavaScript world within web pages &mdash; same DOM, separate JS context.</p>
+
+        <div class="diagram-container">
+            <div class="diagram-label">// extension architecture (manifest v3)</div>
+            <pre class="mermaid">
+graph TD
+    MF["&nbsp;manifest.json&nbsp;<br/>Permissions + Config"]
+    SW["&nbsp;Service Worker&nbsp;<br/>Background Logic"]
+    CS["&nbsp;Content Script&nbsp;<br/>Isolated World"]
+    POP["&nbsp;Popup / SidePanel&nbsp;<br/>Extension UI"]
+    API["&nbsp;Chrome APIs&nbsp;<br/>tabs, storage, etc."]
+    WEB["&nbsp;Web Page&nbsp;<br/>DOM Access"]
+    BP["&nbsp;Browser Process&nbsp;<br/>Permission Broker"]
+
+    MF --> SW
+    MF --> CS
+    MF --> POP
+    SW --> API
+    CS --> WEB
+    POP --> API
+    API --> BP
+    CS -->|"messaging"| SW
+
+    style MF fill:#89b4fa,stroke:#74a0e8,color:#11111b
+    style SW fill:#fab387,stroke:#e89b72,color:#11111b
+    style CS fill:#a6e3a1,stroke:#8fd18a,color:#11111b
+    style POP fill:#f9e2af,stroke:#e5cf9a,color:#11111b
+    style API fill:#cba6f7,stroke:#b48fe0,color:#11111b
+    style WEB fill:#89dceb,stroke:#74c7d6,color:#11111b
+    style BP fill:#f5c2e7,stroke:#e0aed2,color:#11111b
+            </pre>
+        </div>
+
+        <div class="info-grid">
+            <div class="info-card fn">
+                <h4>Service Worker Background</h4>
+                <p>Event-driven, no persistent state. Wakes on events (alarms, messages, web requests), processes them, then sleeps. 5-minute idle timeout. Replaces Manifest V2 background pages.</p>
+            </div>
+            <div class="info-card str">
+                <h4>Content Scripts</h4>
+                <p>Injected into web pages matching manifest patterns. Run in an isolated JavaScript world &mdash; share the DOM but have a separate JS context. Cannot access page's JS variables directly.</p>
+            </div>
+            <div class="info-card typ">
+                <h4>Permissions Model</h4>
+                <p>Declared in manifest.json, granted by user at install. Chrome APIs (tabs, cookies, storage, webRequest) are gated by permission. Host permissions control which sites can be accessed.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ 10: SECURITY MODEL ============ -->
+    <section id="security" class="section">
+        <div class="section-label">// section 10</div>
+        <h2>Security Model</h2>
+
+        <p>Chromium's security architecture enforces defense-in-depth through three layers: process isolation (site isolation), OS-level sandboxing, and browser-enforced IPC restrictions. A compromised renderer process cannot access cross-site data, modify permissions, or escape the sandbox to reach the filesystem.</p>
+
+        <div class="diagram-container">
+            <div class="diagram-label">// security layers</div>
+            <pre class="mermaid">
+graph TD
+    WEB["&nbsp;Web Content&nbsp;<br/>Untrusted Input"]
+    REND["&nbsp;Renderer Sandbox&nbsp;<br/>seccomp-BPF / macOS Seatbelt"]
+    SITE["&nbsp;Site Isolation&nbsp;<br/>Process-per-Site"]
+    IPC["&nbsp;IPC Validation&nbsp;<br/>Browser Checks All"]
+    BROWSER["&nbsp;Browser Kernel&nbsp;<br/>Privileged Process"]
+    OS["&nbsp;OS / Hardware&nbsp;<br/>Process Boundaries"]
+
+    WEB --> REND
+    REND --> SITE
+    SITE --> IPC
+    IPC --> BROWSER
+    BROWSER --> OS
+
+    style WEB fill:#f38ba8,stroke:#e07595,color:#11111b
+    style REND fill:#fab387,stroke:#e89b72,color:#11111b
+    style SITE fill:#f9e2af,stroke:#e5cf9a,color:#11111b
+    style IPC fill:#a6e3a1,stroke:#8fd18a,color:#11111b
+    style BROWSER fill:#89b4fa,stroke:#74a0e8,color:#11111b
+    style OS fill:#cba6f7,stroke:#b48fe0,color:#11111b
+            </pre>
+        </div>
+
+        <div class="info-grid">
+            <div class="info-card err">
+                <h4>Site Isolation</h4>
+                <p>Each site gets its own renderer process. Cross-site iframes run in separate processes. Prevents Spectre-style side-channel attacks and UXSS. Enforced since Chrome 67.</p>
+            </div>
+            <div class="info-card fn">
+                <h4>Sandbox</h4>
+                <p>Renderers run in OS-level sandboxes: seccomp-BPF (Linux), macOS Seatbelt, Win32 restricted tokens. No filesystem, network, or device access. All I/O brokered through the browser process.</p>
+            </div>
+            <div class="info-card str">
+                <h4>Rule of Two</h4>
+                <p>Chromium's security rule: of (untrusted data, unsafe language, unsandboxed process), at most two are allowed. Processing untrusted data in C++ requires sandboxing.</p>
+            </div>
+            <div class="info-card">
+                <h4>IPC Validation</h4>
+                <p>Browser process validates all Mojo messages from renderers. A compromised renderer cannot request cross-site cookies, use another site's permissions, or navigate to privileged URLs.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ 11: DEVTOOLS ============ -->
+    <section id="devtools" class="section">
+        <div class="section-label">// section 11</div>
+        <h2>DevTools Architecture</h2>
+
+        <p>Chrome DevTools is a web application communicating with the browser via the Chrome DevTools Protocol (CDP). The protocol uses JSON-RPC 2.0 over WebSocket, with domain-specific agents in both the renderer (Blink/V8) and browser process. The frontend is a three-layer architecture: UI panels, SDK models, and generated protocol bindings.</p>
+
+        <div class="diagram-container">
+            <div class="diagram-label">// cdp architecture</div>
+            <pre class="mermaid">
+graph LR
+    FE["&nbsp;DevTools Frontend&nbsp;<br/>Web App (TypeScript)"]
+    WS["&nbsp;WebSocket&nbsp;<br/>JSON-RPC 2.0"]
+    BA["&nbsp;Browser Agents&nbsp;<br/>Page, Target, Security"]
+    RA["&nbsp;Renderer Agents&nbsp;<br/>DOM, CSS, Network"]
+    V8A["&nbsp;V8 Agents&nbsp;<br/>Debugger, Profiler"]
+
+    FE <-->|"CDP"| WS
+    WS <--> BA
+    WS <--> RA
+    WS <--> V8A
+
+    style FE fill:#89b4fa,stroke:#74a0e8,color:#11111b
+    style WS fill:#f9e2af,stroke:#e5cf9a,color:#11111b
+    style BA fill:#fab387,stroke:#e89b72,color:#11111b
+    style RA fill:#a6e3a1,stroke:#8fd18a,color:#11111b
+    style V8A fill:#cba6f7,stroke:#b48fe0,color:#11111b
+            </pre>
+        </div>
+
+        <div class="info-grid">
+            <div class="info-card">
+                <h4>CDP Domains</h4>
+                <p>Protocol organized into domains: Page, DOM, CSS, Network, Runtime, Debugger, HeapProfiler, Performance. Each domain has methods, events, and types defined in PDL files.</p>
+            </div>
+            <div class="info-card fn">
+                <h4>Frontend Architecture</h4>
+                <p>Three layers: UI panels interact with SDK models via high-level APIs. SDK models abstract protocol details. Protocol layer is auto-generated from PDL and handles serialization.</p>
+            </div>
+            <div class="info-card bi">
+                <h4>Remote Debugging</h4>
+                <p>Start Chrome with <code>--remote-debugging-port=9222</code> to expose CDP over WebSocket. Used by Puppeteer, Playwright, Selenium, and IDE debuggers for browser automation.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ 12: SYSTEM FLOW ============ -->
+    <section id="dataflow" class="section">
+        <div class="section-label">// section 12</div>
+        <h2>Component Interconnections</h2>
+
+        <p>End-to-end data flow from URL bar to pixels on screen, showing how a navigation request traverses every major subsystem in Chromium.</p>
+
+        <div class="diagram-container">
+            <div class="diagram-label">// full navigation data flow</div>
+            <pre class="mermaid">
+sequenceDiagram
+    participant User
+    participant Browser as Browser Process
+    participant Network as Network Service
+    participant Renderer as Renderer (Blink+V8)
+    participant Compositor as Compositor Thread
+    participant GPU as GPU / Viz
+
+    User->>Browser: Enter URL
+    Browser->>Network: URLLoader request
+    Network-->>Browser: Response headers
+    Browser->>Renderer: Commit navigation
+    Network-->>Renderer: Stream body bytes
+    Renderer->>Renderer: Parse HTML + Execute JS
+    Renderer->>Renderer: Style + Layout + Paint
+    Renderer->>Compositor: Commit display lists
+    Compositor->>GPU: Raster tiles + Submit frame
+    GPU->>GPU: Aggregate + Display
+            </pre>
+        </div>
+
+        <div class="diagram-container">
+            <div class="diagram-label">// subsystem dependency map</div>
+            <pre class="mermaid">
+graph TD
+    BLINK["&nbsp;Blink&nbsp;<br/>Rendering Engine"]
+    V8E["&nbsp;V8&nbsp;<br/>JS / Wasm Engine"]
+    CC["&nbsp;cc&nbsp;<br/>Chrome Compositor"]
+    VIZS["&nbsp;Viz&nbsp;<br/>Display Compositor"]
+    SKIA["&nbsp;Skia&nbsp;<br/>2D Graphics"]
+    MOJO["&nbsp;Mojo&nbsp;<br/>IPC Framework"]
+    NETL["&nbsp;net/&nbsp;<br/>Network Library"]
+    BASE["&nbsp;base/&nbsp;<br/>Core Utilities"]
+
+    BLINK --> V8E
+    BLINK --> CC
+    BLINK --> MOJO
+    CC --> VIZS
+    CC --> SKIA
+    VIZS --> SKIA
+    NETL --> MOJO
+    BLINK --> BASE
+    V8E --> BASE
+    MOJO --> BASE
+
+    style BLINK fill:#fab387,stroke:#e89b72,color:#11111b
+    style V8E fill:#a6e3a1,stroke:#8fd18a,color:#11111b
+    style CC fill:#89dceb,stroke:#74c7d6,color:#11111b
+    style VIZS fill:#94e2d5,stroke:#7fcfc2,color:#11111b
+    style SKIA fill:#f5c2e7,stroke:#e0aed2,color:#11111b
+    style MOJO fill:#89b4fa,stroke:#74a0e8,color:#11111b
+    style NETL fill:#cba6f7,stroke:#b48fe0,color:#11111b
+    style BASE fill:#f9e2af,stroke:#e5cf9a,color:#11111b
+            </pre>
+        </div>
+
+        <div class="stat-row">
+            <div class="stat-card">
+                <div class="stat-value">~16ms</div>
+                <div class="stat-label">Frame Budget (60fps)</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">&lt;100ms</div>
+                <div class="stat-label">Input Latency Target</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">0-RTT</div>
+                <div class="stat-label">QUIC Reconnect</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">&lt;2ms</div>
+                <div class="stat-label">GC Compaction</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">~1ms</div>
+                <div class="stat-label">Minor GC Pause</div>
+            </div>
+        </div>
+    </section>
+
+</main>
+
+<footer>
+    <p>Chromium / V8 Architecture Map &mdash; mono-developer style</p>
+    <p style="margin-top: var(--space-2);">Architecture as of March 2026</p>
+    <p style="margin-top: var(--space-2);">
+        Sources: <a href="https://www.chromium.org/developers/design-documents/multi-process-architecture/">Multi-Process Architecture</a> &middot;
+        <a href="https://developer.chrome.com/docs/chromium/renderingng-architecture">RenderingNG</a> &middot;
+        <a href="https://v8.dev/blog/maglev">V8 Maglev</a> &middot;
+        <a href="https://v8.dev/blog/trash-talk">Orinoco GC</a> &middot;
+        <a href="https://chromium.googlesource.com/chromium/src/+/HEAD/mojo/README.md">Mojo IPC</a>
+    </p>
+</footer>
+
+<!-- Fullscreen overlay -->
+<div class="fs-overlay" id="fsOverlay">
+    <div class="fs-toolbar">
+        <span class="fs-toolbar-title" id="fsTitle">Diagram</span>
+        <div class="fs-controls">
+            <button class="fs-btn" id="fsZoomOut" title="Zoom out">-</button>
+            <span class="fs-zoom-label" id="fsZoomLabel">100%</span>
+            <button class="fs-btn" id="fsZoomIn" title="Zoom in">+</button>
+            <button class="fs-btn" id="fsFit" title="Fit to screen">Fit</button>
+            <button class="fs-close" id="fsClose" title="Close (Esc)">Close</button>
+        </div>
+    </div>
+    <div class="fs-viewport" id="fsViewport">
+        <div class="fs-content" id="fsContent"></div>
+        <div class="fs-hint">Scroll to zoom &middot; Drag to pan &middot; Esc to close</div>
+    </div>
+</div>
+
+<script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({
+        startOnLoad: false,
+        theme: 'base',
+        themeVariables: {
+            background: '#1e1e2e',
+            fontFamily: 'IBM Plex Mono, monospace',
+            fontSize: '13px',
+            primaryColor: '#313244',
+            primaryTextColor: '#cdd6f4',
+            primaryBorderColor: '#89b4fa',
+            lineColor: '#6c7086',
+            secondaryColor: '#45475a',
+            tertiaryColor: '#181825',
+            noteTextColor: '#cdd6f4',
+            noteBkgColor: '#313244',
+            noteBorderColor: '#89b4fa'
+        },
+        flowchart: { useMaxWidth: false, htmlLabels: true, curve: 'basis' },
+        sequence: { useMaxWidth: false }
+    });
+    mermaid.run().then(() => {
+        requestAnimationFrame(() => {
+            fixNodeLabelColors(document);
+        });
+
+        const expandIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`;
+
+        document.querySelectorAll('.diagram-container').forEach(container => {
+            const svg = container.querySelector('svg');
+            if (svg) {
+                const btn = document.createElement('button');
+                btn.className = 'diagram-expand-btn';
+                btn.innerHTML = expandIcon + ' Expand';
+                btn.addEventListener('click', () => openFullscreen(container));
+                container.appendChild(btn);
+            }
+        });
+    });
+
+    function fixNodeLabelColors(root) {
+        root.querySelectorAll('.node').forEach(node => {
+            const shape = node.querySelector('rect, polygon, circle, ellipse, path');
+            if (!shape) return;
+
+            let r, g, b;
+            try {
+                const fill = getComputedStyle(shape).fill;
+                const m = fill.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+                if (m) { r = +m[1]; g = +m[2]; b = +m[3]; }
+            } catch(e) {}
+
+            if (r === undefined) {
+                const src = (shape.getAttribute('style') || '') + ' ' + (shape.getAttribute('fill') || '');
+                const hm = src.match(/#([0-9a-fA-F]{6})/);
+                if (hm) { r = parseInt(hm[1].substr(0,2),16); g = parseInt(hm[1].substr(2,2),16); b = parseInt(hm[1].substr(4,2),16); }
+            }
+            if (r === undefined) return;
+
+            const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+            const textColor = lum > 0.4 ? '#11111b' : '#cdd6f4';
+
+            node.querySelectorAll('foreignObject *').forEach(el => {
+                el.style.setProperty('color', textColor, 'important');
+            });
+            node.querySelectorAll('text, tspan').forEach(el => {
+                el.setAttribute('fill', textColor);
+            });
+        });
+    }
+
+    // Fullscreen state
+    const overlay = document.getElementById('fsOverlay');
+    const viewport = document.getElementById('fsViewport');
+    const content = document.getElementById('fsContent');
+    const zoomLabel = document.getElementById('fsZoomLabel');
+    const titleEl = document.getElementById('fsTitle');
+    let zoom = 1, panX = 0, panY = 0;
+    let isDragging = false, dragStartX, dragStartY, panStartX, panStartY;
+
+    function openFullscreen(container) {
+        const label = container.querySelector('.diagram-label');
+        titleEl.textContent = label ? label.textContent : 'Diagram';
+        const svg = container.querySelector('svg');
+        if (!svg) return;
+
+        content.innerHTML = '';
+        const clone = svg.cloneNode(true);
+        content.appendChild(clone);
+        fixNodeLabelColors(clone);
+
+        zoom = 1; panX = 0; panY = 0;
+        content.style.transform = 'translate(0px, 0px) scale(1)';
+        overlay.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                overlay.classList.add('active');
+                fitToViewport();
+            });
+        });
+    }
+
+    function closeFullscreen() {
+        overlay.classList.remove('active');
+        setTimeout(() => { overlay.style.display = 'none'; content.innerHTML = ''; }, 200);
+        document.body.style.overflow = '';
+    }
+
+    function fitToViewport() {
+        const svg = content.querySelector('svg');
+        if (!svg) return;
+        const vw = viewport.clientWidth, vh = viewport.clientHeight, padding = 48;
+        const rect = svg.getBoundingClientRect();
+        const currentZoom = zoom || 1;
+        const svgW = rect.width / currentZoom, svgH = rect.height / currentZoom;
+        const w = svgW > 0 ? svgW : (svg.viewBox?.baseVal?.width || 800);
+        const h = svgH > 0 ? svgH : (svg.viewBox?.baseVal?.height || 400);
+        const scaleX = (vw - padding * 2) / w, scaleY = (vh - padding * 2) / h;
+        zoom = Math.min(scaleX, scaleY, 2);
+        zoom = Math.max(zoom, 0.1);
+        panX = (vw - w * zoom) / 2;
+        panY = (vh - h * zoom) / 2;
+        updateTransform();
+    }
+
+    function updateTransform() {
+        content.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+        zoomLabel.textContent = Math.round(zoom * 100) + '%';
+    }
+
+    document.getElementById('fsZoomIn').addEventListener('click', () => {
+        zoomAt(viewport.clientWidth / 2, viewport.clientHeight / 2, 1.3);
+    });
+    document.getElementById('fsZoomOut').addEventListener('click', () => {
+        zoomAt(viewport.clientWidth / 2, viewport.clientHeight / 2, 1 / 1.3);
+    });
+    document.getElementById('fsFit').addEventListener('click', fitToViewport);
+    document.getElementById('fsClose').addEventListener('click', closeFullscreen);
+
+    viewport.addEventListener('wheel', e => {
+        e.preventDefault();
+        const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+        const rect = viewport.getBoundingClientRect();
+        zoomAt(e.clientX - rect.left, e.clientY - rect.top, factor);
+    }, { passive: false });
+
+    function zoomAt(mx, my, factor) {
+        const newZoom = Math.min(Math.max(zoom * factor, 0.05), 8);
+        const ratio = newZoom / zoom;
+        panX = mx - ratio * (mx - panX);
+        panY = my - ratio * (my - panY);
+        zoom = newZoom;
+        updateTransform();
+    }
+
+    viewport.addEventListener('mousedown', e => {
+        isDragging = true; dragStartX = e.clientX; dragStartY = e.clientY;
+        panStartX = panX; panStartY = panY;
+    });
+    window.addEventListener('mousemove', e => {
+        if (!isDragging) return;
+        panX = panStartX + (e.clientX - dragStartX);
+        panY = panStartY + (e.clientY - dragStartY);
+        updateTransform();
+    });
+    window.addEventListener('mouseup', () => { isDragging = false; });
+
+    let lastTouchDist = 0;
+    viewport.addEventListener('touchstart', e => {
+        if (e.touches.length === 1) {
+            isDragging = true; dragStartX = e.touches[0].clientX; dragStartY = e.touches[0].clientY;
+            panStartX = panX; panStartY = panY;
+        } else if (e.touches.length === 2) {
+            isDragging = false;
+            lastTouchDist = Math.hypot(e.touches[1].clientX - e.touches[0].clientX, e.touches[1].clientY - e.touches[0].clientY);
+        }
+    }, { passive: true });
+    viewport.addEventListener('touchmove', e => {
+        e.preventDefault();
+        if (e.touches.length === 1 && isDragging) {
+            panX = panStartX + (e.touches[0].clientX - dragStartX);
+            panY = panStartY + (e.touches[0].clientY - dragStartY);
+            updateTransform();
+        } else if (e.touches.length === 2) {
+            const dist = Math.hypot(e.touches[1].clientX - e.touches[0].clientX, e.touches[1].clientY - e.touches[0].clientY);
+            if (lastTouchDist > 0) {
+                const mid = { x: (e.touches[0].clientX + e.touches[1].clientX) / 2, y: (e.touches[0].clientY + e.touches[1].clientY) / 2 };
+                const rect = viewport.getBoundingClientRect();
+                zoomAt(mid.x - rect.left, mid.y - rect.top, dist / lastTouchDist);
+            }
+            lastTouchDist = dist;
+        }
+    }, { passive: false });
+    viewport.addEventListener('touchend', () => { isDragging = false; lastTouchDist = 0; });
+
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeFullscreen(); });
+</script>
+<script defer src="../../prompt-viewer.js"></script>
+</body>
+</html>

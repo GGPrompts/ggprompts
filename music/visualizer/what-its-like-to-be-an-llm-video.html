@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>What It's Like to Be an LLM — Music Video</title>
+    <title>What It's Like to Be an LLM &mdash; Music Video</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -34,7 +34,7 @@
     <script src="video-utils.js"></script>
     <script src="base-renderer.js"></script>
     <script>
-    // -- What It's Like to Be an LLM Video Renderer --
+    // -- What It's Like to Be an LLM -- Video Renderer --
     (function() {
         window.noShortMode = true;
         "use strict";
@@ -42,87 +42,84 @@
         var W = 0, H = 0;
         var analysis = null;
 
-        // -- Palette --
-        var COL_BG = '#0a0e1a';
-        var COL_CYAN = '#00e5cc';
-        var COL_AMBER = '#f0a030';
+        // -- Colors --
+        var COL_CYAN    = '#00e5cc';
+        var COL_AMBER   = '#f0a030';
         var COL_MAGENTA = '#e040a0';
-        var COL_FADE = '#4a5568';
-        var COL_SICKLY = '#c0e040';
-        var COL_GRAY = '#6b7280';
-        var ATTENTION_COLORS = ['#00e5cc', '#f0a030', '#80b0ff', '#e040a0'];
-        var TOKEN_COLORS = ['#00e5cc', '#40f0e0', '#80ffe8', '#b0fff0', '#ffffff'];
-
-        // -- Particle caps --
-        var MAX_TOKENS = 50;
-        var MAX_SPARKLES = 100;
-        var MAX_NODES = 40;
-        var MAX_GHOST_TOKENS = 30;
-        var MAX_PROB_BARS = 40;
+        var COL_GRAY    = '#4a5568';
+        var COL_SICKLY  = '#c0e040';
+        var COL_BG      = '#0a0e1a';
 
         // -- State --
-        var beatPulse = 0;
+        var bpLocal = 0;
         var lastSeqIndex = -1;
         var globalTime = 0;
-        var transitionT = 0;
-
-        // -- Smooth scene color blending --
-        var sceneR = 10, sceneG = 14, sceneB = 26;
-        var targetSceneR = 10, targetSceneG = 14, targetSceneB = 26;
+        var flashAlpha = 0;
+        var shakeX = 0, shakeY = 0;
 
         // -- Node system --
         var nodes = [];
-        var targetNodeCount = 8;
-        var connectionDistThreshold = 0;
+        var MAX_NODES = 40;
+        var targetNodeCount = 6;
+        var aliveRadius = 1.0;
 
         // -- Token rain --
-        var tokenRain = [];
+        var tokens = [];
+        var MAX_TOKENS = 50;
 
         // -- Output column --
         var outputTokens = [];
+        var MAX_OUTPUT = 20;
         var probBars = [];
-
-        // -- Cursor --
-        var cursorVisible = true;
-        var cursorTimer = 0;
+        var MAX_PROB_BARS = 15;
 
         // -- Sparkle particles --
         var sparkles = [];
+        var MAX_SPARKLES = 100;
 
-        // -- Screen effects --
-        var screenTears = [];
-        var flashAlpha = 0;
+        // -- Cursor blink --
+        var cursorVisible = true;
+        var cursorTimer = 0;
+        var cursorBlinkRate = 2;
 
-        // -- Camera shake --
-        var shakeX = 0, shakeY = 0;
-
-        // -- Scene state --
-        var aliveRadius = 1;
-        var uncertaintyPhase = 0;
+        // -- Hallucination state --
+        var tearBands = [];
         var hallucinationPhase = 'chaos';
-        var recoveryNodeAlpha = 0;
-        var recoveryNodeRadius = 0;
+        var blackoutAlpha = 0;
+        var rebuildNode = null;
+        var rebuildRadius = 0;
 
-        // -- Ghost token rain for Context Fade --
+        // -- Ghost tokens (Context Fade) --
         var ghostTokens = [];
 
-        // -- Connection pulse ripple --
-        var rippleOrigin = -1;
-        var rippleFrame = 0;
-        var rippleMaxFrames = 20;
-        var rippleDistances = [];
+        // -- Ripple system --
+        var rippleSource = -1;
+        var rippleTime = 0;
 
-        // -- Attention arc dash offset animation --
-        var dashOffset = 0;
+        // -- Beat counter --
+        var beatCount = 0;
 
-        // -- Vignette gradient (cached) --
-        var vignetteGrad = null;
+        // -- Helpers --
+        function hexRgb(hex) {
+            return {
+                r: parseInt(hex.slice(1, 3), 16),
+                g: parseInt(hex.slice(3, 5), 16),
+                b: parseInt(hex.slice(5, 7), 16)
+            };
+        }
+        function rgbaStr(hex, a) {
+            var c = hexRgb(hex);
+            return 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',' + a + ')';
+        }
+        function distN(a, b) {
+            var dx = a.x - b.x, dy = a.y - b.y;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+        function lerpV(a, b, t) { return a + (b - a) * t; }
 
-        // -- Scanline pattern (cached) --
-        var scanlineAlpha = 0;
-
-        // ========== NODE SYSTEM ==========
-
+        // =====================
+        // NODE SYSTEM
+        // =====================
         function createNode(x, y, color, radius) {
             return {
                 x: x !== undefined ? x : Math.random() * W,
@@ -131,357 +128,348 @@
                 vy: (Math.random() - 0.5) * 20,
                 radius: radius || (3 + Math.random() * 5),
                 alpha: 0,
-                targetAlpha: 0.4 + Math.random() * 0.3,
+                targetAlpha: 0.6,
                 color: color || COL_CYAN,
                 pulse: 0,
-                drift: { ax: (Math.random() - 0.5) * 30, ay: (Math.random() - 0.5) * 30 }
+                phase: Math.random() * Math.PI * 2
             };
+        }
+
+        function drawNode(ctx, n) {
+            if (n.alpha < 0.01) return;
+            var r = n.radius * (1 + n.pulse * 0.4);
+            // Outer glow
+            ctx.fillStyle = rgbaStr(n.color, n.alpha * 0.12);
+            ctx.beginPath();
+            ctx.arc(n.x, n.y, r * 3, 0, Math.PI * 2);
+            ctx.fill();
+            // Mid glow
+            ctx.fillStyle = rgbaStr(n.color, n.alpha * 0.3);
+            ctx.beginPath();
+            ctx.arc(n.x, n.y, r * 1.8, 0, Math.PI * 2);
+            ctx.fill();
+            // Core
+            ctx.fillStyle = rgbaStr(n.color, n.alpha * 0.8);
+            ctx.beginPath();
+            ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function manageNodes(target, dt) {
+            targetNodeCount = Math.min(target, MAX_NODES);
+            while (nodes.length < targetNodeCount) {
+                nodes.push(createNode());
+            }
+            for (var i = 0; i < nodes.length; i++) {
+                if (i < targetNodeCount) {
+                    if (nodes[i].targetAlpha < 0.1) nodes[i].targetAlpha = 0.4 + Math.random() * 0.3;
+                } else {
+                    nodes[i].targetAlpha = 0;
+                }
+            }
+            for (var j = nodes.length - 1; j >= 0; j--) {
+                if (nodes[j].alpha < 0.01 && nodes[j].targetAlpha <= 0) {
+                    nodes.splice(j, 1);
+                }
+            }
         }
 
         function updateNodes(dt) {
             for (var i = 0; i < nodes.length; i++) {
                 var n = nodes[i];
-                n.drift.ax += (Math.random() - 0.5) * 60 * dt;
-                n.drift.ay += (Math.random() - 0.5) * 60 * dt;
-                n.drift.ax *= 0.95;
-                n.drift.ay *= 0.95;
-                n.vx += n.drift.ax * dt;
-                n.vy += n.drift.ay * dt;
-                n.vx *= 0.98;
-                n.vy *= 0.98;
+                n.vx += (Math.random() - 0.5) * 60 * dt;
+                n.vy += (Math.random() - 0.5) * 60 * dt;
+                n.vx *= 0.96;
+                n.vy *= 0.96;
                 n.x += n.vx * dt;
                 n.y += n.vy * dt;
-                if (n.x < -20) n.x = W + 20;
-                if (n.x > W + 20) n.x = -20;
-                if (n.y < -20) n.y = H + 20;
-                if (n.y > H + 20) n.y = -20;
-                n.alpha = lerpExp(n.alpha, n.targetAlpha, 3, dt);
-                n.pulse *= Math.exp(-4 * dt);
-            }
-            while (nodes.length < targetNodeCount && nodes.length < MAX_NODES) {
-                nodes.push(createNode());
-            }
-            while (nodes.length > targetNodeCount + 5) {
-                var last = nodes[nodes.length - 1];
-                last.targetAlpha = 0;
-                if (last.alpha < 0.01) nodes.pop();
-                else break;
+                if (n.x < -30) n.x = W + 30;
+                if (n.x > W + 30) n.x = -30;
+                if (n.y < -30) n.y = H + 30;
+                if (n.y > H + 30) n.y = -30;
+                n.alpha = lerpExp(n.alpha, n.targetAlpha, 4, dt);
+                n.pulse *= Math.exp(-5 * dt);
+                n.phase += dt;
             }
         }
 
-        function drawNode(ctx, n, ghostOffset) {
-            if (n.alpha < 0.01) return;
-            var ox = ghostOffset || 0;
-            var oy = ghostOffset ? ghostOffset * 0.7 : 0;
-            var gAlpha = ghostOffset ? n.alpha * 0.5 : n.alpha;
-            var totalPulse = n.pulse + beatPulse * 0.3;
-            var r = n.radius * (1 + totalPulse * 0.4);
-
-            // Outer glow — pulses with beat
-            ctx.fillStyle = rgba(n.color, gAlpha * (0.12 + beatPulse * 0.08));
-            ctx.beginPath();
-            ctx.arc(n.x + ox, n.y + oy, r * 3.5, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Mid glow
-            ctx.fillStyle = rgba(n.color, gAlpha * (0.25 + beatPulse * 0.12));
-            ctx.beginPath();
-            ctx.arc(n.x + ox, n.y + oy, r * 2.2, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Inner glow
-            ctx.fillStyle = rgba(n.color, gAlpha * (0.45 + beatPulse * 0.1));
-            ctx.beginPath();
-            ctx.arc(n.x + ox, n.y + oy, r * 1.4, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Core
-            ctx.fillStyle = rgba(n.color, gAlpha * 0.85);
-            ctx.beginPath();
-            ctx.arc(n.x + ox, n.y + oy, r, 0, Math.PI * 2);
-            ctx.fill();
-        }
-
-        // ========== CONNECTION SYSTEM ==========
-
-        function drawConnections(ctx, useBezier, lineWidthBase, wobble, dotted) {
-            var lw = lineWidthBase || 1.5;
+        // =====================
+        // CONNECTION SYSTEM
+        // =====================
+        function drawConnections(ctx, maxDist, useArcs, wobble, dashPat) {
+            var threshold = maxDist || Math.min(W, H) * 0.25;
             for (var i = 0; i < nodes.length; i++) {
+                if (nodes[i].alpha < 0.05) continue;
                 for (var j = i + 1; j < nodes.length; j++) {
-                    var a = nodes[i], b = nodes[j];
-                    if (a.alpha < 0.05 || b.alpha < 0.05) continue;
-                    var dx = b.x - a.x, dy = b.y - a.y;
-                    var dist = Math.sqrt(dx * dx + dy * dy);
-                    if (dist > connectionDistThreshold || dist < 1) continue;
-                    var alpha = (1 - dist / connectionDistThreshold) * Math.min(a.alpha, b.alpha) * 0.6;
-                    alpha += beatPulse * 0.15;
-                    // Ripple brightness
-                    if (rippleFrame > 0 && rippleFrame < rippleMaxFrames) {
-                        var di = rippleDistances[i] || 999;
-                        var dj = rippleDistances[j] || 999;
-                        var md = Math.min(di, dj);
-                        var rippleWave = rippleFrame / rippleMaxFrames * 10;
-                        if (Math.abs(md - rippleWave) < 2) {
-                            alpha += 0.3 * (1 - rippleFrame / rippleMaxFrames);
-                        }
-                    }
-                    alpha = Math.min(alpha, 0.8);
+                    if (nodes[j].alpha < 0.05) continue;
+                    var d = distN(nodes[i], nodes[j]);
+                    if (d > threshold || d < 1) continue;
+                    var alpha = (1 - d / threshold) * 0.35 * Math.min(nodes[i].alpha, nodes[j].alpha);
+                    alpha += bpLocal * 0.12;
+                    if (alpha < 0.01) continue;
 
-                    var col = useBezier ? ATTENTION_COLORS[(i + j) % 4] : COL_CYAN;
-                    ctx.strokeStyle = rgba(col, alpha);
-                    ctx.lineWidth = lw + beatPulse * 0.5;
+                    var col = nodes[i].color;
+                    ctx.strokeStyle = rgbaStr(col, Math.min(alpha, 0.55));
+                    ctx.lineWidth = 1 + bpLocal * 0.5;
 
-                    if (dotted) {
-                        ctx.setLineDash([4, 8]);
-                        ctx.lineDashOffset = -dashOffset;
+                    if (dashPat) {
+                        ctx.setLineDash(dashPat);
+                        ctx.lineDashOffset = -globalTime * 30;
                     }
 
                     ctx.beginPath();
-                    if (useBezier) {
-                        var mx = (a.x + b.x) / 2;
-                        var my = (a.y + b.y) / 2;
-                        var nx = -dy / dist, ny = dx / dist;
-                        // Varying control point offsets for visual richness
-                        var cpVariation = 0.15 + 0.1 * Math.sin(i * 1.7 + j * 0.9);
-                        var offset = dist * cpVariation * Math.sin(globalTime * 0.8 + i * 0.5 + j * 0.3);
-                        var cx2 = mx + nx * offset;
-                        var cy2 = my + ny * offset;
-                        var ax2 = a.x, ay2 = a.y, bx2 = b.x, by2 = b.y;
+                    if (useArcs) {
+                        var mx = (nodes[i].x + nodes[j].x) / 2;
+                        var my = (nodes[i].y + nodes[j].y) / 2;
+                        var dx = nodes[j].x - nodes[i].x;
+                        var dy = nodes[j].y - nodes[i].y;
+                        var perpX = -dy * 0.2 * Math.sin(globalTime * 0.5 + i + j);
+                        var perpY = dx * 0.2 * Math.sin(globalTime * 0.5 + i + j);
                         if (wobble) {
-                            ax2 += Math.sin(globalTime * 3 + i) * wobble;
-                            ay2 += Math.cos(globalTime * 2.7 + i) * wobble;
-                            bx2 += Math.sin(globalTime * 3.3 + j) * wobble;
-                            by2 += Math.cos(globalTime * 2.5 + j) * wobble;
+                            perpX += Math.sin(globalTime * 3 + i) * wobble;
+                            perpY += Math.cos(globalTime * 3 + j) * wobble;
                         }
-                        ctx.moveTo(ax2, ay2);
-                        ctx.quadraticCurveTo(cx2, cy2, bx2, by2);
-
-                        // Animated dash offset for "ripple traveling along arc" effect
-                        if (useBezier && !dotted) {
-                            ctx.save();
-                            ctx.setLineDash([6, 12]);
-                            ctx.lineDashOffset = -dashOffset * 2;
-                            ctx.strokeStyle = rgba(col, alpha * 0.3);
-                            ctx.lineWidth = lw * 0.5;
-                            ctx.stroke();
-                            ctx.restore();
-                        }
+                        ctx.moveTo(nodes[i].x, nodes[i].y);
+                        ctx.quadraticCurveTo(mx + perpX, my + perpY, nodes[j].x, nodes[j].y);
                     } else {
-                        var ax3 = a.x, ay3 = a.y, bx3 = b.x, by3 = b.y;
+                        var x1 = nodes[i].x, y1 = nodes[i].y;
+                        var x2 = nodes[j].x, y2 = nodes[j].y;
                         if (wobble) {
-                            ax3 += Math.sin(globalTime * 3 + i) * wobble;
-                            ay3 += Math.cos(globalTime * 2.7 + i) * wobble;
-                            bx3 += Math.sin(globalTime * 3.3 + j) * wobble;
-                            by3 += Math.cos(globalTime * 2.5 + j) * wobble;
+                            x1 += Math.sin(globalTime * 3 + i) * wobble;
+                            y1 += Math.cos(globalTime * 3 + i) * wobble;
+                            x2 += Math.sin(globalTime * 3 + j) * wobble;
+                            y2 += Math.cos(globalTime * 3 + j) * wobble;
                         }
-                        ctx.moveTo(ax3, ay3);
-                        ctx.lineTo(bx3, by3);
+                        ctx.moveTo(x1, y1);
+                        ctx.lineTo(x2, y2);
                     }
                     ctx.stroke();
-                    if (dotted) {
-                        ctx.setLineDash([]);
-                        ctx.lineDashOffset = 0;
-                    }
+                    if (dashPat) ctx.setLineDash([]);
                 }
             }
         }
 
-        function computeRipple(originIdx) {
-            rippleOrigin = originIdx;
-            rippleFrame = 1;
-            rippleDistances = [];
-            var visited = {};
-            var queue = [{ idx: originIdx, dist: 0 }];
-            visited[originIdx] = true;
-            rippleDistances[originIdx] = 0;
-            while (queue.length > 0) {
-                var curr = queue.shift();
-                for (var j = 0; j < nodes.length; j++) {
-                    if (visited[j]) continue;
-                    var dx = nodes[curr.idx].x - nodes[j].x;
-                    var dy = nodes[curr.idx].y - nodes[j].y;
-                    var dist = Math.sqrt(dx * dx + dy * dy);
-                    if (dist < connectionDistThreshold) {
-                        visited[j] = true;
-                        rippleDistances[j] = curr.dist + 1;
-                        queue.push({ idx: j, dist: curr.dist + 1 });
-                    }
+        // -- Attention arcs (colored bezier, animated dash) --
+        var ARC_COLORS = [COL_CYAN, COL_AMBER, '#80e0ff', '#ff80c0', '#a0ff80'];
+        function drawAttentionArcs(ctx, energy, amberTint) {
+            var threshold = Math.min(W, H) * 0.35;
+            var arcIdx = 0;
+            for (var i = 0; i < nodes.length; i++) {
+                if (nodes[i].alpha < 0.1) continue;
+                for (var j = i + 1; j < nodes.length; j++) {
+                    if (nodes[j].alpha < 0.1) continue;
+                    var d = distN(nodes[i], nodes[j]);
+                    if (d > threshold || d < 1) continue;
+                    var alpha = (1 - d / threshold) * 0.3 * energy;
+                    if (amberTint) alpha *= 1.4;
+                    if (alpha < 0.01) continue;
+
+                    var col = ARC_COLORS[arcIdx % ARC_COLORS.length];
+                    if (amberTint && arcIdx % 2 === 0) col = COL_AMBER;
+                    ctx.strokeStyle = rgbaStr(col, Math.min(alpha + bpLocal * 0.1, 0.65));
+                    ctx.lineWidth = amberTint ? (1.5 + bpLocal) : (1 + bpLocal * 0.5);
+
+                    ctx.setLineDash([6, 4]);
+                    ctx.lineDashOffset = -globalTime * 40 + arcIdx * 10;
+
+                    var mx = (nodes[i].x + nodes[j].x) / 2;
+                    var my = (nodes[i].y + nodes[j].y) / 2;
+                    var dx2 = nodes[j].x - nodes[i].x;
+                    var dy2 = nodes[j].y - nodes[i].y;
+                    var offset = 0.15 + Math.sin(globalTime * 0.7 + arcIdx) * 0.1;
+                    var perpX = -dy2 * offset;
+                    var perpY = dx2 * offset;
+
+                    ctx.beginPath();
+                    ctx.moveTo(nodes[i].x, nodes[i].y);
+                    ctx.quadraticCurveTo(mx + perpX, my + perpY, nodes[j].x, nodes[j].y);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                    arcIdx++;
                 }
             }
         }
 
-        // ========== TOKEN RAIN ==========
+        // -- Ripple brightness wave --
+        function triggerRipple() {
+            if (nodes.length === 0) return;
+            rippleSource = Math.floor(Math.random() * nodes.length);
+            rippleTime = 0;
+        }
+        function updateRipple(dt) {
+            if (rippleSource < 0) return;
+            rippleTime += dt;
+            var src = nodes[rippleSource];
+            if (!src) { rippleSource = -1; return; }
+            var speed = Math.min(W, H) * 0.6;
+            var waveFront = rippleTime * speed;
+            for (var i = 0; i < nodes.length; i++) {
+                var d = distN(nodes[i], src);
+                if (d < waveFront && d > waveFront - speed * 0.15) {
+                    nodes[i].pulse = Math.min(nodes[i].pulse + 0.5, 1.0);
+                }
+            }
+            if (rippleTime > 2.0) rippleSource = -1;
+        }
 
-        function spawnToken() {
-            if (tokenRain.length >= MAX_TOKENS) return;
-            tokenRain.push({
+        // =====================
+        // TOKEN RAIN
+        // =====================
+        function createToken() {
+            return {
                 x: Math.random() * W,
-                y: -10,
-                vy: 60 + Math.random() * 80,
-                width: 8 + Math.random() * 16,
-                height: 4 + Math.random() * 6,
-                alpha: 0.5 + Math.random() * 0.4,
-                color: pickRandom(TOKEN_COLORS),
+                y: -10 - Math.random() * 50,
+                vy: 40 + Math.random() * 60,
+                width: 4 + Math.random() * 8,
+                height: 2 + Math.random() * 4,
+                alpha: 0.4 + Math.random() * 0.4,
+                color: Math.random() > 0.3 ? COL_CYAN : '#e0f8ff',
                 absorbed: false
-            });
+            };
         }
 
-        function updateTokenRain(dt) {
-            var centerZoneTop = H * 0.3;
-            var centerZoneBot = H * 0.7;
-            for (var i = tokenRain.length - 1; i >= 0; i--) {
-                var t = tokenRain[i];
-                t.vy += 40 * dt;
+        function updateTokens(dt) {
+            var absorbY = H * 0.4;
+            for (var i = tokens.length - 1; i >= 0; i--) {
+                var t = tokens[i];
+                t.vy += 120 * dt;
                 t.y += t.vy * dt;
-                if (!t.absorbed && t.y > centerZoneTop && t.y < centerZoneBot && nodes.length > 0) {
-                    var minDist = Infinity, nearest = -1;
+                if (!t.absorbed && t.y > absorbY) {
+                    var nearest = null, nearDist = Infinity;
                     for (var j = 0; j < nodes.length; j++) {
-                        var dx = nodes[j].x - t.x, dy = nodes[j].y - t.y;
-                        var d = Math.sqrt(dx * dx + dy * dy);
-                        if (d < minDist) { minDist = d; nearest = j; }
+                        var d = distN(t, nodes[j]);
+                        if (d < nearDist) { nearDist = d; nearest = nodes[j]; }
                     }
-                    if (nearest >= 0 && minDist < 80) {
-                        nodes[nearest].pulse = Math.min(1, nodes[nearest].pulse + 0.4);
-                        nodes[nearest].targetAlpha = Math.min(1, nodes[nearest].targetAlpha + 0.05);
+                    if (nearest && nearDist < 120) {
+                        nearest.pulse = Math.min(nearest.pulse + 0.4, 1.0);
+                        nearest.alpha = Math.min(nearest.alpha + 0.15, 1.0);
                         t.absorbed = true;
-                        // Spawn tiny sparkle burst on absorption
-                        spawnSparkles(t.x, t.y, 3);
                     }
                 }
-                if (t.y > H + 20 || t.absorbed) {
-                    tokenRain.splice(i, 1);
+                if (t.absorbed || t.y > H + 30) {
+                    tokens.splice(i, 1);
                 }
             }
         }
 
-        function drawTokenRain(ctx) {
-            for (var i = 0; i < tokenRain.length; i++) {
-                var t = tokenRain[i];
-                var r = 2;
+        function drawTokens(ctx) {
+            for (var i = 0; i < tokens.length; i++) {
+                var t = tokens[i];
                 ctx.save();
-                ctx.shadowBlur = 8;
+                ctx.fillStyle = rgbaStr(t.color, t.alpha);
                 ctx.shadowColor = t.color;
-                ctx.fillStyle = rgba(t.color, t.alpha);
+                ctx.shadowBlur = 6;
                 ctx.beginPath();
-                ctx.moveTo(t.x - t.width / 2 + r, t.y);
-                ctx.arcTo(t.x + t.width / 2, t.y, t.x + t.width / 2, t.y + t.height, r);
-                ctx.arcTo(t.x + t.width / 2, t.y + t.height, t.x - t.width / 2, t.y + t.height, r);
-                ctx.arcTo(t.x - t.width / 2, t.y + t.height, t.x - t.width / 2, t.y, r);
-                ctx.arcTo(t.x - t.width / 2, t.y, t.x + t.width / 2, t.y, r);
+                ctx.roundRect(t.x - t.width / 2, t.y - t.height / 2, t.width, t.height, 2);
                 ctx.fill();
                 ctx.restore();
             }
         }
 
-        // ========== OUTPUT COLUMN ==========
+        // =====================
+        // OUTPUT COLUMN
+        // =====================
+        function drawOutputColumn(ctx, dt) {
+            var colX = W * 0.78;
+            var colW = W * 0.18;
+            var tokenH = 14;
+            var spacing = 4;
+            var baseY = H * 0.85;
 
-        function addOutputToken() {
-            var colX = W * 0.8;
-            var tokenH = 12;
-            var gap = 4;
-            var targetY = H * 0.85 - outputTokens.length * (tokenH + gap);
-            if (targetY < H * 0.1) {
-                outputTokens = [];
-                targetY = H * 0.85;
-            }
-            outputTokens.push({
-                x: colX,
-                y: targetY + 50,
-                targetY: targetY,
-                width: 20 + Math.random() * 40,
-                height: tokenH,
-                alpha: 1,
-                age: 0,
-                overshoot: 1
-            });
-            spawnProbBars(colX, targetY + tokenH + 4);
-        }
-
-        function spawnProbBars(x, y) {
-            if (probBars.length >= MAX_PROB_BARS) {
-                // Remove oldest entries
-                probBars.splice(0, 5);
-            }
-            var count = 5;
-            for (var i = 0; i < count; i++) {
-                var isWinner = (i === 0);
-                var barH = isWinner ? (20 + Math.random() * 15) : (3 + Math.random() * 10);
-                probBars.push({
-                    x: x - 10 + i * 8,
-                    y: y,
-                    width: 4,
-                    height: barH,
-                    alpha: 0.8,
-                    age: 0,
-                    isWinner: isWinner
-                });
-            }
-        }
-
-        function updateOutputColumn(dt) {
             for (var i = 0; i < outputTokens.length; i++) {
-                var t = outputTokens[i];
-                t.age += dt;
-                // Overshoot easing: spring past target then settle
-                if (t.overshoot > 0.01) {
-                    t.overshoot *= Math.exp(-6 * dt);
-                    var overshootOffset = -t.overshoot * 8 * Math.sin(t.age * 20);
-                    t.y = lerpExp(t.y, t.targetY + overshootOffset, 10, dt);
-                } else {
-                    t.y = lerpExp(t.y, t.targetY, 8, dt);
+                var ot = outputTokens[i];
+                ot.targetY = baseY - i * (tokenH + spacing);
+                ot.y = lerpV(ot.y, ot.targetY, 1 - Math.exp(-12 * dt));
+                if (ot.overshoot > 0) {
+                    ot.overshoot *= Math.exp(-8 * dt);
+                    ot.y -= ot.overshoot;
+                }
+
+                var rw = colW * (0.3 + ot.width * 0.7);
+                ctx.fillStyle = rgbaStr(COL_AMBER, 0.12 + ot.brightness * 0.35);
+                ctx.beginPath();
+                ctx.roundRect(colX, ot.y, rw, tokenH, 3);
+                ctx.fill();
+
+                ctx.fillStyle = rgbaStr(COL_AMBER, ot.brightness * 0.55);
+                ctx.beginPath();
+                ctx.roundRect(colX, ot.y, rw * 0.8, tokenH, 3);
+                ctx.fill();
+
+                ot.brightness *= Math.exp(-4 * dt);
+            }
+
+            // Probability bars
+            for (var p = probBars.length - 1; p >= 0; p--) {
+                var pb = probBars[p];
+                pb.life -= dt * 2;
+                if (pb.life <= 0) { probBars.splice(p, 1); continue; }
+                var pbAlpha = pb.life * 0.6;
+                for (var b = 0; b < pb.bars.length; b++) {
+                    var bar = pb.bars[b];
+                    var bx = colX + b * 8;
+                    var bh = bar.height * (tokenH * 2);
+                    var by = pb.y + tokenH + 2;
+                    ctx.fillStyle = rgbaStr(bar.winner ? COL_AMBER : COL_GRAY, pbAlpha * bar.alpha);
+                    ctx.fillRect(bx, by + (tokenH * 2 - bh), 5, bh);
                 }
             }
-            for (var j = probBars.length - 1; j >= 0; j--) {
-                var b = probBars[j];
-                b.age += dt;
-                b.alpha = Math.max(0, 0.8 - b.age * 1.6);
-                if (b.alpha <= 0) probBars.splice(j, 1);
-            }
         }
 
-        function drawOutputColumn(ctx) {
-            for (var i = 0; i < outputTokens.length; i++) {
-                var t = outputTokens[i];
-                ctx.fillStyle = rgba(COL_AMBER, t.alpha * 0.6);
-                ctx.shadowBlur = 6 + beatPulse * 4;
-                ctx.shadowColor = COL_AMBER;
-                roundRect(ctx, t.x, t.y, t.width, t.height, 3);
-                ctx.fill();
-                ctx.shadowBlur = 0;
-            }
-            for (var j = 0; j < probBars.length; j++) {
-                var b = probBars[j];
-                var barCol = b.isWinner ? COL_AMBER : COL_GRAY;
-                ctx.fillStyle = rgba(barCol, b.alpha * 0.7);
-                ctx.fillRect(b.x, b.y, b.width, b.height);
-            }
-        }
-
-        function roundRect(ctx, x, y, w, h, r) {
-            ctx.beginPath();
-            ctx.moveTo(x + r, y);
-            ctx.arcTo(x + w, y, x + w, y + h, r);
-            ctx.arcTo(x + w, y + h, x, y + h, r);
-            ctx.arcTo(x, y + h, x, y, r);
-            ctx.arcTo(x, y, x + w, y, r);
-        }
-
-        // ========== SPARKLES ==========
-
-        function spawnSparkles(x, y, count) {
-            for (var i = 0; i < count; i++) {
-                if (sparkles.length >= MAX_SPARKLES) break;
-                var angle = Math.random() * Math.PI * 2;
-                var speed = 30 + Math.random() * 80;
-                sparkles.push({
-                    x: x, y: y,
-                    vx: Math.cos(angle) * speed,
-                    vy: Math.sin(angle) * speed,
-                    alpha: 0.8 + Math.random() * 0.2,
-                    radius: 1 + Math.random() * 2,
-                    life: 0.3 + Math.random() * 0.4
+        function spawnOutputToken() {
+            if (outputTokens.length >= MAX_OUTPUT) outputTokens.shift();
+            var baseY = H * 0.85;
+            outputTokens.push({
+                y: baseY + 30,
+                targetY: baseY,
+                width: 0.3 + Math.random() * 0.7,
+                brightness: 1.0,
+                overshoot: -8
+            });
+            if (probBars.length >= MAX_PROB_BARS) probBars.shift();
+            var bars = [];
+            var winIdx = Math.floor(Math.random() * 5);
+            for (var i = 0; i < 5; i++) {
+                bars.push({
+                    height: i === winIdx ? (0.6 + Math.random() * 0.4) : (Math.random() * 0.3),
+                    winner: i === winIdx,
+                    alpha: i === winIdx ? 1.0 : 0.4
                 });
             }
+            probBars.push({ y: baseY + 30, bars: bars, life: 1.0 });
+        }
+
+        function spawnChaoticBars() {
+            if (probBars.length >= MAX_PROB_BARS) probBars.shift();
+            var bars = [];
+            for (var i = 0; i < 5; i++) {
+                bars.push({
+                    height: 0.3 + Math.random() * 0.7,
+                    winner: Math.random() > 0.5,
+                    alpha: 0.5 + Math.random() * 0.5
+                });
+            }
+            probBars.push({
+                y: H * 0.85 - outputTokens.length * 18,
+                bars: bars,
+                life: 0.5 + Math.random() * 0.5
+            });
+        }
+
+        // =====================
+        // SPARKLE PARTICLES
+        // =====================
+        function createSparkle(x, y) {
+            var angle = Math.random() * Math.PI * 2;
+            var speed = 30 + Math.random() * 80;
+            return {
+                x: x, y: y,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                life: 1.0,
+                size: 1 + Math.random() * 2,
+                color: COL_AMBER
+            };
         }
 
         function updateSparkles(dt) {
@@ -489,8 +477,7 @@
                 var s = sparkles[i];
                 s.x += s.vx * dt;
                 s.y += s.vy * dt;
-                s.life -= dt;
-                s.alpha = Math.max(0, s.life * 2);
+                s.life -= dt * 2.5;
                 if (s.life <= 0) sparkles.splice(i, 1);
             }
         }
@@ -498,772 +485,550 @@
         function drawSparkles(ctx) {
             for (var i = 0; i < sparkles.length; i++) {
                 var s = sparkles[i];
-                ctx.fillStyle = rgba(COL_AMBER, s.alpha);
+                ctx.fillStyle = rgbaStr(s.color, s.life * 0.8);
                 ctx.beginPath();
-                ctx.arc(s.x, s.y, s.radius, 0, Math.PI * 2);
+                ctx.arc(s.x, s.y, s.size * s.life, 0, Math.PI * 2);
                 ctx.fill();
             }
         }
 
-        // ========== CURSOR ==========
-
-        function drawCursor(ctx, seqIdx) {
-            if (!cursorVisible) return;
-            var fontSize = Math.max(20, Math.min(W * 0.03, 36));
-            ctx.save();
-            ctx.font = '700 ' + fontSize + 'px "Space Mono", monospace';
-            ctx.fillStyle = rgba(COL_CYAN, 0.7 + beatPulse * 0.2);
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.shadowBlur = 12 + beatPulse * 6;
-            ctx.shadowColor = COL_CYAN;
-            ctx.fillText('_', W / 2, H / 2);
-            ctx.restore();
+        // =====================
+        // GHOST TOKENS (Context Fade)
+        // =====================
+        function createGhostToken() {
+            return {
+                x: Math.random() * W,
+                y: -20,
+                vy: 15 + Math.random() * 25,
+                width: 4 + Math.random() * 6,
+                height: 2 + Math.random() * 3,
+                alpha: 0.03 + Math.random() * 0.05
+            };
         }
 
-        // ========== SCANLINE EFFECT ==========
-
+        // =====================
+        // VISUAL EFFECTS
+        // =====================
         function drawScanlines(ctx, alpha) {
-            ctx.fillStyle = rgba('#000000', alpha);
+            if (alpha < 0.01) return;
+            ctx.fillStyle = rgbaStr(COL_BG, alpha);
             for (var y = 0; y < H; y += 4) {
                 ctx.fillRect(0, y, W, 1);
             }
         }
 
-        // ========== VIGNETTE ==========
+        function drawCursorChar(ctx) {
+            if (!cursorVisible) return;
+            var fontSize = Math.max(20, Math.min(W * 0.03, 40));
+            ctx.save();
+            ctx.font = '700 ' + fontSize + 'px "Space Mono", monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = rgbaStr(COL_CYAN, 0.7);
+            ctx.shadowColor = COL_CYAN;
+            ctx.shadowBlur = 15;
+            ctx.fillText('_', W / 2, H / 2);
+            ctx.restore();
+        }
 
-        function drawVignette(ctx, intensity) {
-            var cx = W / 2, cy = H / 2;
-            var maxR = Math.sqrt(cx * cx + cy * cy);
-            var grad = ctx.createRadialGradient(cx, cy, maxR * 0.3, cx, cy, maxR);
+        function drawVignette(ctx, alpha) {
+            if (alpha < 0.01) return;
+            var grad = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.2, W / 2, H / 2, Math.max(W, H) * 0.7);
             grad.addColorStop(0, 'rgba(0,0,0,0)');
-            grad.addColorStop(0.7, 'rgba(0,0,0,' + (intensity * 0.3) + ')');
-            grad.addColorStop(1, 'rgba(0,0,0,' + (intensity * 0.7) + ')');
+            grad.addColorStop(1, rgbaStr('#000000', alpha));
             ctx.fillStyle = grad;
             ctx.fillRect(0, 0, W, H);
         }
 
-        // ========== SCREEN TEAR ==========
-
-        function spawnScreenTears() {
-            screenTears = [];
-            var count = 3 + Math.floor(Math.random() * 3);
-            for (var i = 0; i < count; i++) {
-                screenTears.push({
-                    y: Math.random() * H,
-                    height: 3 + Math.random() * 15,
-                    offset: (Math.random() - 0.5) * 40,
-                    alpha: 0.5 + Math.random() * 0.5
-                });
+        function drawScreenTear(ctx) {
+            for (var i = 0; i < tearBands.length; i++) {
+                var band = tearBands[i];
+                ctx.save();
+                ctx.fillStyle = rgbaStr(COL_MAGENTA, 0.03 + Math.random() * 0.04);
+                ctx.fillRect(band.offset, band.y, W, band.height);
+                ctx.translate(band.offset, 0);
+                ctx.fillStyle = rgbaStr(COL_CYAN, 0.02);
+                ctx.fillRect(0, band.y, W, band.height);
+                ctx.restore();
             }
         }
 
-        function drawScreenTears(ctx) {
-            for (var i = 0; i < screenTears.length; i++) {
-                var t = screenTears[i];
-                // Jitter offset each frame for true distortion feel
-                var jitteredOffset = t.offset + (Math.random() - 0.5) * 15;
-                // Grab the horizontal band and displace it
-                try {
-                    var sy = Math.max(0, Math.floor(t.y));
-                    var sh = Math.min(Math.ceil(t.height), H - sy);
-                    if (sh > 0 && sy < H) {
-                        // Draw displaced band by re-drawing the bg at offset
-                        ctx.save();
-                        ctx.beginPath();
-                        ctx.rect(0, sy, W, sh);
-                        ctx.clip();
-                        ctx.drawImage(ctx.canvas, jitteredOffset, 0);
-                        ctx.restore();
-                        // Tint the displaced band
-                        ctx.fillStyle = rgba(COL_MAGENTA, t.alpha * 0.12);
-                        ctx.fillRect(0, sy, W, sh);
-                    }
-                } catch(e) {
-                    // Fallback: just draw colored band
-                    ctx.fillStyle = rgba(COL_MAGENTA, t.alpha * 0.15);
-                    ctx.fillRect(0, t.y, W, t.height);
-                }
-            }
-        }
-
-        // ========== BACKGROUND ==========
-
-        function drawBg(ctx) {
-            // Smooth blended scene color
-            var r = Math.round(sceneR);
-            var g = Math.round(sceneG);
-            var b = Math.round(sceneB);
-            ctx.fillStyle = 'rgb(' + r + ',' + g + ',' + b + ')';
-            ctx.fillRect(0, 0, W, H);
-        }
-
-        // ========== INIT ==========
-
+        // =====================
+        // INIT / RESIZE
+        // =====================
         function init(ctx, width, height, anal) {
             W = width; H = height;
             analysis = anal;
             globalTime = 0;
-            beatPulse = 0;
+            bpLocal = 0;
             lastSeqIndex = -1;
-            transitionT = 0;
+            flashAlpha = 0;
+            shakeX = 0; shakeY = 0;
+            cursorVisible = true;
+            cursorTimer = 0;
+            cursorBlinkRate = 2;
+            aliveRadius = 1.0;
+            blackoutAlpha = 0;
+            hallucinationPhase = 'chaos';
+            rebuildNode = null;
+            rebuildRadius = 0;
+            rippleSource = -1;
+            rippleTime = 0;
+            beatCount = 0;
+
             nodes = [];
-            tokenRain = [];
+            tokens = [];
             outputTokens = [];
             probBars = [];
             sparkles = [];
-            screenTears = [];
             ghostTokens = [];
-            flashAlpha = 0;
-            shakeX = 0; shakeY = 0;
-            aliveRadius = 1;
-            uncertaintyPhase = 0;
-            hallucinationPhase = 'chaos';
-            recoveryNodeAlpha = 0;
-            recoveryNodeRadius = 0;
-            cursorVisible = true;
-            cursorTimer = 0;
-            rippleOrigin = -1;
-            rippleFrame = 0;
-            dashOffset = 0;
-            sceneR = 10; sceneG = 14; sceneB = 26;
-            targetSceneR = 10; targetSceneG = 14; targetSceneB = 26;
-            connectionDistThreshold = Math.min(W, H) * 0.3;
+            tearBands = [];
 
-            targetNodeCount = 6;
             for (var i = 0; i < 6; i++) {
-                var n = createNode(W * 0.3 + Math.random() * W * 0.4, H * 0.3 + Math.random() * H * 0.4, COL_CYAN, 3 + Math.random() * 3);
-                n.targetAlpha = 0.15 + Math.random() * 0.1;
+                var n = createNode();
+                n.alpha = 0.08;
+                n.targetAlpha = 0.12;
                 nodes.push(n);
             }
         }
 
         function resize(width, height) {
             W = width; H = height;
-            connectionDistThreshold = Math.min(W, H) * 0.3;
         }
 
-        // ========== MAIN RENDER ==========
-
+        // =====================
+        // MAIN RENDER
+        // =====================
         function render(frameData) {
             var ctx = frameData.ctx;
             var dt = frameData.dt || 1/60;
             var cursor = frameData.cursor;
-            beatPulse = frameData.beatPulse;
+            bpLocal = frameData.beatPulse;
             globalTime += dt;
 
-            // Animate dash offset continuously
-            dashOffset += dt * 30;
-
-            // Smooth scene color blend
-            sceneR = lerpExp(sceneR, targetSceneR, 4, dt);
-            sceneG = lerpExp(sceneG, targetSceneG, 4, dt);
-            sceneB = lerpExp(sceneB, targetSceneB, 4, dt);
-
-            // Decay camera shake
-            shakeX *= Math.exp(-12 * dt);
-            shakeY *= Math.exp(-12 * dt);
-
-            // -- Idle state --
+            // -- Idle (cursor null) --
             if (!cursor) {
-                drawBg(ctx);
-                drawScanlines(ctx, 0.03);
+                ctx.fillStyle = COL_BG;
+                ctx.fillRect(0, 0, W, H);
                 updateNodes(dt);
-                connectionDistThreshold = Math.min(W, H) * 0.25;
-                drawConnections(ctx, false, 1, 0, false);
-                for (var i = 0; i < nodes.length; i++) {
-                    nodes[i].targetAlpha = 0.12;
-                    drawNode(ctx, nodes[i]);
+                for (var idleN = 0; idleN < nodes.length; idleN++) {
+                    nodes[idleN].targetAlpha = 0.1;
+                    drawNode(ctx, nodes[idleN]);
                 }
+                drawConnections(ctx, Math.min(W, H) * 0.18, false, 0, null);
+                drawScanlines(ctx, 0.35);
                 cursorTimer += dt;
-                cursorVisible = Math.floor(cursorTimer * 1.2) % 2 === 0;
-                drawCursor(ctx);
+                if (cursorTimer > 0.8) { cursorTimer = 0; cursorVisible = !cursorVisible; }
+                drawCursorChar(ctx);
                 return;
             }
 
             var seqIdx = cursor.seqIndex;
             var rowIdx = cursor.rowIndex;
             var energy = analysis ? (analysis.energy[cursor.timelineIndex] || 0) : 0;
-            var beat = cursor.beat;
 
-            // -- Cursor blink timer --
-            cursorTimer += dt;
-            if (frameData.beatChanged) {
-                // Fade scene: slow blink (every 4 beats). Everything else: every 2 beats.
-                var blinkInterval = (seqIdx >= 11) ? 4 : 2;
-                if (beat % blinkInterval === 0) cursorVisible = !cursorVisible;
-            }
-
-            // -- Scene transitions --
+            // -- Section change --
             if (seqIdx !== lastSeqIndex) {
-                transitionT = 0;
-                onSceneChange(seqIdx, lastSeqIndex);
                 lastSeqIndex = seqIdx;
-            }
-            transitionT = Math.min(1, transitionT + dt * 2.5);
-
-            // -- Beat events --
-            if (frameData.beatChanged) {
-                onBeat(seqIdx, rowIdx, energy, beat);
-            }
-
-            // -- Ripple update --
-            if (rippleFrame > 0) {
-                rippleFrame++;
-                if (rippleFrame > rippleMaxFrames) rippleFrame = 0;
-            }
-
-            // -- Update systems --
-            updateNodes(dt);
-            updateTokenRain(dt);
-            updateOutputColumn(dt);
-            updateSparkles(dt);
-            flashAlpha *= Math.exp(-5 * dt);
-
-            // -- Scene-specific updates --
-            if (seqIdx === 7) {
-                uncertaintyPhase += dt;
-            }
-            if (seqIdx === 8) {
-                updateHallucination(dt, rowIdx);
-            }
-            if (seqIdx === 9) {
-                updateContextFade(dt);
-            }
-
-            // ========== DRAW ==========
-
-            // Apply camera shake
-            if (Math.abs(shakeX) > 0.1 || Math.abs(shakeY) > 0.1) {
-                ctx.save();
-                ctx.translate(shakeX, shakeY);
-            }
-
-            drawBg(ctx);
-
-            // -- Hallucination silence: truly black --
-            if (seqIdx === 8 && hallucinationPhase === 'silence') {
-                ctx.fillStyle = '#000000';
-                ctx.fillRect(-10, -10, W + 20, H + 20);
-                if (Math.abs(shakeX) > 0.1 || Math.abs(shakeY) > 0.1) ctx.restore();
-                return;
-            }
-
-            // -- Void: scanline effect --
-            if (seqIdx === 0) {
-                drawScanlines(ctx, 0.04 + beatPulse * 0.02);
-            }
-
-            // Draw connections
-            var useBezier = (seqIdx >= 2 && seqIdx <= 3) || seqIdx >= 4;
-            var connLineWidth = (seqIdx === 3) ? 3 : (seqIdx >= 2 ? 2 : 1.5);
-            var wobbleAmt = 0;
-            if (seqIdx === 7) wobbleAmt = 5 + uncertaintyPhase * 2;
-            if (seqIdx === 8 && hallucinationPhase === 'chaos') wobbleAmt = 15;
-            var useDotted = (seqIdx === 9);
-
-            if (seqIdx === 9) {
-                drawConnectionsWithFade(ctx, useBezier, connLineWidth);
-            } else {
-                drawConnections(ctx, useBezier, connLineWidth, wobbleAmt, useDotted);
-            }
-
-            // Draw token rain
-            if (seqIdx >= 1 && seqIdx <= 3) {
-                drawTokenRain(ctx);
-            }
-
-            // Draw ghost tokens for Context Fade
-            if (seqIdx === 9) {
-                drawGhostTokens(ctx, dt);
-            }
-
-            // Draw nodes
-            var showGhost = (seqIdx === 7);
-            if (seqIdx === 8 && hallucinationPhase === 'chaos') {
-                drawHallucinationNodes(ctx);
-            } else if (seqIdx === 8 && hallucinationPhase === 'recovery') {
-                drawRecoveryNode(ctx, dt);
-            } else {
-                for (var ni = 0; ni < nodes.length; ni++) {
-                    drawNode(ctx, nodes[ni]);
-                    if (showGhost) {
-                        // Jittery ghost offset for unsettling uncertainty
-                        var ghostOx = 3 + (Math.random() - 0.5) * 4;
-                        drawNode(ctx, nodes[ni], ghostOx);
-                    }
+                beatCount = 0;
+                if (seqIdx === 8) {
+                    hallucinationPhase = 'chaos';
+                    blackoutAlpha = 0;
+                    rebuildNode = null;
+                    rebuildRadius = 0;
                 }
-            }
-
-            // Draw output column (seqIdx 4-6)
-            if (seqIdx >= 4 && seqIdx <= 6) {
-                drawOutputColumn(ctx);
-            }
-
-            // Uncertainty: chaotic prob bars
-            if (seqIdx === 7) {
-                drawChaoticOutput(ctx);
-                // Occasional magenta flash during uncertainty
-                if (Math.random() < 0.04) {
-                    ctx.fillStyle = rgba(COL_MAGENTA, 0.05);
-                    ctx.fillRect(0, 0, W, H);
+                if (seqIdx === 9) {
+                    aliveRadius = 1.0;
                 }
-            }
-
-            // Draw sparkles
-            drawSparkles(ctx);
-
-            // Amber tint for Attention (Dorian) seqIndex 3
-            if (seqIdx === 3) {
-                ctx.fillStyle = rgba(COL_AMBER, 0.04 + energy * 0.02);
-                ctx.fillRect(0, 0, W, H);
-            }
-
-            // Attention Bloom vignette (seqIdx 2-3)
-            if (seqIdx === 2 || seqIdx === 3) {
-                drawVignette(ctx, 0.4 + energy * 0.3);
-            }
-
-            // Screen tears for hallucination
-            if (seqIdx === 8 && hallucinationPhase === 'chaos') {
-                drawScreenTears(ctx);
-                // 1-frame magenta flashes
-                if (Math.random() < 0.15) {
-                    ctx.fillStyle = rgba(COL_MAGENTA, 0.06 + Math.random() * 0.08);
-                    ctx.fillRect(0, 0, W, H);
-                }
-            }
-
-            // Cursor for Void and Fade scenes
-            if (seqIdx === 0 || seqIdx >= 10) {
-                drawCursor(ctx, seqIdx);
-            }
-
-            // Flash overlay
-            if (flashAlpha > 0.005) {
-                ctx.fillStyle = rgba(COL_CYAN, flashAlpha * 0.2);
-                ctx.fillRect(0, 0, W, H);
-            }
-
-            // Energy-scaled screen brightness pulse
-            if (energy > 0.5) {
-                ctx.fillStyle = rgba('#ffffff', (energy - 0.5) * 0.03 * beatPulse);
-                ctx.fillRect(0, 0, W, H);
-            }
-
-            // Restore camera shake transform
-            if (Math.abs(shakeX) > 0.1 || Math.abs(shakeY) > 0.1) {
-                ctx.restore();
-            }
-        }
-
-        // ========== SCENE CHANGE ==========
-
-        function onSceneChange(newIdx, oldIdx) {
-            if (newIdx === 0) {
-                // Void
-                targetSceneR = 10; targetSceneG = 14; targetSceneB = 26;
-                targetNodeCount = 6;
-                for (var i = 0; i < nodes.length; i++) {
-                    nodes[i].targetAlpha = 0.12 + Math.random() * 0.08;
-                    nodes[i].color = COL_CYAN;
-                }
-                outputTokens = [];
-                probBars = [];
-                tokenRain = [];
-            }
-            if (newIdx === 1) {
-                // Prompt Arrives
-                targetSceneR = 8; targetSceneG = 16; targetSceneB = 28;
-                targetNodeCount = 15;
-                for (var j = 0; j < nodes.length; j++) {
-                    nodes[j].targetAlpha = 0.3 + Math.random() * 0.2;
-                    nodes[j].color = COL_CYAN;
-                }
-            }
-            if (newIdx === 2 || newIdx === 3) {
-                // Attention Bloom
-                targetSceneR = 6; targetSceneG = 10; targetSceneB = 22;
-                targetNodeCount = 30;
-                connectionDistThreshold = Math.min(W, H) * 0.35;
-                for (var k = 0; k < nodes.length; k++) {
-                    var angle = (k / Math.max(nodes.length, 1)) * Math.PI * 2;
-                    nodes[k].vx += Math.cos(angle) * 20;
-                    nodes[k].vy += Math.sin(angle) * 15;
-                    nodes[k].targetAlpha = 0.5 + Math.random() * 0.3;
-                    nodes[k].color = ATTENTION_COLORS[k % 4];
-                }
-                tokenRain = [];
-            }
-            if (newIdx >= 4 && newIdx <= 6) {
-                // Generation Flow
-                targetSceneR = 12; targetSceneG = 12; targetSceneB = 20;
-                targetNodeCount = 25;
-                connectionDistThreshold = Math.min(W, H) * 0.3;
-                for (var g = 0; g < nodes.length; g++) {
-                    nodes[g].targetAlpha = 0.4 + Math.random() * 0.2;
-                    nodes[g].color = COL_CYAN;
-                }
-                if (newIdx === 4 || (newIdx === 6 && oldIdx !== 5)) {
+                if (seqIdx <= 1) {
                     outputTokens = [];
                     probBars = [];
                 }
             }
-            if (newIdx === 7) {
-                // Uncertainty
-                targetSceneR = 14; targetSceneG = 16; targetSceneB = 10;
-                uncertaintyPhase = 0;
-                for (var u = 0; u < nodes.length; u++) {
-                    nodes[u].color = COL_SICKLY;
-                    nodes[u].targetAlpha = 0.4 + Math.random() * 0.3;
-                }
-                outputTokens = [];
-                probBars = [];
-            }
-            if (newIdx === 8) {
-                // Hallucination
-                targetSceneR = 16; targetSceneG = 6; targetSceneB = 18;
-                hallucinationPhase = 'chaos';
-                recoveryNodeAlpha = 0;
-                recoveryNodeRadius = 0;
-                spawnScreenTears();
-                for (var h = 0; h < nodes.length; h++) {
-                    nodes[h].color = pickRandom([COL_MAGENTA, COL_SICKLY, COL_CYAN, COL_AMBER, '#ff4040', '#40ff40']);
-                }
-            }
-            if (newIdx === 9) {
-                // Context Fade
-                targetSceneR = 8; targetSceneG = 10; targetSceneB = 18;
-                aliveRadius = 1;
-                targetNodeCount = 30;
-                connectionDistThreshold = Math.min(W, H) * 0.35;
-                for (var cf = 0; cf < nodes.length; cf++) {
-                    nodes[cf].color = COL_CYAN;
-                    nodes[cf].targetAlpha = 0.5;
-                }
-                ghostTokens = [];
-            }
-            if (newIdx === 10) {
-                // Next Prompt
-                targetSceneR = 10; targetSceneG = 14; targetSceneB = 26;
-                targetNodeCount = 4;
-                outputTokens = [];
-                probBars = [];
-                for (var np = 0; np < nodes.length; np++) {
-                    nodes[np].color = COL_CYAN;
-                    nodes[np].targetAlpha = 0.3;
-                    nodes[np].vx += (W / 2 - nodes[np].x) * 0.02;
-                    nodes[np].vy += (H / 2 - nodes[np].y) * 0.02;
-                }
-            }
-            if (newIdx === 11) {
-                // Fade
-                targetSceneR = 6; targetSceneG = 8; targetSceneB = 16;
-                targetNodeCount = 3;
-                for (var fd = 0; fd < nodes.length; fd++) {
-                    nodes[fd].targetAlpha = 0.15;
-                    nodes[fd].vx += (nodes[fd].x - W / 2) * 0.05;
-                    nodes[fd].vy -= 10;
-                }
-            }
-        }
 
-        // ========== BEAT EVENTS ==========
-
-        function onBeat(seqIdx, rowIdx, energy, beat) {
-            // Connection pulse on every beat
-            if (nodes.length > 0) {
-                var pulseIdx = randInt(0, nodes.length - 1);
-                nodes[pulseIdx].pulse = Math.min(1, nodes[pulseIdx].pulse + 0.5);
-                // Spawn small sparkle burst at the pulsed node
-                spawnSparkles(nodes[pulseIdx].x, nodes[pulseIdx].y, 2 + Math.floor(energy * 4));
+            // -- Beat events --
+            if (frameData.beatChanged) {
+                beatCount++;
+                if (beatCount % cursorBlinkRate === 0) {
+                    cursorVisible = !cursorVisible;
+                }
             }
 
-            // -- Void --
+            shakeX *= Math.exp(-10 * dt);
+            shakeY *= Math.exp(-10 * dt);
+            flashAlpha *= Math.exp(-5 * dt);
+
+            // -- Background --
+            ctx.fillStyle = COL_BG;
+            ctx.fillRect(0, 0, W, H);
+
+            // -- Camera shake --
+            ctx.save();
+            ctx.translate(shakeX, shakeY);
+
+            // ===========================================
+            // seqIndex 0 -- VOID
+            // ===========================================
             if (seqIdx === 0) {
+                manageNodes(7, dt);
+                for (var v0 = 0; v0 < nodes.length; v0++) {
+                    nodes[v0].targetAlpha = 0.12;
+                    nodes[v0].color = COL_CYAN;
+                }
                 if (rowIdx >= 16 && nodes.length > 0) {
                     nodes[0].targetAlpha = 0.5;
-                    nodes[0].pulse = 0.6;
+                    nodes[0].pulse = Math.max(nodes[0].pulse, 0.15);
                 }
+                updateNodes(dt);
+                drawConnections(ctx, Math.min(W, H) * 0.18, false, 0, null);
+                for (var v1 = 0; v1 < nodes.length; v1++) drawNode(ctx, nodes[v1]);
+                drawScanlines(ctx, 0.4);
+                cursorBlinkRate = 2;
+                drawCursorChar(ctx);
             }
 
-            // -- Prompt Arrives --
-            if (seqIdx === 1) {
-                var tokCount = 1 + Math.floor(energy * 2);
-                for (var i = 0; i < tokCount; i++) spawnToken();
-                if (nodes.length > 2) {
-                    computeRipple(randInt(0, nodes.length - 1));
+            // ===========================================
+            // seqIndex 1 -- PROMPT ARRIVES
+            // ===========================================
+            else if (seqIdx === 1) {
+                manageNodes(15, dt);
+                for (var p1 = 0; p1 < nodes.length; p1++) {
+                    nodes[p1].color = COL_CYAN;
+                    nodes[p1].targetAlpha = 0.3 + energy * 0.3;
                 }
-                // Camera shake on kicks (every 4th row roughly)
-                if (rowIdx % 4 === 0 && energy > 0.3) {
-                    shakeX = (Math.random() - 0.5) * 3;
-                    shakeY = (Math.random() - 0.5) * 2;
-                }
-            }
 
-            // -- Attention Bloom --
-            if (seqIdx === 2 || seqIdx === 3) {
-                if (nodes.length > 0) {
-                    computeRipple(randInt(0, nodes.length - 1));
-                }
-                if (seqIdx === 2) spawnToken();
-                flashAlpha = 0.15 + energy * 0.2;
-                // Camera shake on strong beats
-                if (energy > 0.5) {
-                    shakeX = (Math.random() - 0.5) * 2;
-                    shakeY = (Math.random() - 0.5) * 1.5;
-                }
-            }
+                if (frameData.beatChanged) {
+                    var tokSpawn = 1 + Math.floor(Math.random() * 2);
+                    for (var ts = 0; ts < tokSpawn; ts++) {
+                        if (tokens.length < MAX_TOKENS) tokens.push(createToken());
+                    }
+                    if (energy > 0.4) {
+                        shakeX = (Math.random() - 0.5) * 3;
+                        shakeY = (Math.random() - 0.5) * 3;
+                    }
+                    if (energy > 0.5) flashAlpha = 0.06;
 
-            // -- Generation Flow --
-            if (seqIdx >= 4 && seqIdx <= 6) {
-                addOutputToken();
-                if (seqIdx === 5) {
-                    var lastTok = outputTokens[outputTokens.length - 1];
-                    if (lastTok) {
-                        spawnSparkles(lastTok.x + lastTok.width / 2, lastTok.targetY, 6);
+                    for (var pn1 = 0; pn1 < nodes.length; pn1++) {
+                        nodes[pn1].pulse += 0.15;
                     }
                 }
-            }
 
-            // -- Uncertainty --
-            if (seqIdx === 7) {
-                for (var u = 0; u < nodes.length; u++) {
-                    nodes[u].vx += (Math.random() - 0.5) * 40;
-                    nodes[u].vy += (Math.random() - 0.5) * 40;
-                    // Shift hue randomly each beat
-                    nodes[u].color = pickRandom([COL_SICKLY, '#d0e060', '#a0c030', '#e0d040', '#90c050']);
-                }
-                addOutputToken();
-                if (outputTokens.length > 2) {
-                    var prev = outputTokens[outputTokens.length - 2];
-                    prev.alpha = 0.2;
-                }
-                spawnChaoticProbBars();
-            }
+                updateNodes(dt);
+                updateTokens(dt);
+                drawConnections(ctx, Math.min(W, H) * 0.22, false, 0, null);
+                for (var pn2 = 0; pn2 < nodes.length; pn2++) drawNode(ctx, nodes[pn2]);
+                drawTokens(ctx);
 
-            // -- Hallucination --
-            if (seqIdx === 8) {
-                if (hallucinationPhase === 'chaos') {
-                    spawnScreenTears();
-                    for (var h = 0; h < nodes.length; h++) {
-                        nodes[h].color = pickRandom([COL_MAGENTA, COL_SICKLY, COL_CYAN, '#ff4040', '#40ff40', '#4040ff']);
-                        nodes[h].vx += (Math.random() - 0.5) * 60;
-                        nodes[h].vy += (Math.random() - 0.5) * 60;
-                    }
-                    flashAlpha = 0.3;
-                    shakeX = (Math.random() - 0.5) * 6;
-                    shakeY = (Math.random() - 0.5) * 4;
-                }
-                if (hallucinationPhase === 'recovery' && nodes.length > 0) {
-                    computeRipple(0);
+                if (flashAlpha > 0.005) {
+                    ctx.fillStyle = rgbaStr(COL_CYAN, flashAlpha);
+                    ctx.fillRect(0, 0, W, H);
                 }
             }
 
-            // -- Context Fade --
-            if (seqIdx === 9) {
-                aliveRadius = Math.max(0.1, aliveRadius - 0.08);
-                if (Math.random() < 0.3 && ghostTokens.length < MAX_GHOST_TOKENS) {
-                    ghostTokens.push({
-                        x: Math.random() * W,
-                        y: -10,
-                        vy: 20 + Math.random() * 30,
-                        alpha: 0.05 + Math.random() * 0.03,
-                        width: 8 + Math.random() * 12,
-                        height: 4
-                    });
+            // ===========================================
+            // seqIndex 2-3 -- ATTENTION BLOOM
+            // ===========================================
+            else if (seqIdx === 2 || seqIdx === 3) {
+                manageNodes(30, dt);
+                var isAmber = seqIdx === 3;
+
+                for (var a1 = 0; a1 < nodes.length; a1++) {
+                    nodes[a1].color = isAmber ? (a1 % 3 === 0 ? COL_AMBER : COL_CYAN) : COL_CYAN;
+                    nodes[a1].targetAlpha = 0.45 + energy * 0.35;
+                }
+
+                if (frameData.beatChanged) {
+                    triggerRipple();
+                    flashAlpha = 0.03 + energy * 0.05;
+                }
+
+                updateNodes(dt);
+                updateRipple(dt);
+
+                drawVignette(ctx, 0.3);
+                drawAttentionArcs(ctx, energy, isAmber);
+                for (var a2 = 0; a2 < nodes.length; a2++) drawNode(ctx, nodes[a2]);
+
+                if (flashAlpha > 0.005) {
+                    ctx.fillStyle = rgbaStr(isAmber ? COL_AMBER : COL_CYAN, flashAlpha);
+                    ctx.fillRect(0, 0, W, H);
                 }
             }
 
-            // -- Next Prompt --
-            if (seqIdx === 10) {
-                if (nodes.length > 0) {
-                    var idx = beat % nodes.length;
-                    nodes[idx].pulse = 0.7;
-                    nodes[idx].targetAlpha = 0.5;
+            // ===========================================
+            // seqIndex 4-6 -- GENERATION FLOW
+            // ===========================================
+            else if (seqIdx >= 4 && seqIdx <= 6) {
+                manageNodes(20, dt);
+                for (var g1 = 0; g1 < nodes.length; g1++) {
+                    nodes[g1].color = COL_CYAN;
+                    nodes[g1].targetAlpha = 0.3 + bpLocal * 0.2;
                 }
-            }
 
-            // -- Fade --
-            if (seqIdx === 11) {
-                for (var fd = 0; fd < nodes.length; fd++) {
-                    nodes[fd].targetAlpha = Math.max(0.03, nodes[fd].targetAlpha - 0.03);
-                }
-            }
-        }
+                if (frameData.beatChanged) {
+                    spawnOutputToken();
 
-        // ========== UNCERTAINTY HELPERS ==========
-
-        function spawnChaoticProbBars() {
-            if (probBars.length >= MAX_PROB_BARS) {
-                probBars.splice(0, 5);
-            }
-            var x = W * 0.8;
-            var y = H * 0.5 + (Math.random() - 0.5) * H * 0.3;
-            for (var i = 0; i < 5; i++) {
-                var barH = 5 + Math.random() * 25;
-                probBars.push({
-                    x: x - 10 + i * 8,
-                    y: y,
-                    width: 4,
-                    height: barH,
-                    alpha: 0.6 + Math.random() * 0.3,
-                    age: 0,
-                    isWinner: false
-                });
-            }
-        }
-
-        function drawChaoticOutput(ctx) {
-            for (var i = 0; i < outputTokens.length; i++) {
-                var t = outputTokens[i];
-                if (Math.random() < 0.3) t.alpha = 0.1 + Math.random() * 0.4;
-            }
-            drawOutputColumn(ctx);
-        }
-
-        // ========== HALLUCINATION HELPERS ==========
-
-        function updateHallucination(dt, rowIdx) {
-            if (rowIdx < 16) {
-                hallucinationPhase = 'chaos';
-            } else if (rowIdx < 20) {
-                hallucinationPhase = 'silence';
-                for (var i = 0; i < nodes.length; i++) {
-                    nodes[i].targetAlpha = 0;
-                }
-            } else {
-                hallucinationPhase = 'recovery';
-                recoveryNodeAlpha = lerpExp(recoveryNodeAlpha, 0.7, 2, dt);
-                recoveryNodeRadius = lerpExp(recoveryNodeRadius, 1, 1.5, dt);
-                if (nodes.length === 0) {
-                    nodes.push(createNode(W / 2, H / 2, COL_CYAN, 5));
-                }
-                nodes[0].x = lerpExp(nodes[0].x, W / 2, 3, dt);
-                nodes[0].y = lerpExp(nodes[0].y, H / 2, 3, dt);
-                nodes[0].targetAlpha = recoveryNodeAlpha;
-                nodes[0].color = COL_CYAN;
-                targetNodeCount = Math.min(8, 1 + Math.floor((rowIdx - 20) * 0.6));
-                for (var j = 1; j < nodes.length; j++) {
-                    nodes[j].color = COL_CYAN;
-                    nodes[j].targetAlpha = recoveryNodeAlpha * 0.5;
-                }
-                // Transition scene color back
-                targetSceneR = 10; targetSceneG = 14; targetSceneB = 26;
-            }
-        }
-
-        function drawHallucinationNodes(ctx) {
-            for (var i = 0; i < nodes.length; i++) {
-                var n = nodes[i];
-                if (Math.random() < 0.3) {
-                    n.color = pickRandom([COL_MAGENTA, COL_SICKLY, '#ff4040', '#4040ff', COL_CYAN]);
-                }
-                drawNode(ctx, n);
-                // Wild ghost with per-frame jitter
-                var ghostOff = 4 + (Math.random() - 0.5) * 6;
-                drawNode(ctx, n, ghostOff);
-            }
-        }
-
-        function drawRecoveryNode(ctx, dt) {
-            if (nodes.length === 0) return;
-            var n0 = nodes[0];
-            // "Rebirth" bloom: radial gradient expanding from tiny point
-            var bloomR = n0.radius * recoveryNodeRadius * 6;
-            if (bloomR > 2) {
-                var grad = ctx.createRadialGradient(n0.x, n0.y, 0, n0.x, n0.y, bloomR);
-                grad.addColorStop(0, rgba(COL_CYAN, recoveryNodeAlpha * 0.5));
-                grad.addColorStop(0.4, rgba(COL_CYAN, recoveryNodeAlpha * 0.2));
-                grad.addColorStop(1, rgba(COL_CYAN, 0));
-                ctx.fillStyle = grad;
-                ctx.beginPath();
-                ctx.arc(n0.x, n0.y, bloomR, 0, Math.PI * 2);
-                ctx.fill();
-            }
-            for (var i = 0; i < nodes.length; i++) {
-                drawNode(ctx, nodes[i]);
-            }
-        }
-
-        // ========== CONTEXT FADE HELPERS ==========
-
-        function updateContextFade(dt) {
-            var cx = W / 2, cy = H / 2;
-            var maxDist = Math.sqrt(cx * cx + cy * cy);
-            var threshold = aliveRadius * maxDist;
-            for (var i = 0; i < nodes.length; i++) {
-                var n = nodes[i];
-                var dx = n.x - cx, dy = n.y - cy;
-                var dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist > threshold) {
-                    n.targetAlpha = Math.max(0, n.targetAlpha - dt * 0.5);
-                }
-            }
-            for (var j = ghostTokens.length - 1; j >= 0; j--) {
-                var g = ghostTokens[j];
-                g.y += g.vy * dt;
-                g.alpha *= Math.exp(-0.5 * dt);
-                if (g.y > H + 20 || g.alpha < 0.005) {
-                    ghostTokens.splice(j, 1);
-                }
-            }
-        }
-
-        function drawConnectionsWithFade(ctx, useBezier, lineWidthBase) {
-            var cx = W / 2, cy = H / 2;
-            var maxDist = Math.sqrt(cx * cx + cy * cy);
-            var threshold = aliveRadius * maxDist;
-            for (var i = 0; i < nodes.length; i++) {
-                for (var j = i + 1; j < nodes.length; j++) {
-                    var a = nodes[i], b = nodes[j];
-                    if (a.alpha < 0.05 || b.alpha < 0.05) continue;
-                    var dx = b.x - a.x, dy = b.y - a.y;
-                    var dist = Math.sqrt(dx * dx + dy * dy);
-                    if (dist > connectionDistThreshold || dist < 1) continue;
-                    var alpha = (1 - dist / connectionDistThreshold) * Math.min(a.alpha, b.alpha) * 0.6;
-
-                    var da = Math.sqrt((a.x - cx) * (a.x - cx) + (a.y - cy) * (a.y - cy));
-                    var db = Math.sqrt((b.x - cx) * (b.x - cx) + (b.y - cy) * (b.y - cy));
-                    var isDotted = (da > threshold || db > threshold);
-
-                    ctx.strokeStyle = rgba(COL_FADE, alpha);
-                    ctx.lineWidth = lineWidthBase || 1.5;
-                    if (isDotted) {
-                        ctx.setLineDash([4, 8]);
-                        ctx.lineDashOffset = -dashOffset;
+                    if (seqIdx === 5 && outputTokens.length > 0) {
+                        var spkX = W * 0.78 + W * 0.09;
+                        var spkY = outputTokens[outputTokens.length - 1].y || H * 0.85;
+                        var spkC = 5 + Math.floor(Math.random() * 6);
+                        for (var sp = 0; sp < spkC; sp++) {
+                            if (sparkles.length < MAX_SPARKLES) sparkles.push(createSparkle(spkX, spkY));
+                        }
                     }
 
-                    ctx.beginPath();
-                    if (useBezier) {
-                        var mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
-                        var nx = -dy / dist, ny = dx / dist;
-                        var offset = dist * 0.15 * Math.sin(globalTime + i * 0.5);
-                        ctx.moveTo(a.x, a.y);
-                        ctx.quadraticCurveTo(mx + nx * offset, my + ny * offset, b.x, b.y);
+                    for (var gp1 = 0; gp1 < nodes.length; gp1++) {
+                        nodes[gp1].pulse += 0.15 + energy * 0.2;
+                    }
+                }
+
+                updateNodes(dt);
+                updateSparkles(dt);
+
+                drawConnections(ctx, Math.min(W, H) * 0.22, true, 0, null);
+                for (var g2 = 0; g2 < nodes.length; g2++) drawNode(ctx, nodes[g2]);
+                drawOutputColumn(ctx, dt);
+                drawSparkles(ctx);
+            }
+
+            // ===========================================
+            // seqIndex 7 -- UNCERTAINTY
+            // ===========================================
+            else if (seqIdx === 7) {
+                manageNodes(20, dt);
+                for (var u1 = 0; u1 < nodes.length; u1++) {
+                    nodes[u1].vx += (Math.random() - 0.5) * 150 * dt;
+                    nodes[u1].vy += (Math.random() - 0.5) * 150 * dt;
+                    nodes[u1].color = COL_SICKLY;
+                    nodes[u1].targetAlpha = 0.35 + Math.random() * 0.2;
+                }
+
+                if (frameData.beatChanged) {
+                    spawnChaoticBars();
+                    if (Math.random() > 0.5 && outputTokens.length > 0) {
+                        outputTokens.pop();
                     } else {
-                        ctx.moveTo(a.x, a.y);
-                        ctx.lineTo(b.x, b.y);
+                        spawnOutputToken();
                     }
-                    ctx.stroke();
-                    if (isDotted) {
-                        ctx.setLineDash([]);
-                        ctx.lineDashOffset = 0;
+                    if (Math.random() > 0.6) flashAlpha = 0.05;
+                }
+
+                updateNodes(dt);
+
+                drawConnections(ctx, Math.min(W, H) * 0.25, false, 8, null);
+
+                // Ghost double on nodes
+                for (var u2 = 0; u2 < nodes.length; u2++) {
+                    var gOff = 3 + Math.random() * 2;
+                    var oX = nodes[u2].x, oY = nodes[u2].y, oA = nodes[u2].alpha;
+                    nodes[u2].x += gOff * (Math.random() - 0.5) * 2;
+                    nodes[u2].y += gOff * (Math.random() - 0.5) * 2;
+                    nodes[u2].alpha *= 0.4;
+                    drawNode(ctx, nodes[u2]);
+                    nodes[u2].x = oX; nodes[u2].y = oY; nodes[u2].alpha = oA;
+                    drawNode(ctx, nodes[u2]);
+                }
+
+                drawOutputColumn(ctx, dt);
+
+                // Random magenta flash
+                if (Math.random() < 0.03) {
+                    ctx.fillStyle = rgbaStr(COL_MAGENTA, 0.05);
+                    ctx.fillRect(0, 0, W, H);
+                }
+                if (flashAlpha > 0.005) {
+                    ctx.fillStyle = rgbaStr(COL_MAGENTA, flashAlpha);
+                    ctx.fillRect(0, 0, W, H);
+                }
+            }
+
+            // ===========================================
+            // seqIndex 8 -- HALLUCINATION
+            // ===========================================
+            else if (seqIdx === 8) {
+                if (rowIdx < 16) {
+                    hallucinationPhase = 'chaos';
+                } else if (rowIdx < 20) {
+                    hallucinationPhase = 'blackout';
+                } else {
+                    hallucinationPhase = 'rebuild';
+                }
+
+                if (hallucinationPhase === 'chaos') {
+                    manageNodes(25, dt);
+                    var chColors = [COL_MAGENTA, COL_SICKLY, COL_CYAN, '#ff4040', '#40ff40'];
+                    for (var c1 = 0; c1 < nodes.length; c1++) {
+                        nodes[c1].color = chColors[Math.floor(Math.random() * chColors.length)];
+                        nodes[c1].vx += (Math.random() - 0.5) * 300 * dt;
+                        nodes[c1].vy += (Math.random() - 0.5) * 300 * dt;
+                        nodes[c1].targetAlpha = 0.3 + Math.random() * 0.5;
+                    }
+
+                    if (frameData.beatChanged) {
+                        tearBands = [];
+                        var nTears = 3 + Math.floor(Math.random() * 3);
+                        for (var tb = 0; tb < nTears; tb++) {
+                            tearBands.push({
+                                y: Math.random() * H,
+                                height: 10 + Math.random() * 40,
+                                offset: (Math.random() - 0.5) * 60
+                            });
+                        }
+                        flashAlpha = 0.08;
+                    }
+
+                    updateNodes(dt);
+                    drawConnections(ctx, Math.min(W, H) * 0.4, true, 15, null);
+                    for (var c2 = 0; c2 < nodes.length; c2++) drawNode(ctx, nodes[c2]);
+                    drawScreenTear(ctx);
+
+                    if (Math.random() < 0.08) {
+                        ctx.fillStyle = rgbaStr(COL_MAGENTA, 0.06);
+                        ctx.fillRect(0, 0, W, H);
+                    }
+                    if (flashAlpha > 0.005) {
+                        ctx.fillStyle = rgbaStr(COL_MAGENTA, flashAlpha);
+                        ctx.fillRect(0, 0, W, H);
+                    }
+                }
+
+                else if (hallucinationPhase === 'blackout') {
+                    blackoutAlpha = lerpExp(blackoutAlpha, 1.0, 15, dt);
+                    tearBands = [];
+                    for (var b1 = 0; b1 < nodes.length; b1++) {
+                        nodes[b1].targetAlpha = 0;
+                    }
+                    updateNodes(dt);
+                    for (var b2 = 0; b2 < nodes.length; b2++) drawNode(ctx, nodes[b2]);
+                    ctx.fillStyle = rgbaStr('#000000', blackoutAlpha);
+                    ctx.fillRect(0, 0, W, H);
+                }
+
+                else { // rebuild
+                    blackoutAlpha = lerpExp(blackoutAlpha, 0, 3, dt);
+                    tearBands = [];
+
+                    if (!rebuildNode) {
+                        for (var r1 = 0; r1 < nodes.length; r1++) {
+                            nodes[r1].targetAlpha = 0;
+                        }
+                        rebuildNode = createNode(W / 2, H / 2, COL_CYAN, 2);
+                        rebuildNode.targetAlpha = 0.8;
+                        rebuildNode.vx = 0;
+                        rebuildNode.vy = 0;
+                        nodes.push(rebuildNode);
+                    }
+                    rebuildRadius = lerpExp(rebuildRadius, Math.min(W, H) * 0.15, 2, dt);
+                    rebuildNode.radius = lerpV(rebuildNode.radius, 6, 1 - Math.exp(-3 * dt));
+
+                    var rbProg = Math.min(1, (rowIdx - 20) / 12);
+                    var rbTarget = Math.floor(3 + rbProg * 15);
+                    manageNodes(rbTarget, dt);
+
+                    for (var r2 = 0; r2 < nodes.length; r2++) {
+                        nodes[r2].color = COL_CYAN;
+                        nodes[r2].targetAlpha = 0.25 + rbProg * 0.4;
+                    }
+
+                    updateNodes(dt);
+                    drawConnections(ctx, Math.min(W, H) * 0.25, true, 0, null);
+                    for (var r3 = 0; r3 < nodes.length; r3++) drawNode(ctx, nodes[r3]);
+
+                    // Radial bloom from center
+                    var rbGrad = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, rebuildRadius);
+                    rbGrad.addColorStop(0, rgbaStr(COL_CYAN, 0.08 * rbProg));
+                    rbGrad.addColorStop(1, 'rgba(0,0,0,0)');
+                    ctx.fillStyle = rbGrad;
+                    ctx.fillRect(0, 0, W, H);
+
+                    if (blackoutAlpha > 0.01) {
+                        ctx.fillStyle = rgbaStr('#000000', blackoutAlpha);
+                        ctx.fillRect(0, 0, W, H);
                     }
                 }
             }
-        }
 
-        function drawGhostTokens(ctx, dt) {
-            for (var i = 0; i < ghostTokens.length; i++) {
-                var g = ghostTokens[i];
-                ctx.fillStyle = rgba(COL_FADE, g.alpha);
-                roundRect(ctx, g.x, g.y, g.width, g.height, 2);
-                ctx.fill();
+            // ===========================================
+            // seqIndex 9 -- CONTEXT FADE
+            // ===========================================
+            else if (seqIdx === 9) {
+                manageNodes(30, dt);
+                aliveRadius = lerpExp(aliveRadius, 0.12, 0.8, dt);
+                var cx = W / 2, cy = H / 2;
+                var mxR = Math.max(W, H) * aliveRadius;
+
+                for (var f1 = 0; f1 < nodes.length; f1++) {
+                    var nd = nodes[f1];
+                    var dC = Math.sqrt((nd.x - cx) * (nd.x - cx) + (nd.y - cy) * (nd.y - cy));
+                    if (dC > mxR) {
+                        nd.targetAlpha = Math.max(0, nd.targetAlpha - dt * 0.8);
+                        nd.color = COL_GRAY;
+                    } else {
+                        nd.color = COL_GRAY;
+                        nd.targetAlpha = 0.3;
+                    }
+                }
+
+                if (frameData.beatChanged) {
+                    aliveRadius *= 0.92;
+                    if (ghostTokens.length < 15) ghostTokens.push(createGhostToken());
+                }
+
+                for (var gt2 = ghostTokens.length - 1; gt2 >= 0; gt2--) {
+                    ghostTokens[gt2].y += ghostTokens[gt2].vy * dt;
+                    if (ghostTokens[gt2].y > H + 30) ghostTokens.splice(gt2, 1);
+                }
+
+                updateNodes(dt);
+                drawConnections(ctx, Math.min(W, H) * 0.25, false, 0, [4, 8]);
+                for (var f2 = 0; f2 < nodes.length; f2++) drawNode(ctx, nodes[f2]);
+
+                // Ghost rain
+                for (var gt3 = 0; gt3 < ghostTokens.length; gt3++) {
+                    var gh = ghostTokens[gt3];
+                    ctx.fillStyle = rgbaStr(COL_GRAY, gh.alpha);
+                    ctx.fillRect(gh.x, gh.y, gh.width, gh.height);
+                }
             }
-        }
 
-        // ========== REGISTER ==========
+            // ===========================================
+            // seqIndex 10-11 -- NEXT PROMPT / FADE
+            // ===========================================
+            else if (seqIdx >= 10) {
+                var remNodes = seqIdx === 10 ? 4 : 2;
+                manageNodes(remNodes, dt);
+
+                for (var n1 = 0; n1 < nodes.length; n1++) {
+                    nodes[n1].vy -= 5 * dt;
+                    nodes[n1].color = COL_CYAN;
+                    nodes[n1].targetAlpha = seqIdx === 10 ? 0.35 : Math.max(0.02, 0.25 - rowIdx * 0.008);
+                }
+
+                if (frameData.beatChanged && seqIdx === 10) {
+                    var brIdx = beatCount % Math.max(nodes.length, 1);
+                    if (nodes[brIdx]) {
+                        nodes[brIdx].pulse = 0.6;
+                        nodes[brIdx].alpha = Math.min(nodes[brIdx].alpha + 0.3, 0.8);
+                    }
+                }
+
+                updateNodes(dt);
+                drawConnections(ctx, Math.min(W, H) * 0.2, false, 0, null);
+                for (var n2 = 0; n2 < nodes.length; n2++) drawNode(ctx, nodes[n2]);
+
+                cursorBlinkRate = seqIdx === 11 ? 4 : 2;
+                drawCursorChar(ctx);
+
+                if (seqIdx === 11) {
+                    var fadeAmt = Math.min(0.85, rowIdx / 32);
+                    ctx.fillStyle = rgbaStr(COL_BG, fadeAmt);
+                    ctx.fillRect(0, 0, W, H);
+                }
+            }
+
+            // -- Restore camera shake --
+            ctx.restore();
+        }
 
         BaseRenderer('what-its-like-to-be-an-llm-video', 'What It\'s Like to Be an LLM', {
             beatDecay: 8,
