@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>World Population Race &mdash; Data Visualization Gallery</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-deep: #0b0e17;
+            --bg-surface: #0f1320;
+            --bg-panel: #131828;
+            --border-dim: #1c2340;
+            --border-bright: #2a3560;
+            --text-primary: #e8ecf4;
+            --text-secondary: #8892b0;
+            --text-dim: #4a5580;
+            --accent-blue: #6382ff;
+            --accent-blue-glow: rgba(99, 130, 255, 0.25);
+            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'JetBrains Mono', 'Consolas', monospace;
+
+            /* Continent colors */
+            --asia: #ff6b6b;
+            --europe: #6382ff;
+            --africa: #ffd43b;
+            --americas: #38d9a9;
+            --oceania: #b197fc;
+        }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { font-size: 16px; }
+
+        body {
+            font-family: var(--font-sans);
+            background: var(--bg-deep);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Dot grid */
+        .dot-grid {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            background-image: radial-gradient(circle, rgba(99, 130, 255, 0.06) 1px, transparent 1px);
+            background-size: 32px 32px;
+            pointer-events: none;
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 2rem 2rem 3rem;
+        }
+
+        /* Nav */
+        .nav-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+        .back-link {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            letter-spacing: 0.06em;
+            color: var(--text-dim);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        .back-link:hover { color: var(--accent-blue); }
+        .back-link::before { content: '\2190  '; }
+
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .header h1 {
+            font-size: clamp(1.6rem, 4vw, 2.4rem);
+            font-weight: 600;
+            letter-spacing: -0.02em;
+            margin-bottom: 0.4rem;
+        }
+        .header h1 span {
+            background: linear-gradient(135deg, var(--accent-blue), #38d9a9);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .header-sub {
+            font-size: 0.9rem;
+            font-weight: 300;
+            color: var(--text-secondary);
+            max-width: 520px;
+            margin: 0 auto;
+        }
+
+        /* Year display */
+        .year-display {
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+        .year-number {
+            font-family: var(--font-mono);
+            font-size: clamp(3rem, 8vw, 5rem);
+            font-weight: 700;
+            color: var(--text-primary);
+            opacity: 0.15;
+            line-height: 1;
+            user-select: none;
+            transition: opacity 0.3s;
+        }
+        .year-number.playing {
+            opacity: 0.25;
+        }
+
+        /* Canvas wrapper */
+        .chart-wrapper {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-dim);
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 1.5rem;
+        }
+        #raceCanvas {
+            display: block;
+            width: 100%;
+            cursor: crosshair;
+        }
+
+        /* Controls */
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 1.5rem;
+            padding: 16px 20px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border-dim);
+            border-radius: 8px;
+        }
+        .btn {
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            letter-spacing: 0.04em;
+            color: var(--text-primary);
+            background: var(--bg-surface);
+            border: 1px solid var(--border-dim);
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.15s;
+            user-select: none;
+        }
+        .btn:hover {
+            border-color: var(--accent-blue);
+            color: var(--accent-blue);
+        }
+        .btn.active {
+            background: var(--accent-blue);
+            border-color: var(--accent-blue);
+            color: #0b0e17;
+        }
+        .btn-play {
+            min-width: 70px;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .control-label {
+            font-family: var(--font-mono);
+            font-size: 0.6rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text-dim);
+        }
+
+        /* Slider */
+        .slider-wrap {
+            flex: 1;
+            min-width: 120px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            flex: 1;
+            height: 4px;
+            background: var(--border-dim);
+            border-radius: 2px;
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: var(--accent-blue);
+            cursor: pointer;
+            box-shadow: 0 0 8px var(--accent-blue-glow);
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: var(--accent-blue);
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 0 8px var(--accent-blue-glow);
+        }
+
+        /* Year buttons */
+        .year-btns {
+            display: flex;
+            gap: 6px;
+        }
+        .year-btn {
+            font-family: var(--font-mono);
+            font-size: 0.65rem;
+            color: var(--text-dim);
+            background: none;
+            border: 1px solid var(--border-dim);
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .year-btn:hover {
+            border-color: var(--accent-blue);
+            color: var(--accent-blue);
+        }
+        .year-btn.active {
+            border-color: var(--accent-blue);
+            color: var(--accent-blue);
+            background: rgba(99, 130, 255, 0.1);
+        }
+
+        /* Legend */
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-bottom: 1.5rem;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-family: var(--font-mono);
+            font-size: 0.65rem;
+            color: var(--text-secondary);
+            letter-spacing: 0.04em;
+            cursor: pointer;
+            transition: opacity 0.2s;
+            user-select: none;
+        }
+        .legend-item.dimmed {
+            opacity: 0.3;
+        }
+        .legend-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 3px;
+        }
+
+        /* Tooltip */
+        .tooltip {
+            position: fixed;
+            z-index: 100;
+            background: #1a1f35;
+            border: 1px solid var(--border-bright);
+            border-radius: 6px;
+            padding: 12px 16px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.15s;
+            max-width: 260px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+        }
+        .tooltip.visible { opacity: 1; }
+        .tooltip-name {
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-bottom: 4px;
+        }
+        .tooltip-continent {
+            font-family: var(--font-mono);
+            font-size: 0.6rem;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+        .tooltip-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+            margin-bottom: 2px;
+        }
+        .tooltip-val {
+            font-family: var(--font-mono);
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        /* Info */
+        .info-panel {
+            padding: 16px 20px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border-dim);
+            border-radius: 8px;
+            font-size: 0.78rem;
+            color: var(--text-dim);
+            line-height: 1.6;
+        }
+        .info-panel a {
+            color: var(--text-secondary);
+            text-decoration: none;
+        }
+        .info-panel a:hover { color: var(--accent-blue); }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            margin-top: 2rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border-dim);
+        }
+        .footer a {
+            font-family: var(--font-mono);
+            font-size: 0.6rem;
+            color: var(--text-dim);
+            text-decoration: none;
+            letter-spacing: 0.06em;
+        }
+        .footer a:hover { color: var(--accent-blue); }
+
+        @media (max-width: 768px) {
+            .container { padding: 1.5rem 1rem 2rem; }
+            .controls { gap: 10px; padding: 12px 14px; }
+            .year-btns { flex-wrap: wrap; }
+            .legend { gap: 12px; }
+            .slider-wrap { min-width: 100px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="dot-grid"></div>
+
+    <div class="container">
+        <div class="nav-row">
+            <a href="../index.html" class="back-link">Data Viz Gallery</a>
+        </div>
+
+        <div class="header">
+            <h1>World <span>Population</span> Race</h1>
+            <p class="header-sub">Watch 30 countries race across six decades of population growth. Click through years or let it play.</p>
+        </div>
+
+        <div class="year-display">
+            <div class="year-number" id="yearDisplay">1960</div>
+        </div>
+
+        <div class="chart-wrapper">
+            <canvas id="raceCanvas"></canvas>
+        </div>
+
+        <div class="controls">
+            <button class="btn btn-play" id="btnPlay">Play</button>
+            <div class="control-group">
+                <span class="control-label">Speed</span>
+                <input type="range" id="speedSlider" min="1" max="5" value="2" step="1">
+            </div>
+            <div class="slider-wrap">
+                <span class="control-label">Year</span>
+                <input type="range" id="yearSlider" min="0" max="1000" value="0" step="1">
+            </div>
+            <div class="year-btns">
+                <button class="year-btn active" data-year="1960">1960</button>
+                <button class="year-btn" data-year="1980">1980</button>
+                <button class="year-btn" data-year="2000">2000</button>
+                <button class="year-btn" data-year="2020">2020</button>
+            </div>
+        </div>
+
+        <div class="legend" id="legend"></div>
+
+        <div class="info-panel">
+            <strong>About this visualization</strong> &mdash; Population data is approximate and based on
+            <a href="https://data.worldbank.org/indicator/SP.POP.TOTL" target="_blank" rel="noopener">World Bank Open Data</a>.
+            Linear interpolation fills the years between 1960, 1980, 2000, and 2020 snapshots.
+            Growth rate is computed as average annual change between the displayed year and the previous snapshot.
+        </div>
+
+        <div class="footer">
+            <a href="../index.html">&larr; Back to Gallery</a> &nbsp;&middot;&nbsp;
+            <a href="../../index.html">HTML Style Guides</a>
+        </div>
+    </div>
+
+    <div class="tooltip" id="tooltip">
+        <div class="tooltip-name" id="ttName"></div>
+        <div class="tooltip-continent" id="ttContinent"></div>
+        <div class="tooltip-row"><span>Population</span> <span class="tooltip-val" id="ttPop"></span></div>
+        <div class="tooltip-row"><span>Rank</span> <span class="tooltip-val" id="ttRank"></span></div>
+        <div class="tooltip-row"><span>Growth rate</span> <span class="tooltip-val" id="ttGrowth"></span></div>
+    </div>
+
+    <script>
+    (function() {
+        'use strict';
+
+        /* ─────────────────────────────────────────────
+           DATASET — 30 countries, 4 snapshot years
+           Population in millions (approximate, World Bank)
+           ───────────────────────────────────────────── */
+        var YEARS = [1960, 1980, 2000, 2020];
+
+        var CONTINENTS = {
+            'Asia':     { color: '#ff6b6b', label: 'Asia' },
+            'Europe':   { color: '#6382ff', label: 'Europe' },
+            'Africa':   { color: '#ffd43b', label: 'Africa' },
+            'Americas': { color: '#38d9a9', label: 'Americas' },
+            'Oceania':  { color: '#b197fc', label: 'Oceania' }
+        };
+
+        var DATA = [
+            { name: 'China',         continent: 'Asia',     pop: [667,  981,  1263, 1412] },
+            { name: 'India',         continent: 'Asia',     pop: [450,  697,  1053, 1380] },
+            { name: 'United States', continent: 'Americas', pop: [180,  227,  282,  331] },
+            { name: 'Indonesia',     continent: 'Asia',     pop: [88,   148,  212,  274] },
+            { name: 'Pakistan',      continent: 'Asia',     pop: [45,   80,   138,  221] },
+            { name: 'Brazil',        continent: 'Americas', pop: [72,   121,  175,  213] },
+            { name: 'Nigeria',       continent: 'Africa',   pop: [45,   74,   122,  206] },
+            { name: 'Bangladesh',    continent: 'Asia',     pop: [48,   80,   128,  165] },
+            { name: 'Russia',        continent: 'Europe',   pop: [120,  139,  146,  144] },
+            { name: 'Mexico',        continent: 'Americas', pop: [38,   68,   100,  129] },
+            { name: 'Japan',         continent: 'Asia',     pop: [93,   117,  127,  126] },
+            { name: 'Ethiopia',      continent: 'Africa',   pop: [22,   35,   66,   115] },
+            { name: 'Philippines',   continent: 'Asia',     pop: [27,   48,   77,   110] },
+            { name: 'Egypt',         continent: 'Africa',   pop: [28,   44,   68,   102] },
+            { name: 'Vietnam',       continent: 'Asia',     pop: [33,   54,   79,   97] },
+            { name: 'DR Congo',      continent: 'Africa',   pop: [16,   27,   48,   90] },
+            { name: 'Turkey',        continent: 'Europe',   pop: [28,   44,   64,   84] },
+            { name: 'Iran',          continent: 'Asia',     pop: [22,   39,   64,   84] },
+            { name: 'Germany',       continent: 'Europe',   pop: [73,   78,   82,   83] },
+            { name: 'Thailand',      continent: 'Asia',     pop: [27,   47,   63,   70] },
+            { name: 'United Kingdom',continent: 'Europe',   pop: [52,   56,   59,   67] },
+            { name: 'France',        continent: 'Europe',   pop: [46,   54,   59,   67] },
+            { name: 'Tanzania',      continent: 'Africa',   pop: [10,   19,   34,   60] },
+            { name: 'South Africa',  continent: 'Africa',   pop: [18,   29,   45,   59] },
+            { name: 'Italy',         continent: 'Europe',   pop: [50,   56,   57,   60] },
+            { name: 'Kenya',         continent: 'Africa',   pop: [8,    16,   31,   54] },
+            { name: 'South Korea',   continent: 'Asia',     pop: [25,   38,   47,   52] },
+            { name: 'Colombia',      continent: 'Americas', pop: [16,   28,   40,   51] },
+            { name: 'Argentina',     continent: 'Americas', pop: [21,   28,   37,   45] },
+            { name: 'Australia',     continent: 'Oceania',  pop: [10,   15,   19,   26] }
+        ];
+
+        var TOP_N = 15; // Show top N bars at a time
+
+        /* ─────────────────────────────────────────────
+           STATE
+           ───────────────────────────────────────────── */
+        var canvas = document.getElementById('raceCanvas');
+        var ctx = canvas.getContext('2d');
+        var W, H, dpr;
+        var currentYear = 1960;
+        var targetYear = 1960;
+        var isPlaying = false;
+        var playSpeed = 2; // years per second multiplier
+        var hoveredBar = -1;
+        var mouseX = 0, mouseY = 0;
+        var lastFrameTime = 0;
+        var continentFilter = {}; // all visible by default
+
+        // Animation state for each country's bar
+        var barStates = DATA.map(function() {
+            return { displayPop: 0, displayY: 0, displayRank: 0 };
+        });
+
+        /* ─────────────────────────────────────────────
+           INTERPOLATION HELPERS
+           ───────────────────────────────────────────── */
+        function getPopAtYear(countryIdx, year) {
+            var d = DATA[countryIdx];
+            if (year <= YEARS[0]) return d.pop[0];
+            if (year >= YEARS[YEARS.length - 1]) return d.pop[YEARS.length - 1];
+            for (var i = 0; i < YEARS.length - 1; i++) {
+                if (year >= YEARS[i] && year <= YEARS[i + 1]) {
+                    var t = (year - YEARS[i]) / (YEARS[i + 1] - YEARS[i]);
+                    return d.pop[i] + (d.pop[i + 1] - d.pop[i]) * t;
+                }
+            }
+            return d.pop[0];
+        }
+
+        function getGrowthRate(countryIdx, year) {
+            // Average annual growth rate from previous snapshot
+            var prevYear = YEARS[0];
+            for (var i = 1; i < YEARS.length; i++) {
+                if (year >= YEARS[i]) prevYear = YEARS[i];
+                else break;
+            }
+            if (prevYear === year && year > YEARS[0]) {
+                // At exact snapshot, compare to prior
+                var idx = YEARS.indexOf(year);
+                prevYear = YEARS[idx - 1];
+            }
+            if (prevYear === year) return 0;
+            var popNow = getPopAtYear(countryIdx, year);
+            var popPrev = getPopAtYear(countryIdx, prevYear);
+            if (popPrev === 0) return 0;
+            var years = year - prevYear;
+            var rate = (Math.pow(popNow / popPrev, 1 / years) - 1) * 100;
+            return rate;
+        }
+
+        function getRankedData(year) {
+            var items = [];
+            for (var i = 0; i < DATA.length; i++) {
+                items.push({
+                    idx: i,
+                    name: DATA[i].name,
+                    continent: DATA[i].continent,
+                    pop: getPopAtYear(i, year)
+                });
+            }
+            items.sort(function(a, b) { return b.pop - a.pop; });
+            return items;
+        }
+
+        function formatPop(millions) {
+            if (millions >= 1000) return (millions / 1000).toFixed(2) + 'B';
+            return Math.round(millions) + 'M';
+        }
+
+        function formatPopFull(millions) {
+            var n = millions * 1000000;
+            if (n >= 1e9) return (n / 1e9).toFixed(2) + ' billion';
+            return Math.round(n / 1e6).toLocaleString() + ' million';
+        }
+
+        /* ─────────────────────────────────────────────
+           CANVAS SETUP
+           ───────────────────────────────────────────── */
+        function resize() {
+            dpr = window.devicePixelRatio || 1;
+            var rect = canvas.parentElement.getBoundingClientRect();
+            var targetW = rect.width;
+            var targetH = Math.max(520, Math.min(680, window.innerHeight * 0.6));
+            canvas.style.height = targetH + 'px';
+            W = canvas.width = targetW * dpr;
+            H = canvas.height = targetH * dpr;
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+
+        /* ─────────────────────────────────────────────
+           DRAWING
+           ───────────────────────────────────────────── */
+        var BAR_PAD_TOP = 30;
+        var BAR_PAD_BOTTOM = 20;
+        var BAR_PAD_LEFT = 130;
+        var BAR_PAD_RIGHT = 80;
+
+        function getBarMetrics() {
+            var w = W / dpr;
+            var h = H / dpr;
+            var availH = h - BAR_PAD_TOP - BAR_PAD_BOTTOM;
+            var barH = Math.min(32, (availH / TOP_N) - 6);
+            var gap = (availH - barH * TOP_N) / (TOP_N - 1);
+            return { w: w, h: h, barH: barH, gap: gap, availW: w - BAR_PAD_LEFT - BAR_PAD_RIGHT };
+        }
+
+        function lerp(a, b, t) { return a + (b - a) * t; }
+
+        function draw(timestamp) {
+            if (!lastFrameTime) lastFrameTime = timestamp;
+            var dt = Math.min((timestamp - lastFrameTime) / 1000, 0.1);
+            lastFrameTime = timestamp;
+
+            // Auto-play
+            if (isPlaying) {
+                var speedMap = [0.5, 1, 2, 4, 8];
+                var rate = speedMap[playSpeed - 1] || 2;
+                targetYear = Math.min(2020, targetYear + dt * rate);
+                if (targetYear >= 2020) {
+                    targetYear = 2020;
+                    isPlaying = false;
+                    document.getElementById('btnPlay').textContent = 'Play';
+                    document.getElementById('yearDisplay').classList.remove('playing');
+                }
+                // Update slider
+                var prog = (targetYear - 1960) / (2020 - 1960);
+                document.getElementById('yearSlider').value = Math.round(prog * 1000);
+            }
+
+            // Smooth year transition
+            currentYear = lerp(currentYear, targetYear, Math.min(1, dt * 8));
+            if (Math.abs(currentYear - targetYear) < 0.01) currentYear = targetYear;
+
+            // Update year display
+            var displayYear = Math.round(currentYear);
+            document.getElementById('yearDisplay').textContent = displayYear;
+
+            // Update year button highlighting
+            var yearBtns = document.querySelectorAll('.year-btn');
+            yearBtns.forEach(function(btn) {
+                var y = parseInt(btn.getAttribute('data-year'));
+                btn.classList.toggle('active', Math.abs(displayYear - y) < 2);
+            });
+
+            // Get ranked data
+            var ranked = getRankedData(currentYear);
+
+            // Determine which continents are visible
+            var anyFiltered = false;
+            for (var c in continentFilter) {
+                if (continentFilter[c] === false) { anyFiltered = true; break; }
+            }
+
+            var m = getBarMetrics();
+            var maxPop = ranked[0].pop;
+
+            // Clear
+            ctx.clearRect(0, 0, m.w, m.h);
+
+            // Grid lines
+            ctx.strokeStyle = 'rgba(99, 130, 255, 0.05)';
+            ctx.lineWidth = 0.5;
+            var gridSteps = 5;
+            for (var g = 0; g <= gridSteps; g++) {
+                var gx = BAR_PAD_LEFT + (m.availW / gridSteps) * g;
+                ctx.beginPath();
+                ctx.moveTo(gx, BAR_PAD_TOP - 10);
+                ctx.lineTo(gx, m.h - BAR_PAD_BOTTOM + 10);
+                ctx.stroke();
+
+                // Grid label
+                if (g > 0) {
+                    var gridVal = (maxPop / gridSteps) * g;
+                    ctx.font = '500 9px "JetBrains Mono"';
+                    ctx.fillStyle = 'rgba(74, 85, 128, 0.6)';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(formatPop(gridVal), gx, BAR_PAD_TOP - 14);
+                }
+            }
+
+            // Draw bars (top N)
+            var visibleIdx = 0;
+            hoveredBar = -1;
+
+            for (var i = 0; i < ranked.length && visibleIdx < TOP_N; i++) {
+                var item = ranked[i];
+                var ci = item.continent;
+
+                // Filter check
+                if (anyFiltered && continentFilter[ci] === false) continue;
+
+                var bs = barStates[item.idx];
+                var targetPop = item.pop;
+                var targetYPos = BAR_PAD_TOP + visibleIdx * (m.barH + m.gap);
+
+                // Animate
+                var smoothing = Math.min(1, dt * 6);
+                bs.displayPop = lerp(bs.displayPop, targetPop, smoothing);
+                bs.displayY = lerp(bs.displayY || targetYPos, targetYPos, smoothing);
+                bs.displayRank = visibleIdx + 1;
+
+                var barW = (bs.displayPop / maxPop) * m.availW;
+                var barX = BAR_PAD_LEFT;
+                var barY = bs.displayY;
+                var color = CONTINENTS[ci].color;
+
+                // Check hover
+                var canvasRect = canvas.getBoundingClientRect();
+                var localX = (mouseX - canvasRect.left);
+                var localY = (mouseY - canvasRect.top);
+                if (localX >= barX && localX <= barX + barW && localY >= barY && localY <= barY + m.barH) {
+                    hoveredBar = item.idx;
+                }
+
+                var isHovered = (hoveredBar === item.idx);
+                var alpha = isHovered ? 1.0 : 0.75;
+
+                // Bar glow on hover
+                if (isHovered) {
+                    ctx.shadowColor = color;
+                    ctx.shadowBlur = 12;
+                }
+
+                // Bar fill
+                var grad = ctx.createLinearGradient(barX, barY, barX + barW, barY);
+                grad.addColorStop(0, color);
+                grad.addColorStop(1, adjustAlpha(color, 0.6));
+                ctx.globalAlpha = alpha;
+                ctx.fillStyle = grad;
+                roundedRect(ctx, barX, barY, barW, m.barH, 3);
+                ctx.fill();
+                ctx.globalAlpha = 1;
+
+                ctx.shadowColor = 'transparent';
+                ctx.shadowBlur = 0;
+
+                // Country name (left)
+                ctx.font = (isHovered ? '600' : '400') + ' 11px "Inter"';
+                ctx.fillStyle = isHovered ? '#fff' : 'rgba(232, 236, 244, 0.8)';
+                ctx.textAlign = 'right';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(truncate(item.name, 14), BAR_PAD_LEFT - 10, barY + m.barH / 2);
+
+                // Population label (end of bar)
+                ctx.font = '500 10px "JetBrains Mono"';
+                ctx.fillStyle = isHovered ? '#fff' : 'rgba(136, 146, 176, 0.8)';
+                ctx.textAlign = 'left';
+                ctx.fillText(formatPop(bs.displayPop), barX + barW + 8, barY + m.barH / 2);
+
+                // Rank number
+                ctx.font = '300 9px "JetBrains Mono"';
+                ctx.fillStyle = 'rgba(74, 85, 128, 0.5)';
+                ctx.textAlign = 'right';
+                ctx.fillText('#' + (visibleIdx + 1), BAR_PAD_LEFT - 10, barY + m.barH / 2 + 12);
+
+                visibleIdx++;
+            }
+
+            // Tooltip
+            updateTooltip(ranked);
+
+            requestAnimationFrame(draw);
+        }
+
+        function roundedRect(ctx, x, y, w, h, r) {
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.lineTo(x + w - r, y);
+            ctx.arcTo(x + w, y, x + w, y + r, r);
+            ctx.lineTo(x + w, y + h - r);
+            ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+            ctx.lineTo(x + r, y + h);
+            ctx.arcTo(x, y + h, x, y + h - r, r);
+            ctx.lineTo(x, y + r);
+            ctx.arcTo(x, y, x + r, y, r);
+            ctx.closePath();
+        }
+
+        function adjustAlpha(hex, alpha) {
+            var r = parseInt(hex.slice(1, 3), 16);
+            var g = parseInt(hex.slice(3, 5), 16);
+            var b = parseInt(hex.slice(5, 7), 16);
+            return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+        }
+
+        function truncate(str, max) {
+            if (str.length <= max) return str;
+            return str.slice(0, max - 1) + '\u2026';
+        }
+
+        /* ─────────────────────────────────────────────
+           TOOLTIP
+           ───────────────────────────────────────────── */
+        var tooltip = document.getElementById('tooltip');
+        var ttName = document.getElementById('ttName');
+        var ttContinent = document.getElementById('ttContinent');
+        var ttPop = document.getElementById('ttPop');
+        var ttRank = document.getElementById('ttRank');
+        var ttGrowth = document.getElementById('ttGrowth');
+
+        function updateTooltip(ranked) {
+            if (hoveredBar < 0) {
+                tooltip.classList.remove('visible');
+                return;
+            }
+
+            var item = DATA[hoveredBar];
+            var pop = getPopAtYear(hoveredBar, currentYear);
+            var growth = getGrowthRate(hoveredBar, currentYear);
+            var rank = 0;
+            for (var i = 0; i < ranked.length; i++) {
+                if (ranked[i].idx === hoveredBar) { rank = i + 1; break; }
+            }
+
+            ttName.textContent = item.name;
+            ttName.style.color = CONTINENTS[item.continent].color;
+            ttContinent.textContent = item.continent;
+            ttContinent.style.color = CONTINENTS[item.continent].color;
+            ttPop.textContent = formatPopFull(pop);
+            ttRank.textContent = '#' + rank + ' of ' + DATA.length;
+            ttGrowth.textContent = growth >= 0 ? '+' + growth.toFixed(2) + '%/yr' : growth.toFixed(2) + '%/yr';
+
+            tooltip.classList.add('visible');
+
+            // Position
+            var tw = tooltip.offsetWidth;
+            var th = tooltip.offsetHeight;
+            var tx = mouseX + 16;
+            var ty = mouseY - th / 2;
+            if (tx + tw > window.innerWidth - 10) tx = mouseX - tw - 16;
+            if (ty < 10) ty = 10;
+            if (ty + th > window.innerHeight - 10) ty = window.innerHeight - th - 10;
+            tooltip.style.left = tx + 'px';
+            tooltip.style.top = ty + 'px';
+        }
+
+        /* ─────────────────────────────────────────────
+           CONTROLS
+           ───────────────────────────────────────────── */
+        document.getElementById('btnPlay').addEventListener('click', function() {
+            if (isPlaying) {
+                isPlaying = false;
+                this.textContent = 'Play';
+                document.getElementById('yearDisplay').classList.remove('playing');
+            } else {
+                if (targetYear >= 2020) targetYear = 1960;
+                isPlaying = true;
+                this.textContent = 'Pause';
+                document.getElementById('yearDisplay').classList.add('playing');
+            }
+        });
+
+        document.getElementById('speedSlider').addEventListener('input', function() {
+            playSpeed = parseInt(this.value);
+        });
+
+        document.getElementById('yearSlider').addEventListener('input', function() {
+            var t = parseInt(this.value) / 1000;
+            targetYear = 1960 + t * (2020 - 1960);
+            if (isPlaying) {
+                isPlaying = false;
+                document.getElementById('btnPlay').textContent = 'Play';
+                document.getElementById('yearDisplay').classList.remove('playing');
+            }
+        });
+
+        document.querySelectorAll('.year-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                targetYear = parseInt(this.getAttribute('data-year'));
+                var prog = (targetYear - 1960) / (2020 - 1960);
+                document.getElementById('yearSlider').value = Math.round(prog * 1000);
+                if (isPlaying) {
+                    isPlaying = false;
+                    document.getElementById('btnPlay').textContent = 'Play';
+                    document.getElementById('yearDisplay').classList.remove('playing');
+                }
+            });
+        });
+
+        // Mouse tracking for hover/tooltip
+        canvas.addEventListener('mousemove', function(e) {
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+        });
+        canvas.addEventListener('mouseleave', function() {
+            mouseX = -1000;
+            mouseY = -1000;
+            hoveredBar = -1;
+            tooltip.classList.remove('visible');
+        });
+
+        // Touch support
+        canvas.addEventListener('touchstart', function(e) {
+            var touch = e.touches[0];
+            mouseX = touch.clientX;
+            mouseY = touch.clientY;
+        }, { passive: true });
+        canvas.addEventListener('touchmove', function(e) {
+            var touch = e.touches[0];
+            mouseX = touch.clientX;
+            mouseY = touch.clientY;
+        }, { passive: true });
+        canvas.addEventListener('touchend', function() {
+            mouseX = -1000;
+            mouseY = -1000;
+            hoveredBar = -1;
+            tooltip.classList.remove('visible');
+        });
+
+        /* ─────────────────────────────────────────────
+           LEGEND
+           ───────────────────────────────────────────── */
+        function buildLegend() {
+            var container = document.getElementById('legend');
+            container.innerHTML = '';
+            for (var key in CONTINENTS) {
+                var c = CONTINENTS[key];
+                var el = document.createElement('div');
+                el.className = 'legend-item';
+                el.setAttribute('data-continent', key);
+                el.innerHTML = '<span class="legend-dot" style="background:' + c.color + '"></span>' + c.label;
+                el.addEventListener('click', (function(k) {
+                    return function() {
+                        if (continentFilter[k] === false) {
+                            continentFilter[k] = true;
+                            this.classList.remove('dimmed');
+                        } else {
+                            continentFilter[k] = false;
+                            this.classList.add('dimmed');
+                        }
+                    };
+                })(key));
+                container.appendChild(el);
+            }
+        }
+        buildLegend();
+
+        /* ─────────────────────────────────────────────
+           KEYBOARD SHORTCUTS
+           ───────────────────────────────────────────── */
+        document.addEventListener('keydown', function(e) {
+            if (e.key === ' ' || e.code === 'Space') {
+                e.preventDefault();
+                document.getElementById('btnPlay').click();
+            } else if (e.key === 'ArrowRight') {
+                targetYear = Math.min(2020, targetYear + 5);
+                var prog = (targetYear - 1960) / 60;
+                document.getElementById('yearSlider').value = Math.round(prog * 1000);
+            } else if (e.key === 'ArrowLeft') {
+                targetYear = Math.max(1960, targetYear - 5);
+                var prog = (targetYear - 1960) / 60;
+                document.getElementById('yearSlider').value = Math.round(prog * 1000);
+            }
+        });
+
+        /* ─────────────────────────────────────────────
+           INIT
+           ───────────────────────────────────────────── */
+        // Initialize bar positions
+        var initialRanked = getRankedData(1960);
+        var initM = getBarMetrics();
+        for (var i = 0; i < initialRanked.length; i++) {
+            var item = initialRanked[i];
+            barStates[item.idx].displayPop = item.pop;
+            barStates[item.idx].displayY = BAR_PAD_TOP + Math.min(i, TOP_N - 1) * (initM.barH + initM.gap);
+        }
+
+        window.addEventListener('resize', resize);
+        resize();
+        requestAnimationFrame(draw);
+    })();
+    </script>
+<script defer src="../../prompt-viewer.js"></script>
+</body>
+</html>
