@@ -53,7 +53,7 @@ Browse the [live site](https://ggprompts.github.io/htmlstyleguides/) to find a s
 
 ## Style Guide Catalog
 
-Every style has a unique aesthetic. Some are paired with tech guides and stories that use their design system. **75 paired** / **129 available** for new content.
+Every style has a unique aesthetic. Some are paired with tech guides and stories that use their design system. **76 paired** / **128 available** for new content.
 
 | Style | Tech Guide | Story |
 |-------|-----------|-------|
@@ -154,7 +154,7 @@ Every style has a unique aesthetic. Some are paired with tech guides and stories
 | impressionism | | |
 | indian-rangoli | | |
 | industrial | nginx | |
-| infrared-thermal | | OpenClaw |
+| infrared-thermal | Hyprland AI Workstation | OpenClaw |
 | japanese-zen | | The Way |
 | jrpg-menu | | |
 | kaleidoscope | | |
@@ -270,7 +270,7 @@ Every style has a unique aesthetic. Some are paired with tech guides and stories
 /
 ├── styles/          # 204 CSS design system showcases
 ├── stories/         # 45 interactive educational stories
-├── techguides/      # 62 styled developer reference docs
+├── techguides/      # 66 styled developer reference docs
 ├── games/           # 50 browser games
 ├── music/           # Chiptune studio, sequencer, visualizer
 ├── tools/           # 45 creative tools and editors

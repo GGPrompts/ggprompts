@@ -1,0 +1,4036 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hyprland AI Workstation // Arch Linux for Claude Code &amp; Codex Power Users</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        /* ================================================================
+           INFRARED / THERMAL CAMERA DESIGN SYSTEM
+           Adapted for Hyprland AI Workstation tech guide.
+           Scientific thermal imaging aesthetic -- FLIR camera displays,
+           heat maps, HUD overlays, crosshair targeting reticles on
+           deep purple-black backgrounds.
+        ================================================================ */
+
+        /* --- DESIGN TOKENS / CSS VARIABLES --- */
+        :root {
+            /* Thermal Spectrum (cold to hot) */
+            --temp-freezing: #1a0030;
+            --temp-cold: #2d1b69;
+            --temp-cool: #1e3a8a;
+            --temp-mild: #0d9488;
+            --temp-warm: #22c55e;
+            --temp-tepid: #84cc16;
+            --temp-hot: #eab308;
+            --temp-hotter: #f97316;
+            --temp-searing: #ef4444;
+            --temp-critical: #dc2626;
+            --temp-whiteout: #fef3c7;
+
+            /* Core Palette */
+            --void: #0a0010;
+            --void-light: #0f0018;
+            --panel: #120822;
+            --panel-light: #1a0f30;
+            --panel-lighter: #22143d;
+            --scanline: rgba(100, 60, 180, 0.06);
+
+            /* Text Colors */
+            --text-primary: #c4b5fd;
+            --text-bright: #e9e0ff;
+            --text-muted: #7c6faa;
+            --text-dim: #4a3d73;
+            --text-readout: #22c55e;
+
+            /* Accent Colors */
+            --accent-cold: #6366f1;
+            --accent-cool: #3b82f6;
+            --accent-neutral: #14b8a6;
+            --accent-warm: #f59e0b;
+            --accent-hot: #ef4444;
+            --accent-critical: #fbbf24;
+            --reticle: rgba(34, 197, 94, 0.7);
+
+            /* Semantic */
+            --bg: var(--void);
+            --bg-alt: var(--panel);
+            --bg-card: var(--panel-light);
+            --text: var(--text-primary);
+            --text-light: var(--text-bright);
+            --accent: var(--accent-neutral);
+
+            /* Typography */
+            --font-display: 'Orbitron', sans-serif;
+            --font-body: 'Rajdhani', sans-serif;
+            --font-mono: 'Share Tech Mono', monospace;
+
+            /* Spacing */
+            --space-xs: 4px;
+            --space-sm: 8px;
+            --space-md: 16px;
+            --space-lg: 32px;
+            --space-xl: 64px;
+            --space-2xl: 96px;
+
+            /* Borders & Radius */
+            --radius-sm: 2px;
+            --radius-md: 4px;
+            --radius-lg: 8px;
+            --border-subtle: 1px solid rgba(99, 102, 241, 0.15);
+            --border-scan: 1px solid rgba(34, 197, 94, 0.2);
+            --border-hot: 1px solid rgba(239, 68, 68, 0.3);
+
+            /* Shadows & Glows */
+            --glow-cold: 0 0 12px rgba(99, 102, 241, 0.2);
+            --glow-neutral: 0 0 15px rgba(20, 184, 166, 0.25);
+            --glow-warm: 0 0 20px rgba(245, 158, 11, 0.3);
+            --glow-hot: 0 0 25px rgba(239, 68, 68, 0.35);
+            --glow-readout: 0 0 10px rgba(34, 197, 94, 0.3);
+            --shadow-panel: 0 4px 24px rgba(0, 0, 0, 0.6);
+
+            /* Transitions */
+            --transition-fast: 0.15s ease;
+            --transition-medium: 0.3s ease;
+        }
+
+        /* --- RESET & BASE --- */
+
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            font-size: 16px;
+            scroll-behavior: smooth;
+            scroll-padding-top: 52px;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        body {
+            font-family: var(--font-body);
+            font-size: 1rem;
+            font-weight: 500;
+            line-height: 1.6;
+            color: var(--text);
+            background: var(--bg);
+            min-height: 100vh;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        /* Scan-line overlay across entire page */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                var(--scanline) 2px,
+                var(--scanline) 4px
+            );
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        /* Vignette overlay */
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: radial-gradient(
+                ellipse 70% 60% at 50% 50%,
+                transparent 50%,
+                rgba(10, 0, 16, 0.6) 100%
+            );
+            pointer-events: none;
+            z-index: 999;
+        }
+
+        /* --- LAYOUT --- */
+
+        .container {
+            max-width: 1120px;
+            margin: 0 auto;
+            padding: 0 var(--space-lg);
+            position: relative;
+            z-index: 1;
+        }
+
+        /* --- TYPOGRAPHY --- */
+
+        h1, h2, h3, h4, h5, h6 {
+            font-family: var(--font-display);
+            font-weight: 700;
+            line-height: 1.2;
+            color: var(--text-light);
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        h1 {
+            font-size: clamp(2rem, 4.5vw, 3.5rem);
+            font-weight: 900;
+            letter-spacing: 0.08em;
+        }
+
+        h2 {
+            font-size: clamp(1.4rem, 2.5vw, 2rem);
+            font-weight: 700;
+        }
+
+        h3 {
+            font-size: 1.15rem;
+            font-weight: 600;
+        }
+
+        h4 {
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        p {
+            margin-bottom: var(--space-md);
+            max-width: 65ch;
+        }
+
+        a {
+            color: var(--accent-neutral);
+            text-decoration: none;
+            transition: color var(--transition-fast);
+        }
+
+        a:hover {
+            color: #2dd4bf;
+        }
+
+        strong {
+            font-weight: 700;
+            color: var(--text-bright);
+        }
+
+        ul, ol {
+            margin-bottom: var(--space-md);
+            padding-left: var(--space-lg);
+        }
+
+        li {
+            margin-bottom: var(--space-sm);
+            color: var(--text-primary);
+        }
+
+        li strong {
+            color: var(--text-readout);
+        }
+
+        /* --- INLINE CODE --- */
+
+        code {
+            font-family: var(--font-mono);
+            font-size: 0.9em;
+            background: rgba(99, 102, 241, 0.1);
+            padding: 2px 8px;
+            border-radius: var(--radius-sm);
+            color: var(--text-readout);
+            border: 1px solid rgba(34, 197, 94, 0.15);
+        }
+
+        p code,
+        li code,
+        td code,
+        .alert code {
+            font-family: var(--font-mono);
+            font-size: 0.85em;
+            color: var(--text-readout);
+            background: rgba(99, 102, 241, 0.1);
+            padding: 2px 8px;
+            border: 1px solid rgba(34, 197, 94, 0.15);
+            border-radius: var(--radius-sm);
+        }
+
+        /* --- CODE BLOCKS --- */
+
+        pre {
+            background: var(--void);
+            color: var(--text-readout);
+            font-family: var(--font-mono);
+            font-size: 0.8125rem;
+            line-height: 1.7;
+            padding: 20px 24px;
+            border-left: 3px solid var(--accent-neutral);
+            margin: var(--space-sm) 0 var(--space-lg);
+            overflow-x: auto;
+            white-space: pre;
+            border-top: var(--border-subtle);
+            border-right: var(--border-subtle);
+            border-bottom: var(--border-subtle);
+            border-radius: 0 var(--radius-md) var(--radius-md) 0;
+            position: relative;
+        }
+
+        pre code {
+            font-family: inherit;
+            font-size: inherit;
+            background: none;
+            padding: 0;
+            border: none;
+            color: inherit;
+        }
+
+        .code-label {
+            font-family: var(--font-mono);
+            font-size: 0.6875rem;
+            font-weight: 400;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: var(--space-xs);
+            margin-top: var(--space-md);
+        }
+
+        /* Syntax highlighting */
+        .cm { color: var(--text-dim); }
+        .kw { color: var(--accent-cool); }
+        .str { color: var(--accent-warm); }
+        .val { color: var(--text-readout); }
+        .flag { color: var(--accent-cool); }
+        .path { color: var(--accent-neutral); }
+        .fn { color: var(--accent-critical); }
+
+        /* --- BACK LINK --- */
+
+        .back-link {
+            display: inline-block;
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            text-decoration: none;
+            padding: var(--space-sm) 0;
+            margin-bottom: var(--space-md);
+            transition: color var(--transition-fast), text-shadow var(--transition-fast);
+        }
+
+        .back-link:hover {
+            color: var(--text-readout);
+            text-shadow: var(--glow-readout);
+        }
+
+        .back-link::before {
+            content: '< ';
+        }
+
+        /* --- HEADER --- */
+
+        header {
+            padding: var(--space-2xl) 0 var(--space-xl);
+            text-align: center;
+            position: relative;
+            border-bottom: var(--border-subtle);
+        }
+
+        /* Crosshair overlay on header */
+        header::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 200px;
+            height: 200px;
+            transform: translate(-50%, -50%);
+            border: 1px solid rgba(34, 197, 94, 0.15);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        header::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg,
+                transparent,
+                var(--temp-cold),
+                var(--temp-cool),
+                var(--temp-mild),
+                var(--temp-warm),
+                var(--temp-hot),
+                var(--temp-searing),
+                var(--temp-hot),
+                var(--temp-warm),
+                var(--temp-mild),
+                var(--temp-cool),
+                var(--temp-cold),
+                transparent
+            );
+            opacity: 0.8;
+        }
+
+        header h1 {
+            background: linear-gradient(90deg,
+                var(--accent-cold),
+                var(--accent-cool),
+                var(--accent-neutral),
+                var(--accent-warm),
+                var(--accent-hot)
+            );
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: var(--space-md);
+            filter: drop-shadow(0 0 30px rgba(20, 184, 166, 0.3));
+        }
+
+        .tagline {
+            font-family: var(--font-body);
+            font-size: 1.1rem;
+            font-weight: 400;
+            color: var(--text-muted);
+            letter-spacing: 0.03em;
+            max-width: 560px;
+            margin: 0 auto;
+            line-height: 1.7;
+        }
+
+        /* HUD corner brackets on header */
+        .hud-frame {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            pointer-events: none;
+        }
+
+        .hud-frame--tl {
+            top: var(--space-lg);
+            left: var(--space-lg);
+            border-top: 2px solid var(--reticle);
+            border-left: 2px solid var(--reticle);
+        }
+
+        .hud-frame--tr {
+            top: var(--space-lg);
+            right: var(--space-lg);
+            border-top: 2px solid var(--reticle);
+            border-right: 2px solid var(--reticle);
+        }
+
+        .hud-frame--bl {
+            bottom: var(--space-lg);
+            left: var(--space-lg);
+            border-bottom: 2px solid var(--reticle);
+            border-left: 2px solid var(--reticle);
+        }
+
+        .hud-frame--br {
+            bottom: var(--space-lg);
+            right: var(--space-lg);
+            border-bottom: 2px solid var(--reticle);
+            border-right: 2px solid var(--reticle);
+        }
+
+        .header-readout {
+            display: flex;
+            justify-content: center;
+            gap: var(--space-xl);
+            margin-top: var(--space-lg);
+            flex-wrap: wrap;
+        }
+
+        .header-readout-item {
+            text-align: center;
+        }
+
+        .header-readout-label {
+            font-family: var(--font-mono);
+            font-size: 0.6rem;
+            color: var(--text-dim);
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            display: block;
+            margin-bottom: 2px;
+        }
+
+        .header-readout-value {
+            font-family: var(--font-mono);
+            font-size: 1rem;
+            color: var(--text-readout);
+            text-shadow: var(--glow-readout);
+        }
+
+        /* --- STICKY JUMP NAVIGATION --- */
+
+        .jump-nav {
+            display: flex;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            background: var(--void);
+            border-bottom: 1px solid rgba(99, 102, 241, 0.2);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            margin-bottom: var(--space-xl);
+        }
+
+        .jump-nav a {
+            flex-shrink: 0;
+            white-space: nowrap;
+            padding: var(--space-md) var(--space-md);
+            font-family: var(--font-mono);
+            font-size: 0.65rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            text-decoration: none;
+            text-align: center;
+            border-right: 1px solid rgba(99, 102, 241, 0.08);
+            transition: all 0.2s ease;
+            position: relative;
+        }
+
+        .jump-nav a:last-child {
+            border-right: none;
+        }
+
+        .jump-nav a:hover {
+            color: var(--text-readout);
+            text-shadow: var(--glow-readout);
+            background: rgba(34, 197, 94, 0.04);
+        }
+
+        .jump-nav a:hover::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--text-readout);
+            box-shadow: var(--glow-readout);
+        }
+
+        .jump-nav a.active {
+            color: var(--text-readout);
+            text-shadow: var(--glow-readout);
+        }
+
+        .jump-nav a.active::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--text-readout);
+            box-shadow: var(--glow-readout);
+        }
+
+        /* Jump nav scrollbar */
+        .jump-nav {
+            scrollbar-width: thin;
+            scrollbar-color: var(--panel-lighter) var(--void);
+        }
+
+        .jump-nav::-webkit-scrollbar {
+            height: 3px;
+        }
+
+        .jump-nav::-webkit-scrollbar-track {
+            background: var(--void);
+        }
+
+        .jump-nav::-webkit-scrollbar-thumb {
+            background: var(--panel-lighter);
+            border-radius: 2px;
+        }
+
+        /* --- SECTION STRUCTURE --- */
+
+        .section {
+            padding: var(--space-2xl) 0;
+            border-bottom: var(--border-subtle);
+            position: relative;
+        }
+
+        .section:last-of-type {
+            border-bottom: none;
+        }
+
+        .section-header {
+            margin-bottom: var(--space-xl);
+        }
+
+        .section-number {
+            display: block;
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            color: var(--text-readout);
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            margin-bottom: var(--space-sm);
+            text-shadow: var(--glow-readout);
+        }
+
+        .section-number::before {
+            content: '[ ';
+            color: var(--text-dim);
+        }
+
+        .section-number::after {
+            content: ' ]';
+            color: var(--text-dim);
+        }
+
+        .section-title {
+            font-family: var(--font-display);
+            font-size: clamp(1.4rem, 2.5vw, 2rem);
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text-bright);
+            margin-bottom: var(--space-sm);
+        }
+
+        .section-title::after {
+            content: '';
+            display: block;
+            width: 80px;
+            height: 2px;
+            margin-top: var(--space-md);
+            background: linear-gradient(90deg,
+                var(--accent-cold),
+                var(--accent-neutral),
+                transparent
+            );
+            border-radius: 1px;
+        }
+
+        .section-description {
+            color: var(--text-muted);
+            font-size: 1rem;
+            margin-top: var(--space-md);
+            max-width: 55ch;
+        }
+
+        /* --- SUBSECTION --- */
+
+        .subsection {
+            margin-bottom: var(--space-xl);
+        }
+
+        .subsection-title {
+            font-family: var(--font-display);
+            font-size: 1.05rem;
+            font-weight: 600;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: var(--text-bright);
+            margin-bottom: var(--space-md);
+            padding-bottom: var(--space-sm);
+            border-bottom: 1px solid rgba(99, 102, 241, 0.1);
+        }
+
+        /* --- TABLES --- */
+
+        .table-wrapper {
+            overflow-x: auto;
+            margin: var(--space-md) 0 var(--space-lg);
+            -webkit-overflow-scrolling: touch;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: var(--font-body);
+            border: var(--border-subtle);
+        }
+
+        thead th {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            font-weight: 400;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--text-readout);
+            text-shadow: var(--glow-readout);
+            background: var(--panel);
+            border-bottom: 2px solid rgba(34, 197, 94, 0.25);
+            padding: 12px var(--space-md);
+            text-align: left;
+        }
+
+        tbody td {
+            padding: 10px var(--space-md);
+            color: var(--text-primary);
+            font-size: 0.9375rem;
+            font-weight: 500;
+            border-bottom: 1px solid rgba(99, 102, 241, 0.08);
+            vertical-align: top;
+        }
+
+        tbody tr {
+            background: var(--void);
+            transition: background var(--transition-fast);
+        }
+
+        tbody tr:nth-child(even) {
+            background: rgba(99, 102, 241, 0.03);
+        }
+
+        tbody tr:hover {
+            background: rgba(34, 197, 94, 0.04);
+        }
+
+        tbody td:first-child {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--text-readout);
+        }
+
+        /* --- COMMAND GRID --- */
+
+        .command-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: var(--space-md);
+            margin: var(--space-md) 0 var(--space-lg);
+        }
+
+        .command-card {
+            background: var(--panel);
+            border: var(--border-subtle);
+            border-radius: var(--radius-md);
+            padding: var(--space-md) var(--space-lg);
+            transition: all var(--transition-fast);
+            position: relative;
+        }
+
+        .command-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 12px;
+            height: 12px;
+            border-top: 1px solid var(--reticle);
+            border-right: 1px solid var(--reticle);
+            pointer-events: none;
+            opacity: 0.4;
+        }
+
+        .command-card:hover {
+            border-color: rgba(34, 197, 94, 0.3);
+            box-shadow: var(--glow-readout);
+        }
+
+        .command-card:hover::before {
+            opacity: 1;
+        }
+
+        .command-card-title {
+            font-family: var(--font-body);
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: var(--space-sm);
+        }
+
+        .command-card code {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--text-readout);
+            background: none;
+            border: none;
+            padding: 0;
+            display: block;
+            margin-bottom: var(--space-sm);
+        }
+
+        .command-card p {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 0;
+            line-height: 1.5;
+        }
+
+        /* --- ALERT BOXES (Thermal Severity) --- */
+
+        .alert {
+            display: flex;
+            gap: var(--space-md);
+            padding: var(--space-md) var(--space-lg);
+            border-radius: var(--radius-md);
+            margin: var(--space-md) 0 var(--space-lg);
+            border-left: 4px solid;
+            position: relative;
+        }
+
+        .alert-icon {
+            font-size: 1.3rem;
+            flex-shrink: 0;
+            line-height: 1.4;
+        }
+
+        .alert-content {
+            flex: 1;
+        }
+
+        .alert-title {
+            font-family: var(--font-body);
+            font-size: 0.9rem;
+            font-weight: 700;
+            margin-bottom: var(--space-xs);
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+
+        .alert-text {
+            font-size: 0.85rem;
+            line-height: 1.5;
+            margin: 0;
+            max-width: none;
+        }
+
+        .alert-temp {
+            font-family: var(--font-mono);
+            font-size: 0.65rem;
+            position: absolute;
+            top: 8px;
+            right: 12px;
+            letter-spacing: 0.05em;
+        }
+
+        /* Sub-zero: Deep blue (info) */
+        .alert-subzero {
+            background: rgba(30, 58, 138, 0.08);
+            border-color: var(--temp-cool);
+        }
+        .alert-subzero .alert-icon { color: var(--temp-cool); }
+        .alert-subzero .alert-title { color: #60a5fa; }
+        .alert-subzero .alert-text { color: var(--text-muted); }
+        .alert-subzero .alert-temp { color: var(--temp-cool); }
+
+        /* Nominal: Teal-green (success) */
+        .alert-nominal {
+            background: rgba(20, 184, 166, 0.06);
+            border-color: var(--accent-neutral);
+        }
+        .alert-nominal .alert-icon { color: var(--accent-neutral); }
+        .alert-nominal .alert-title { color: #2dd4bf; }
+        .alert-nominal .alert-text { color: var(--text-muted); }
+        .alert-nominal .alert-temp { color: var(--accent-neutral); }
+
+        /* Elevated: Amber-yellow (warning) */
+        .alert-elevated {
+            background: rgba(234, 179, 8, 0.06);
+            border-color: var(--accent-warm);
+        }
+        .alert-elevated .alert-icon { color: var(--accent-warm); }
+        .alert-elevated .alert-title { color: #fbbf24; }
+        .alert-elevated .alert-text { color: var(--text-primary); }
+        .alert-elevated .alert-temp { color: var(--accent-warm); }
+
+        /* Critical: Red-hot (danger) */
+        .alert-critical {
+            background: rgba(239, 68, 68, 0.06);
+            border-color: var(--accent-hot);
+            box-shadow: 0 0 20px rgba(239, 68, 68, 0.08);
+        }
+        .alert-critical .alert-icon {
+            color: var(--accent-hot);
+            text-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+        }
+        .alert-critical .alert-title { color: #f87171; }
+        .alert-critical .alert-text { color: var(--text-primary); }
+        .alert-critical .alert-temp { color: var(--accent-hot); text-shadow: var(--glow-hot); }
+
+        /* --- BADGES / TAGS --- */
+
+        .badge {
+            display: inline-block;
+            font-family: var(--font-mono);
+            font-size: 0.6rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            padding: 2px 10px;
+            border-radius: var(--radius-sm);
+            border: 1px solid;
+        }
+
+        .badge-cold {
+            color: var(--accent-cold);
+            border-color: rgba(99, 102, 241, 0.3);
+            background: rgba(99, 102, 241, 0.08);
+        }
+
+        .badge-neutral {
+            color: var(--accent-neutral);
+            border-color: rgba(20, 184, 166, 0.3);
+            background: rgba(20, 184, 166, 0.08);
+        }
+
+        .badge-warm {
+            color: var(--accent-warm);
+            border-color: rgba(245, 158, 11, 0.3);
+            background: rgba(245, 158, 11, 0.08);
+        }
+
+        .badge-hot {
+            color: var(--accent-hot);
+            border-color: rgba(239, 68, 68, 0.3);
+            background: rgba(239, 68, 68, 0.08);
+        }
+
+        .badge-readout {
+            color: var(--text-readout);
+            border-color: rgba(34, 197, 94, 0.3);
+            background: rgba(34, 197, 94, 0.08);
+            text-shadow: var(--glow-readout);
+        }
+
+        /* --- KEYBOARD SHORTCUT --- */
+
+        kbd {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            color: var(--text-bright);
+            background: var(--panel);
+            border: 1px solid rgba(99, 102, 241, 0.25);
+            border-bottom: 2px solid rgba(99, 102, 241, 0.35);
+            border-radius: var(--radius-sm);
+            padding: 2px 8px;
+            white-space: nowrap;
+            display: inline-block;
+            line-height: 1.4;
+        }
+
+        /* --- KEYBIND GRID --- */
+
+        .keybind-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: var(--space-md);
+            margin: var(--space-md) 0 var(--space-lg);
+        }
+
+        .keybind-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: var(--space-md);
+            padding: 10px var(--space-md);
+            background: var(--panel);
+            border: var(--border-subtle);
+            border-radius: var(--radius-md);
+            transition: border-color var(--transition-fast);
+        }
+
+        .keybind-item:hover {
+            border-color: rgba(34, 197, 94, 0.25);
+        }
+
+        .keybind-label {
+            font-family: var(--font-body);
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .keybind-keys {
+            flex-shrink: 0;
+        }
+
+        /* --- FOOTER --- */
+
+        .site-footer {
+            padding: var(--space-xl) 0 var(--space-2xl);
+            text-align: center;
+        }
+
+        .footer-rule {
+            border: none;
+            height: 2px;
+            background: linear-gradient(90deg,
+                transparent,
+                var(--temp-cold),
+                var(--temp-cool),
+                var(--temp-mild),
+                var(--temp-warm),
+                var(--temp-hot),
+                var(--temp-searing),
+                var(--temp-hot),
+                var(--temp-warm),
+                var(--temp-mild),
+                var(--temp-cool),
+                var(--temp-cold),
+                transparent
+            );
+            margin-bottom: var(--space-xl);
+            opacity: 0.6;
+        }
+
+        .site-footer a {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-decoration: none;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            transition: color var(--transition-fast), text-shadow var(--transition-fast);
+        }
+
+        .site-footer a:hover {
+            color: var(--text-readout);
+            text-shadow: var(--glow-readout);
+        }
+
+        .footer-meta {
+            font-family: var(--font-mono);
+            font-size: 0.6rem;
+            color: var(--text-dim);
+            margin-top: var(--space-md);
+            letter-spacing: 0.1em;
+        }
+
+        /* --- RESPONSIVE --- */
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 0 var(--space-md);
+            }
+
+            header {
+                padding: var(--space-xl) 0 var(--space-lg);
+            }
+
+            .hud-frame {
+                display: none;
+            }
+
+            .header-readout {
+                gap: var(--space-lg);
+            }
+
+            .jump-nav a {
+                padding: 10px var(--space-sm);
+                font-size: 0.55rem;
+                letter-spacing: 0.04em;
+            }
+
+            .section {
+                padding: var(--space-xl) 0;
+            }
+
+            .section-header {
+                margin-bottom: var(--space-lg);
+            }
+
+            .section-title {
+                font-size: clamp(1.1rem, 4vw, 1.6rem);
+            }
+
+            .subsection-title {
+                font-size: 0.95rem;
+            }
+
+            .command-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .keybind-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .keybind-item {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: var(--space-sm);
+            }
+
+            table {
+                font-size: 0.85rem;
+            }
+
+            thead th {
+                padding: 8px 10px;
+                font-size: 0.6rem;
+            }
+
+            tbody td {
+                padding: 8px 10px;
+                font-size: 0.85rem;
+            }
+
+            pre {
+                padding: 14px 16px;
+                font-size: 0.75rem;
+            }
+
+            .alert {
+                flex-direction: column;
+                gap: var(--space-sm);
+            }
+
+            .alert-temp {
+                position: static;
+                margin-top: var(--space-sm);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+
+        <a href="index.html" class="back-link">Tech Guides</a>
+
+        <!-- HEADER -->
+        <header>
+            <div class="hud-frame hud-frame--tl"></div>
+            <div class="hud-frame hud-frame--tr"></div>
+            <div class="hud-frame hud-frame--bl"></div>
+            <div class="hud-frame hud-frame--br"></div>
+
+            <h1>Hyprland AI Workstation</h1>
+            <p class="tagline">A comprehensive guide to optimizing Arch Linux + Hyprland as an AI coding workstation for Claude Code and Codex power users</p>
+
+            <div class="header-readout">
+                <div class="header-readout-item">
+                    <span class="header-readout-label">Compositor</span>
+                    <span class="header-readout-value">Hyprland</span>
+                </div>
+                <div class="header-readout-item">
+                    <span class="header-readout-label">Protocol</span>
+                    <span class="header-readout-value">Wayland</span>
+                </div>
+                <div class="header-readout-item">
+                    <span class="header-readout-label">Distro</span>
+                    <span class="header-readout-value">Arch Linux</span>
+                </div>
+                <div class="header-readout-item">
+                    <span class="header-readout-label">AI CLI</span>
+                    <span class="header-readout-value">Claude + Codex</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- STICKY JUMP NAV -->
+        <nav class="jump-nav">
+            <a href="#quick-reference">Quick Reference</a>
+            <a href="#base-setup">Base Setup</a>
+            <a href="#hyprland-config">Hyprland Config</a>
+            <a href="#terminal">Terminal</a>
+            <a href="#claude-code">Claude Code</a>
+            <a href="#multi-agent">Multi-Agent</a>
+            <a href="#workspaces">Workspaces</a>
+            <a href="#clipboard">Clipboard</a>
+            <a href="#performance">Performance</a>
+            <a href="#dotfiles">Dotfiles</a>
+        </nav>
+
+
+        <!-- ============================================================
+             SECTION 01: QUICK REFERENCE
+        ============================================================ -->
+        <section id="quick-reference" class="section">
+            <div class="section-header">
+                <span class="section-number">01</span>
+                <h2 class="section-title">Quick Reference</h2>
+                <p class="section-description">The essential keybinds and commands you need every day. Print this, tape it to your monitor, and burn it into muscle memory.</p>
+            </div>
+
+            <!-- Hyprland Essentials -->
+            <div class="subsection">
+                <h3 class="subsection-title">Hyprland Essentials</h3>
+
+                <div class="keybind-grid">
+                    <div class="keybind-item">
+                        <span class="keybind-label">Open terminal</span>
+                        <span class="keybind-keys"><kbd>SUPER</kbd> + <kbd>Enter</kbd></span>
+                    </div>
+                    <div class="keybind-item">
+                        <span class="keybind-label">Close window</span>
+                        <span class="keybind-keys"><kbd>SUPER</kbd> + <kbd>Q</kbd></span>
+                    </div>
+                    <div class="keybind-item">
+                        <span class="keybind-label">Switch workspace 1-9</span>
+                        <span class="keybind-keys"><kbd>SUPER</kbd> + <kbd>1</kbd>-<kbd>9</kbd></span>
+                    </div>
+                    <div class="keybind-item">
+                        <span class="keybind-label">Move window to workspace</span>
+                        <span class="keybind-keys"><kbd>SUPER</kbd> + <kbd>SHIFT</kbd> + <kbd>1</kbd>-<kbd>9</kbd></span>
+                    </div>
+                    <div class="keybind-item">
+                        <span class="keybind-label">Move focus</span>
+                        <span class="keybind-keys"><kbd>SUPER</kbd> + <kbd>Arrow Keys</kbd></span>
+                    </div>
+                    <div class="keybind-item">
+                        <span class="keybind-label">Move window</span>
+                        <span class="keybind-keys"><kbd>SUPER</kbd> + <kbd>SHIFT</kbd> + <kbd>Arrow Keys</kbd></span>
+                    </div>
+                    <div class="keybind-item">
+                        <span class="keybind-label">Fullscreen toggle</span>
+                        <span class="keybind-keys"><kbd>SUPER</kbd> + <kbd>F</kbd></span>
+                    </div>
+                    <div class="keybind-item">
+                        <span class="keybind-label">Float toggle</span>
+                        <span class="keybind-keys"><kbd>SUPER</kbd> + <kbd>V</kbd></span>
+                    </div>
+                    <div class="keybind-item">
+                        <span class="keybind-label">App launcher</span>
+                        <span class="keybind-keys"><kbd>SUPER</kbd> + <kbd>D</kbd></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- tmux Quick Keys -->
+            <div class="subsection">
+                <h3 class="subsection-title">tmux Quick Keys</h3>
+                <p>All tmux commands use the <kbd>Ctrl</kbd> + <kbd>b</kbd> prefix, then press the action key.</p>
+
+                <div class="keybind-grid">
+                    <div class="keybind-item">
+                        <span class="keybind-label">New window</span>
+                        <span class="keybind-keys"><kbd>Ctrl+b</kbd> then <kbd>c</kbd></span>
+                    </div>
+                    <div class="keybind-item">
+                        <span class="keybind-label">Next window</span>
+                        <span class="keybind-keys"><kbd>Ctrl+b</kbd> then <kbd>n</kbd></span>
+                    </div>
+                    <div class="keybind-item">
+                        <span class="keybind-label">Previous window</span>
+                        <span class="keybind-keys"><kbd>Ctrl+b</kbd> then <kbd>p</kbd></span>
+                    </div>
+                    <div class="keybind-item">
+                        <span class="keybind-label">Vertical split</span>
+                        <span class="keybind-keys"><kbd>Ctrl+b</kbd> then <kbd>%</kbd></span>
+                    </div>
+                    <div class="keybind-item">
+                        <span class="keybind-label">Horizontal split</span>
+                        <span class="keybind-keys"><kbd>Ctrl+b</kbd> then <kbd>"</kbd></span>
+                    </div>
+                    <div class="keybind-item">
+                        <span class="keybind-label">Detach session</span>
+                        <span class="keybind-keys"><kbd>Ctrl+b</kbd> then <kbd>d</kbd></span>
+                    </div>
+                    <div class="keybind-item">
+                        <span class="keybind-label">Zoom pane (toggle)</span>
+                        <span class="keybind-keys"><kbd>Ctrl+b</kbd> then <kbd>z</kbd></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Claude Code -->
+            <div class="subsection">
+                <h3 class="subsection-title">Claude Code</h3>
+
+                <div class="command-grid">
+                    <div class="command-card">
+                        <div class="command-card-title">Start interactive</div>
+                        <code>claude</code>
+                        <p>Launch Claude Code in interactive mode in the current directory</p>
+                    </div>
+                    <div class="command-card">
+                        <div class="command-card-title">One-shot prompt</div>
+                        <code>claude -p "prompt"</code>
+                        <p>Run a single prompt and exit; great for scripting and pipelines</p>
+                    </div>
+                    <div class="command-card">
+                        <div class="command-card-title">Initialize project</div>
+                        <code>/init</code>
+                        <p>Create a CLAUDE.md with project context for better results</p>
+                    </div>
+                    <div class="command-card">
+                        <div class="command-card-title">Accept all changes</div>
+                        <code>Shift+Tab</code>
+                        <p>Accept all pending file changes at once</p>
+                    </div>
+                    <div class="command-card">
+                        <div class="command-card-title">Interrupt</div>
+                        <code>Esc</code>
+                        <p>Stop the current generation mid-stream</p>
+                    </div>
+                    <div class="command-card">
+                        <div class="command-card-title">Add context</div>
+                        <code># (in prompt)</code>
+                        <p>Reference files, URLs, or other context in your message</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Codex CLI -->
+            <div class="subsection">
+                <h3 class="subsection-title">Codex CLI</h3>
+
+                <div class="command-grid">
+                    <div class="command-card">
+                        <div class="command-card-title">Start interactive</div>
+                        <code>codex</code>
+                        <p>Launch Codex in interactive mode in the current directory</p>
+                    </div>
+                    <div class="command-card">
+                        <div class="command-card-title">One-shot prompt</div>
+                        <code>codex "prompt"</code>
+                        <p>Run a single prompt directly from the command line</p>
+                    </div>
+                    <div class="command-card">
+                        <div class="command-card-title">Autonomous mode</div>
+                        <code>codex --full-auto</code>
+                        <p>Let Codex run without manual approval for each step</p>
+                    </div>
+                    <div class="command-card">
+                        <div class="command-card-title">Select model</div>
+                        <code>codex --model MODEL</code>
+                        <p>Choose a specific model for the session</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- System Monitoring -->
+            <div class="subsection">
+                <h3 class="subsection-title">System Monitoring</h3>
+
+                <div class="command-grid">
+                    <div class="command-card">
+                        <div class="command-card-title">System monitor</div>
+                        <code>btop</code>
+                        <p>Beautiful resource monitor: CPU, memory, disks, network, processes</p>
+                    </div>
+                    <div class="command-card">
+                        <div class="command-card-title">GPU monitor</div>
+                        <code>nvtop</code>
+                        <p>GPU usage, temperature, VRAM, and running processes (NVIDIA/AMD/Intel)</p>
+                    </div>
+                    <div class="command-card">
+                        <div class="command-card-title">Live system logs</div>
+                        <code>journalctl -f</code>
+                        <p>Stream system journal logs in real time; invaluable for debugging</p>
+                    </div>
+                    <div class="command-card">
+                        <div class="command-card-title">User services</div>
+                        <code>systemctl --user status</code>
+                        <p>Check status of user-level systemd services</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- ============================================================
+             SECTION 02: BASE ARCH SETUP
+        ============================================================ -->
+        <section id="base-setup" class="section">
+            <div class="section-header">
+                <span class="section-number">02</span>
+                <h2 class="section-title">Base Arch Setup</h2>
+                <p class="section-description">A minimal, reproducible package selection for a Hyprland-powered AI development workstation. Install only what you need, keep it lean.</p>
+            </div>
+
+            <!-- Core Compositor & Desktop -->
+            <div class="subsection">
+                <h3 class="subsection-title">Core Compositor &amp; Desktop</h3>
+                <p>These are the essential packages for a functional Hyprland desktop. Install them first.</p>
+
+                <pre><code><span class="cm"># Core Hyprland stack</span>
+sudo pacman -S --needed hyprland hyprpaper hyprlock hypridle \
+    waybar wofi dunst xdg-desktop-portal-hyprland</code></pre>
+
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Package</th>
+                                <th>Role</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>hyprland</td>
+                                <td>Dynamic tiling Wayland compositor -- the core of the setup</td>
+                            </tr>
+                            <tr>
+                                <td>hyprpaper</td>
+                                <td>Wallpaper daemon with per-monitor support</td>
+                            </tr>
+                            <tr>
+                                <td>hyprlock</td>
+                                <td>GPU-accelerated screen locker with custom widgets</td>
+                            </tr>
+                            <tr>
+                                <td>hypridle</td>
+                                <td>Idle daemon -- triggers lock/suspend on inactivity</td>
+                            </tr>
+                            <tr>
+                                <td>waybar</td>
+                                <td>Highly customizable status bar (workspaces, clock, tray, etc.)</td>
+                            </tr>
+                            <tr>
+                                <td>wofi</td>
+                                <td>Wayland-native application launcher (dmenu/rofi replacement)</td>
+                            </tr>
+                            <tr>
+                                <td>dunst</td>
+                                <td>Lightweight notification daemon with configurable styling</td>
+                            </tr>
+                            <tr>
+                                <td>xdg-desktop-portal-hyprland</td>
+                                <td>Screen sharing, file dialogs, and app integration portal</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Terminal -->
+            <div class="subsection">
+                <h3 class="subsection-title">Terminal Emulator</h3>
+                <p>Your terminal is where you'll spend 90% of your time. Choose one.</p>
+
+                <pre><code><span class="cm"># Recommended: Kitty (GPU-accelerated, splits, images, ligatures)</span>
+sudo pacman -S --needed kitty
+
+<span class="cm"># Alternative: Foot (lighter, simpler, still fast)</span>
+sudo pacman -S --needed foot</code></pre>
+
+                <div class="alert alert-nominal">
+                    <span class="alert-icon">&#9432;</span>
+                    <div class="alert-content">
+                        <div class="alert-title">Recommendation</div>
+                        <p class="alert-text">Kitty is the preferred choice for AI coding workflows. Its native split support means you can have Claude Code running in one pane and your editor in another without needing tmux for simple layouts. It also renders inline images, which is useful for reviewing generated charts and diagrams.</p>
+                    </div>
+                    <span class="alert-temp">37.0C</span>
+                </div>
+            </div>
+
+            <!-- AUR Helper -->
+            <div class="subsection">
+                <h3 class="subsection-title">AUR Helper</h3>
+                <p>Many useful tools live in the AUR. You need a helper to build and install them.</p>
+
+                <pre><code><span class="cm"># Install paru (recommended, Rust-based, fast)</span>
+sudo pacman -S --needed base-devel git
+git clone https://aur.archlinux.org/paru.git
+cd paru && makepkg -si
+
+<span class="cm"># Alternative: yay (Go-based, also popular)</span>
+git clone https://aur.archlinux.org/yay.git
+cd yay && makepkg -si</code></pre>
+            </div>
+
+            <!-- Developer Tools -->
+            <div class="subsection">
+                <h3 class="subsection-title">Developer Toolchain</h3>
+                <p>Essential compilers, runtimes, and version managers for daily development work.</p>
+
+                <pre><code><span class="cm"># Core development tools</span>
+sudo pacman -S --needed git base-devel
+
+<span class="cm"># Languages & runtimes</span>
+sudo pacman -S --needed nodejs npm python python-pip rustup go
+
+<span class="cm"># Initialize Rust toolchain</span>
+rustup default stable</code></pre>
+
+                <div class="alert alert-subzero">
+                    <span class="alert-icon">&#8505;</span>
+                    <div class="alert-content">
+                        <div class="alert-title">About --needed</div>
+                        <p class="alert-text">The <code>--needed</code> flag tells pacman to skip packages that are already installed and up-to-date. This makes your install commands idempotent -- safe to re-run without reinstalling everything. Always use it in scripts and dotfiles.</p>
+                    </div>
+                    <span class="alert-temp">-40.0C</span>
+                </div>
+            </div>
+
+            <!-- AI Tools -->
+            <div class="subsection">
+                <h3 class="subsection-title">AI Coding Tools</h3>
+                <p>Install the AI CLI tools that make this workstation special.</p>
+
+                <pre><code><span class="cm"># Claude Code (Anthropic's CLI)</span>
+npm install -g @anthropic-ai/claude-code
+
+<span class="cm"># Codex CLI (OpenAI's CLI) -- via npm</span>
+npm install -g @openai/codex
+
+<span class="cm"># Codex CLI -- alternatively via pip</span>
+pip install openai-codex</code></pre>
+
+                <pre><code><span class="cm"># Verify installations</span>
+claude --version
+codex --version</code></pre>
+
+                <div class="alert alert-elevated">
+                    <span class="alert-icon">&#9888;</span>
+                    <div class="alert-content">
+                        <div class="alert-title">API Keys Required</div>
+                        <p class="alert-text">Both tools require API keys. Set <code>ANTHROPIC_API_KEY</code> for Claude Code and <code>OPENAI_API_KEY</code> for Codex in your shell profile (<code>~/.zshrc</code> or <code>~/.bashrc</code>). Never commit these to git -- use a secrets manager or encrypted <code>.env</code> file.</p>
+                    </div>
+                    <span class="alert-temp">72.5C</span>
+                </div>
+            </div>
+
+            <!-- System Utilities -->
+            <div class="subsection">
+                <h3 class="subsection-title">System Utilities</h3>
+                <p>Clipboard, screenshots, screen recording, and hardware control utilities for a complete Wayland desktop.</p>
+
+                <pre><code><span class="cm"># System utilities for a complete Wayland workstation</span>
+sudo pacman -S --needed btop nvtop wl-clipboard cliphist \
+    grim slurp wf-recorder brightnessctl playerctl</code></pre>
+
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Package</th>
+                                <th>Role</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>btop</td>
+                                <td>Resource monitor with CPU, RAM, disk, network graphs</td>
+                            </tr>
+                            <tr>
+                                <td>nvtop</td>
+                                <td>GPU monitor for NVIDIA, AMD, and Intel GPUs</td>
+                            </tr>
+                            <tr>
+                                <td>wl-clipboard</td>
+                                <td>Command-line clipboard access (<code>wl-copy</code> / <code>wl-paste</code>)</td>
+                            </tr>
+                            <tr>
+                                <td>cliphist</td>
+                                <td>Clipboard history manager -- search and reuse past copies</td>
+                            </tr>
+                            <tr>
+                                <td>grim</td>
+                                <td>Screenshot tool for Wayland compositors</td>
+                            </tr>
+                            <tr>
+                                <td>slurp</td>
+                                <td>Region selector for screenshots (pairs with grim)</td>
+                            </tr>
+                            <tr>
+                                <td>wf-recorder</td>
+                                <td>Screen recorder for Wayland (h264/h265 output)</td>
+                            </tr>
+                            <tr>
+                                <td>brightnessctl</td>
+                                <td>Backlight and LED brightness control</td>
+                            </tr>
+                            <tr>
+                                <td>playerctl</td>
+                                <td>MPRIS media player control from the command line</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Fonts -->
+            <div class="subsection">
+                <h3 class="subsection-title">Fonts</h3>
+                <p>Good fonts are non-negotiable for a coding workstation. Nerd Fonts include programming ligatures and icon glyphs used by status bars and terminal prompts.</p>
+
+                <pre><code><span class="cm"># Essential coding fonts + emoji support</span>
+sudo pacman -S --needed ttf-jetbrains-mono-nerd ttf-fira-code \
+    noto-fonts noto-fonts-emoji</code></pre>
+
+                <div class="alert alert-nominal">
+                    <span class="alert-icon">&#9989;</span>
+                    <div class="alert-content">
+                        <div class="alert-title">Pro Tip</div>
+                        <p class="alert-text">JetBrains Mono Nerd is the best all-round terminal font. It has programming ligatures, excellent readability at small sizes, and the full Nerd Font icon set that waybar and starship use. Set it as your terminal font at 11-13px for optimal density.</p>
+                    </div>
+                    <span class="alert-temp">36.6C</span>
+                </div>
+            </div>
+
+            <!-- One-liner Summary -->
+            <div class="subsection">
+                <h3 class="subsection-title">Full Install One-Liner</h3>
+                <p>For the impatient, here's everything from this section in a single copy-pasteable block.</p>
+
+                <pre><code><span class="cm"># Complete base setup -- run after a fresh Arch install with base packages</span>
+sudo pacman -S --needed \
+    hyprland hyprpaper hyprlock hypridle \
+    waybar wofi dunst xdg-desktop-portal-hyprland \
+    kitty \
+    git base-devel nodejs npm python python-pip rustup go \
+    btop nvtop wl-clipboard cliphist \
+    grim slurp wf-recorder brightnessctl playerctl \
+    ttf-jetbrains-mono-nerd ttf-fira-code \
+    noto-fonts noto-fonts-emoji
+
+<span class="cm"># Initialize Rust</span>
+rustup default stable
+
+<span class="cm"># Install AI coding tools</span>
+npm install -g @anthropic-ai/claude-code
+npm install -g @openai/codex</code></pre>
+            </div>
+        </section>
+
+
+        <!-- ============================================================
+             SECTION 03: HYPRLAND CONFIGURATION
+        ============================================================ -->
+        <section id="hyprland-config" class="section">
+            <div class="section-header">
+                <span class="section-number">03</span>
+                <h2 class="section-title">Hyprland Configuration</h2>
+                <p class="section-description">The heart of your workstation. Every line of this config is tuned for fast, distraction-free AI-assisted development.</p>
+            </div>
+
+            <!-- Config File Location -->
+            <div class="subsection">
+                <h3 class="subsection-title">Config File Location</h3>
+
+                <pre><code><span class="cm"># Hyprland reads its config from:</span>
+~/.config/hypr/hyprland.conf
+
+<span class="cm"># Create the directory if it doesn't exist</span>
+mkdir -p ~/.config/hypr</code></pre>
+
+                <div class="alert alert-subzero">
+                    <span class="alert-icon">&#8505;</span>
+                    <div class="alert-content">
+                        <div class="alert-title">Live Reload</div>
+                        <p class="alert-text">Hyprland watches its config file and reloads automatically when you save changes. No need to restart the compositor -- just save and see the results instantly. You can also force a reload with <code>hyprctl reload</code>.</p>
+                    </div>
+                    <span class="alert-temp">-20.0C</span>
+                </div>
+            </div>
+
+            <!-- Monitor Setup -->
+            <div class="subsection">
+                <h3 class="subsection-title">Monitor Setup</h3>
+                <p>Configure your displays. Hyprland supports per-monitor resolution, refresh rate, position, and scaling.</p>
+
+                <pre><code><span class="cm"># === MONITORS ===</span>
+
+<span class="cm"># Auto-detect single monitor (preferred resolution & refresh rate)</span>
+monitor=,preferred,auto,1
+
+<span class="cm"># Explicit single monitor (4K at 144Hz, no scaling)</span>
+monitor=DP-1,3840x2160@144,0x0,1
+
+<span class="cm"># Multi-monitor: laptop display + external monitor</span>
+monitor=eDP-1,1920x1080@60,0x0,1
+monitor=DP-2,3440x1440@165,1920x0,1
+
+<span class="cm"># Multi-monitor: triple setup (center primary, flanking secondaries)</span>
+monitor=DP-1,2560x1440@165,0x0,1
+monitor=DP-2,3840x2160@144,2560x0,1
+monitor=DP-3,2560x1440@165,6400x0,1</code></pre>
+
+                <div class="alert alert-nominal">
+                    <span class="alert-icon">&#9432;</span>
+                    <div class="alert-content">
+                        <div class="alert-title">Find Your Monitor Names</div>
+                        <p class="alert-text">Run <code>hyprctl monitors</code> to see connected displays with their names (DP-1, HDMI-A-1, eDP-1, etc.), supported resolutions, and current configuration.</p>
+                    </div>
+                    <span class="alert-temp">36.6C</span>
+                </div>
+            </div>
+
+            <!-- Environment Variables -->
+            <div class="subsection">
+                <h3 class="subsection-title">Environment Variables</h3>
+                <p>These ensure Wayland compatibility across the entire desktop stack -- browsers, Qt apps, Electron apps, and screen sharing all need them.</p>
+
+                <pre><code><span class="cm"># === ENVIRONMENT VARIABLES ===</span>
+
+<span class="cm"># Core Wayland session</span>
+env = WAYLAND_DISPLAY,wayland-1
+env = XDG_CURRENT_DESKTOP,Hyprland
+env = XDG_SESSION_TYPE,wayland
+env = XDG_SESSION_DESKTOP,Hyprland
+
+<span class="cm"># Application compatibility</span>
+env = MOZ_ENABLE_WAYLAND,1
+env = QT_QPA_PLATFORM,wayland
+env = QT_WAYLAND_DISABLE_WINDOWDECORATION,1
+env = GDK_BACKEND,wayland,x11
+env = SDL_VIDEODRIVER,wayland
+env = CLUTTER_BACKEND,wayland
+
+<span class="cm"># Cursor theme (set your preferred cursor here)</span>
+env = XCURSOR_SIZE,24
+env = XCURSOR_THEME,Adwaita</code></pre>
+            </div>
+
+            <!-- Input Config -->
+            <div class="subsection">
+                <h3 class="subsection-title">Input Configuration</h3>
+                <p>Optimized for fast terminal typing. Higher repeat rate and lower delay mean less waiting when holding keys to navigate code.</p>
+
+                <pre><code><span class="cm"># === INPUT ===</span>
+
+input {
+    <span class="cm"># Keyboard layout (change to your locale)</span>
+    kb_layout = us
+
+    <span class="cm"># Remap Caps Lock to Escape -- essential for vim/neovim users</span>
+    kb_options = caps:escape
+
+    <span class="cm"># Fast key repeat for terminal navigation</span>
+    <span class="cm"># repeat_rate = keys per second after delay</span>
+    <span class="cm"># repeat_delay = ms before repeat kicks in</span>
+    repeat_rate = 50
+    repeat_delay = 300
+
+    <span class="cm"># Mouse / touchpad</span>
+    follow_mouse = 1
+    sensitivity = 0
+
+    touchpad {
+        natural_scroll = true
+        tap-to-click = true
+        drag_lock = true
+    }
+}</code></pre>
+
+                <div class="alert alert-elevated">
+                    <span class="alert-icon">&#9888;</span>
+                    <div class="alert-content">
+                        <div class="alert-title">Caps Lock Remap</div>
+                        <p class="alert-text"><code>kb_options = caps:escape</code> is the single most impactful keybind change you can make. Escape is used constantly in vim, tmux, and Claude Code (to interrupt). Moving it to Caps Lock saves your pinky finger thousands of reaches per day.</p>
+                    </div>
+                    <span class="alert-temp">65.0C</span>
+                </div>
+            </div>
+
+            <!-- General Settings -->
+            <div class="subsection">
+                <h3 class="subsection-title">General Settings</h3>
+                <p>Gaps, borders, and layout behavior. Minimal gaps keep more code on screen while still providing visual separation between windows.</p>
+
+                <pre><code><span class="cm"># === GENERAL ===</span>
+
+general {
+    <span class="cm"># Gaps between windows and screen edges</span>
+    gaps_in = 4
+    gaps_out = 8
+
+    <span class="cm"># Border width and colors (thermal palette)</span>
+    border_size = 2
+
+    <span class="cm"># Active border: blue to teal gradient</span>
+    col.active_border = rgba(6366f1ee) rgba(14b8a6ee) 45deg
+
+    <span class="cm"># Inactive border: dark purple</span>
+    col.inactive_border = rgba(2d1b6944)
+
+    <span class="cm"># Layout algorithm</span>
+    layout = dwindle
+}</code></pre>
+            </div>
+
+            <!-- Decoration -->
+            <div class="subsection">
+                <h3 class="subsection-title">Decoration</h3>
+                <p>Visual effects for windows. Keep rounding minimal and shadows subtle -- this is a workstation, not a rice contest (well, mostly).</p>
+
+                <pre><code><span class="cm"># === DECORATION ===</span>
+
+decoration {
+    <span class="cm"># Rounded corners (subtle)</span>
+    rounding = 6
+
+    <span class="cm"># Shadow</span>
+    shadow {
+        enabled = true
+        range = 12
+        render_power = 3
+        color = rgba(0a001088)
+    }
+
+    <span class="cm"># Blur (for transparent terminals)</span>
+    blur {
+        enabled = true
+        size = 6
+        passes = 2
+        new_optimizations = true
+        xray = false
+    }
+}</code></pre>
+            </div>
+
+            <!-- Animations -->
+            <div class="subsection">
+                <h3 class="subsection-title">Animations</h3>
+                <p>Fast, snappy transitions optimized for productivity. Slow animations feel like lag when you're context-switching between AI sessions and editor panes.</p>
+
+                <pre><code><span class="cm"># === ANIMATIONS ===</span>
+<span class="cm"># Tuned for speed -- all transitions under 200ms</span>
+
+animations {
+    enabled = true
+
+    <span class="cm"># Custom bezier curves</span>
+    bezier = snappy, 0.25, 1, 0.5, 1
+    bezier = quick, 0.15, 0, 0.1, 1
+
+    <span class="cm"># Window open/close</span>
+    animation = windows, 1, 3, snappy, slide
+    animation = windowsOut, 1, 3, snappy, slide
+
+    <span class="cm"># Fade for transparency changes</span>
+    animation = fade, 1, 3, quick
+
+    <span class="cm"># Workspace switching</span>
+    animation = workspaces, 1, 3, snappy, slide
+}</code></pre>
+            </div>
+
+            <!-- Window Rules -->
+            <div class="subsection">
+                <h3 class="subsection-title">Window Rules</h3>
+                <p>Per-application overrides for opacity, floating behavior, and workspace assignment. These rules keep your workspace organized automatically.</p>
+
+                <pre><code><span class="cm"># === WINDOW RULES ===</span>
+
+<span class="cm"># Terminal transparency (active 95%, inactive 85%)</span>
+windowrulev2 = opacity 0.95 0.85, class:^(kitty)$
+windowrulev2 = opacity 0.95 0.85, class:^(foot)$
+
+<span class="cm"># Browser -- no transparency, slightly rounded</span>
+windowrulev2 = opacity 1.0 1.0, class:^(firefox)$
+windowrulev2 = opacity 1.0 1.0, class:^(chromium)$
+
+<span class="cm"># File picker dialogs -- always float</span>
+windowrulev2 = float, title:^(Open File)$
+windowrulev2 = float, title:^(Save As)$
+windowrulev2 = float, title:^(Choose Files)$
+
+<span class="cm"># Pavucontrol (audio mixer) -- float, centered</span>
+windowrulev2 = float, class:^(pavucontrol)$
+windowrulev2 = size 600 400, class:^(pavucontrol)$
+windowrulev2 = center, class:^(pavucontrol)$
+
+<span class="cm"># Picture-in-picture -- small, always on top</span>
+windowrulev2 = float, title:^(Picture-in-Picture)$
+windowrulev2 = pin, title:^(Picture-in-Picture)$
+windowrulev2 = size 400 225, title:^(Picture-in-Picture)$
+windowrulev2 = move 100%-410 100%-235, title:^(Picture-in-Picture)$
+
+<span class="cm"># Notification daemon -- suppress workspace change</span>
+windowrulev2 = float, class:^(dunst)$</code></pre>
+            </div>
+
+            <!-- Key Bindings -->
+            <div class="subsection">
+                <h3 class="subsection-title">Key Bindings</h3>
+                <p>The complete keybinding configuration. <code>$mod</code> is your Super/Windows/Meta key.</p>
+
+                <pre><code><span class="cm"># === KEY BINDINGS ===</span>
+
+$mod = SUPER
+
+<span class="cm"># --- Core ---</span>
+bind = $mod, Return, exec, kitty
+bind = $mod, Q, killactive
+bind = $mod, M, exit
+bind = $mod, D, exec, wofi --show drun
+bind = $mod, F, fullscreen, 0
+bind = $mod, V, togglefloating
+
+<span class="cm"># --- Focus ---</span>
+bind = $mod, left, movefocus, l
+bind = $mod, right, movefocus, r
+bind = $mod, up, movefocus, u
+bind = $mod, down, movefocus, d
+
+<span class="cm"># --- Move windows ---</span>
+bind = $mod SHIFT, left, movewindow, l
+bind = $mod SHIFT, right, movewindow, r
+bind = $mod SHIFT, up, movewindow, u
+bind = $mod SHIFT, down, movewindow, d
+
+<span class="cm"># --- Workspaces ---</span>
+bind = $mod, 1, workspace, 1
+bind = $mod, 2, workspace, 2
+bind = $mod, 3, workspace, 3
+bind = $mod, 4, workspace, 4
+bind = $mod, 5, workspace, 5
+bind = $mod, 6, workspace, 6
+bind = $mod, 7, workspace, 7
+bind = $mod, 8, workspace, 8
+bind = $mod, 9, workspace, 9
+
+<span class="cm"># --- Move to workspace ---</span>
+bind = $mod SHIFT, 1, movetoworkspace, 1
+bind = $mod SHIFT, 2, movetoworkspace, 2
+bind = $mod SHIFT, 3, movetoworkspace, 3
+bind = $mod SHIFT, 4, movetoworkspace, 4
+bind = $mod SHIFT, 5, movetoworkspace, 5
+bind = $mod SHIFT, 6, movetoworkspace, 6
+bind = $mod SHIFT, 7, movetoworkspace, 7
+bind = $mod SHIFT, 8, movetoworkspace, 8
+bind = $mod SHIFT, 9, movetoworkspace, 9
+
+<span class="cm"># --- Resize with mod + right-click drag ---</span>
+bindm = $mod, mouse:272, movewindow
+bindm = $mod, mouse:273, resizewindow
+
+<span class="cm"># --- Screenshots ---</span>
+bind = , Print, exec, grim -g "$(slurp)" - | wl-copy
+bind = SHIFT, Print, exec, grim - | wl-copy
+
+<span class="cm"># --- Clipboard history ---</span>
+bind = $mod, C, exec, cliphist list | wofi --dmenu | cliphist decode | wl-copy
+
+<span class="cm"># --- Volume control ---</span>
+binde = , XF86AudioRaiseVolume, exec, wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+
+binde = , XF86AudioLowerVolume, exec, wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-
+bind = , XF86AudioMute, exec, wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle
+
+<span class="cm"># --- Brightness control ---</span>
+binde = , XF86MonBrightnessUp, exec, brightnessctl set +5%
+binde = , XF86MonBrightnessDown, exec, brightnessctl set 5%-</code></pre>
+            </div>
+
+            <!-- Workspace Rules -->
+            <div class="subsection">
+                <h3 class="subsection-title">Workspace Rules</h3>
+                <p>Assign workspaces to specific monitors in multi-monitor setups. This keeps your mental model stable -- code is always on the center screen, browser always on the right, etc.</p>
+
+                <pre><code><span class="cm"># === WORKSPACE RULES ===</span>
+<span class="cm"># Assign workspaces to monitors (multi-monitor)</span>
+
+<span class="cm"># Primary monitor: coding workspaces</span>
+workspace = 1, monitor:DP-2, default:true
+workspace = 2, monitor:DP-2
+workspace = 3, monitor:DP-2
+
+<span class="cm"># Left monitor: reference / docs</span>
+workspace = 4, monitor:DP-1, default:true
+workspace = 5, monitor:DP-1
+
+<span class="cm"># Right monitor: browser / communication</span>
+workspace = 6, monitor:DP-3, default:true
+workspace = 7, monitor:DP-3
+
+<span class="cm"># Scroll through workspaces on current monitor</span>
+bind = $mod, mouse_down, workspace, e+1
+bind = $mod, mouse_up, workspace, e-1</code></pre>
+            </div>
+
+            <!-- Exec-once Autostart -->
+            <div class="subsection">
+                <h3 class="subsection-title">Autostart (exec-once)</h3>
+                <p>Services and daemons that launch once when Hyprland starts. These are the background processes that make the desktop functional.</p>
+
+                <pre><code><span class="cm"># === AUTOSTART ===</span>
+
+<span class="cm"># Status bar</span>
+exec-once = waybar
+
+<span class="cm"># Notification daemon</span>
+exec-once = dunst
+
+<span class="cm"># Wallpaper</span>
+exec-once = hyprpaper
+
+<span class="cm"># Clipboard listener (stores clipboard history)</span>
+exec-once = wl-paste --type text --watch cliphist store
+exec-once = wl-paste --type image --watch cliphist store
+
+<span class="cm"># Idle daemon (lock after 5 min, suspend after 10 min)</span>
+exec-once = hypridle
+
+<span class="cm"># Authentication agent (for GUI sudo prompts)</span>
+exec-once = /usr/lib/polkit-kde-authentication-agent-1
+
+<span class="cm"># Optional: start tmux session on boot</span>
+<span class="cm"># exec-once = kitty --class startup-term -e tmux new -s main</span></code></pre>
+
+                <div class="alert alert-critical">
+                    <span class="alert-icon">&#9888;</span>
+                    <div class="alert-content">
+                        <div class="alert-title">exec vs exec-once</div>
+                        <p class="alert-text">Use <code>exec-once</code> for daemons and background services -- they should only start one instance. Use <code>exec</code> (without -once) only for commands you want to re-run on every config reload, which is almost never what you want for services.</p>
+                    </div>
+                    <span class="alert-temp">220.0C</span>
+                </div>
+            </div>
+
+            <!-- Complete Config -->
+            <div class="subsection">
+                <h3 class="subsection-title">Complete Config File</h3>
+                <p>Everything above combined into a single ready-to-use <code>hyprland.conf</code>. Copy this to <code>~/.config/hypr/hyprland.conf</code> and customize to taste.</p>
+
+                <pre><code><span class="cm"># ~/.config/hypr/hyprland.conf</span>
+<span class="cm"># Hyprland AI Workstation Configuration</span>
+<span class="cm"># Optimized for Claude Code + Codex power users</span>
+
+<span class="cm"># --- Monitors ---</span>
+monitor=,preferred,auto,1
+
+<span class="cm"># --- Environment ---</span>
+env = XDG_CURRENT_DESKTOP,Hyprland
+env = XDG_SESSION_TYPE,wayland
+env = XDG_SESSION_DESKTOP,Hyprland
+env = MOZ_ENABLE_WAYLAND,1
+env = QT_QPA_PLATFORM,wayland
+env = QT_WAYLAND_DISABLE_WINDOWDECORATION,1
+env = GDK_BACKEND,wayland,x11
+env = XCURSOR_SIZE,24
+
+<span class="cm"># --- Input ---</span>
+input {
+    kb_layout = us
+    kb_options = caps:escape
+    repeat_rate = 50
+    repeat_delay = 300
+    follow_mouse = 1
+    sensitivity = 0
+    touchpad {
+        natural_scroll = true
+        tap-to-click = true
+    }
+}
+
+<span class="cm"># --- General ---</span>
+general {
+    gaps_in = 4
+    gaps_out = 8
+    border_size = 2
+    col.active_border = rgba(6366f1ee) rgba(14b8a6ee) 45deg
+    col.inactive_border = rgba(2d1b6944)
+    layout = dwindle
+}
+
+<span class="cm"># --- Decoration ---</span>
+decoration {
+    rounding = 6
+    shadow {
+        enabled = true
+        range = 12
+        render_power = 3
+        color = rgba(0a001088)
+    }
+    blur {
+        enabled = true
+        size = 6
+        passes = 2
+        new_optimizations = true
+    }
+}
+
+<span class="cm"># --- Animations ---</span>
+animations {
+    enabled = true
+    bezier = snappy, 0.25, 1, 0.5, 1
+    bezier = quick, 0.15, 0, 0.1, 1
+    animation = windows, 1, 3, snappy, slide
+    animation = windowsOut, 1, 3, snappy, slide
+    animation = fade, 1, 3, quick
+    animation = workspaces, 1, 3, snappy, slide
+}
+
+<span class="cm"># --- Window Rules ---</span>
+windowrulev2 = opacity 0.95 0.85, class:^(kitty)$
+windowrulev2 = opacity 1.0 1.0, class:^(firefox)$
+windowrulev2 = float, title:^(Open File)$
+windowrulev2 = float, title:^(Save As)$
+windowrulev2 = float, class:^(pavucontrol)$
+windowrulev2 = size 600 400, class:^(pavucontrol)$
+windowrulev2 = center, class:^(pavucontrol)$
+
+<span class="cm"># --- Key Bindings ---</span>
+$mod = SUPER
+bind = $mod, Return, exec, kitty
+bind = $mod, Q, killactive
+bind = $mod, M, exit
+bind = $mod, D, exec, wofi --show drun
+bind = $mod, F, fullscreen, 0
+bind = $mod, V, togglefloating
+bind = $mod, left, movefocus, l
+bind = $mod, right, movefocus, r
+bind = $mod, up, movefocus, u
+bind = $mod, down, movefocus, d
+bind = $mod SHIFT, left, movewindow, l
+bind = $mod SHIFT, right, movewindow, r
+bind = $mod SHIFT, up, movewindow, u
+bind = $mod SHIFT, down, movewindow, d
+bind = $mod, 1, workspace, 1
+bind = $mod, 2, workspace, 2
+bind = $mod, 3, workspace, 3
+bind = $mod, 4, workspace, 4
+bind = $mod, 5, workspace, 5
+bind = $mod, 6, workspace, 6
+bind = $mod, 7, workspace, 7
+bind = $mod, 8, workspace, 8
+bind = $mod, 9, workspace, 9
+bind = $mod SHIFT, 1, movetoworkspace, 1
+bind = $mod SHIFT, 2, movetoworkspace, 2
+bind = $mod SHIFT, 3, movetoworkspace, 3
+bind = $mod SHIFT, 4, movetoworkspace, 4
+bind = $mod SHIFT, 5, movetoworkspace, 5
+bind = $mod SHIFT, 6, movetoworkspace, 6
+bind = $mod SHIFT, 7, movetoworkspace, 7
+bind = $mod SHIFT, 8, movetoworkspace, 8
+bind = $mod SHIFT, 9, movetoworkspace, 9
+bindm = $mod, mouse:272, movewindow
+bindm = $mod, mouse:273, resizewindow
+bind = , Print, exec, grim -g "$(slurp)" - | wl-copy
+bind = SHIFT, Print, exec, grim - | wl-copy
+bind = $mod, C, exec, cliphist list | wofi --dmenu | cliphist decode | wl-copy
+binde = , XF86AudioRaiseVolume, exec, wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+
+binde = , XF86AudioLowerVolume, exec, wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-
+bind = , XF86AudioMute, exec, wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle
+binde = , XF86MonBrightnessUp, exec, brightnessctl set +5%
+binde = , XF86MonBrightnessDown, exec, brightnessctl set 5%-
+
+<span class="cm"># --- Autostart ---</span>
+exec-once = waybar
+exec-once = dunst
+exec-once = hyprpaper
+exec-once = wl-paste --type text --watch cliphist store
+exec-once = wl-paste --type image --watch cliphist store
+exec-once = hypridle</code></pre>
+            </div>
+
+        </section>
+
+
+        <!-- ============================================================
+             SECTION 04: TERMINAL & MULTIPLEXING
+        ============================================================ -->
+        <section id="terminal" class="section">
+            <div class="section-header">
+                <span class="section-number">04</span>
+                <h2 class="section-title">Terminal &amp; Multiplexing</h2>
+                <p class="section-description">Your terminal is the cockpit of the AI workstation. Choose the right emulator, configure it for maximum output density, and set up multiplexing for multi-agent workflows.</p>
+            </div>
+
+            <!-- 4.1 Choosing a Terminal Emulator -->
+            <div class="subsection">
+                <h3 class="subsection-title">Choosing a Terminal Emulator</h3>
+                <p>Three terminals dominate the Wayland AI coding landscape. Each has a distinct philosophy and sweet spot.</p>
+
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Terminal</th>
+                                <th>Rendering</th>
+                                <th>Multiplexing</th>
+                                <th>Config Format</th>
+                                <th>Best For</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>kitty</td>
+                                <td>GPU (OpenGL) <span class="badge badge-readout">fastest</span></td>
+                                <td>Built-in splits, tabs, <code>kitty @</code> IPC</td>
+                                <td>Custom (<code>kitty.conf</code>)</td>
+                                <td>Power users who want everything in one app</td>
+                            </tr>
+                            <tr>
+                                <td>foot</td>
+                                <td>CPU (Wayland-native)</td>
+                                <td>None (pair with tmux)</td>
+                                <td>INI (<code>foot.ini</code>)</td>
+                                <td>Minimalists, tmux-centric workflows</td>
+                            </tr>
+                            <tr>
+                                <td>alacritty</td>
+                                <td>GPU (OpenGL/Vulkan)</td>
+                                <td>None (pair with tmux)</td>
+                                <td>TOML (<code>alacritty.toml</code>)</td>
+                                <td>Cross-platform users, simple setups</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="alert alert-nominal">
+                    <span class="alert-icon">&#9432;</span>
+                    <div class="alert-content">
+                        <div class="alert-title">Recommendation</div>
+                        <p class="alert-text"><strong>kitty</strong> is the optimal choice for AI coding on Hyprland. Its built-in multiplexing means you can split panes without tmux for simple layouts, the <code>kitty @</code> IPC lets you script pane creation from the shell, and its image protocol renders inline graphics from AI tools. For multi-agent orchestration, pair <strong>any</strong> terminal with tmux.</p>
+                    </div>
+                    <span class="alert-temp">37.0C</span>
+                </div>
+            </div>
+
+            <!-- 4.2 Kitty Configuration -->
+            <div class="subsection">
+                <h3 class="subsection-title">Kitty Configuration for AI Coding</h3>
+                <p>A battle-tested <code>~/.config/kitty/kitty.conf</code> tuned for long AI output sessions, fast rendering, and Wayland integration.</p>
+
+                <div class="code-label">~/.config/kitty/kitty.conf</div>
+                <pre><code><span class="cm"># --- Typography ---</span>
+font_family      JetBrainsMono Nerd Font
+font_size        13.0
+bold_font        auto
+italic_font      auto
+
+<span class="cm"># --- Thermal-Inspired Colors ---</span>
+background       #0a0010
+foreground       #c4b5fd
+selection_background #22143d
+selection_foreground #e9e0ff
+cursor           #22c55e
+cursor_shape     beam
+
+<span class="cm"># --- Performance ---</span>
+repaint_delay    6
+input_delay      1
+sync_to_monitor  yes
+
+<span class="cm"># --- Scrollback for Long AI Outputs ---</span>
+scrollback_lines 50000
+scrollback_pager_history_size 100
+
+<span class="cm"># --- Window Management ---</span>
+enabled_layouts  splits,stack
+window_padding_width 8
+hide_window_decorations yes
+
+<span class="cm"># --- Wayland-Specific ---</span>
+wayland_titlebar_color background
+linux_display_server wayland
+
+<span class="cm"># --- Quick Splits (use instead of tmux for simpler setups) ---</span>
+map ctrl+shift+enter new_window_with_cwd
+map ctrl+shift+] next_window
+map ctrl+shift+[ previous_window
+map ctrl+shift+f toggle_layout stack</code></pre>
+
+                <div class="keybind-grid">
+                    <div class="keybind-item">
+                        <span class="keybind-label">New split pane</span>
+                        <span class="keybind-keys"><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Enter</kbd></span>
+                    </div>
+                    <div class="keybind-item">
+                        <span class="keybind-label">Next pane</span>
+                        <span class="keybind-keys"><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>]</kbd></span>
+                    </div>
+                    <div class="keybind-item">
+                        <span class="keybind-label">Previous pane</span>
+                        <span class="keybind-keys"><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>[</kbd></span>
+                    </div>
+                    <div class="keybind-item">
+                        <span class="keybind-label">Toggle fullscreen pane</span>
+                        <span class="keybind-keys"><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4.3 tmux for Multi-Agent Workflows -->
+            <div class="subsection">
+                <h3 class="subsection-title">tmux for Multi-Agent Workflows</h3>
+                <p>When running multiple AI agents simultaneously, tmux provides the session persistence and scriptable pane management you need. This config is tuned for Wayland clipboard integration and thermal-colored UI.</p>
+
+                <div class="code-label">~/.tmux.conf</div>
+                <pre><code><span class="cm"># --- Core Settings ---</span>
+set -g default-terminal "tmux-256color"
+set -ag terminal-overrides ",*:RGB"
+set -g mouse on
+set -g history-limit 100000
+set -g base-index 1
+setw -g pane-base-index 1
+set -g renumber-windows on
+
+<span class="cm"># --- Fast Escape for Vim/Neovim ---</span>
+set -sg escape-time 0
+
+<span class="cm"># --- Wayland Clipboard Integration ---</span>
+set -g copy-command 'wl-copy'
+bind -T copy-mode-vi y send -X copy-pipe-and-cancel 'wl-copy'
+bind -T copy-mode-vi MouseDragEnd1Pane send -X copy-pipe-and-cancel 'wl-copy'
+
+<span class="cm"># --- Paste from Wayland Clipboard ---</span>
+bind p run 'wl-paste | tmux load-buffer - &amp;&amp; tmux paste-buffer'
+
+<span class="cm"># --- Status Bar (Thermal Theme) ---</span>
+set -g status-style 'bg=#120822 fg=#7c6faa'
+set -g status-left '#[fg=#22c55e,bold][ #S ] '
+set -g status-right '#[fg=#6366f1]#(date +"%H:%M") #[fg=#14b8a6]| #H'
+set -g status-left-length 30
+
+<span class="cm"># --- Pane Borders (Thermal Colors) ---</span>
+set -g pane-border-style 'fg=#2d1b69'
+set -g pane-active-border-style 'fg=#14b8a6'
+
+<span class="cm"># --- AI Coding Layout Shortcut ---</span>
+<span class="cm"># Ctrl+b then A = create AI coding layout</span>
+bind A split-window -h -p 40 \; \
+  split-window -v -p 50 \; \
+  select-pane -t 0 \; \
+  send-keys 'claude' Enter \; \
+  select-pane -t 1 \; \
+  send-keys 'nvim .' Enter \; \
+  select-pane -t 2 \; \
+  send-keys 'btop' Enter</code></pre>
+
+                <div class="alert alert-subzero">
+                    <span class="alert-icon">&#8505;</span>
+                    <div class="alert-content">
+                        <div class="alert-title">Why 100k Scrollback?</div>
+                        <p class="alert-text">AI agents produce <em>massive</em> output -- a single Claude Code session can easily generate thousands of lines of code, diffs, and explanations. Setting <code>history-limit</code> to 100000 ensures you can scroll back through an entire coding session without losing context. The memory cost is negligible on a modern workstation.</p>
+                    </div>
+                    <span class="alert-temp">-30.0C</span>
+                </div>
+            </div>
+
+            <!-- 4.4 Session Layout Patterns -->
+            <div class="subsection">
+                <h3 class="subsection-title">Session Layout Patterns</h3>
+                <p>Pre-built tmux session recipes for common AI coding scenarios. Copy these into shell scripts or aliases for instant workspace setup.</p>
+
+                <h4>Dual Agent Layout</h4>
+                <p>Run Claude Code and Codex side-by-side to compare approaches on the same task.</p>
+                <div class="code-label">dual-agents.sh</div>
+                <pre><code><span class="cm">#!/bin/bash</span>
+<span class="cm"># Dual Agent Session -- Claude Code (left) + Codex (right)</span>
+tmux new-session -d -s agents -n compare
+tmux send-keys -t agents:compare 'cd ~/project &amp;&amp; claude' Enter
+tmux split-window -h -t agents:compare
+tmux send-keys -t agents:compare.1 'cd ~/project &amp;&amp; codex' Enter
+tmux attach -t agents</code></pre>
+
+                <h4>Monitor Layout</h4>
+                <p>Main pane for the AI agent, bottom panes for git log and system monitoring.</p>
+                <div class="code-label">monitor-layout.sh</div>
+                <pre><code><span class="cm">#!/bin/bash</span>
+<span class="cm"># Monitor Session -- Agent (top) + Git log (bottom-left) + Watcher (bottom-right)</span>
+tmux new-session -d -s monitor -n dev
+tmux send-keys -t monitor:dev 'cd ~/project &amp;&amp; claude' Enter
+tmux split-window -v -p 30 -t monitor:dev
+tmux send-keys -t monitor:dev.1 'watch -n2 git log --oneline -20' Enter
+tmux split-window -h -t monitor:dev.1
+tmux send-keys -t monitor:dev.2 'cd ~/project &amp;&amp; npm run test:watch' Enter
+tmux select-pane -t monitor:dev.0
+tmux attach -t monitor</code></pre>
+
+                <h4>Full Stack Layout</h4>
+                <p>Four-pane layout covering agent, editor, server, and tests.</p>
+                <div class="code-label">fullstack-layout.sh</div>
+                <pre><code><span class="cm">#!/bin/bash</span>
+<span class="cm"># Full Stack -- Agent | Editor / Server | Tests</span>
+tmux new-session -d -s fullstack -n work
+tmux send-keys -t fullstack:work 'cd ~/project &amp;&amp; claude' Enter
+tmux split-window -h -p 50 -t fullstack:work
+tmux send-keys -t fullstack:work.1 'cd ~/project &amp;&amp; nvim .' Enter
+tmux split-window -v -p 40 -t fullstack:work.0
+tmux send-keys -t fullstack:work.2 'cd ~/project &amp;&amp; npm run dev' Enter
+tmux split-window -v -p 50 -t fullstack:work.1
+tmux send-keys -t fullstack:work.3 'cd ~/project &amp;&amp; npm test -- --watch' Enter
+tmux select-pane -t fullstack:work.0
+tmux attach -t fullstack</code></pre>
+            </div>
+
+            <!-- 4.5 Scrollback & Output Management -->
+            <div class="subsection">
+                <h3 class="subsection-title">Scrollback &amp; Output Management</h3>
+                <p>AI agents produce orders of magnitude more terminal output than manual coding. These techniques keep that output accessible and searchable.</p>
+
+                <div class="command-grid">
+                    <div class="command-card">
+                        <div class="command-card-title">Search scrollback</div>
+                        <code>prefix + [ then /</code>
+                        <p>Enter tmux copy mode and search backward through output with regex</p>
+                    </div>
+                    <div class="command-card">
+                        <div class="command-card-title">Pipe pane to file</div>
+                        <code>tmux pipe-pane -o 'cat &gt;&gt; ~/logs/agent-$(date +%Y%m%d).log'</code>
+                        <p>Record all output from the current pane to a timestamped log file</p>
+                    </div>
+                    <div class="command-card">
+                        <div class="command-card-title">kitty scrollback pager</div>
+                        <code>ctrl+shift+h</code>
+                        <p>Open scrollback in <code>less</code> or <code>nvim</code> for comfortable searching through long output</p>
+                    </div>
+                    <div class="command-card">
+                        <div class="command-card-title">Clear &amp; reset</div>
+                        <code>tmux clear-history</code>
+                        <p>Flush scrollback buffer when it gets too large and slows down search</p>
+                    </div>
+                </div>
+
+                <div class="alert alert-elevated">
+                    <span class="alert-icon">&#9888;</span>
+                    <div class="alert-content">
+                        <div class="alert-title">Log Everything</div>
+                        <p class="alert-text">When running autonomous agents, <strong>always</strong> pipe output to a log file. If an agent makes a wrong turn at 3 AM, you need the full transcript to understand what happened. Use <code>tmux pipe-pane</code> or <code>script -a ~/logs/session.log</code> as a safety net.</p>
+                    </div>
+                    <span class="alert-temp">68.5C</span>
+                </div>
+            </div>
+
+        </section>
+
+
+        <!-- ============================================================
+             SECTION 05: CLAUDE CODE OPTIMIZATION
+        ============================================================ -->
+        <section id="claude-code" class="section">
+            <div class="section-header">
+                <span class="section-number">05</span>
+                <h2 class="section-title">Claude Code Optimization</h2>
+                <p class="section-description">Claude Code is the heart of this workstation. These configuration patterns and workflows will dramatically improve your output quality, speed, and autonomy.</p>
+            </div>
+
+            <!-- 5.1 CLAUDE.md -->
+            <div class="subsection">
+                <h3 class="subsection-title">CLAUDE.md &mdash; Your Project Brain</h3>
+                <p><code>CLAUDE.md</code> is a special Markdown file that Claude Code reads at the start of every session. It gives the agent persistent context about your project -- architecture, conventions, build commands, and domain knowledge that would otherwise be lost between conversations.</p>
+
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Location</th>
+                                <th>Scope</th>
+                                <th>Use Case</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>./CLAUDE.md</td>
+                                <td>Project-level (committed to git)</td>
+                                <td>Shared conventions, build commands, architecture overview</td>
+                            </tr>
+                            <tr>
+                                <td>~/.claude/CLAUDE.md</td>
+                                <td>User-level (all projects)</td>
+                                <td>Personal preferences, global tool configs, coding style</td>
+                            </tr>
+                            <tr>
+                                <td>./src/CLAUDE.md</td>
+                                <td>Directory-level (monorepo sections)</td>
+                                <td>Subsystem-specific patterns, local conventions</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <h4>Example CLAUDE.md Skeleton</h4>
+                <div class="code-label">CLAUDE.md</div>
+                <pre><code><span class="cm"># Project Name</span>
+
+<span class="cm">## Architecture</span>
+- Frontend: React + TypeScript in /src/client
+- Backend: Express API in /src/server
+- Database: PostgreSQL via Prisma ORM
+
+<span class="cm">## Build &amp; Test</span>
+- Build: `npm run build`
+- Test: `npm test` (Jest, run from root)
+- Lint: `npm run lint` (ESLint + Prettier)
+- Dev server: `npm run dev` (port 3000)
+
+<span class="cm">## Conventions</span>
+- Use named exports, not default exports
+- All API routes return { data, error } shape
+- Use Zod for runtime validation
+- Database migrations in /prisma/migrations
+
+<span class="cm">## Common Patterns</span>
+- Error handling: wrap async handlers with catchAsync()
+- Auth: JWT in httpOnly cookies, middleware in /src/server/auth
+- Tests: colocate test files as *.test.ts next to source</code></pre>
+
+                <div class="alert alert-nominal">
+                    <span class="alert-icon">&#9989;</span>
+                    <div class="alert-content">
+                        <div class="alert-title">Pro Tip</div>
+                        <p class="alert-text">Run <code>/init</code> inside Claude Code to auto-generate a starter <code>CLAUDE.md</code> from your project structure. Then refine it manually -- the more specific your context, the fewer mistakes the agent makes.</p>
+                    </div>
+                    <span class="alert-temp">36.6C</span>
+                </div>
+            </div>
+
+            <!-- 5.2 Context Management -->
+            <div class="subsection">
+                <h3 class="subsection-title">Context Management</h3>
+                <p>Claude Code has a finite context window. Every file, every conversation turn, every tool output consumes tokens. Managing context is the single most impactful skill for productive AI coding.</p>
+
+                <div class="command-grid">
+                    <div class="command-card">
+                        <div class="command-card-title">Compact conversation</div>
+                        <code>/compact</code>
+                        <p>Compress the conversation history when context gets large, preserving key decisions and losing verbose output</p>
+                    </div>
+                    <div class="command-card">
+                        <div class="command-card-title">Add file context</div>
+                        <code># filename.ts</code>
+                        <p>Reference a file in your prompt to pull it into context without reading it manually</p>
+                    </div>
+                    <div class="command-card">
+                        <div class="command-card-title">Add URL context</div>
+                        <code># https://docs.example.com/api</code>
+                        <p>Pull documentation or web content directly into context for reference</p>
+                    </div>
+                    <div class="command-card">
+                        <div class="command-card-title">Clear and restart</div>
+                        <code>/clear</code>
+                        <p>Reset the conversation entirely when context is polluted or you are changing tasks</p>
+                    </div>
+                </div>
+
+                <h4>Excluding Irrelevant Files</h4>
+                <p>Create a <code>.claudeignore</code> file (same syntax as <code>.gitignore</code>) to prevent large or irrelevant files from being pulled into context.</p>
+
+                <div class="code-label">.claudeignore</div>
+                <pre><code><span class="cm"># Dependencies</span>
+node_modules/
+vendor/
+.venv/
+
+<span class="cm"># Build artifacts</span>
+dist/
+build/
+*.min.js
+*.min.css
+
+<span class="cm"># Large data files</span>
+*.sql
+*.csv
+*.sqlite
+
+<span class="cm"># Media</span>
+*.mp4
+*.png
+*.jpg</code></pre>
+            </div>
+
+            <!-- 5.3 Permission Modes & Allowlists -->
+            <div class="subsection">
+                <h3 class="subsection-title">Permission Modes &amp; Allowlists</h3>
+                <p>Claude Code asks permission before running commands or modifying files. For trusted workflows, allowlists let you pre-approve specific tools so the agent can work autonomously.</p>
+
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Mode</th>
+                                <th>Flag</th>
+                                <th>Behavior</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Default</td>
+                                <td><em>(none)</em></td>
+                                <td>Ask permission for every tool use -- safest, most interactive</td>
+                            </tr>
+                            <tr>
+                                <td>Allowlist</td>
+                                <td><code>--allowedTools</code></td>
+                                <td>Pre-approve specific tools, ask for the rest -- best balance</td>
+                            </tr>
+                            <tr>
+                                <td>Full Auto</td>
+                                <td><code>--dangerously-skip-permissions</code></td>
+                                <td>Skip all permission checks -- use only in disposable sandboxes</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <h4>Recommended Allowlists</h4>
+                <div class="code-label">Safe automation (read/write, git, tests)</div>
+                <pre><code>claude --allowedTools "Read,Write,Edit,Glob,Grep,Bash(git *),Bash(npm test),Bash(npm run *)"</code></pre>
+
+                <div class="code-label">Full dev workflow</div>
+                <pre><code>claude --allowedTools "Read,Write,Edit,Glob,Grep,Bash(git *),Bash(npm *),Bash(cargo *),Bash(python *),Agent"</code></pre>
+
+                <div class="alert alert-critical">
+                    <span class="alert-icon">&#9888;</span>
+                    <div class="alert-content">
+                        <div class="alert-title">Never Use Full Auto on Your Main System</div>
+                        <p class="alert-text"><code>--dangerously-skip-permissions</code> means Claude can run <strong>any</strong> shell command without asking. Only use this inside Docker containers, disposable VMs, or CI pipelines where the worst case is a rebuild. On your workstation, use allowlists instead.</p>
+                    </div>
+                    <span class="alert-temp">240.0C</span>
+                </div>
+            </div>
+
+            <!-- 5.4 Hooks System -->
+            <div class="subsection">
+                <h3 class="subsection-title">Hooks System</h3>
+                <p>Hooks let you run custom commands before or after Claude Code uses a tool. Use them for auto-formatting, linting, notifications, and custom integrations.</p>
+
+                <h4>Desktop Notification on Task Completion</h4>
+                <p>Get a <code>dunst</code> notification when a long-running agent task finishes.</p>
+
+                <div class="code-label">~/.claude/settings.json (hooks section)</div>
+                <pre><code>{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Stop",
+        "command": "notify-send 'Claude Code' 'Agent finished working' --icon=terminal --urgency=normal"
+      }
+    ]
+  }
+}</code></pre>
+
+                <h4>Auto-Format on File Write</h4>
+                <div class="code-label">Format TypeScript files after every write</div>
+                <pre><code>{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "command": "prettier --write \"$CLAUDE_FILE_PATH\" 2&gt;/dev/null || true"
+      }
+    ]
+  }
+}</code></pre>
+
+                <div class="alert alert-subzero">
+                    <span class="alert-icon">&#8505;</span>
+                    <div class="alert-content">
+                        <div class="alert-title">Hook Execution</div>
+                        <p class="alert-text">Hooks run synchronously -- they block Claude from proceeding until the command finishes. Keep hook commands fast (under 2 seconds). For slow operations like full test suites, trigger them asynchronously with <code>&amp;</code> at the end of the command.</p>
+                    </div>
+                    <span class="alert-temp">-15.0C</span>
+                </div>
+            </div>
+
+            <!-- 5.5 MCP Servers -->
+            <div class="subsection">
+                <h3 class="subsection-title">MCP Servers</h3>
+                <p>The <strong>Model Context Protocol</strong> (MCP) extends Claude Code with external tool servers. MCP servers give the agent access to databases, APIs, file systems, and custom tools beyond its built-in capabilities.</p>
+
+                <h4>Configuration</h4>
+                <div class="code-label">~/.claude/settings.json (mcpServers section)</div>
+                <pre><code>{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_your_token_here"
+      }
+    },
+    "postgres": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-postgres"],
+      "env": {
+        "DATABASE_URL": "postgresql://user:pass@localhost:5432/mydb"
+      }
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/home/user/docs"]
+    }
+  }
+}</code></pre>
+
+                <div class="command-grid">
+                    <div class="command-card">
+                        <div class="command-card-title">GitHub MCP</div>
+                        <code>@modelcontextprotocol/server-github</code>
+                        <p>Create PRs, read issues, search repos, manage branches directly from Claude</p>
+                    </div>
+                    <div class="command-card">
+                        <div class="command-card-title">PostgreSQL MCP</div>
+                        <code>@modelcontextprotocol/server-postgres</code>
+                        <p>Query databases, inspect schemas, run migrations with natural language</p>
+                    </div>
+                    <div class="command-card">
+                        <div class="command-card-title">Filesystem MCP</div>
+                        <code>@modelcontextprotocol/server-filesystem</code>
+                        <p>Give Claude access to directories outside the project root (docs, configs)</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5.6 Model Selection Strategy -->
+            <div class="subsection">
+                <h3 class="subsection-title">Model Selection Strategy</h3>
+                <p>Claude Code supports multiple models with different cost/capability tradeoffs. Switch models mid-conversation with <code>/model</code> to match the complexity of each sub-task.</p>
+
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Model</th>
+                                <th>Thermal Rating</th>
+                                <th>Best For</th>
+                                <th>Context</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Opus</td>
+                                <td><span class="badge badge-hot">searing</span></td>
+                                <td>Complex architecture, large refactors, multi-file changes, subtle bugs</td>
+                                <td>200K tokens</td>
+                            </tr>
+                            <tr>
+                                <td>Sonnet</td>
+                                <td><span class="badge badge-warm">warm</span></td>
+                                <td>Routine coding, quick edits, test writing, documentation</td>
+                                <td>200K tokens</td>
+                            </tr>
+                            <tr>
+                                <td>Haiku</td>
+                                <td><span class="badge badge-neutral">cool</span></td>
+                                <td>Simple lookups, explanations, formatting, boilerplate generation</td>
+                                <td>200K tokens</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="keybind-grid">
+                    <div class="keybind-item">
+                        <span class="keybind-label">Switch model mid-conversation</span>
+                        <span class="keybind-keys"><code>/model</code></span>
+                    </div>
+                    <div class="keybind-item">
+                        <span class="keybind-label">Check current model</span>
+                        <span class="keybind-keys"><code>/config</code></span>
+                    </div>
+                </div>
+
+                <div class="alert alert-elevated">
+                    <span class="alert-icon">&#9888;</span>
+                    <div class="alert-content">
+                        <div class="alert-title">Cost Strategy</div>
+                        <p class="alert-text">Start complex tasks with <strong>Opus</strong> for the architecture and design phase, then switch to <strong>Sonnet</strong> for implementation. Use <code>/compact</code> before switching models to avoid wasting the expensive model's tokens on stale context. This hybrid approach can cut API costs by 50%+ while maintaining quality where it matters.</p>
+                    </div>
+                    <span class="alert-temp">72.0C</span>
+                </div>
+            </div>
+
+        </section>
+
+
+        <!-- ============================================================
+             SECTION 06: CODEX & MULTI-AGENT WORKFLOWS
+        ============================================================ -->
+        <section id="multi-agent" class="section">
+            <div class="section-header">
+                <span class="section-number">06</span>
+                <h2 class="section-title">Codex &amp; Multi-Agent Workflows</h2>
+                <p class="section-description">Run multiple AI agents in parallel on the same codebase. Git worktrees isolate each agent's changes, tmux manages the sessions, and disciplined branching keeps everything mergeable.</p>
+            </div>
+
+            <!-- 6.1 Codex CLI Setup -->
+            <div class="subsection">
+                <h3 class="subsection-title">Codex CLI Setup</h3>
+                <p>OpenAI's Codex CLI is a terminal-native coding agent. It complements Claude Code by offering a different model family and a sandbox-first approach to file modifications.</p>
+
+                <div class="code-label">Install and configure</div>
+                <pre><code><span class="cm"># Install globally via npm</span>
+npm install -g @openai/codex
+
+<span class="cm"># Verify installation</span>
+codex --version
+
+<span class="cm"># Set your API key (add to ~/.zshrc)</span>
+export OPENAI_API_KEY="sk-your-key-here"</code></pre>
+
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Mode</th>
+                                <th>Flag</th>
+                                <th>Behavior</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Suggest</td>
+                                <td><em>(default)</em></td>
+                                <td>Shows proposed changes, asks for approval before applying</td>
+                            </tr>
+                            <tr>
+                                <td>Auto-Edit</td>
+                                <td><code>--auto-edit</code></td>
+                                <td>Applies file edits automatically, asks before shell commands</td>
+                            </tr>
+                            <tr>
+                                <td>Full Auto</td>
+                                <td><code>--full-auto</code></td>
+                                <td>Runs everything in a sandbox without asking -- network disabled</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="code-label">Model selection</div>
+                <pre><code><span class="cm"># Use GPT-4.1 for complex tasks</span>
+codex --model gpt-4.1 "refactor the auth module to use JWT"
+
+<span class="cm"># Use o4-mini for quick edits (faster, cheaper)</span>
+codex --model o4-mini "add error handling to the API routes"</code></pre>
+
+                <div class="code-label">Project instructions</div>
+                <pre><code><span class="cm"># Codex reads these files for project context (similar to CLAUDE.md)</span>
+<span class="cm"># Create one of these in your project root:</span>
+~/.codex/instructions.md      <span class="cm"># Global instructions</span>
+./codex.md                     <span class="cm"># Project-level instructions</span>
+./.codex/instructions.md       <span class="cm"># Project-level (alternative)</span></code></pre>
+            </div>
+
+            <!-- 6.2 Running Agents in Parallel -->
+            <div class="subsection">
+                <h3 class="subsection-title">Running Agents in Parallel</h3>
+                <p>The key insight: each agent needs its <strong>own working directory</strong> to avoid file conflicts. If two agents edit the same file simultaneously, you get corruption. Git worktrees solve this elegantly.</p>
+
+                <div class="code-label">Create isolated worktrees for each agent</div>
+                <pre><code><span class="cm"># From your main project directory</span>
+cd ~/project
+
+<span class="cm"># Create worktrees for parallel agents</span>
+git worktree add ../project-claude -b feature/claude-refactor
+git worktree add ../project-codex -b feature/codex-tests
+
+<span class="cm"># Launch agents in separate tmux panes</span>
+tmux new-session -d -s parallel -n agents
+tmux send-keys -t parallel:agents 'cd ~/project-claude &amp;&amp; claude' Enter
+tmux split-window -h -t parallel:agents
+tmux send-keys -t parallel:agents.1 'cd ~/project-codex &amp;&amp; codex --full-auto' Enter
+tmux attach -t parallel</code></pre>
+
+                <div class="alert alert-critical">
+                    <span class="alert-icon">&#9888;</span>
+                    <div class="alert-content">
+                        <div class="alert-title">Never Share a Working Directory</div>
+                        <p class="alert-text">Two agents in the same directory <strong>will</strong> overwrite each other's changes. Always use separate worktrees or separate clones. This is the number one mistake in multi-agent setups -- it looks like it works until you lose an hour of agent output to a silent conflict.</p>
+                    </div>
+                    <span class="alert-temp">210.0C</span>
+                </div>
+            </div>
+
+            <!-- 6.3 Git Worktree Mastery -->
+            <div class="subsection">
+                <h3 class="subsection-title">Git Worktree Mastery</h3>
+                <p>Git worktrees let you check out multiple branches simultaneously in different directories, all sharing the same <code>.git</code> history. This is the foundation of parallel agent workflows.</p>
+
+                <div class="command-grid">
+                    <div class="command-card">
+                        <div class="command-card-title">Create worktree</div>
+                        <code>git worktree add &lt;path&gt; -b &lt;branch&gt;</code>
+                        <p>Create a new worktree at the given path with a new branch</p>
+                    </div>
+                    <div class="command-card">
+                        <div class="command-card-title">List worktrees</div>
+                        <code>git worktree list</code>
+                        <p>Show all worktrees with their paths, branches, and HEAD commits</p>
+                    </div>
+                    <div class="command-card">
+                        <div class="command-card-title">Remove worktree</div>
+                        <code>git worktree remove &lt;path&gt;</code>
+                        <p>Clean up a worktree after merging the agent's branch</p>
+                    </div>
+                    <div class="command-card">
+                        <div class="command-card-title">Prune stale</div>
+                        <code>git worktree prune</code>
+                        <p>Remove worktree references for directories that no longer exist</p>
+                    </div>
+                </div>
+
+                <h4>Complete Workflow</h4>
+                <div class="code-label">worktree-workflow.sh</div>
+                <pre><code><span class="cm">#!/bin/bash</span>
+<span class="cm"># 1. Create worktrees for two parallel features</span>
+git worktree add ../project-auth -b feature/auth-refactor
+git worktree add ../project-tests -b feature/test-coverage
+
+<span class="cm"># 2. Run agents (in separate tmux panes or terminals)</span>
+<span class="cm"># Pane 1:</span>
+cd ../project-auth &amp;&amp; claude "refactor auth to use JWT with refresh tokens"
+<span class="cm"># Pane 2:</span>
+cd ../project-tests &amp;&amp; codex --full-auto "add unit tests for all API routes, aim for 80% coverage"
+
+<span class="cm"># 3. When agents finish, review and merge</span>
+cd ~/project
+git merge feature/auth-refactor
+git merge feature/test-coverage
+
+<span class="cm"># 4. Clean up worktrees</span>
+git worktree remove ../project-auth
+git worktree remove ../project-tests
+git branch -d feature/auth-refactor feature/test-coverage</code></pre>
+
+                <div class="alert alert-elevated">
+                    <span class="alert-icon">&#9888;</span>
+                    <div class="alert-content">
+                        <div class="alert-title">Branch Lock Rule</div>
+                        <p class="alert-text">Git prevents the same branch from being checked out in multiple worktrees simultaneously. This is a feature, not a bug -- it prevents the exact kind of conflicts that would corrupt your work. Each agent gets its own branch, always.</p>
+                    </div>
+                    <span class="alert-temp">65.0C</span>
+                </div>
+            </div>
+
+            <!-- 6.4 Task Orchestration Patterns -->
+            <div class="subsection">
+                <h3 class="subsection-title">Task Orchestration Patterns</h3>
+                <p>Strategic patterns for dividing work across agents. The right pattern depends on task decomposability and how much the subtasks overlap in files.</p>
+
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Pattern</th>
+                                <th>Agents</th>
+                                <th>When to Use</th>
+                                <th>Merge Risk</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Divide &amp; Conquer</td>
+                                <td>2-4 agents on independent modules</td>
+                                <td>Features touch different files/directories</td>
+                                <td><span class="badge badge-neutral">low</span></td>
+                            </tr>
+                            <tr>
+                                <td>Review Chain</td>
+                                <td>Agent 1 writes &rarr; Agent 2 reviews</td>
+                                <td>High-stakes code that needs a second opinion</td>
+                                <td><span class="badge badge-neutral">low</span></td>
+                            </tr>
+                            <tr>
+                                <td>Research + Implement</td>
+                                <td>Sonnet researches &rarr; Opus implements</td>
+                                <td>Unfamiliar domains where you need to explore first</td>
+                                <td><span class="badge badge-neutral">low</span></td>
+                            </tr>
+                            <tr>
+                                <td>Parallel Features</td>
+                                <td>Each agent on a separate feature branch</td>
+                                <td>Sprint-style work with multiple independent stories</td>
+                                <td><span class="badge badge-warm">medium</span></td>
+                            </tr>
+                            <tr>
+                                <td>Competitive</td>
+                                <td>2 agents solve the same problem differently</td>
+                                <td>Architecture decisions where you want to compare approaches</td>
+                                <td><span class="badge badge-neutral">none</span> (pick one)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="alert alert-subzero">
+                    <span class="alert-icon">&#8505;</span>
+                    <div class="alert-content">
+                        <div class="alert-title">Built-in Subagents</div>
+                        <p class="alert-text">Claude Code's <code>Agent</code> tool spawns subagents within a single session for parallel work. Use it for tasks like "search the codebase for all uses of X while I continue editing Y." Add <code>Agent</code> to your allowlist to enable it: <code>--allowedTools "...,Agent"</code>.</p>
+                    </div>
+                    <span class="alert-temp">-25.0C</span>
+                </div>
+            </div>
+
+            <!-- 6.5 Resolving Merge Conflicts -->
+            <div class="subsection">
+                <h3 class="subsection-title">Resolving Merge Conflicts from Parallel Agents</h3>
+                <p>When two agents touch overlapping files, merge conflicts are inevitable. The key is minimizing their frequency and having a clean resolution strategy.</p>
+
+                <h4>Prevention</h4>
+                <ul>
+                    <li><strong>Separate by module:</strong> Assign agents to different directories or files. Frontend agent vs. backend agent, not two agents on the same component.</li>
+                    <li><strong>Shared interfaces first:</strong> Define interfaces/types in a shared file before agents start. Both agents code to the interface, not to each other's implementation.</li>
+                    <li><strong>Lock files:</strong> For critical shared files (e.g., database schema), only let one agent modify them.</li>
+                </ul>
+
+                <h4>Resolution</h4>
+                <div class="code-label">Use Claude itself to resolve conflicts</div>
+                <pre><code><span class="cm"># After a failed merge, let Claude resolve it</span>
+git merge feature/agent-2
+<span class="cm"># CONFLICT in src/api/routes.ts</span>
+
+<span class="cm"># Open Claude in the conflicted repo</span>
+claude "resolve the merge conflicts in all files. Read both versions \
+carefully and combine the best from each approach. Run tests after resolving."</code></pre>
+
+                <div class="code-label">Manual resolution workflow</div>
+                <pre><code><span class="cm"># See all conflicted files</span>
+git diff --name-only --diff-filter=U
+
+<span class="cm"># For each file, review both sides</span>
+git diff --merge HEAD...feature/agent-2 -- src/api/routes.ts
+
+<span class="cm"># After resolving</span>
+git add -A
+git commit -m "merge: combine auth refactor and test improvements"</code></pre>
+            </div>
+
+            <!-- Claude Code vs Codex Comparison -->
+            <div class="subsection">
+                <h3 class="subsection-title">Claude Code vs Codex CLI</h3>
+                <p>A side-by-side comparison to help you decide which agent to deploy for each task.</p>
+
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Feature</th>
+                                <th>Claude Code</th>
+                                <th>Codex CLI</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Provider</td>
+                                <td>Anthropic</td>
+                                <td>OpenAI</td>
+                            </tr>
+                            <tr>
+                                <td>Models</td>
+                                <td>Opus, Sonnet, Haiku</td>
+                                <td>GPT-4.1, o4-mini, o3</td>
+                            </tr>
+                            <tr>
+                                <td>Install</td>
+                                <td><code>npm i -g @anthropic-ai/claude-code</code></td>
+                                <td><code>npm i -g @openai/codex</code></td>
+                            </tr>
+                            <tr>
+                                <td>Project Context</td>
+                                <td><code>CLAUDE.md</code></td>
+                                <td><code>codex.md</code> or <code>instructions.md</code></td>
+                            </tr>
+                            <tr>
+                                <td>Sandbox</td>
+                                <td>Permission allowlists</td>
+                                <td>Full sandbox (network disabled in full-auto)</td>
+                            </tr>
+                            <tr>
+                                <td>Tool Use</td>
+                                <td>Read, Write, Edit, Bash, Glob, Grep, Agent, MCP</td>
+                                <td>Shell commands, file I/O (sandboxed)</td>
+                            </tr>
+                            <tr>
+                                <td>MCP Support</td>
+                                <td>Yes (extensible via MCP servers)</td>
+                                <td>No</td>
+                            </tr>
+                            <tr>
+                                <td>Subagents</td>
+                                <td>Yes (Agent tool)</td>
+                                <td>No</td>
+                            </tr>
+                            <tr>
+                                <td>Mid-Session Model Switch</td>
+                                <td>Yes (<code>/model</code>)</td>
+                                <td>No (set at launch)</td>
+                            </tr>
+                            <tr>
+                                <td>Hooks</td>
+                                <td>Yes (pre/post tool use)</td>
+                                <td>No</td>
+                            </tr>
+                            <tr>
+                                <td>Best Strength</td>
+                                <td>Complex multi-file refactors, architecture</td>
+                                <td>Fast sandboxed edits, autonomous batch jobs</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="alert alert-nominal">
+                    <span class="alert-icon">&#9432;</span>
+                    <div class="alert-content">
+                        <div class="alert-title">Use Both</div>
+                        <p class="alert-text">These tools are complementary, not competing. Use Claude Code as your primary agent for architecture, complex reasoning, and interactive development. Deploy Codex for batch tasks, quick autonomous fixes, and as a second opinion. The dual-agent tmux layout from Section 04 makes this workflow seamless.</p>
+                    </div>
+                    <span class="alert-temp">37.0C</span>
+                </div>
+            </div>
+
+        </section>
+
+
+        <!-- ============================================================
+             SECTION 07: WORKSPACE STRATEGIES
+        ============================================================ -->
+        <section id="workspaces" class="section">
+            <div class="section-header">
+                <span class="section-number">07</span>
+                <h2 class="section-title">Workspace Strategies</h2>
+                <p class="section-description">Organize your Hyprland workspaces into dedicated zones for coding, browsing, communication, and monitoring. A disciplined workspace model eliminates context-switching friction and keeps your agents front and center.</p>
+            </div>
+
+            <!-- 7.1 The Six-Workspace Model -->
+            <div class="subsection">
+                <h3 class="subsection-title">The Six-Workspace Model</h3>
+                <p>Dedicate each Hyprland workspace to a single concern. This keeps your primary coding environment distraction-free while giving every tool a predictable home.</p>
+
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Workspace</th>
+                                <th>Name</th>
+                                <th>Purpose</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><kbd>SUPER+1</kbd></td>
+                                <td><strong>code</strong></td>
+                                <td>Primary editor / agent workspace &mdash; this is where Claude Code lives</td>
+                            </tr>
+                            <tr>
+                                <td><kbd>SUPER+2</kbd></td>
+                                <td><strong>agent</strong></td>
+                                <td>Second agent or Codex CLI on a worktree</td>
+                            </tr>
+                            <tr>
+                                <td><kbd>SUPER+3</kbd></td>
+                                <td><strong>web</strong></td>
+                                <td>Firefox / Chromium for docs, PRs, API references</td>
+                            </tr>
+                            <tr>
+                                <td><kbd>SUPER+4</kbd></td>
+                                <td><strong>comm</strong></td>
+                                <td>Slack, Discord, email</td>
+                            </tr>
+                            <tr>
+                                <td><kbd>SUPER+5</kbd></td>
+                                <td><strong>mon</strong></td>
+                                <td>btop, nvtop, journalctl, waybar dashboard</td>
+                            </tr>
+                            <tr>
+                                <td><kbd>SUPER+6</kbd></td>
+                                <td><strong>scratch</strong></td>
+                                <td>Throwaway terminals, quick tests, file managers</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="code-label">~/.config/hypr/hyprland.conf &mdash; workspace rules</div>
+                <pre><code><span class="cm"># Workspace assignments</span>
+windowrulev2 = workspace 3 silent, class:^(firefox)$
+windowrulev2 = workspace 3 silent, class:^(chromium)$
+windowrulev2 = workspace 4 silent, class:^(Slack)$
+windowrulev2 = workspace 4 silent, class:^(discord)$
+
+<span class="cm"># Workspace names (for waybar)</span>
+workspace = 1, name:code
+workspace = 2, name:agent
+workspace = 3, name:web
+workspace = 4, name:comm
+workspace = 5, name:mon
+workspace = 6, name:scratch</code></pre>
+            </div>
+
+            <!-- 7.2 Waybar Configuration -->
+            <div class="subsection">
+                <h3 class="subsection-title">Waybar Configuration</h3>
+                <p>Waybar is the de-facto status bar for Hyprland. Configure it to show workspace names, system metrics, and thermal readings at a glance.</p>
+
+                <div class="code-label">~/.config/waybar/config.jsonc</div>
+                <pre><code>{
+    "layer": "top",
+    "position": "top",
+    "height": 32,
+    "modules-left": ["hyprland/workspaces", "hyprland/window"],
+    "modules-center": ["clock"],
+    "modules-right": ["cpu", "memory", "temperature", "network", "pulseaudio", "tray"],
+    "hyprland/workspaces": {
+        "format": "{icon}",
+        "format-icons": {
+            "1": "code",
+            "2": "agent",
+            "3": "web",
+            "4": "comm",
+            "5": "mon",
+            "6": "misc"
+        }
+    },
+    "cpu": { "format": "CPU {usage}%" },
+    "memory": { "format": "RAM {percentage}%" },
+    "temperature": { "format": "{temperatureC}&deg;C" }
+}</code></pre>
+
+                <div class="code-label">~/.config/waybar/style.css &mdash; thermal palette</div>
+                <pre><code><span class="cm">/* Waybar styling matched to thermal design system */</span>
+* {
+    font-family: 'JetBrainsMono Nerd Font', monospace;
+    font-size: 13px;
+}
+window#waybar {
+    background: #0a0010;
+    border-bottom: 2px solid #2d1b69;
+}
+#workspaces button {
+    color: #7c6faa;
+    padding: 0 8px;
+}
+#workspaces button.active {
+    color: #22c55e;
+    border-bottom: 2px solid #14b8a6;
+}
+#cpu, #memory { color: #14b8a6; }
+#temperature { color: #f59e0b; }
+#temperature.critical { color: #ef4444; }</code></pre>
+            </div>
+
+            <!-- 7.3 Notification Setup with Dunst -->
+            <div class="subsection">
+                <h3 class="subsection-title">Notification Setup with Dunst</h3>
+                <p>Configure dunst for agent completion alerts. When a long-running Claude Code task finishes on workspace 2, you want an instant notification on whatever workspace you're currently viewing.</p>
+
+                <div class="code-label">~/.config/dunst/dunstrc</div>
+                <pre><code>[global]
+    monitor = 0
+    follow = keyboard
+    width = 350
+    offset = 20x20
+    origin = top-right
+    font = Rajdhani 12
+    frame_color = "#14b8a6"
+    separator_color = frame
+    background = "#120822"
+    foreground = "#c4b5fd"
+
+[urgency_low]
+    background = "#120822"
+    foreground = "#7c6faa"
+    frame_color = "#2d1b69"
+
+[urgency_normal]
+    background = "#120822"
+    foreground = "#c4b5fd"
+    frame_color = "#14b8a6"
+
+[urgency_critical]
+    background = "#120822"
+    foreground = "#ef4444"
+    frame_color = "#ef4444"</code></pre>
+
+                <div class="alert alert-nominal">
+                    <span class="alert-icon">&#9432;</span>
+                    <div class="alert-content">
+                        <div class="alert-title">Agent Completion Alerts</div>
+                        <p class="alert-text">Pair dunst with a simple wrapper script: when Claude Code exits, fire <code>notify-send "Claude Code" "Task complete on $(pwd)"</code>. This way you can context-switch to workspace 4 (comms) without losing track of agent progress.</p>
+                    </div>
+                    <span class="alert-temp">36.6C</span>
+                </div>
+            </div>
+
+            <!-- 7.4 Quick Workspace Switching Patterns -->
+            <div class="subsection">
+                <h3 class="subsection-title">Quick Workspace Switching Patterns</h3>
+                <p>Go beyond basic <kbd>SUPER+N</kbd> workspace switching with scratchpads and quick-toggle binds.</p>
+
+                <div class="code-label">~/.config/hypr/hyprland.conf &mdash; scratchpad &amp; switching</div>
+                <pre><code><span class="cm"># Special workspace (scratchpad) for quick terminal</span>
+bind = SUPER, grave, togglespecialworkspace, scratchpad
+bind = SUPER SHIFT, grave, movetoworkspace, special:scratchpad
+
+<span class="cm"># Move focused window to another workspace</span>
+bind = SUPER SHIFT, 1, movetoworkspace, 1
+bind = SUPER SHIFT, 2, movetoworkspace, 2
+bind = SUPER SHIFT, 3, movetoworkspace, 3
+
+<span class="cm"># Named special workspaces for persistent tools</span>
+bind = SUPER, F1, togglespecialworkspace, btop
+bind = SUPER, F2, togglespecialworkspace, notes
+
+<span class="cm"># Workspace overview (requires hyprland plugins or hyprexpo)</span>
+bind = SUPER, Tab, hyprexpo:expo, toggle</code></pre>
+
+                <div class="keybind-grid">
+                    <div class="keybind-item">
+                        <span class="keybind-label">Toggle scratchpad terminal</span>
+                        <span class="keybind-keys"><kbd>SUPER</kbd> + <kbd>`</kbd></span>
+                    </div>
+                    <div class="keybind-item">
+                        <span class="keybind-label">Move window to scratchpad</span>
+                        <span class="keybind-keys"><kbd>SUPER</kbd> + <kbd>SHIFT</kbd> + <kbd>`</kbd></span>
+                    </div>
+                    <div class="keybind-item">
+                        <span class="keybind-label">Toggle btop overlay</span>
+                        <span class="keybind-keys"><kbd>SUPER</kbd> + <kbd>F1</kbd></span>
+                    </div>
+                    <div class="keybind-item">
+                        <span class="keybind-label">Workspace overview</span>
+                        <span class="keybind-keys"><kbd>SUPER</kbd> + <kbd>Tab</kbd></span>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+
+        <!-- ============================================================
+             SECTION 08: CLIPBOARD & WAYLAND INTEGRATION
+        ============================================================ -->
+        <section id="clipboard" class="section">
+            <div class="section-header">
+                <span class="section-number">08</span>
+                <h2 class="section-title">Clipboard &amp; Wayland Integration</h2>
+                <p class="section-description">Wayland replaces X11's clipboard model entirely. Master wl-clipboard, cliphist, and screenshot tooling to keep data flowing smoothly between your agents, browser, and terminal.</p>
+            </div>
+
+            <!-- 8.1 wl-clipboard Essentials -->
+            <div class="subsection">
+                <h3 class="subsection-title">wl-clipboard Essentials</h3>
+                <p><code>wl-copy</code> and <code>wl-paste</code> are the core Wayland clipboard tools. They replace <code>xclip</code> and <code>xsel</code> from the X11 era.</p>
+
+                <div class="command-grid">
+                    <div class="command-card">
+                        <div class="command-card-title">Copy file to clipboard</div>
+                        <code>cat file.txt | wl-copy</code>
+                        <p>Pipe file contents to clipboard</p>
+                    </div>
+                    <div class="command-card">
+                        <div class="command-card-title">Paste to file</div>
+                        <code>wl-paste &gt; output.txt</code>
+                        <p>Paste clipboard to file</p>
+                    </div>
+                    <div class="command-card">
+                        <div class="command-card-title">Copy command output</div>
+                        <code>ls -la | wl-copy</code>
+                        <p>Copy command output</p>
+                    </div>
+                    <div class="command-card">
+                        <div class="command-card-title">Copy file directly</div>
+                        <code>wl-copy &lt; ~/.ssh/id_ed25519.pub</code>
+                        <p>Copy file contents directly</p>
+                    </div>
+                    <div class="command-card">
+                        <div class="command-card-title">Primary selection copy</div>
+                        <code>wl-copy --primary</code>
+                        <p>Copy to primary selection (middle-click)</p>
+                    </div>
+                    <div class="command-card">
+                        <div class="command-card-title">Primary selection paste</div>
+                        <code>wl-paste --primary</code>
+                        <p>Paste from primary selection</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 8.2 Clipboard History with cliphist -->
+            <div class="subsection">
+                <h3 class="subsection-title">Clipboard History with cliphist</h3>
+                <p>cliphist watches your clipboard and stores a searchable history. Paired with wofi, it gives you a visual clipboard manager accessible via a single keybind.</p>
+
+                <div class="code-label">~/.config/hypr/hyprland.conf &mdash; cliphist setup</div>
+                <pre><code><span class="cm"># Start clipboard watcher on login</span>
+exec-once = wl-paste --watch cliphist store
+
+<span class="cm"># Bind clipboard history to SUPER+C</span>
+bind = SUPER, C, exec, cliphist list | wofi --dmenu | cliphist decode | wl-copy</code></pre>
+
+                <div class="command-grid">
+                    <div class="command-card">
+                        <div class="command-card-title">List history</div>
+                        <code>cliphist list</code>
+                        <p>Show all clipboard history entries</p>
+                    </div>
+                    <div class="command-card">
+                        <div class="command-card-title">Wipe history</div>
+                        <code>cliphist wipe</code>
+                        <p>Clear entire clipboard history</p>
+                    </div>
+                    <div class="command-card">
+                        <div class="command-card-title">Recent entries</div>
+                        <code>cliphist list | head -5</code>
+                        <p>Show 5 most recent entries</p>
+                    </div>
+                </div>
+
+                <div class="alert alert-subzero">
+                    <span class="alert-icon">&#8505;</span>
+                    <div class="alert-content">
+                        <div class="alert-title">Image Support</div>
+                        <p class="alert-text">cliphist supports images in addition to text. Screenshots copied via <code>grim</code> are stored in history and can be re-pasted later. The default max history is 750 entries &mdash; adjust with <code>cliphist store --max-items 1500</code> if you need more.</p>
+                    </div>
+                    <span class="alert-temp">-20.0C</span>
+                </div>
+            </div>
+
+            <!-- 8.3 Screenshot Workflows -->
+            <div class="subsection">
+                <h3 class="subsection-title">Screenshot Workflows</h3>
+                <p>grim captures screenshots and slurp provides interactive region selection. Together they replace the full-featured screenshot tools from desktop environments.</p>
+
+                <div class="code-label">Screenshot commands</div>
+                <pre><code><span class="cm"># Full screen &rarr; clipboard</span>
+grim - | wl-copy
+
+<span class="cm"># Region select &rarr; clipboard</span>
+grim -g "$(slurp)" - | wl-copy
+
+<span class="cm"># Region select &rarr; file</span>
+grim -g "$(slurp)" ~/screenshots/$(date +%Y%m%d-%H%M%S).png
+
+<span class="cm"># Active window only</span>
+grim -g "$(hyprctl activewindow -j | jq -r '"\(.at[0]),\(.at[1]) \(.size[0])x\(.size[1])"')" - | wl-copy</code></pre>
+
+                <div class="code-label">~/.config/hypr/hyprland.conf &mdash; screenshot keybinds</div>
+                <pre><code>bind = , Print, exec, grim - | wl-copy
+bind = SHIFT, Print, exec, grim -g "$(slurp)" - | wl-copy
+bind = SUPER, Print, exec, grim -g "$(slurp)" ~/screenshots/$(date +%Y%m%d-%H%M%S).png</code></pre>
+
+                <div class="keybind-grid">
+                    <div class="keybind-item">
+                        <span class="keybind-label">Full screen to clipboard</span>
+                        <span class="keybind-keys"><kbd>Print</kbd></span>
+                    </div>
+                    <div class="keybind-item">
+                        <span class="keybind-label">Region select to clipboard</span>
+                        <span class="keybind-keys"><kbd>SHIFT</kbd> + <kbd>Print</kbd></span>
+                    </div>
+                    <div class="keybind-item">
+                        <span class="keybind-label">Region select to file</span>
+                        <span class="keybind-keys"><kbd>SUPER</kbd> + <kbd>Print</kbd></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 8.4 Screen Recording with wf-recorder -->
+            <div class="subsection">
+                <h3 class="subsection-title">Screen Recording with wf-recorder</h3>
+                <p>wf-recorder captures Wayland screen output to video files. Essential for recording agent sessions, creating demos, and debugging visual issues.</p>
+
+                <div class="command-grid">
+                    <div class="command-card">
+                        <div class="command-card-title">Record full screen</div>
+                        <code>wf-recorder -f recording.mp4</code>
+                        <p>Record full screen</p>
+                    </div>
+                    <div class="command-card">
+                        <div class="command-card-title">Record region</div>
+                        <code>wf-recorder -g "$(slurp)" -f recording.mp4</code>
+                        <p>Record a selected region</p>
+                    </div>
+                    <div class="command-card">
+                        <div class="command-card-title">Record with audio</div>
+                        <code>wf-recorder --audio -f recording.mp4</code>
+                        <p>Record with audio capture</p>
+                    </div>
+                    <div class="command-card">
+                        <div class="command-card-title">Stop recording</div>
+                        <code>pkill -INT wf-recorder</code>
+                        <p>Stop recording gracefully</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 8.5 AI Agent <-> Clipboard Workflows -->
+            <div class="subsection">
+                <h3 class="subsection-title">AI Agent &harr; Clipboard Workflows</h3>
+                <p>Practical patterns for moving data between agents, browsers, and terminals using the Wayland clipboard as glue.</p>
+
+                <div class="command-grid">
+                    <div class="command-card">
+                        <div class="command-card-title">Clipboard to Claude</div>
+                        <code>wl-paste | claude -p "explain this code"</code>
+                        <p>Pipe clipboard contents into Claude for quick analysis</p>
+                    </div>
+                    <div class="command-card">
+                        <div class="command-card-title">Round-trip pipeline</div>
+                        <code>wl-paste | claude -p "fix this error" | wl-copy</code>
+                        <p>Round-trip: clipboard &rarr; agent &rarr; clipboard</p>
+                    </div>
+                    <div class="command-card">
+                        <div class="command-card-title">Dump to file</div>
+                        <code>wl-paste &gt; /tmp/debug.txt</code>
+                        <p>Dump clipboard to file for agent context</p>
+                    </div>
+                </div>
+
+                <div class="alert alert-nominal">
+                    <span class="alert-icon">&#9432;</span>
+                    <div class="alert-content">
+                        <div class="alert-title">Browser Error Pipeline</div>
+                        <p class="alert-text">Copy an error from your browser console, switch to workspace 1, and run <code>wl-paste | claude -p "explain this error and suggest a fix"</code>. The Wayland clipboard persists across workspaces, making cross-app data flow seamless without touching a mouse.</p>
+                    </div>
+                    <span class="alert-temp">36.6C</span>
+                </div>
+            </div>
+
+        </section>
+
+
+        <!-- ============================================================
+             SECTION 09: PERFORMANCE TUNING
+        ============================================================ -->
+        <section id="performance" class="section">
+            <div class="section-header">
+                <span class="section-number">09</span>
+                <h2 class="section-title">Performance Tuning</h2>
+                <p class="section-description">AI agents are resource-intensive processes. Tune memory, CPU scheduling, GPU compositing, and storage I/O to keep your workstation responsive even when multiple agents are hammering the API and processing large codebases.</p>
+            </div>
+
+            <!-- 9.1 Memory Management -->
+            <div class="subsection">
+                <h3 class="subsection-title">Memory Management</h3>
+                <p>AI agents are memory-hungry &mdash; each Claude Code session runs Node.js processes that can consume 1-4 GB of RAM. Running two agents with a browser and monitoring tools easily exceeds 16 GB.</p>
+
+                <div class="code-label">/etc/systemd/zram-generator.conf</div>
+                <pre><code><span class="cm"># Install zram for compressed swap</span>
+sudo pacman -S zram-generator
+
+<span class="cm"># Configure compressed swap</span>
+[zram0]
+zram-size = ram / 2
+compression-algorithm = zstd
+swap-priority = 100</code></pre>
+
+                <p>zram compresses swap in RAM using zstd, which is dramatically faster than paging to disk. For AI workloads that allocate and release large buffers frequently, zram keeps the system responsive without SSD wear.</p>
+
+                <div class="code-label">Swappiness tuning</div>
+                <pre><code><span class="cm"># Keep agent processes in RAM -- prefer compressing over swapping</span>
+sudo sysctl vm.swappiness=10
+
+<span class="cm"># Make persistent</span>
+echo "vm.swappiness=10" | sudo tee /etc/sysctl.d/99-swappiness.conf</code></pre>
+
+                <div class="alert alert-critical">
+                    <span class="alert-icon">&#9888;</span>
+                    <div class="alert-content">
+                        <div class="alert-title">Never Run AI Agents Without Swap</div>
+                        <p class="alert-text">A system with no swap and 16 GB RAM <strong>will</strong> hit the OOM killer when running two agents, a browser with 20 tabs, and btop simultaneously. The kernel will kill your agent mid-task with no warning. Always configure at least zram &mdash; it costs nothing and prevents catastrophic process termination.</p>
+                    </div>
+                    <span class="alert-temp">240.0C</span>
+                </div>
+            </div>
+
+            <!-- 9.2 GPU Monitoring & Acceleration -->
+            <div class="subsection">
+                <h3 class="subsection-title">GPU Monitoring &amp; Acceleration</h3>
+                <p>Hyprland uses the GPU for compositing. Monitor GPU utilization to ensure smooth rendering alongside any local model inference.</p>
+
+                <div class="command-grid">
+                    <div class="command-card">
+                        <div class="command-card-title">GPU monitor (all vendors)</div>
+                        <code>nvtop</code>
+                        <p>Interactive GPU monitor (NVIDIA, AMD, Intel)</p>
+                    </div>
+                    <div class="command-card">
+                        <div class="command-card-title">Intel GPU monitor</div>
+                        <code>intel_gpu_top</code>
+                        <p>Intel integrated graphics monitor</p>
+                    </div>
+                    <div class="command-card">
+                        <div class="command-card-title">AMD GPU monitor</div>
+                        <code>radeontop</code>
+                        <p>AMD GPU utilization monitor</p>
+                    </div>
+                    <div class="command-card">
+                        <div class="command-card-title">List monitors</div>
+                        <code>hyprctl monitors -j | jq '.[].name'</code>
+                        <p>List connected monitors</p>
+                    </div>
+                </div>
+
+                <div class="code-label">Multi-GPU configuration</div>
+                <pre><code><span class="cm"># Check GPU usage</span>
+nvtop
+
+<span class="cm"># Hyprland GPU info</span>
+hyprctl monitors -j | jq '.[].name'
+
+<span class="cm"># Force specific GPU (multi-GPU setups)</span>
+env WLR_DRM_DEVICES=/dev/dri/card1 hyprland</code></pre>
+            </div>
+
+            <!-- 9.3 Process Priority & CPU Scheduling -->
+            <div class="subsection">
+                <h3 class="subsection-title">Process Priority &amp; CPU Scheduling</h3>
+                <p>Give AI agents priority CPU access so they respond instantly to API results, and pin them to specific cores to avoid contention with the compositor.</p>
+
+                <div class="code-label">Priority and affinity commands</div>
+                <pre><code><span class="cm"># Run Claude Code with higher priority</span>
+nice -n -5 claude
+
+<span class="cm"># Real-time scheduling for responsive UI</span>
+sudo renice -n -10 -p $(pgrep hyprland)
+
+<span class="cm"># CPU affinity -- pin agents to specific cores</span>
+taskset -c 0-3 claude
+taskset -c 4-7 codex</code></pre>
+
+                <div class="alert alert-elevated">
+                    <span class="alert-icon">&#9888;</span>
+                    <div class="alert-content">
+                        <div class="alert-title">Root Required for Negative Nice</div>
+                        <p class="alert-text">Setting negative nice values (higher priority) requires root or <code>CAP_SYS_NICE</code>. For a persistent setup, add <code>your_user hard nice -10</code> to <code>/etc/security/limits.conf</code> so you can prioritize agents without sudo. Be careful not to starve system processes.</p>
+                    </div>
+                    <span class="alert-temp">72.0C</span>
+                </div>
+            </div>
+
+            <!-- 9.4 systemd Resource Limits -->
+            <div class="subsection">
+                <h3 class="subsection-title">systemd Resource Limits</h3>
+                <p>Use systemd cgroups v2 to set hard resource limits on agent processes, preventing any single runaway agent from consuming all system resources.</p>
+
+                <div class="code-label">~/.config/systemd/user/claude-agent.service</div>
+                <pre><code>[Service]
+MemoryMax=8G
+CPUQuota=400%
+IOWeight=200</code></pre>
+
+                <div class="code-label">One-off resource-limited execution</div>
+                <pre><code><span class="cm"># Run Claude with a 4 GB memory ceiling</span>
+systemd-run --user --scope -p MemoryMax=4G claude
+
+<span class="cm"># Run Codex with CPU and memory limits</span>
+systemd-run --user --scope -p MemoryMax=4G -p CPUQuota=200% codex</code></pre>
+
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Property</th>
+                                <th>Example</th>
+                                <th>Effect</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>MemoryMax</code></td>
+                                <td><code>8G</code></td>
+                                <td>Hard memory limit &mdash; OOM kills the process if exceeded</td>
+                            </tr>
+                            <tr>
+                                <td><code>CPUQuota</code></td>
+                                <td><code>400%</code></td>
+                                <td>Max 4 CPU cores worth of time (percentage of one core)</td>
+                            </tr>
+                            <tr>
+                                <td><code>IOWeight</code></td>
+                                <td><code>200</code></td>
+                                <td>I/O priority relative to default (100). Higher = more bandwidth</td>
+                            </tr>
+                            <tr>
+                                <td><code>MemoryHigh</code></td>
+                                <td><code>6G</code></td>
+                                <td>Soft limit &mdash; throttles I/O before hitting MemoryMax</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 9.5 Network Optimization -->
+            <div class="subsection">
+                <h3 class="subsection-title">Network Optimization</h3>
+                <p>Both Claude Code and Codex are API-heavy &mdash; every keystroke can trigger network requests. Optimize DNS resolution, connection reuse, and bandwidth monitoring to minimize latency.</p>
+
+                <div class="code-label">DNS caching with systemd-resolved</div>
+                <pre><code><span class="cm"># Enable and start systemd-resolved</span>
+sudo systemctl enable --now systemd-resolved
+
+<span class="cm"># Verify DNS caching is active</span>
+resolvectl statistics</code></pre>
+
+                <div class="code-label">Bandwidth monitoring</div>
+                <pre><code><span class="cm"># Monitor network per-process</span>
+sudo bandwhich
+
+<span class="cm"># Check API latency</span>
+curl -w "%{time_total}s\n" -o /dev/null -s https://api.anthropic.com/v1/messages
+curl -w "%{time_total}s\n" -o /dev/null -s https://api.openai.com/v1/chat/completions</code></pre>
+
+                <div class="command-grid">
+                    <div class="command-card">
+                        <div class="command-card-title">Bandwidth monitor</div>
+                        <code>bandwhich</code>
+                        <p>Per-process bandwidth monitor with TUI</p>
+                    </div>
+                    <div class="command-card">
+                        <div class="command-card-title">Network usage</div>
+                        <code>nethogs</code>
+                        <p>Lightweight per-process network usage</p>
+                    </div>
+                    <div class="command-card">
+                        <div class="command-card-title">DNS statistics</div>
+                        <code>resolvectl statistics</code>
+                        <p>DNS cache hit rate and stats</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 9.6 Storage Performance -->
+            <div class="subsection">
+                <h3 class="subsection-title">Storage Performance</h3>
+                <p>Git operations on large repos, agent file I/O, and build artifacts all benefit from fast storage. An NVMe SSD is essential &mdash; spinning disks will bottleneck every agent interaction.</p>
+
+                <div class="code-label">tmpfs for fast builds</div>
+                <pre><code><span class="cm"># Mount tmpfs for fast builds</span>
+sudo mount -t tmpfs -o size=4G tmpfs /tmp/build
+
+<span class="cm"># Or add to /etc/fstab for persistence</span>
+tmpfs /tmp/build tmpfs size=4G,mode=1777 0 0</code></pre>
+
+                <div class="code-label">/etc/fstab &mdash; noatime optimization</div>
+                <pre><code><span class="cm"># Add noatime to your root partition to reduce write overhead</span>
+<span class="cm"># Before:</span>
+UUID=xxxx / ext4 defaults 0 1
+
+<span class="cm"># After:</span>
+UUID=xxxx / ext4 defaults,noatime 0 1</code></pre>
+
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Optimization</th>
+                                <th>Impact</th>
+                                <th>Risk</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>noatime</code> mount option</td>
+                                <td>Eliminates access-time writes on every file read</td>
+                                <td><span class="badge badge-cold">None</span></td>
+                            </tr>
+                            <tr>
+                                <td>tmpfs for <code>/tmp/build</code></td>
+                                <td>RAM-speed builds, zero SSD wear</td>
+                                <td><span class="badge badge-warm">Data lost on reboot</span></td>
+                            </tr>
+                            <tr>
+                                <td>NVMe over SATA SSD</td>
+                                <td>3-7x sequential, 10x random I/O improvement</td>
+                                <td><span class="badge badge-cold">None</span></td>
+                            </tr>
+                            <tr>
+                                <td>btrfs compression</td>
+                                <td>Smaller on-disk size, slight CPU overhead</td>
+                                <td><span class="badge badge-neutral">Marginal CPU cost</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="alert alert-elevated">
+                    <span class="alert-icon">&#9888;</span>
+                    <div class="alert-content">
+                        <div class="alert-title">SSD Health Monitoring</div>
+                        <p class="alert-text">AI workloads generate significant disk I/O &mdash; constant git operations, file writes, and log output. Monitor your NVMe health with <code>sudo smartctl -a /dev/nvme0n1</code> and check the <strong>Percentage Used</strong> field monthly. Most NVMe drives handle 600 TBW+ but heavy agent use can accelerate wear.</p>
+                    </div>
+                    <span class="alert-temp">68.0C</span>
+                </div>
+            </div>
+
+        </section>
+
+
+        <!-- ============================================================
+             SECTION 10: DOTFILES & REPRODUCIBILITY
+        ============================================================ -->
+        <section id="dotfiles" class="section">
+            <div class="section-header">
+                <span class="section-number">10</span>
+                <h2 class="section-title">Dotfiles &amp; Reproducibility</h2>
+                <p class="section-description">Your workstation is only as good as your ability to recreate it. Dotfile management turns a fragile snowflake into a reproducible, version-controlled machine definition.</p>
+            </div>
+
+            <!-- 10.1 Dotfile Management Approaches -->
+            <div class="subsection">
+                <h3 class="subsection-title">Dotfile Management Approaches</h3>
+                <p>Three dominant strategies exist for tracking and syncing your configuration files. Each trades off simplicity against power.</p>
+
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Approach</th>
+                                <th>Pros</th>
+                                <th>Cons</th>
+                                <th>Best For</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>chezmoi</strong></td>
+                                <td>Templates, secrets management, multi-machine support</td>
+                                <td>Learning curve, Go dependency</td>
+                                <td>Multi-device power users</td>
+                            </tr>
+                            <tr>
+                                <td><strong>GNU Stow</strong></td>
+                                <td>Simple symlinks, no dependencies, composable</td>
+                                <td>No templating, manual sync</td>
+                                <td>Single-machine, Unix purists</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Bare Git Repo</strong></td>
+                                <td>No extra tools, pure git</td>
+                                <td>Awkward commands, easy to make mistakes</td>
+                                <td>Minimalists</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 10.2 chezmoi Setup -->
+            <div class="subsection">
+                <h3 class="subsection-title">chezmoi Setup (Recommended)</h3>
+                <p>chezmoi is the most capable dotfile manager &mdash; it supports templates for machine-specific values, encrypted secrets, and one-command apply across multiple machines.</p>
+
+                <div class="code-label">Install &amp; initialize</div>
+                <pre><code><span class="cm"># Install chezmoi</span>
+sudo pacman -S chezmoi
+
+<span class="cm"># Initialize (creates ~/.local/share/chezmoi/)</span>
+chezmoi init</code></pre>
+
+                <div class="code-label">Add config files to chezmoi</div>
+                <pre><code><span class="cm"># Add your Hyprland workstation configs</span>
+chezmoi add ~/.config/hypr/hyprland.conf
+chezmoi add ~/.config/kitty/kitty.conf
+chezmoi add ~/.config/waybar/config.jsonc
+chezmoi add ~/.config/waybar/style.css
+chezmoi add ~/.config/dunst/dunstrc
+chezmoi add ~/.tmux.conf
+chezmoi add ~/.claude/settings.json</code></pre>
+
+                <div class="code-label">Edit, apply, and push</div>
+                <pre><code><span class="cm"># Edit a managed file (opens in $EDITOR)</span>
+chezmoi edit ~/.config/hypr/hyprland.conf
+
+<span class="cm"># Apply changes to home directory</span>
+chezmoi apply
+
+<span class="cm"># Push to your dotfiles repo</span>
+chezmoi cd &amp;&amp; git add -A &amp;&amp; git commit -m "update configs" &amp;&amp; git push</code></pre>
+
+                <div class="code-label">~/.local/share/chezmoi/.chezmoidata.yaml &mdash; template variables</div>
+                <pre><code><span class="cm"># Machine-specific values used in templates</span>
+monitor_primary: "DP-1"
+monitor_scale: "1.5"
+gpu_driver: "nvidia"</code></pre>
+
+                <p>In your Hyprland config template, reference these with <code>{{ .monitor_primary }}</code> and chezmoi will substitute the correct value per machine.</p>
+            </div>
+
+            <!-- 10.3 GNU Stow Alternative -->
+            <div class="subsection">
+                <h3 class="subsection-title">GNU Stow Alternative</h3>
+                <p>If you prefer zero-magic simplicity, GNU Stow manages dotfiles via symlinks. Each package is a directory tree that mirrors your home directory structure.</p>
+
+                <div class="code-label">Directory structure</div>
+                <pre><code><span class="cm"># Create package directories mirroring home structure</span>
+mkdir -p ~/dotfiles/{hypr,kitty,waybar,tmux,claude}/.config</code></pre>
+
+                <div class="code-label">Symlink management</div>
+                <pre><code><span class="cm"># Stow each package (creates symlinks into ~)</span>
+cd ~/dotfiles
+stow hypr    <span class="cm"># Creates ~/.config/hypr &rarr; ~/dotfiles/hypr/.config/hypr</span>
+stow kitty
+stow waybar
+stow tmux
+stow claude
+
+<span class="cm"># Remove symlinks for a package</span>
+stow -D kitty
+
+<span class="cm"># Re-stow (remove + re-create, useful after restructuring)</span>
+stow -R kitty</code></pre>
+            </div>
+
+            <!-- 10.4 Bootstrap Script -->
+            <div class="subsection">
+                <h3 class="subsection-title">Bootstrap Script</h3>
+                <p>A single script that takes a bare Arch install to a fully configured Hyprland AI workstation. Run it once on a fresh machine, or use it as a reference for what to install.</p>
+
+                <div class="code-label">bootstrap.sh &mdash; Hyprland AI Workstation Setup</div>
+                <pre><code>#!/usr/bin/env bash
+<span class="cm"># bootstrap.sh — Hyprland AI Workstation Setup</span>
+set -euo pipefail
+
+echo "[*] Installing core packages..."
+sudo pacman -S --needed --noconfirm \
+    hyprland hyprpaper hyprlock hypridle \
+    waybar wofi dunst \
+    xdg-desktop-portal-hyprland \
+    kitty tmux \
+    git base-devel \
+    nodejs npm python python-pip \
+    btop wl-clipboard cliphist grim slurp \
+    ttf-jetbrains-mono-nerd noto-fonts \
+    zram-generator brightnessctl
+
+echo "[*] Installing paru (AUR helper)..."
+if ! command -v paru &amp;&gt;/dev/null; then
+    git clone https://aur.archlinux.org/paru-bin.git /tmp/paru
+    cd /tmp/paru &amp;&amp; makepkg -si --noconfirm
+fi
+
+echo "[*] Installing AUR packages..."
+paru -S --needed --noconfirm \
+    nvtop wf-recorder bandwhich
+
+echo "[*] Installing AI tools..."
+npm install -g @anthropic-ai/claude-code
+npm install -g @openai/codex
+
+echo "[*] Applying dotfiles..."
+chezmoi init --apply https://github.com/YOUR_USER/dotfiles.git
+
+echo "[*] Enabling services..."
+sudo systemctl enable --now systemd-resolved
+systemctl --user enable --now pipewire pipewire-pulse wireplumber
+
+echo "[*] Setup complete! Reboot and launch Hyprland."</code></pre>
+            </div>
+
+            <!-- 10.5 Essential Dotfile Checklist -->
+            <div class="subsection">
+                <h3 class="subsection-title">Essential Dotfile Checklist</h3>
+                <p>Every config file covered in this guide, mapped to its purpose and the section where it was introduced. Track all of these in your dotfile repo.</p>
+
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>File</th>
+                                <th>Purpose</th>
+                                <th>Section</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>~/.config/hypr/hyprland.conf</code></td>
+                                <td>Window manager config</td>
+                                <td>&sect;03</td>
+                            </tr>
+                            <tr>
+                                <td><code>~/.config/kitty/kitty.conf</code></td>
+                                <td>Terminal emulator</td>
+                                <td>&sect;04</td>
+                            </tr>
+                            <tr>
+                                <td><code>~/.tmux.conf</code></td>
+                                <td>Terminal multiplexer</td>
+                                <td>&sect;04</td>
+                            </tr>
+                            <tr>
+                                <td><code>~/.config/waybar/config.jsonc</code></td>
+                                <td>Status bar</td>
+                                <td>&sect;07</td>
+                            </tr>
+                            <tr>
+                                <td><code>~/.config/waybar/style.css</code></td>
+                                <td>Status bar styling</td>
+                                <td>&sect;07</td>
+                            </tr>
+                            <tr>
+                                <td><code>~/.config/dunst/dunstrc</code></td>
+                                <td>Notifications</td>
+                                <td>&sect;07</td>
+                            </tr>
+                            <tr>
+                                <td><code>~/.claude/settings.json</code></td>
+                                <td>Claude Code settings</td>
+                                <td>&sect;05</td>
+                            </tr>
+                            <tr>
+                                <td><code>~/.claude/CLAUDE.md</code></td>
+                                <td>Global Claude context</td>
+                                <td>&sect;05</td>
+                            </tr>
+                            <tr>
+                                <td><code>project/CLAUDE.md</code></td>
+                                <td>Project Claude context</td>
+                                <td>&sect;05</td>
+                            </tr>
+                            <tr>
+                                <td><code>.claudeignore</code></td>
+                                <td>Claude file exclusions</td>
+                                <td>&sect;05</td>
+                            </tr>
+                            <tr>
+                                <td><code>/etc/systemd/zram-generator.conf</code></td>
+                                <td>Swap config</td>
+                                <td>&sect;09</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 10.6 Version Control Strategy -->
+            <div class="subsection">
+                <h3 class="subsection-title">Version Control Strategy</h3>
+                <p>Dotfiles without version control are just text files waiting to be lost. Treat your configs with the same discipline as production code.</p>
+
+                <pre><code><span class="cm"># Keep dotfiles in a dedicated repo</span>
+chezmoi cd
+git init
+git remote add origin git@github.com:YOUR_USER/dotfiles.git
+
+<span class="cm"># Use branches for different machines</span>
+git checkout -b laptop
+git checkout -b desktop
+git checkout -b server
+
+<span class="cm"># Tag stable configs before major changes</span>
+git tag -a v1.0-hyprland "stable hyprland + claude setup"
+git tag -a v1.1-waybar "waybar GPU module added"
+
+<span class="cm"># Include a README documenting each config's purpose</span>
+<span class="cm"># Sensitive data: use chezmoi's encryption with age/gpg</span>
+chezmoi age encrypt ~/.config/secrets/api-keys.env</code></pre>
+
+                <div class="alert alert-nominal">
+                    <span class="alert-icon">&#9432;</span>
+                    <div class="alert-content">
+                        <div class="alert-title">Test Before You Deploy</div>
+                        <p class="alert-text">Always test config changes in a VM or container before applying to your production machine. A broken Hyprland config can leave you at a TTY with no graphical environment. Keep a known-good config tagged in git so you can roll back quickly.</p>
+                    </div>
+                    <span class="alert-temp">36.5C</span>
+                </div>
+
+                <div class="alert alert-elevated">
+                    <span class="alert-icon">&#9888;</span>
+                    <div class="alert-content">
+                        <div class="alert-title">Never Commit API Keys</div>
+                        <p class="alert-text">Your <code>ANTHROPIC_API_KEY</code>, <code>OPENAI_API_KEY</code>, and any other secrets must <strong>never</strong> appear in your dotfiles repo. Use chezmoi&rsquo;s built-in encryption (<code>age</code> or <code>gpg</code>), environment variables loaded from an untracked <code>.env</code> file, or a dedicated secrets manager like <code>pass</code> or <code>1password-cli</code>. A single leaked key can result in thousands of dollars of unauthorized API usage within hours.</p>
+                    </div>
+                    <span class="alert-temp">92.0C</span>
+                </div>
+            </div>
+
+        </section>
+
+
+        <!-- FOOTER -->
+        <footer class="site-footer">
+            <hr class="footer-rule">
+            <a href="index.html">&lt; Back to Tech Guides</a>
+            <div class="footer-meta">HYPRLAND AI WORKSTATION // INFRARED THERMAL DESIGN SYSTEM // ARCH LINUX + WAYLAND</div>
+        </footer>
+
+    </div>
+
+    <script defer src="../prompt-viewer.js"></script>
+</body>
+</html>
