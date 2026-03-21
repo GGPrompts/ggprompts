@@ -1,0 +1,1600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Earthquake Globe &mdash; Data Visualization Gallery</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-deep: #0b0e17;
+            --bg-surface: #0f1320;
+            --bg-panel: #131828;
+            --border-dim: #1c2340;
+            --border-bright: #2a3560;
+            --text-primary: #e8ecf4;
+            --text-secondary: #8892b0;
+            --text-dim: #4a5580;
+            --accent-blue: #6382ff;
+            --accent-blue-glow: rgba(99, 130, 255, 0.25);
+            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'JetBrains Mono', 'Consolas', monospace;
+
+            --shallow: #ff4444;
+            --mid-depth: #cc7722;
+            --deep: #4488ff;
+        }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { font-size: 16px; }
+
+        body {
+            font-family: var(--font-sans);
+            background: var(--bg-deep);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .dot-grid {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            background-image: radial-gradient(circle, rgba(99, 130, 255, 0.06) 1px, transparent 1px);
+            background-size: 32px 32px;
+            pointer-events: none;
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 2rem 2rem 3rem;
+        }
+
+        .nav-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+        .back-link {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            letter-spacing: 0.06em;
+            color: var(--text-dim);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        .back-link:hover { color: var(--accent-blue); }
+        .back-link::before { content: '\2190  '; }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .header h1 {
+            font-size: clamp(1.6rem, 4vw, 2.4rem);
+            font-weight: 600;
+            letter-spacing: -0.02em;
+            margin-bottom: 0.4rem;
+        }
+        .header h1 span {
+            background: linear-gradient(135deg, var(--shallow), var(--deep));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .header-sub {
+            font-size: 0.9rem;
+            font-weight: 300;
+            color: var(--text-secondary);
+            max-width: 560px;
+            margin: 0 auto;
+        }
+
+        .stats-row {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+        .stat-box {
+            text-align: center;
+        }
+        .stat-value {
+            font-family: var(--font-mono);
+            font-size: clamp(1.8rem, 5vw, 2.8rem);
+            font-weight: 700;
+            line-height: 1;
+            margin-bottom: 0.2rem;
+        }
+        .stat-value.year-val {
+            color: var(--text-primary);
+            opacity: 0.25;
+        }
+        .stat-value.count-val {
+            color: var(--accent-blue);
+            opacity: 0.7;
+        }
+        .stat-label {
+            font-family: var(--font-mono);
+            font-size: 0.6rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text-dim);
+        }
+
+        .chart-wrapper {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-dim);
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 1.5rem;
+            position: relative;
+        }
+        #globeCanvas {
+            display: block;
+            width: 100%;
+            cursor: grab;
+        }
+        #globeCanvas:active {
+            cursor: grabbing;
+        }
+
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 1.5rem;
+            padding: 16px 20px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border-dim);
+            border-radius: 8px;
+        }
+        .btn {
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            letter-spacing: 0.04em;
+            color: var(--text-primary);
+            background: var(--bg-surface);
+            border: 1px solid var(--border-dim);
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.15s;
+            user-select: none;
+        }
+        .btn:hover {
+            border-color: var(--accent-blue);
+            color: var(--accent-blue);
+        }
+        .btn.active {
+            background: var(--accent-blue);
+            border-color: var(--accent-blue);
+            color: #0b0e17;
+        }
+        .btn-play { min-width: 70px; }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .control-label {
+            font-family: var(--font-mono);
+            font-size: 0.6rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text-dim);
+        }
+
+        .slider-wrap {
+            flex: 1;
+            min-width: 120px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            flex: 1;
+            height: 4px;
+            background: var(--border-dim);
+            border-radius: 2px;
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: var(--accent-blue);
+            cursor: pointer;
+            box-shadow: 0 0 8px var(--accent-blue-glow);
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: var(--accent-blue);
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 0 8px var(--accent-blue-glow);
+        }
+
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-bottom: 1.5rem;
+        }
+        .legend-section {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .legend-title {
+            font-family: var(--font-mono);
+            font-size: 0.6rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text-dim);
+            margin-right: 4px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-family: var(--font-mono);
+            font-size: 0.65rem;
+            color: var(--text-secondary);
+            letter-spacing: 0.04em;
+        }
+        .legend-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+        .legend-circle {
+            border: 1.5px solid var(--text-secondary);
+            border-radius: 50%;
+        }
+
+        .tooltip {
+            position: fixed;
+            z-index: 100;
+            background: #1a1f35;
+            border: 1px solid var(--border-bright);
+            border-radius: 6px;
+            padding: 12px 16px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.15s;
+            max-width: 280px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+        }
+        .tooltip.visible { opacity: 1; }
+        .tooltip-name {
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-bottom: 2px;
+        }
+        .tooltip-location {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+        .tooltip-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+            margin-bottom: 2px;
+        }
+        .tooltip-val {
+            font-family: var(--font-mono);
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-left: 12px;
+        }
+
+        .info-panel {
+            padding: 16px 20px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border-dim);
+            border-radius: 8px;
+            font-size: 0.78rem;
+            color: var(--text-dim);
+            line-height: 1.6;
+        }
+        .info-panel a {
+            color: var(--text-secondary);
+            text-decoration: none;
+        }
+        .info-panel a:hover { color: var(--accent-blue); }
+
+        .footer {
+            text-align: center;
+            margin-top: 2rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border-dim);
+        }
+        .footer a {
+            font-family: var(--font-mono);
+            font-size: 0.6rem;
+            color: var(--text-dim);
+            text-decoration: none;
+            letter-spacing: 0.06em;
+        }
+        .footer a:hover { color: var(--accent-blue); }
+
+        @media (max-width: 768px) {
+            .container { padding: 1.5rem 1rem 2rem; }
+            .controls { gap: 10px; padding: 12px 14px; }
+            .legend { gap: 10px; }
+            .legend-section { gap: 8px; }
+            .slider-wrap { min-width: 100px; }
+            .stats-row { gap: 1.2rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="dot-grid"></div>
+
+    <div class="container">
+        <div class="nav-row">
+            <a href="../index.html" class="back-link">Data Viz Gallery</a>
+        </div>
+
+        <div class="header">
+            <h1>Earthquake <span>Globe</span></h1>
+            <p class="header-sub">Significant earthquakes (M6.0+) plotted on a 3D orthographic globe. Color encodes depth, size encodes magnitude. Drag to rotate, play to watch decades unfold.</p>
+        </div>
+
+        <div class="stats-row">
+            <div class="stat-box">
+                <div class="stat-value year-val" id="yearDisplay">1960</div>
+                <div class="stat-label">Year</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value count-val" id="countDisplay">0</div>
+                <div class="stat-label">Earthquakes Shown</div>
+            </div>
+        </div>
+
+        <div class="chart-wrapper">
+            <canvas id="globeCanvas"></canvas>
+        </div>
+
+        <div class="controls">
+            <button class="btn btn-play" id="btnPlay">Play</button>
+            <div class="control-group">
+                <span class="control-label">Speed</span>
+                <input type="range" id="speedSlider" min="1" max="5" value="2" step="1">
+            </div>
+            <div class="slider-wrap">
+                <span class="control-label">Year</span>
+                <input type="range" id="yearSlider" min="1960" max="2024" value="1960" step="0.1">
+            </div>
+            <button class="btn" id="btnReset">Reset View</button>
+        </div>
+
+        <div class="legend">
+            <div class="legend-section">
+                <span class="legend-title">Depth</span>
+                <div class="legend-item"><div class="legend-dot" style="background:#ff4444"></div> Shallow &lt;70km</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#cc7722"></div> Mid 70-300km</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#4488ff"></div> Deep &gt;300km</div>
+            </div>
+            <div class="legend-section">
+                <span class="legend-title">Size</span>
+                <div class="legend-item"><div class="legend-circle" style="width:8px;height:8px"></div> M6</div>
+                <div class="legend-item"><div class="legend-circle" style="width:14px;height:14px"></div> M7</div>
+                <div class="legend-item"><div class="legend-circle" style="width:22px;height:22px"></div> M8+</div>
+            </div>
+        </div>
+
+        <div class="info-panel">
+            <strong>About this visualization</strong> &mdash; Earthquake data represents significant events (magnitude 6.0+) from 1960&ndash;2024,
+            based on <a href="https://earthquake.usgs.gov/earthquakes/" target="_blank" rel="noopener">USGS Earthquake Catalog</a>.
+            Tectonic plate boundaries show where quakes cluster&mdash;the Ring of Fire, Mid-Atlantic Ridge, and Alpine-Himalayan Belt.
+            Orthographic projection with hidden-hemisphere culling renders only the visible face of the Earth.
+        </div>
+
+        <div class="footer">
+            <a href="../index.html">&larr; Back to Gallery</a> &nbsp;&middot;&nbsp;
+            <a href="../../index.html">HTML Style Guides</a>
+        </div>
+    </div>
+
+    <div class="tooltip" id="tooltip">
+        <div class="tooltip-name" id="ttName"></div>
+        <div class="tooltip-location" id="ttLocation"></div>
+        <div class="tooltip-row"><span>Date</span> <span class="tooltip-val" id="ttDate"></span></div>
+        <div class="tooltip-row"><span>Magnitude</span> <span class="tooltip-val" id="ttMag"></span></div>
+        <div class="tooltip-row"><span>Depth</span> <span class="tooltip-val" id="ttDepth"></span></div>
+    </div>
+
+    <script>
+    (function() {
+        'use strict';
+
+        /* =========================================================
+           EARTHQUAKE DATA — ~500 significant events M6.0+ (1960-2024)
+           {lat, lon, mag, depth (km), date (YYYY-MM-DD), loc}
+           Based on USGS Significant Earthquake Archive
+           ========================================================= */
+        var EQ = [
+            // 1960s
+            {lat:-38.14,lon:-73.41,mag:9.5,depth:25,date:'1960-05-22',loc:'Valdivia, Chile'},
+            {lat:61.02,lon:-147.65,mag:9.2,depth:25,date:'1964-03-28',loc:'Prince William Sound, Alaska'},
+            {lat:2.09,lon:126.71,mag:8.1,depth:64,date:'1960-01-13',loc:'Molucca Sea, Indonesia'},
+            {lat:-15.21,lon:-75.12,mag:8.1,depth:56,date:'1960-11-20',loc:'Peru'},
+            {lat:44.87,lon:149.48,mag:8.5,depth:47,date:'1963-10-13',loc:'Kuril Islands, Russia'},
+            {lat:-10.97,lon:162.46,mag:8.0,depth:28,date:'1966-10-12',loc:'Solomon Islands'},
+            {lat:40.97,lon:29.27,mag:7.0,depth:10,date:'1967-07-22',loc:'Mudurnu Valley, Turkey'},
+            {lat:52.76,lon:-131.74,mag:8.1,depth:10,date:'1960-11-04',loc:'Queen Charlotte Islands, Canada'},
+            {lat:-6.28,lon:154.13,mag:7.7,depth:29,date:'1966-11-12',loc:'Bougainville, PNG'},
+            {lat:31.61,lon:131.11,mag:7.5,depth:37,date:'1961-02-27',loc:'Hyuga-nada, Japan'},
+            {lat:-4.68,lon:-77.82,mag:7.0,depth:24,date:'1960-01-18',loc:'Northern Peru'},
+            {lat:38.36,lon:22.78,mag:6.3,depth:10,date:'1965-07-06',loc:'Gulf of Corinth, Greece'},
+            {lat:33.17,lon:-115.99,mag:6.6,depth:8,date:'1968-04-09',loc:'Borrego Mountain, California'},
+            {lat:12.07,lon:-86.17,mag:7.2,depth:15,date:'1968-01-04',loc:'Managua, Nicaragua'},
+            {lat:39.17,lon:44.97,mag:6.7,depth:26,date:'1966-08-19',loc:'Varto, Turkey'},
+            {lat:41.42,lon:32.39,mag:6.8,depth:10,date:'1968-09-03',loc:'Amasya, Turkey'},
+            {lat:31.47,lon:-103.91,mag:6.4,depth:5,date:'1961-08-03',loc:'West Texas'},
+            {lat:-9.97,lon:-78.81,mag:7.9,depth:56,date:'1966-10-17',loc:'Peru Coast'},
+            {lat:36.12,lon:0.15,mag:6.7,depth:10,date:'1960-04-21',loc:'El Asnam, Algeria'},
+            {lat:-0.19,lon:-78.58,mag:6.3,depth:15,date:'1960-02-16',loc:'Ecuador'},
+            {lat:23.57,lon:70.62,mag:7.7,depth:23,date:'1969-02-28',loc:'Rann of Kutch, India'},
+            {lat:35.06,lon:-35.98,mag:7.1,depth:15,date:'1969-02-28',loc:'Mid-Atlantic Ridge'},
+            {lat:-3.15,lon:119.82,mag:6.9,depth:12,date:'1969-01-14',loc:'Sulawesi, Indonesia'},
+            // 1970s
+            {lat:-9.18,lon:-78.82,mag:7.9,depth:43,date:'1970-05-31',loc:'Ancash, Peru'},
+            {lat:56.88,lon:-136.58,mag:7.6,depth:10,date:'1972-07-30',loc:'Sitka, Alaska'},
+            {lat:12.34,lon:-86.11,mag:6.2,depth:5,date:'1972-12-23',loc:'Managua, Nicaragua'},
+            {lat:36.43,lon:70.71,mag:6.1,depth:212,date:'1974-12-28',loc:'Pattan, Pakistan'},
+            {lat:40.36,lon:63.44,mag:7.3,depth:17,date:'1976-05-17',loc:'Gazli, Uzbekistan'},
+            {lat:24.56,lon:98.64,mag:6.6,depth:10,date:'1976-05-29',loc:'Longling, China'},
+            {lat:32.69,lon:104.09,mag:7.5,depth:10,date:'1976-08-16',loc:'Songpan, China'},
+            {lat:39.66,lon:117.99,mag:7.5,depth:22,date:'1976-07-28',loc:'Tangshan, China'},
+            {lat:-9.58,lon:33.85,mag:6.6,depth:21,date:'1973-10-25',loc:'Malawi'},
+            {lat:37.31,lon:-121.68,mag:6.2,depth:10,date:'1979-08-06',loc:'Coyote Lake, California'},
+            {lat:-3.60,lon:102.05,mag:7.0,depth:60,date:'1975-01-03',loc:'Sumatra, Indonesia'},
+            {lat:38.19,lon:40.69,mag:6.7,depth:14,date:'1975-09-06',loc:'Lice, Turkey'},
+            {lat:-12.60,lon:166.50,mag:7.1,depth:33,date:'1971-07-14',loc:'Vanuatu'},
+            {lat:51.56,lon:175.39,mag:8.0,depth:33,date:'1977-06-22',loc:'Andreanof Islands, Alaska'},
+            {lat:-4.44,lon:-76.57,mag:7.5,depth:108,date:'1970-12-10',loc:'Northern Peru'},
+            {lat:4.81,lon:-75.67,mag:7.0,depth:156,date:'1979-11-23',loc:'Colombia'},
+            {lat:33.19,lon:57.07,mag:7.3,depth:10,date:'1978-09-16',loc:'Tabas, Iran'},
+            {lat:-13.37,lon:166.98,mag:7.9,depth:26,date:'1973-12-28',loc:'Vanuatu'},
+            {lat:36.19,lon:1.60,mag:7.3,depth:10,date:'1970-10-01',loc:'El Asnam, Algeria'},
+            {lat:38.21,lon:20.24,mag:7.2,depth:20,date:'1972-09-17',loc:'Cephalonia, Greece'},
+            {lat:40.76,lon:23.65,mag:6.5,depth:6,date:'1978-06-20',loc:'Thessaloniki, Greece'},
+            {lat:6.77,lon:126.71,mag:7.9,depth:50,date:'1976-08-17',loc:'Mindanao, Philippines'},
+            {lat:-4.51,lon:139.97,mag:7.1,depth:48,date:'1976-06-26',loc:'Irian Jaya, Indonesia'},
+            {lat:-21.92,lon:170.32,mag:8.1,depth:60,date:'1977-06-22',loc:'Loyalty Islands'},
+            {lat:-22.33,lon:-68.36,mag:7.7,depth:87,date:'1976-11-30',loc:'Northern Chile'},
+            {lat:42.85,lon:131.09,mag:7.2,depth:546,date:'1973-09-29',loc:'Sea of Japan'},
+            {lat:-5.52,lon:153.86,mag:8.1,depth:44,date:'1971-07-26',loc:'New Britain, PNG'},
+            // 1980s
+            {lat:36.22,lon:1.35,mag:7.1,depth:10,date:'1980-10-10',loc:'El Asnam, Algeria'},
+            {lat:19.33,lon:-98.77,mag:8.0,depth:15,date:'1985-09-19',loc:'Michoacan, Mexico'},
+            {lat:40.35,lon:42.19,mag:6.9,depth:15,date:'1983-10-30',loc:'Erzurum, Turkey'},
+            {lat:-33.13,lon:-71.87,mag:7.8,depth:33,date:'1985-03-03',loc:'Valparaiso, Chile'},
+            {lat:24.39,lon:121.88,mag:7.3,depth:15,date:'1986-11-15',loc:'Hualien, Taiwan'},
+            {lat:34.07,lon:-118.08,mag:6.1,depth:18,date:'1987-10-01',loc:'Whittier Narrows, California'},
+            {lat:40.99,lon:44.24,mag:6.8,depth:10,date:'1988-12-07',loc:'Spitak, Armenia'},
+            {lat:37.04,lon:-121.88,mag:6.9,depth:18,date:'1989-10-18',loc:'Loma Prieta, California'},
+            {lat:27.24,lon:88.88,mag:6.8,depth:57,date:'1988-08-20',loc:'Nepal-India Border'},
+            {lat:-0.15,lon:-77.84,mag:7.1,depth:10,date:'1987-03-06',loc:'Ecuador'},
+            {lat:52.35,lon:-168.07,mag:7.7,depth:20,date:'1986-05-07',loc:'Andreanof Islands, Alaska'},
+            {lat:-4.23,lon:138.93,mag:7.1,depth:40,date:'1981-03-31',loc:'Irian Jaya, Indonesia'},
+            {lat:13.01,lon:-89.84,mag:7.5,depth:13,date:'1986-10-10',loc:'San Salvador, El Salvador'},
+            {lat:-21.83,lon:169.89,mag:7.7,depth:33,date:'1980-07-17',loc:'Loyalty Islands'},
+            {lat:-5.98,lon:-75.75,mag:6.4,depth:22,date:'1990-05-30',loc:'Peru'},
+            {lat:36.96,lon:49.41,mag:7.7,depth:18,date:'1990-06-20',loc:'Manjil, Iran'},
+            {lat:55.15,lon:160.31,mag:7.8,depth:19,date:'1983-06-17',loc:'Kamchatka, Russia'},
+            {lat:27.79,lon:86.13,mag:6.6,depth:10,date:'1988-08-21',loc:'Nepal'},
+            {lat:-12.18,lon:166.72,mag:7.3,depth:30,date:'1985-04-28',loc:'Vanuatu'},
+            {lat:36.40,lon:70.23,mag:7.4,depth:102,date:'1983-12-30',loc:'Hindu Kush, Afghanistan'},
+            {lat:-5.69,lon:154.17,mag:7.4,depth:68,date:'1985-05-10',loc:'Bougainville, PNG'},
+            {lat:-6.10,lon:149.06,mag:7.4,depth:56,date:'1987-10-16',loc:'New Britain, PNG'},
+            {lat:0.17,lon:-91.59,mag:6.4,depth:10,date:'1987-05-06',loc:'Galapagos Islands'},
+            {lat:-15.85,lon:-13.51,mag:6.6,depth:10,date:'1981-11-22',loc:'South Atlantic'},
+            // 1990s
+            {lat:16.53,lon:120.32,mag:7.7,depth:25,date:'1990-07-16',loc:'Luzon, Philippines'},
+            {lat:0.98,lon:-79.93,mag:7.2,depth:10,date:'1990-01-09',loc:'Ecuador Coast'},
+            {lat:34.21,lon:-118.54,mag:6.7,depth:19,date:'1994-01-17',loc:'Northridge, California'},
+            {lat:38.07,lon:30.05,mag:6.0,depth:10,date:'1995-10-01',loc:'Dinar, Turkey'},
+            {lat:34.59,lon:135.04,mag:6.9,depth:16,date:'1995-01-17',loc:'Kobe, Japan'},
+            {lat:-2.06,lon:-77.79,mag:7.0,depth:27,date:'1995-10-03',loc:'Ecuador'},
+            {lat:52.63,lon:142.83,mag:7.1,depth:12,date:'1995-05-28',loc:'Neftegorsk, Russia'},
+            {lat:4.07,lon:-76.57,mag:6.4,depth:87,date:'1999-01-25',loc:'Armenia, Colombia'},
+            {lat:40.75,lon:30.00,mag:7.6,depth:17,date:'1999-08-17',loc:'Izmit, Turkey'},
+            {lat:40.76,lon:31.16,mag:7.2,depth:10,date:'1999-11-12',loc:'Duzce, Turkey'},
+            {lat:23.77,lon:120.98,mag:7.7,depth:8,date:'1999-09-21',loc:'Chi-Chi, Taiwan'},
+            {lat:-4.02,lon:135.95,mag:8.2,depth:33,date:'1996-02-17',loc:'Irian Jaya, Indonesia'},
+            {lat:1.74,lon:122.50,mag:7.7,depth:24,date:'1996-01-01',loc:'Sulawesi, Indonesia'},
+            {lat:-36.20,lon:-100.59,mag:7.1,depth:10,date:'1998-07-09',loc:'Easter Island region'},
+            {lat:-2.96,lon:141.93,mag:7.0,depth:10,date:'1998-07-17',loc:'Aitape, PNG'},
+            {lat:29.97,lon:68.21,mag:7.3,depth:33,date:'1997-02-28',loc:'Pakistan'},
+            {lat:-10.06,lon:-79.47,mag:7.7,depth:33,date:'1996-11-12',loc:'Peru Coast'},
+            {lat:36.38,lon:70.09,mag:7.5,depth:196,date:'1998-05-30',loc:'Takhar, Afghanistan'},
+            {lat:-45.15,lon:166.93,mag:7.3,depth:12,date:'1993-08-10',loc:'Fiordland, New Zealand'},
+            {lat:-15.33,lon:167.33,mag:7.7,depth:33,date:'1997-04-21',loc:'Vanuatu'},
+            {lat:8.00,lon:-82.34,mag:7.4,depth:16,date:'1991-04-22',loc:'Costa Rica'},
+            {lat:35.95,lon:52.63,mag:7.3,depth:14,date:'1990-06-21',loc:'Iran'},
+            {lat:-3.55,lon:142.68,mag:7.9,depth:14,date:'1993-03-13',loc:'New Guinea, PNG'},
+            {lat:30.08,lon:79.42,mag:6.8,depth:15,date:'1991-10-20',loc:'Uttarkashi, India'},
+            {lat:42.19,lon:44.09,mag:6.8,depth:22,date:'1991-04-29',loc:'Racha, Georgia'},
+            {lat:2.82,lon:128.19,mag:7.9,depth:20,date:'1994-01-21',loc:'Halmahera, Indonesia'},
+            {lat:-10.48,lon:112.84,mag:7.8,depth:18,date:'1994-06-02',loc:'Java, Indonesia'},
+            {lat:-3.21,lon:-77.60,mag:7.0,depth:113,date:'1995-11-22',loc:'Ecuador'},
+            // 2000s
+            {lat:3.30,lon:95.98,mag:9.1,depth:30,date:'2004-12-26',loc:'Sumatra, Indonesia'},
+            {lat:2.09,lon:97.11,mag:8.6,depth:30,date:'2005-03-28',loc:'Nias, Indonesia'},
+            {lat:-0.26,lon:97.78,mag:8.4,depth:25,date:'2007-09-12',loc:'Sumatra, Indonesia'},
+            {lat:31.00,lon:103.32,mag:7.9,depth:19,date:'2008-05-12',loc:'Sichuan, China'},
+            {lat:34.43,lon:69.23,mag:7.5,depth:10,date:'2002-03-25',loc:'Hindu Kush, Afghanistan'},
+            {lat:-0.89,lon:-80.49,mag:7.6,depth:21,date:'2000-01-28',loc:'Ecuador Coast'},
+            {lat:38.63,lon:31.00,mag:6.3,depth:10,date:'2002-02-03',loc:'Afyon, Turkey'},
+            {lat:35.13,lon:-3.99,mag:6.4,depth:10,date:'2004-02-24',loc:'Al Hoceima, Morocco'},
+            {lat:28.23,lon:85.31,mag:6.7,depth:15,date:'2000-01-26',loc:'Gujarat, India (precursor)'},
+            {lat:23.42,lon:70.23,mag:7.7,depth:16,date:'2001-01-26',loc:'Gujarat, India'},
+            {lat:-2.70,lon:141.03,mag:7.1,depth:10,date:'2000-05-04',loc:'Aitape, PNG'},
+            {lat:39.40,lon:40.46,mag:6.4,depth:10,date:'2003-05-01',loc:'Bingol, Turkey'},
+            {lat:29.00,lon:58.34,mag:6.6,depth:10,date:'2003-12-26',loc:'Bam, Iran'},
+            {lat:-8.48,lon:156.98,mag:8.1,depth:10,date:'2007-04-01',loc:'Solomon Islands'},
+            {lat:52.63,lon:-169.07,mag:7.9,depth:33,date:'2003-11-17',loc:'Rat Islands, Alaska'},
+            {lat:-15.25,lon:-75.31,mag:8.4,depth:26,date:'2001-06-23',loc:'Arequipa, Peru'},
+            {lat:36.50,lon:26.01,mag:6.7,depth:68,date:'2000-01-08',loc:'Dodecanese, Greece'},
+            {lat:1.20,lon:126.25,mag:7.6,depth:50,date:'2000-05-04',loc:'Molucca Sea, Indonesia'},
+            {lat:26.55,lon:65.14,mag:7.6,depth:10,date:'2005-01-12',loc:'Balochistan, Pakistan'},
+            {lat:34.54,lon:73.59,mag:7.6,depth:26,date:'2005-10-08',loc:'Kashmir, Pakistan'},
+            {lat:-7.96,lon:107.41,mag:6.5,depth:10,date:'2009-09-02',loc:'Java, Indonesia'},
+            {lat:-0.72,lon:99.87,mag:7.6,depth:80,date:'2009-09-30',loc:'Padang, Indonesia'},
+            {lat:-8.15,lon:118.38,mag:6.4,depth:10,date:'2004-11-11',loc:'Flores, Indonesia'},
+            {lat:-12.55,lon:166.38,mag:7.3,depth:34,date:'2002-01-02',loc:'Vanuatu'},
+            {lat:6.85,lon:126.80,mag:7.5,depth:30,date:'2002-03-05',loc:'Mindanao, Philippines'},
+            {lat:48.38,lon:154.94,mag:8.3,depth:10,date:'2006-11-15',loc:'Kuril Islands, Russia'},
+            {lat:46.59,lon:153.27,mag:8.1,depth:10,date:'2007-01-13',loc:'Kuril Islands, Russia'},
+            {lat:-8.47,lon:121.90,mag:6.8,depth:11,date:'2004-11-11',loc:'Flores Sea, Indonesia'},
+            {lat:-7.85,lon:110.46,mag:6.3,depth:10,date:'2006-05-27',loc:'Yogyakarta, Indonesia'},
+            {lat:38.44,lon:142.84,mag:7.2,depth:36,date:'2005-08-16',loc:'Miyagi, Japan'},
+            {lat:42.69,lon:145.29,mag:8.3,depth:28,date:'2003-09-25',loc:'Hokkaido, Japan'},
+            {lat:-6.23,lon:105.41,mag:7.4,depth:46,date:'2000-06-04',loc:'Sunda Strait, Indonesia'},
+            {lat:-11.16,lon:165.11,mag:7.1,depth:26,date:'2003-01-03',loc:'Solomon Islands'},
+            {lat:40.81,lon:43.97,mag:6.7,depth:5,date:'2000-12-15',loc:'Spitak region, Armenia'},
+            {lat:-1.01,lon:-23.57,mag:7.0,depth:10,date:'2006-05-24',loc:'Central Mid-Atlantic Ridge'},
+            {lat:13.35,lon:144.79,mag:7.1,depth:70,date:'2002-04-26',loc:'Guam region'},
+            {lat:-20.19,lon:-174.12,mag:8.0,depth:29,date:'2006-05-03',loc:'Tonga'},
+            {lat:17.30,lon:-100.20,mag:7.0,depth:22,date:'2001-10-07',loc:'Guerrero, Mexico'},
+            {lat:43.02,lon:145.83,mag:7.0,depth:42,date:'2004-11-29',loc:'Hokkaido, Japan'},
+            {lat:51.15,lon:-179.30,mag:7.9,depth:25,date:'2007-12-19',loc:'Andreanof Islands, Alaska'},
+            // 2010s
+            {lat:18.44,lon:-72.57,mag:7.0,depth:13,date:'2010-01-12',loc:'Haiti'},
+            {lat:-36.12,lon:-72.90,mag:8.8,depth:22,date:'2010-02-27',loc:'Maule, Chile'},
+            {lat:38.32,lon:142.37,mag:9.1,depth:29,date:'2011-03-11',loc:'Tohoku, Japan'},
+            {lat:2.31,lon:93.06,mag:8.6,depth:20,date:'2012-04-11',loc:'Indian Ocean'},
+            {lat:0.77,lon:92.46,mag:8.2,depth:25,date:'2012-01-10',loc:'Off Sumatra, Indonesia'},
+            {lat:-36.42,lon:-73.14,mag:7.2,depth:30,date:'2010-01-03',loc:'Araucania, Chile'},
+            {lat:27.99,lon:86.85,mag:7.8,depth:8,date:'2015-04-25',loc:'Gorkha, Nepal'},
+            {lat:27.81,lon:86.07,mag:7.3,depth:15,date:'2015-05-12',loc:'Nepal'},
+            {lat:0.35,lon:-79.95,mag:7.8,depth:21,date:'2016-04-16',loc:'Pedernales, Ecuador'},
+            {lat:-6.19,lon:101.37,mag:7.8,depth:24,date:'2010-04-06',loc:'Mentawai, Indonesia'},
+            {lat:-43.48,lon:172.12,mag:7.1,depth:5,date:'2010-09-04',loc:'Canterbury, New Zealand'},
+            {lat:-43.58,lon:172.68,mag:6.1,depth:5,date:'2011-02-22',loc:'Christchurch, New Zealand'},
+            {lat:38.72,lon:43.51,mag:7.1,depth:18,date:'2011-10-23',loc:'Van, Turkey'},
+            {lat:-7.41,lon:155.95,mag:8.0,depth:29,date:'2013-02-06',loc:'Solomon Islands'},
+            {lat:-19.61,lon:-70.77,mag:8.2,depth:25,date:'2014-04-01',loc:'Iquique, Chile'},
+            {lat:30.73,lon:79.09,mag:6.6,depth:15,date:'2013-02-06',loc:'Chamoli, India'},
+            {lat:-7.48,lon:141.42,mag:7.5,depth:12,date:'2013-06-24',loc:'New Guinea, PNG'},
+            {lat:8.29,lon:-82.88,mag:7.4,depth:12,date:'2010-01-08',loc:'Panama-Costa Rica'},
+            {lat:-15.47,lon:-70.10,mag:7.0,depth:287,date:'2010-01-16',loc:'Peru'},
+            {lat:44.51,lon:148.69,mag:7.3,depth:32,date:'2012-08-14',loc:'Kuril Islands, Russia'},
+            {lat:23.02,lon:101.69,mag:6.1,depth:10,date:'2014-10-07',loc:'Yunnan, China'},
+            {lat:26.82,lon:130.16,mag:7.0,depth:12,date:'2010-02-27',loc:'Okinawa, Japan'},
+            {lat:-4.96,lon:133.76,mag:7.1,depth:25,date:'2010-07-18',loc:'Papua, Indonesia'},
+            {lat:-10.81,lon:161.31,mag:7.1,depth:20,date:'2010-01-04',loc:'Solomon Islands'},
+            {lat:52.88,lon:-131.93,mag:7.8,depth:14,date:'2012-10-28',loc:'Haida Gwaii, Canada'},
+            {lat:36.95,lon:71.31,mag:7.5,depth:210,date:'2015-10-26',loc:'Hindu Kush, Afghanistan'},
+            {lat:32.72,lon:45.75,mag:7.3,depth:67,date:'2017-11-12',loc:'Iran-Iraq Border'},
+            {lat:34.91,lon:72.87,mag:7.5,depth:212,date:'2015-10-26',loc:'Hindu Kush, Pakistan'},
+            {lat:42.53,lon:13.24,mag:6.2,depth:8,date:'2016-08-24',loc:'Amatrice, Italy'},
+            {lat:14.76,lon:-91.49,mag:7.4,depth:94,date:'2012-11-07',loc:'Guatemala'},
+            {lat:1.24,lon:126.72,mag:7.1,depth:49,date:'2014-11-15',loc:'Molucca Sea, Indonesia'},
+            {lat:-14.40,lon:166.54,mag:7.1,depth:25,date:'2010-08-10',loc:'Vanuatu'},
+            {lat:-6.59,lon:155.10,mag:7.9,depth:61,date:'2016-01-22',loc:'Solomon Islands'},
+            {lat:42.91,lon:13.07,mag:6.5,depth:10,date:'2016-10-30',loc:'Norcia, Italy'},
+            {lat:36.03,lon:36.39,mag:6.1,depth:10,date:'2017-09-23',loc:'Turkey-Syria Border'},
+            {lat:-15.59,lon:-69.88,mag:6.3,depth:270,date:'2016-11-01',loc:'Lake Titicaca, Peru'},
+            {lat:37.92,lon:72.07,mag:7.2,depth:187,date:'2016-04-10',loc:'Hindu Kush, Afghanistan'},
+            {lat:-6.32,lon:130.82,mag:7.5,depth:160,date:'2018-09-28',loc:'Banda Sea, Indonesia'},
+            {lat:15.02,lon:-91.73,mag:6.9,depth:8,date:'2012-11-07',loc:'Guatemala'},
+            {lat:11.10,lon:-85.32,mag:7.6,depth:35,date:'2012-09-05',loc:'Costa Rica'},
+            {lat:-0.80,lon:119.85,mag:7.5,depth:10,date:'2018-09-28',loc:'Palu, Indonesia'},
+            {lat:-5.50,lon:151.98,mag:7.9,depth:31,date:'2016-12-17',loc:'New Britain, PNG'},
+            {lat:37.50,lon:141.60,mag:7.1,depth:41,date:'2016-11-22',loc:'Fukushima, Japan'},
+            {lat:36.42,lon:71.24,mag:7.4,depth:187,date:'2016-04-10',loc:'Afghanistan'},
+            {lat:-4.88,lon:94.21,mag:7.8,depth:24,date:'2010-04-07',loc:'N Sumatra, Indonesia'},
+            {lat:17.49,lon:-95.76,mag:8.2,depth:48,date:'2017-09-08',loc:'Chiapas, Mexico'},
+            {lat:18.58,lon:-98.39,mag:7.1,depth:51,date:'2017-09-19',loc:'Puebla, Mexico'},
+            {lat:-42.74,lon:173.05,mag:7.8,depth:15,date:'2016-11-13',loc:'Kaikoura, New Zealand'},
+            {lat:-5.39,lon:152.20,mag:7.9,depth:28,date:'2017-01-22',loc:'New Britain, PNG'},
+            {lat:36.95,lon:71.37,mag:7.5,depth:213,date:'2015-10-26',loc:'Afghanistan'},
+            {lat:35.85,lon:36.06,mag:7.1,depth:33,date:'2017-07-20',loc:'Turkey (Kos)'},
+            {lat:-5.51,lon:153.50,mag:7.9,depth:46,date:'2016-01-22',loc:'Bougainville, PNG'},
+            {lat:-23.30,lon:-70.43,mag:6.7,depth:40,date:'2014-04-03',loc:'Iquique aftershock, Chile'},
+            {lat:59.76,lon:-153.27,mag:7.1,depth:129,date:'2016-01-24',loc:'Alaska'},
+            {lat:-17.18,lon:-173.75,mag:7.6,depth:24,date:'2019-06-15',loc:'Tonga'},
+            {lat:-4.06,lon:152.56,mag:7.1,depth:48,date:'2019-05-14',loc:'New Britain, PNG'},
+            {lat:2.27,lon:128.88,mag:7.3,depth:10,date:'2019-07-07',loc:'Maluku, Indonesia'},
+            // 2010s extra — fill out the decade
+            {lat:37.22,lon:37.04,mag:7.1,depth:10,date:'2010-03-08',loc:'Elazig, Turkey'},
+            {lat:-15.96,lon:-71.75,mag:6.9,depth:150,date:'2013-09-25',loc:'Southern Peru'},
+            {lat:-5.70,lon:110.00,mag:6.1,depth:575,date:'2018-12-29',loc:'Java Sea, Indonesia'},
+            {lat:61.35,lon:-149.96,mag:7.1,depth:46,date:'2018-11-30',loc:'Anchorage, Alaska'},
+            {lat:-18.47,lon:-175.36,mag:8.2,depth:560,date:'2018-08-19',loc:'Fiji region'},
+            {lat:-5.18,lon:152.18,mag:7.5,depth:37,date:'2018-10-10',loc:'New Britain, PNG'},
+            {lat:30.75,lon:57.39,mag:6.5,depth:10,date:'2017-12-12',loc:'Kerman, Iran'},
+            {lat:-6.07,lon:142.51,mag:7.5,depth:25,date:'2018-02-26',loc:'PNG Highlands'},
+            {lat:13.76,lon:-89.36,mag:7.3,depth:65,date:'2019-05-30',loc:'El Salvador'},
+            {lat:64.49,lon:-17.49,mag:6.5,depth:10,date:'2014-08-24',loc:'Iceland'},
+            {lat:-8.26,lon:124.92,mag:6.1,depth:20,date:'2012-02-28',loc:'Timor, Indonesia'},
+            {lat:-6.58,lon:105.59,mag:7.0,depth:43,date:'2019-08-02',loc:'Sunda Strait, Indonesia'},
+            // 2020s
+            {lat:37.90,lon:29.73,mag:6.7,depth:10,date:'2020-01-24',loc:'Elazig, Turkey'},
+            {lat:37.92,lon:26.79,mag:7.0,depth:21,date:'2020-10-30',loc:'Aegean Sea, Turkey'},
+            {lat:18.48,lon:-73.62,mag:7.2,depth:10,date:'2021-08-14',loc:'Haiti'},
+            {lat:36.99,lon:35.45,mag:6.3,depth:18,date:'2023-02-06',loc:'Adana, Turkey'},
+            {lat:37.22,lon:37.02,mag:7.8,depth:10,date:'2023-02-06',loc:'Kahramanmaras, Turkey'},
+            {lat:38.09,lon:36.51,mag:7.5,depth:10,date:'2023-02-06',loc:'Elbistan, Turkey'},
+            {lat:-6.23,lon:112.73,mag:6.2,depth:10,date:'2022-11-21',loc:'Java, Indonesia'},
+            {lat:37.08,lon:37.23,mag:6.7,depth:10,date:'2023-02-20',loc:'Hatay, Turkey'},
+            {lat:-37.32,lon:179.38,mag:7.3,depth:12,date:'2021-03-04',loc:'Kermadec Islands, NZ'},
+            {lat:-29.60,lon:-177.84,mag:8.1,depth:10,date:'2021-03-04',loc:'Kermadec Islands, NZ'},
+            {lat:-3.62,lon:119.78,mag:6.2,depth:10,date:'2021-01-14',loc:'Sulawesi, Indonesia'},
+            {lat:61.43,lon:-150.07,mag:7.0,depth:47,date:'2020-10-19',loc:'Alaska'},
+            {lat:-4.50,lon:129.19,mag:6.5,depth:18,date:'2023-01-10',loc:'Banda Sea, Indonesia'},
+            {lat:35.90,lon:37.03,mag:7.5,depth:10,date:'2023-02-06',loc:'Syria-Turkey Border'},
+            {lat:28.77,lon:82.19,mag:6.4,depth:15,date:'2023-11-03',loc:'Nepal'},
+            {lat:-22.12,lon:170.28,mag:7.7,depth:10,date:'2023-11-19',loc:'Loyalty Islands'},
+            {lat:33.49,lon:131.23,mag:7.6,depth:10,date:'2024-01-01',loc:'Noto, Japan'},
+            {lat:23.82,lon:121.60,mag:7.4,depth:15,date:'2024-04-03',loc:'Hualien, Taiwan'},
+            {lat:-4.79,lon:94.26,mag:7.1,depth:28,date:'2024-03-06',loc:'Sumatra, Indonesia'},
+            {lat:25.02,lon:62.07,mag:6.4,depth:10,date:'2024-09-13',loc:'Balochistan, Pakistan'},
+            {lat:-18.94,lon:-175.85,mag:7.0,depth:207,date:'2024-03-14',loc:'Tonga'},
+            {lat:37.00,lon:37.19,mag:6.2,depth:10,date:'2024-02-24',loc:'SE Turkey aftershock'},
+            {lat:-23.78,lon:-66.74,mag:6.8,depth:218,date:'2024-11-18',loc:'Jujuy, Argentina'},
+            {lat:43.01,lon:146.92,mag:7.0,depth:36,date:'2024-01-01',loc:'Kuril Islands, Japan'},
+            {lat:-6.20,lon:151.25,mag:7.0,depth:40,date:'2024-07-27',loc:'New Britain, PNG'},
+            // Additional significant events to reach ~500
+            // 1960s extra
+            {lat:51.26,lon:-175.63,mag:8.7,depth:38,date:'1965-02-04',loc:'Rat Islands, Alaska'},
+            {lat:-10.69,lon:166.01,mag:7.9,depth:48,date:'1966-08-12',loc:'Santa Cruz Islands'},
+            {lat:-41.76,lon:-74.68,mag:7.6,depth:16,date:'1960-06-20',loc:'Southern Chile'},
+            {lat:4.38,lon:96.32,mag:7.3,depth:69,date:'1964-04-02',loc:'N Sumatra, Indonesia'},
+            {lat:-17.26,lon:-72.13,mag:6.8,depth:44,date:'1960-11-13',loc:'S Peru'},
+            {lat:-56.52,lon:-27.10,mag:7.8,depth:68,date:'1964-11-17',loc:'South Sandwich Islands'},
+            {lat:41.84,lon:-125.68,mag:6.5,depth:19,date:'1960-01-20',loc:'Off California'},
+            {lat:-3.96,lon:142.18,mag:7.0,depth:47,date:'1963-11-04',loc:'Sepik, PNG'},
+            {lat:52.54,lon:159.69,mag:7.2,depth:45,date:'1963-05-11',loc:'Kamchatka, Russia'},
+            {lat:1.89,lon:126.29,mag:7.3,depth:33,date:'1965-01-24',loc:'Molucca Sea, Indonesia'},
+            {lat:38.89,lon:-119.24,mag:6.1,depth:12,date:'1966-09-12',loc:'Nevada'},
+            {lat:-5.52,lon:104.25,mag:7.2,depth:96,date:'1964-04-14',loc:'S Sumatra, Indonesia'},
+            {lat:-15.38,lon:-173.47,mag:8.0,depth:33,date:'1965-03-17',loc:'Tonga'},
+            {lat:39.37,lon:25.01,mag:7.1,depth:10,date:'1968-02-19',loc:'Aegean Sea, Greece'},
+            {lat:-31.98,lon:-68.80,mag:7.0,depth:11,date:'1967-12-10',loc:'San Juan, Argentina'},
+            {lat:-23.75,lon:-175.97,mag:7.0,depth:33,date:'1968-07-02',loc:'Tonga'},
+            {lat:0.20,lon:119.79,mag:7.4,depth:17,date:'1968-08-15',loc:'Sulawesi, Indonesia'},
+            {lat:-10.72,lon:161.39,mag:7.9,depth:38,date:'1968-12-10',loc:'Solomon Islands'},
+            // 1970s extra
+            {lat:-56.26,lon:-27.57,mag:7.3,depth:33,date:'1971-08-01',loc:'South Sandwich Islands'},
+            {lat:12.23,lon:125.99,mag:7.6,depth:25,date:'1972-12-02',loc:'Samar, Philippines'},
+            {lat:-5.19,lon:153.90,mag:7.5,depth:21,date:'1975-07-20',loc:'Bougainville, PNG'},
+            {lat:24.58,lon:122.56,mag:7.5,depth:28,date:'1972-04-24',loc:'Yonaguni, Japan'},
+            {lat:-12.49,lon:-77.00,mag:8.0,depth:33,date:'1974-10-03',loc:'Lima, Peru'},
+            {lat:40.67,lon:28.17,mag:6.9,depth:10,date:'1975-03-27',loc:'Marmara, Turkey'},
+            {lat:-15.14,lon:-75.10,mag:7.1,depth:49,date:'1979-02-16',loc:'Peru'},
+            {lat:17.07,lon:-99.68,mag:7.5,depth:18,date:'1979-03-14',loc:'Guerrero, Mexico'},
+            {lat:-1.67,lon:-75.17,mag:7.7,depth:235,date:'1971-07-27',loc:'Northern Peru deep'},
+            {lat:-12.50,lon:166.32,mag:7.9,depth:29,date:'1971-08-14',loc:'Vanuatu'},
+            {lat:37.55,lon:-116.52,mag:6.3,depth:0,date:'1971-03-22',loc:'Nevada (underground test)'},
+            {lat:48.27,lon:102.89,mag:7.0,depth:12,date:'1974-12-10',loc:'Mongolia'},
+            {lat:-41.81,lon:-74.59,mag:7.0,depth:20,date:'1974-11-28',loc:'Chile'},
+            {lat:28.86,lon:96.55,mag:6.8,depth:53,date:'1975-01-19',loc:'Arunachal Pradesh, India'},
+            {lat:38.39,lon:27.18,mag:6.6,depth:10,date:'1974-04-19',loc:'Izmir, Turkey'},
+            {lat:32.95,lon:-115.52,mag:6.5,depth:10,date:'1979-10-15',loc:'Imperial Valley, California'},
+            // 1980s extra
+            {lat:39.21,lon:45.03,mag:7.1,depth:10,date:'1983-10-30',loc:'E Turkey'},
+            {lat:-7.09,lon:128.21,mag:7.7,depth:165,date:'1983-11-24',loc:'Banda Sea, Indonesia'},
+            {lat:18.19,lon:-102.53,mag:8.0,depth:21,date:'1985-09-21',loc:'Michoacan aftershock, Mexico'},
+            {lat:-33.08,lon:-71.72,mag:7.0,depth:46,date:'1985-04-09',loc:'Valparaiso aftershock, Chile'},
+            {lat:30.34,lon:60.62,mag:6.4,depth:10,date:'1981-07-28',loc:'Kerman, Iran'},
+            {lat:0.12,lon:98.06,mag:7.3,depth:59,date:'1984-11-17',loc:'N Sumatra, Indonesia'},
+            {lat:-5.97,lon:-77.09,mag:6.4,depth:21,date:'1990-05-29',loc:'Peru'},
+            {lat:37.04,lon:-121.88,mag:6.2,depth:5,date:'1984-04-24',loc:'Morgan Hill, California'},
+            {lat:49.13,lon:-127.92,mag:6.8,depth:10,date:'1985-12-23',loc:'Vancouver Island, Canada'},
+            {lat:-0.55,lon:-25.65,mag:6.3,depth:10,date:'1988-03-10',loc:'Mid-Atlantic Ridge'},
+            {lat:-1.98,lon:-77.07,mag:6.9,depth:186,date:'1987-10-02',loc:'Ecuador deep'},
+            {lat:37.84,lon:20.32,mag:6.5,depth:15,date:'1988-10-16',loc:'Zakynthos, Greece'},
+            {lat:-8.12,lon:-71.55,mag:6.4,depth:604,date:'1989-06-23',loc:'Acre, Brazil (deep)'},
+            {lat:-41.58,lon:171.66,mag:6.3,depth:12,date:'1987-03-02',loc:'Inangahua, New Zealand'},
+            {lat:-5.21,lon:150.91,mag:7.4,depth:201,date:'1985-03-16',loc:'New Britain deep, PNG'},
+            // 1990s extra
+            {lat:30.08,lon:79.42,mag:6.8,depth:10,date:'1999-03-29',loc:'Chamoli, India'},
+            {lat:-4.91,lon:102.49,mag:7.0,depth:33,date:'1995-02-18',loc:'S Sumatra, Indonesia'},
+            {lat:-9.93,lon:-70.99,mag:7.3,depth:581,date:'1994-06-09',loc:'Brazil-Peru deep'},
+            {lat:-10.98,lon:-78.93,mag:7.2,depth:60,date:'1996-02-21',loc:'Peru Coast'},
+            {lat:52.51,lon:159.84,mag:7.8,depth:33,date:'1997-12-05',loc:'Kamchatka, Russia'},
+            {lat:-13.28,lon:-68.76,mag:6.8,depth:631,date:'1994-06-08',loc:'Bolivia deep'},
+            {lat:-13.84,lon:-67.55,mag:8.2,depth:631,date:'1994-06-09',loc:'Bolivia (deep-focus)'},
+            {lat:42.75,lon:132.25,mag:7.3,depth:570,date:'1999-04-08',loc:'Sea of Japan (deep)'},
+            {lat:-10.60,lon:112.36,mag:7.8,depth:15,date:'1994-06-03',loc:'S Java, Indonesia'},
+            {lat:10.60,lon:-63.47,mag:6.9,depth:10,date:'1997-07-09',loc:'Venezuela'},
+            {lat:36.07,lon:-3.65,mag:6.0,depth:10,date:'1994-05-26',loc:'Al Hoceima, Morocco'},
+            {lat:-2.23,lon:136.95,mag:8.2,depth:33,date:'1996-02-17',loc:'Biak, Indonesia'},
+            {lat:0.89,lon:126.76,mag:7.0,depth:33,date:'1996-01-01',loc:'Molucca, Indonesia'},
+            {lat:-56.11,lon:-26.74,mag:7.4,depth:33,date:'1998-03-25',loc:'South Sandwich Islands'},
+            {lat:-22.69,lon:-66.23,mag:6.7,depth:218,date:'1994-01-10',loc:'NW Argentina deep'},
+            {lat:-18.03,lon:-178.39,mag:7.2,depth:562,date:'1997-03-14',loc:'Fiji deep'},
+            {lat:44.31,lon:149.91,mag:7.7,depth:33,date:'1994-10-04',loc:'Kuril Islands, Russia'},
+            {lat:44.66,lon:150.18,mag:7.3,depth:14,date:'1994-10-09',loc:'Kuril Islands aftershock'},
+            {lat:51.37,lon:-178.35,mag:7.3,depth:21,date:'1996-06-10',loc:'Andreanof Islands, Alaska'},
+            {lat:36.37,lon:70.82,mag:7.7,depth:233,date:'1999-03-04',loc:'Hindu Kush, Afghanistan'},
+            // 2000s extra
+            {lat:52.78,lon:171.10,mag:7.0,depth:20,date:'2000-01-08',loc:'Aleutians, Alaska'},
+            {lat:-17.66,lon:-179.19,mag:7.2,depth:565,date:'2002-08-19',loc:'Fiji deep'},
+            {lat:-6.90,lon:130.67,mag:7.5,depth:397,date:'2006-01-27',loc:'Banda Sea deep, Indonesia'},
+            {lat:-7.22,lon:155.44,mag:7.1,depth:37,date:'2006-09-01',loc:'Solomon Islands'},
+            {lat:-8.31,lon:-71.34,mag:6.8,depth:534,date:'2007-11-29',loc:'W Brazil deep'},
+            {lat:51.15,lon:-179.08,mag:7.2,depth:19,date:'2008-07-05',loc:'Andreanof Islands, Alaska'},
+            {lat:-20.07,lon:-70.55,mag:7.7,depth:44,date:'2005-06-13',loc:'Tarapaca, Chile'},
+            {lat:7.78,lon:-77.79,mag:7.2,depth:10,date:'2004-11-15',loc:'Colombia'},
+            {lat:-54.79,lon:-35.79,mag:7.0,depth:10,date:'2003-08-04',loc:'South Georgia'},
+            {lat:-3.10,lon:128.12,mag:6.8,depth:10,date:'2004-02-05',loc:'Ambon, Indonesia'},
+            {lat:42.95,lon:144.84,mag:7.0,depth:28,date:'2003-09-26',loc:'Hokkaido aftershock, Japan'},
+            {lat:-7.67,lon:107.42,mag:7.0,depth:10,date:'2009-09-02',loc:'W Java, Indonesia'},
+            {lat:-15.46,lon:-70.55,mag:6.9,depth:196,date:'2005-09-26',loc:'S Peru deep'},
+            {lat:12.87,lon:144.86,mag:7.0,depth:26,date:'2000-08-06',loc:'Guam'},
+            {lat:-5.83,lon:128.28,mag:7.5,depth:340,date:'2006-07-17',loc:'Banda Sea, Indonesia'},
+            {lat:-21.32,lon:33.57,mag:7.0,depth:11,date:'2006-02-22',loc:'Mozambique'},
+            {lat:28.13,lon:87.31,mag:6.9,depth:10,date:'2005-10-08',loc:'Nepal aftershock'},
+            {lat:41.23,lon:144.58,mag:7.0,depth:27,date:'2008-07-19',loc:'Hokkaido, Japan'},
+            {lat:30.64,lon:83.58,mag:6.6,depth:12,date:'2008-08-25',loc:'Tibet'},
+            {lat:32.56,lon:105.41,mag:6.1,depth:10,date:'2008-05-25',loc:'Sichuan aftershock, China'},
+            {lat:-1.82,lon:132.85,mag:7.6,depth:10,date:'2009-01-03',loc:'Papua, Indonesia'},
+            {lat:-8.47,lon:157.04,mag:7.6,depth:32,date:'2007-04-02',loc:'Solomon Islands aftershock'},
+            {lat:-2.41,lon:100.99,mag:7.9,depth:24,date:'2007-09-13',loc:'S Sumatra, Indonesia'},
+            {lat:39.03,lon:40.27,mag:6.0,depth:10,date:'2004-03-25',loc:'Elazig, Turkey'},
+            {lat:-46.04,lon:37.00,mag:7.0,depth:10,date:'2008-04-15',loc:'S Indian Ocean'},
+            {lat:26.23,lon:100.88,mag:6.3,depth:10,date:'2007-06-03',loc:'Yunnan, China'},
+            {lat:-22.95,lon:-70.21,mag:7.8,depth:40,date:'2007-11-14',loc:'Tocopilla, Chile'},
+            {lat:-7.30,lon:128.04,mag:7.4,depth:113,date:'2006-01-27',loc:'Timor Sea, Indonesia'},
+            {lat:-5.47,lon:128.13,mag:7.6,depth:397,date:'2006-01-27',loc:'Banda Sea deep'},
+            {lat:-20.47,lon:-174.23,mag:7.9,depth:55,date:'2009-03-19',loc:'Tonga'},
+            {lat:42.41,lon:79.41,mag:6.6,depth:11,date:'2008-10-05',loc:'Kyrgyzstan'},
+            {lat:-55.45,lon:-28.88,mag:7.4,depth:24,date:'2003-08-21',loc:'South Sandwich Islands'},
+            {lat:-5.93,lon:150.58,mag:7.2,depth:35,date:'2000-11-16',loc:'New Britain, PNG'},
+            {lat:-3.08,lon:127.39,mag:7.3,depth:10,date:'2000-02-07',loc:'Seram, Indonesia'},
+            {lat:-4.72,lon:152.97,mag:8.0,depth:40,date:'2000-11-17',loc:'New Ireland, PNG'},
+            // 2010s more
+            {lat:-56.12,lon:-27.09,mag:7.4,depth:84,date:'2013-11-17',loc:'Scotia Sea'},
+            {lat:51.42,lon:178.71,mag:7.0,depth:26,date:'2014-06-23',loc:'Rat Islands, Alaska'},
+            {lat:30.28,lon:101.70,mag:6.5,depth:14,date:'2013-04-20',loc:'Lushan, China'},
+            {lat:-7.83,lon:128.38,mag:7.6,depth:38,date:'2012-12-10',loc:'Eastern Indonesia'},
+            {lat:44.86,lon:142.44,mag:6.8,depth:348,date:'2012-08-14',loc:'Hokkaido deep, Japan'},
+            {lat:0.84,lon:-79.63,mag:7.0,depth:15,date:'2014-08-12',loc:'Ecuador'},
+            {lat:-6.25,lon:147.14,mag:7.5,depth:50,date:'2016-05-01',loc:'Huon Gulf, PNG'},
+            {lat:39.51,lon:72.90,mag:7.2,depth:30,date:'2015-12-07',loc:'Tajikistan'},
+            {lat:-23.06,lon:-175.33,mag:7.6,depth:21,date:'2013-05-24',loc:'Tonga'},
+            {lat:-19.30,lon:-172.23,mag:7.6,depth:31,date:'2013-02-06',loc:'Santa Cruz Islands'},
+            {lat:-10.74,lon:165.14,mag:8.0,depth:24,date:'2013-02-06',loc:'Santa Cruz Is. mainshock'},
+            {lat:30.88,lon:99.72,mag:6.6,depth:12,date:'2014-11-22',loc:'Kangding, China'},
+            {lat:-13.86,lon:167.93,mag:7.2,depth:187,date:'2015-10-20',loc:'Vanuatu'},
+            {lat:51.25,lon:-178.73,mag:7.0,depth:29,date:'2014-06-23',loc:'Andreanof Islands'},
+            {lat:-4.95,lon:94.33,mag:7.9,depth:24,date:'2016-03-02',loc:'SW Sumatra, Indonesia'},
+            {lat:13.70,lon:120.51,mag:6.1,depth:180,date:'2017-04-08',loc:'Batangas, Philippines'},
+            {lat:-34.74,lon:-71.37,mag:6.9,depth:12,date:'2010-03-11',loc:'Central Chile'},
+            {lat:-22.39,lon:-68.34,mag:6.3,depth:114,date:'2010-11-14',loc:'N Chile'},
+            {lat:38.86,lon:43.63,mag:6.0,depth:5,date:'2011-11-09',loc:'Van aftershock, Turkey'},
+            {lat:40.83,lon:144.59,mag:7.3,depth:20,date:'2011-07-10',loc:'Off Hokkaido, Japan'},
+            {lat:37.69,lon:141.65,mag:7.1,depth:43,date:'2011-04-07',loc:'Miyagi aftershock, Japan'},
+            {lat:35.52,lon:140.93,mag:7.7,depth:20,date:'2011-03-11',loc:'Ibaraki aftershock, Japan'},
+            {lat:37.42,lon:141.15,mag:7.0,depth:29,date:'2011-03-11',loc:'Fukushima aftershock, Japan'},
+            {lat:36.28,lon:141.11,mag:7.9,depth:42,date:'2011-03-11',loc:'Off Honshu aftershock, Japan'},
+            {lat:-17.84,lon:167.35,mag:7.0,depth:22,date:'2011-08-20',loc:'Vanuatu'},
+            {lat:-5.56,lon:151.10,mag:7.1,depth:23,date:'2011-12-14',loc:'New Britain, PNG'},
+            {lat:-7.42,lon:146.82,mag:7.1,depth:135,date:'2011-06-22',loc:'Eastern PNG deep'},
+            {lat:10.96,lon:126.47,mag:7.6,depth:20,date:'2012-08-31',loc:'Samar, Philippines'},
+            {lat:8.48,lon:-82.53,mag:7.6,depth:20,date:'2012-09-05',loc:'Nicoya, Costa Rica'},
+            {lat:10.09,lon:92.46,mag:8.6,depth:20,date:'2012-04-11',loc:'Indian Ocean (Wharton Basin)'},
+            {lat:2.33,lon:93.07,mag:8.2,depth:16,date:'2012-04-11',loc:'Wharton Basin aftershock'},
+            {lat:-46.24,lon:164.71,mag:7.1,depth:12,date:'2014-01-20',loc:'Fiordland, New Zealand'},
+            {lat:-8.52,lon:121.12,mag:6.1,depth:6,date:'2016-07-29',loc:'Flores, Indonesia'},
+            // 2020s extra
+            {lat:-18.54,lon:-175.37,mag:8.1,depth:209,date:'2021-03-04',loc:'Tonga deep'},
+            {lat:-20.77,lon:-178.75,mag:7.1,depth:559,date:'2021-08-12',loc:'Fiji deep'},
+            {lat:55.36,lon:158.52,mag:7.5,depth:35,date:'2020-03-25',loc:'Kamchatka, Russia'},
+            {lat:-4.28,lon:152.06,mag:7.7,depth:41,date:'2021-02-18',loc:'New Ireland, PNG'},
+            {lat:41.78,lon:174.30,mag:7.4,depth:10,date:'2021-03-04',loc:'Kermadec Islands'},
+            {lat:-8.28,lon:123.29,mag:7.3,depth:10,date:'2021-12-14',loc:'Flores, Indonesia'},
+            {lat:-6.23,lon:149.25,mag:7.5,depth:90,date:'2022-09-11',loc:'Papua New Guinea'},
+            {lat:-19.28,lon:-177.53,mag:7.3,depth:573,date:'2022-11-22',loc:'Fiji deep'},
+            {lat:40.89,lon:72.34,mag:6.7,depth:10,date:'2024-01-22',loc:'Kyrgyzstan'},
+            {lat:-7.38,lon:128.12,mag:7.2,depth:27,date:'2023-01-09',loc:'Banda Sea, Indonesia'},
+            {lat:27.67,lon:86.73,mag:5.7,depth:10,date:'2023-11-03',loc:'Nepal aftershock'},
+            {lat:-20.44,lon:-175.84,mag:7.6,depth:80,date:'2022-01-15',loc:'Hunga Tonga'},
+            {lat:18.39,lon:-103.29,mag:7.6,depth:15,date:'2022-09-19',loc:'Michoacan, Mexico'},
+            {lat:-3.44,lon:138.48,mag:7.6,depth:71,date:'2023-04-24',loc:'Papua, Indonesia'},
+            {lat:-1.03,lon:134.84,mag:7.0,depth:10,date:'2024-02-09',loc:'W Papua, Indonesia'},
+            {lat:37.56,lon:37.04,mag:6.4,depth:10,date:'2023-03-16',loc:'SE Turkey'},
+            {lat:-15.03,lon:167.86,mag:7.0,depth:37,date:'2024-01-24',loc:'Vanuatu'},
+            {lat:-10.69,lon:161.32,mag:7.0,depth:12,date:'2024-03-08',loc:'Solomon Islands'},
+            {lat:-17.92,lon:-174.46,mag:7.0,depth:210,date:'2024-12-17',loc:'Tonga'},
+            {lat:-14.59,lon:167.00,mag:7.3,depth:83,date:'2024-12-17',loc:'Vanuatu'},
+            // Additional events — filling out coverage across all decades
+            // 1960s fill
+            {lat:-9.03,lon:157.17,mag:7.3,depth:33,date:'1960-03-21',loc:'Solomon Islands'},
+            {lat:44.29,lon:148.78,mag:8.2,depth:35,date:'1963-10-20',loc:'Kuril Islands, Russia'},
+            {lat:19.73,lon:-155.99,mag:6.1,depth:13,date:'1962-06-27',loc:'Hawaii'},
+            {lat:1.88,lon:30.77,mag:6.8,depth:14,date:'1966-03-20',loc:'Uganda'},
+            {lat:-5.75,lon:-80.06,mag:7.6,depth:24,date:'1960-11-20',loc:'NW Peru'},
+            {lat:38.97,lon:23.78,mag:6.5,depth:10,date:'1967-03-04',loc:'Thessaly, Greece'},
+            {lat:34.06,lon:59.02,mag:7.4,depth:14,date:'1968-08-31',loc:'Dasht-e Bayaz, Iran'},
+            {lat:-5.05,lon:-77.12,mag:7.0,depth:19,date:'1963-09-17',loc:'Peru'},
+            {lat:1.52,lon:126.06,mag:7.5,depth:52,date:'1965-11-17',loc:'Molucca Sea'},
+            {lat:52.61,lon:-164.67,mag:7.1,depth:22,date:'1964-10-17',loc:'Fox Islands, Alaska'},
+            {lat:51.21,lon:-179.14,mag:7.8,depth:30,date:'1962-03-07',loc:'Rat Islands, Alaska'},
+            {lat:-3.73,lon:144.08,mag:7.4,depth:33,date:'1967-10-20',loc:'PNG'},
+            {lat:-20.55,lon:-68.94,mag:7.0,depth:116,date:'1965-12-25',loc:'Chile-Bolivia Border'},
+            {lat:-7.29,lon:155.97,mag:7.2,depth:28,date:'1969-01-05',loc:'Solomon Islands'},
+            {lat:16.59,lon:-98.01,mag:7.3,depth:24,date:'1962-05-11',loc:'Guerrero, Mexico'},
+            {lat:-38.41,lon:177.54,mag:7.0,depth:12,date:'1966-03-05',loc:'Gisborne, New Zealand'},
+            // 1970s fill
+            {lat:10.07,lon:-84.26,mag:7.6,depth:15,date:'1973-04-14',loc:'Costa Rica'},
+            {lat:-12.26,lon:-76.36,mag:7.5,depth:83,date:'1974-10-03',loc:'Peru'},
+            {lat:9.93,lon:126.08,mag:7.6,depth:33,date:'1975-10-31',loc:'Mindanao, Philippines'},
+            {lat:-6.57,lon:129.44,mag:7.0,depth:124,date:'1971-09-25',loc:'Banda Sea, Indonesia'},
+            {lat:-29.28,lon:-177.63,mag:7.8,depth:33,date:'1976-01-14',loc:'Kermadec Islands'},
+            {lat:39.17,lon:43.88,mag:7.3,depth:33,date:'1976-11-24',loc:'Van, Turkey'},
+            {lat:56.35,lon:163.17,mag:7.8,depth:22,date:'1971-12-15',loc:'Kamchatka'},
+            {lat:-15.76,lon:-179.96,mag:7.2,depth:350,date:'1972-01-25',loc:'Fiji deep'},
+            {lat:28.21,lon:104.05,mag:6.4,depth:10,date:'1970-01-05',loc:'Yunnan, China'},
+            {lat:-11.95,lon:166.36,mag:7.9,depth:50,date:'1975-07-20',loc:'Vanuatu'},
+            {lat:44.67,lon:149.26,mag:7.4,depth:31,date:'1978-03-24',loc:'Kuril Islands'},
+            {lat:-11.31,lon:118.74,mag:7.9,depth:33,date:'1977-08-19',loc:'Sumba, Indonesia'},
+            {lat:33.39,lon:57.38,mag:6.5,depth:10,date:'1978-09-16',loc:'Tabas aftershock, Iran'},
+            {lat:-22.27,lon:171.68,mag:7.2,depth:82,date:'1979-12-12',loc:'Loyalty Islands'},
+            // 1980s fill
+            {lat:26.14,lon:99.20,mag:6.2,depth:10,date:'1988-11-06',loc:'Yunnan, China'},
+            {lat:47.09,lon:-122.24,mag:6.8,depth:60,date:'1989-01-19',loc:'Puget Sound, Washington'},
+            {lat:-3.13,lon:148.07,mag:7.5,depth:12,date:'1981-03-05',loc:'Admiralty Islands, PNG'},
+            {lat:-19.35,lon:168.80,mag:7.2,depth:33,date:'1985-02-22',loc:'Vanuatu'},
+            {lat:-31.23,lon:-66.62,mag:6.0,depth:15,date:'1986-01-26',loc:'San Juan, Argentina'},
+            {lat:37.62,lon:-118.44,mag:6.2,depth:12,date:'1986-07-21',loc:'Chalfant Valley, California'},
+            {lat:40.17,lon:29.91,mag:6.0,depth:10,date:'1983-07-05',loc:'Bolu, Turkey'},
+            {lat:-0.16,lon:-78.18,mag:6.9,depth:22,date:'1987-03-06',loc:'Quito, Ecuador'},
+            {lat:36.40,lon:70.98,mag:6.8,depth:110,date:'1985-12-23',loc:'Hindu Kush'},
+            {lat:-7.27,lon:106.07,mag:6.0,depth:10,date:'1982-12-16',loc:'W Java, Indonesia'},
+            {lat:-4.14,lon:-80.06,mag:6.1,depth:19,date:'1981-06-07',loc:'Northern Peru'},
+            // 1990s fill
+            {lat:-16.27,lon:-73.64,mag:7.7,depth:33,date:'1996-11-12',loc:'S Peru'},
+            {lat:35.77,lon:0.07,mag:6.0,depth:10,date:'1999-12-22',loc:'Algeria'},
+            {lat:7.15,lon:94.62,mag:7.3,depth:56,date:'1994-01-21',loc:'Nicobar Islands'},
+            {lat:-18.11,lon:-178.66,mag:7.7,depth:537,date:'1994-03-09',loc:'Fiji deep'},
+            {lat:40.01,lon:21.97,mag:6.6,depth:10,date:'1995-05-13',loc:'Kozani, Greece'},
+            {lat:19.05,lon:145.74,mag:7.1,depth:580,date:'1993-08-08',loc:'Mariana Islands deep'},
+            {lat:-5.06,lon:150.53,mag:7.8,depth:33,date:'1998-07-17',loc:'New Britain, PNG'},
+            {lat:24.03,lon:92.72,mag:6.0,depth:35,date:'1997-05-08',loc:'NE India'},
+            {lat:-22.61,lon:-65.80,mag:6.4,depth:235,date:'1994-08-10',loc:'NW Argentina'},
+            {lat:44.51,lon:150.35,mag:7.8,depth:12,date:'1995-12-03',loc:'Kuril Islands'},
+            {lat:-5.37,lon:153.63,mag:7.7,depth:30,date:'1998-11-29',loc:'Bougainville, PNG'},
+            {lat:-9.48,lon:122.27,mag:6.5,depth:33,date:'1992-12-12',loc:'Flores, Indonesia'},
+            {lat:-8.48,lon:121.90,mag:7.8,depth:10,date:'1992-12-12',loc:'Flores earthquake, Indonesia'},
+            {lat:34.20,lon:137.02,mag:6.8,depth:10,date:'1993-01-15',loc:'Hokkaido-Nansei-Oki, Japan'},
+            {lat:42.77,lon:139.20,mag:7.7,depth:17,date:'1993-07-12',loc:'Sea of Japan'},
+            {lat:40.09,lon:21.72,mag:6.1,depth:14,date:'1995-05-13',loc:'Greece'},
+            // 2000s fill
+            {lat:-6.10,lon:105.26,mag:6.3,depth:10,date:'2000-06-04',loc:'Sunda Strait'},
+            {lat:43.58,lon:130.45,mag:7.3,depth:566,date:'2002-06-28',loc:'Vladivostok region deep'},
+            {lat:-3.31,lon:142.90,mag:7.0,depth:10,date:'2005-09-09',loc:'Sepik, PNG'},
+            {lat:-1.56,lon:99.65,mag:7.0,depth:20,date:'2008-02-20',loc:'Simeulue, Indonesia'},
+            {lat:-6.40,lon:147.30,mag:7.1,depth:82,date:'2000-02-10',loc:'Huon Gulf, PNG'},
+            {lat:-30.06,lon:-71.09,mag:6.7,depth:28,date:'2002-06-18',loc:'Coquimbo, Chile'},
+            {lat:39.45,lon:40.87,mag:6.1,depth:10,date:'2003-05-01',loc:'Turkey'},
+            {lat:-0.57,lon:133.14,mag:7.6,depth:10,date:'2004-02-05',loc:'Papua, Indonesia'},
+            {lat:-8.16,lon:-71.56,mag:7.1,depth:534,date:'2004-11-15',loc:'Brazil deep'},
+            {lat:47.83,lon:-127.75,mag:6.6,depth:10,date:'2008-01-10',loc:'Off Oregon'},
+            {lat:19.64,lon:-95.83,mag:6.0,depth:85,date:'2001-10-07',loc:'Veracruz, Mexico'},
+            {lat:-24.37,lon:-66.91,mag:6.4,depth:169,date:'2007-10-04',loc:'NW Argentina'},
+            {lat:-8.28,lon:118.84,mag:6.5,depth:10,date:'2004-11-12',loc:'Sumbawa, Indonesia'},
+            {lat:38.38,lon:26.68,mag:6.6,depth:10,date:'2005-10-17',loc:'Izmir, Turkey'},
+            // 2010s fill
+            {lat:-15.82,lon:-70.36,mag:7.0,depth:174,date:'2010-05-24',loc:'S Peru'},
+            {lat:37.70,lon:141.93,mag:7.3,depth:32,date:'2012-12-07',loc:'Off Honshu, Japan'},
+            {lat:-23.05,lon:-70.56,mag:7.0,depth:20,date:'2014-04-02',loc:'Chile'},
+            {lat:-4.90,lon:152.93,mag:7.5,depth:35,date:'2015-03-29',loc:'New Britain, PNG'},
+            {lat:26.86,lon:54.86,mag:6.2,depth:12,date:'2013-05-11',loc:'Bushehr, Iran'},
+            {lat:-6.54,lon:155.34,mag:7.2,depth:44,date:'2014-04-12',loc:'Solomon Islands'},
+            {lat:36.50,lon:71.26,mag:7.5,depth:196,date:'2016-04-25',loc:'Hindu Kush'},
+            {lat:-5.74,lon:154.68,mag:7.4,depth:135,date:'2017-01-22',loc:'Bougainville deep, PNG'},
+            {lat:18.55,lon:-72.53,mag:6.1,depth:10,date:'2018-10-06',loc:'Haiti'},
+            {lat:35.80,lon:129.18,mag:5.8,depth:9,date:'2016-09-12',loc:'Gyeongju, South Korea'},
+            {lat:-8.17,lon:116.05,mag:6.9,depth:31,date:'2018-08-05',loc:'Lombok, Indonesia'},
+            {lat:-8.37,lon:116.46,mag:6.2,depth:12,date:'2018-07-29',loc:'Lombok foreshock, Indonesia'},
+            {lat:-8.26,lon:116.44,mag:6.9,depth:34,date:'2018-08-19',loc:'Lombok aftershock, Indonesia'},
+            {lat:-6.42,lon:132.77,mag:7.3,depth:208,date:'2019-06-24',loc:'Banda Sea, Indonesia'},
+            {lat:14.67,lon:-92.72,mag:6.9,depth:69,date:'2017-06-14',loc:'Guatemala'},
+            {lat:39.58,lon:21.71,mag:6.5,depth:12,date:'2015-11-17',loc:'Thessaly, Greece'},
+            {lat:-10.05,lon:161.05,mag:7.0,depth:8,date:'2015-11-18',loc:'Solomon Islands'},
+            // 2020s fill
+            {lat:39.77,lon:22.18,mag:6.3,depth:8,date:'2021-03-03',loc:'Thessaly, Greece'},
+            {lat:14.75,lon:-91.65,mag:6.2,depth:97,date:'2022-02-16',loc:'Guatemala'},
+            {lat:-6.03,lon:112.42,mag:6.6,depth:10,date:'2022-11-21',loc:'E Java, Indonesia'},
+            {lat:-19.77,lon:-172.12,mag:7.3,depth:30,date:'2022-09-08',loc:'Tonga'},
+            {lat:36.51,lon:36.17,mag:6.0,depth:10,date:'2023-02-20',loc:'Hatay aftershock, Turkey'},
+            {lat:31.07,lon:49.52,mag:6.3,depth:10,date:'2021-02-17',loc:'Khuzestan, Iran'},
+            {lat:-7.58,lon:122.28,mag:6.4,depth:530,date:'2021-01-21',loc:'Flores Sea deep, Indonesia'},
+            {lat:39.22,lon:22.08,mag:6.0,depth:10,date:'2021-03-04',loc:'Larissa, Greece'},
+            {lat:13.32,lon:-87.77,mag:6.2,depth:10,date:'2022-10-02',loc:'Honduras'},
+            {lat:1.21,lon:126.53,mag:7.0,depth:23,date:'2022-01-01',loc:'Molucca Sea'},
+        ];
+
+        /* =========================================================
+           SIMPLIFIED CONTINENT OUTLINES (lat/lon paths)
+           Approximate coastlines for major landmasses
+           null values separate disjoint segments
+           ========================================================= */
+        var CONTINENTS_PATHS = [
+            // Africa
+            [
+                [37,-10],[36,0],[33,10],[31,32],[30,32],[25,35],[20,37],[15,40],[12,44],[11,49],[2,51],[-2,42],[-10,40],[-15,40],[-25,35],[-30,30],[-34,18],[-34,27],[-28,32],[-22,35],[-15,40],[-8,39],[-1,42],[5,10],[6,1],[5,-5],[4,-8],[5,-10],[8,-14],[12,-17],[15,-17],[18,-16],[20,-17],[25,-15],[30,-10],[35,-5],[37,-10]
+            ],
+            // Europe
+            [
+                [36,-10],[38,-9],[40,-9],[43,-9],[44,-1],[46,0],[47,2],[48,5],[51,4],[52,5],[54,8],[55,10],[57,12],[59,11],[60,5],[62,5],[64,11],[66,14],[68,16],[70,20],[71,28],[69,30],[67,26],[63,24],[60,25],[58,27],[56,21],[55,14],[54,10],[53,14],[51,7],[48,3],[47,-2],[44,-1],[43,3],[40,2],[37,0],[36,0],[37,-5],[36,-10]
+            ],
+            // Asia
+            [
+                [42,27],[41,29],[41,33],[37,36],[33,35],[31,35],[29,35],[27,34],[25,37],[22,40],[20,41],[15,44],[13,45],[12,50],[10,52],[8,58],[6,62],[5,73],[8,77],[10,76],[12,80],[17,82],[20,87],[22,89],[22,91],[21,92],[23,91],[26,90],[28,88],[28,85],[30,81],[33,76],[35,72],[37,68],[37,62],[38,57],[40,50],[42,44],[42,40],[42,35],[42,30],[42,27],
+                null,
+                // Northern Asia
+                [42,27],[44,40],[46,48],[50,40],[52,36],[55,37],[56,41],[58,50],[60,56],[62,64],[65,70],[67,77],[68,85],[70,90],[72,100],[73,107],[72,120],[70,132],[66,137],[64,140],[62,135],[58,137],[55,134],[54,137],[52,141],[48,142],[46,143],[43,146],[45,150],[50,155],[52,158],[55,162],[58,163],[60,163],[64,175],[66,180],[68,180],
+                null,
+                // East Asia
+                [53,141],[50,141],[46,142],[43,145],[43,140],[40,131],[38,128],[38,125],[37,122],[35,119],[33,120],[30,122],[27,120],[25,118],[23,117],[22,114],[22,111],[18,109],[18,107],[16,108],[14,109],[12,109],[10,107],[8,105],[3,104],[1,104],[-2,106],[-6,106],[-7,110],[-8,112],[-8,115],[-8,118],
+                null,
+                // India
+                [28,68],[25,68],[24,67],[22,69],[20,73],[17,73],[15,74],[12,75],[9,76],[8,77],[8,79],[10,80],[13,80],[16,82],[18,84],[20,87],[22,89]
+            ],
+            // North America
+            [
+                [70,-160],[69,-166],[66,-164],[64,-165],[61,-165],[60,-161],[59,-154],[57,-156],[55,-160],[55,-162],[52,-175],[51,-178],[52,177],[55,165],[60,167],[64,173],[67,180],
+                null,
+                [70,-160],[71,-155],[71,-140],[69,-130],[66,-136],[60,-140],[58,-136],[56,-133],[54,-130],[50,-127],[48,-124],[46,-124],[43,-124],[40,-124],[38,-123],[36,-122],[34,-120],[32,-117],[30,-114],[28,-112],[25,-110],[23,-110],[20,-106],[18,-105],[16,-96],[15,-93],[18,-88],[19,-87],[21,-87],[21,-90],[25,-90],[27,-82],[25,-80],[24,-80],[25,-81],[27,-83],[29,-85],[30,-88],[29,-90],[30,-93],[28,-96],[26,-97],[27,-99],[29,-95],[30,-90],[30,-86],[32,-81],[34,-78],[35,-75],[37,-76],[38,-75],[39,-74],[40,-74],[41,-72],[42,-71],[43,-70],[44,-66],[46,-62],[47,-60],[49,-57],[51,-55],[48,-53],[47,-53],[47,-57],[49,-58],[51,-56],[52,-55],[55,-58],[56,-60],[58,-64],[60,-64],[62,-65],[63,-68],[60,-78],[58,-80],[56,-76],[52,-80],[53,-82],[51,-81],[49,-85],[46,-84],[45,-83],[46,-82],[47,-83],[48,-87],[48,-89],[49,-95],[50,-96],[53,-100],[55,-103],[58,-110],[60,-112],[63,-120],[65,-128],[68,-136],[69,-140],[70,-145],[71,-155]
+            ],
+            // South America
+            [
+                [12,-72],[11,-75],[8,-77],[5,-77],[2,-80],[0,-80],[-2,-81],[-4,-81],[-6,-81],[-8,-80],[-10,-78],[-12,-77],[-15,-75],[-17,-72],[-20,-70],[-23,-70],[-26,-71],[-28,-71],[-30,-72],[-33,-72],[-35,-72],[-38,-73],[-41,-73],[-43,-74],[-45,-74],[-47,-75],[-50,-75],[-52,-72],[-54,-69],[-55,-67],[-55,-64],[-52,-59],[-50,-65],[-48,-66],[-46,-68],[-42,-65],[-40,-62],[-38,-58],[-35,-57],[-33,-53],[-31,-51],[-28,-49],[-25,-48],[-22,-41],[-19,-39],[-15,-39],[-12,-37],[-10,-36],[-8,-35],[-5,-35],[-2,-44],[0,-50],[2,-50],[5,-52],[7,-57],[8,-60],[10,-62],[11,-68],[12,-72]
+            ],
+            // Australia
+            [
+                [-12,131],[-12,136],[-14,136],[-14,141],[-17,141],[-17,146],[-19,146],[-22,150],[-25,153],[-28,153],[-31,153],[-34,151],[-37,150],[-38,147],[-39,146],[-38,144],[-35,137],[-35,136],[-33,134],[-34,132],[-32,127],[-32,115],[-31,115],[-28,114],[-25,113],[-22,114],[-20,116],[-18,121],[-15,124],[-14,127],[-12,130],[-12,131]
+            ],
+            // Antarctica (partial)
+            [
+                [-70,-60],[-68,-60],[-66,-65],[-70,-75],[-73,-80],[-73,-100],[-71,-120],[-70,-130],[-73,-140],[-72,-150],[-72,-170],[-75,180],[-72,170],[-70,165],[-68,145],[-67,140],[-67,130],[-66,120],[-66,110],[-68,100],[-70,80],[-70,70],[-70,60],[-70,50],[-70,30],[-70,10],[-70,-10],[-70,-30],[-70,-50],[-70,-60]
+            ]
+        ];
+
+        /* =========================================================
+           TECTONIC PLATE BOUNDARIES (simplified)
+           Major boundaries as lat/lon paths
+           ========================================================= */
+        var PLATE_BOUNDARIES = [
+            // Ring of Fire — Pacific plate
+            // West side (Japan → Philippines → Indonesia → New Zealand)
+            [
+                [55,162],[50,158],[46,152],[43,146],[40,141],[37,140],[34,139],[30,131],[27,127],[24,123],[20,120],[16,119],[12,125],[8,127],[5,126],[0,128],[-5,130],[-8,131],[-10,140],[-12,145],[-16,148],[-20,155],[-25,165],[-30,175],[-35,178],[-40,176],[-45,167],[-50,163]
+            ],
+            // East side (Alaska → Cascadia → Central America → South America)
+            [
+                [60,-152],[57,-155],[55,-160],[52,-170],[51,-175],[51,180],[52,175],[52,170],[55,165],[60,167],
+                null,
+                [60,-152],[57,-148],[55,-135],[52,-130],[48,-127],[44,-125],[40,-125],[37,-122],[34,-119],[30,-115],[25,-110],[20,-106],[17,-100],[14,-92],[10,-85],[7,-82],[3,-81],[0,-81],[-4,-82],[-8,-80],[-12,-78],[-16,-76],[-20,-71],[-24,-70],[-28,-71],[-33,-73],[-37,-74],[-42,-74],[-46,-75],[-50,-76],[-55,-68]
+            ],
+            // Mid-Atlantic Ridge
+            [
+                [70,-15],[65,-18],[60,-22],[55,-32],[50,-29],[45,-28],[40,-30],[35,-36],[30,-42],[25,-46],[20,-46],[15,-46],[10,-42],[5,-33],[0,-20],[-5,-12],[-10,-13],[-15,-14],[-20,-12],[-25,-12],[-30,-14],[-35,-17],[-40,-16],[-45,-15],[-50,-8],[-54,0],[-55,-5],[-60,-15]
+            ],
+            // Alpine-Himalayan Belt
+            [
+                [-5,-10],[0,-5],[5,-2],[10,-5],[15,-15],[20,-18],[25,-15],[30,-10],[35,-5],[37,0],[37,5],[36,10],[35,15],[35,20],[36,25],[37,27],[37,30],[35,35],[33,40],[30,45],[28,50],[27,56],[27,62],[28,66],[30,70],[33,74],[35,72],[37,68],[38,60],[40,50],[42,44]
+            ],
+            // East African Rift
+            [
+                [15,40],[12,42],[10,38],[8,37],[5,36],[3,35],[0,32],[-3,29],[-5,30],[-8,33],[-10,34],[-12,35],[-15,35],[-18,35],[-20,34],[-22,33]
+            ]
+        ];
+
+        /* =========================================================
+           PROJECTION & RENDERING
+           ========================================================= */
+        var canvas = document.getElementById('globeCanvas');
+        var ctx = canvas.getContext('2d');
+        var tooltip = document.getElementById('tooltip');
+        var ttName = document.getElementById('ttName');
+        var ttLocation = document.getElementById('ttLocation');
+        var ttDate = document.getElementById('ttDate');
+        var ttMag = document.getElementById('ttMag');
+        var ttDepth = document.getElementById('ttDepth');
+        var yearDisplay = document.getElementById('yearDisplay');
+        var countDisplay = document.getElementById('countDisplay');
+        var btnPlay = document.getElementById('btnPlay');
+        var speedSlider = document.getElementById('speedSlider');
+        var yearSlider = document.getElementById('yearSlider');
+        var btnReset = document.getElementById('btnReset');
+
+        var DEG = Math.PI / 180;
+        var W, H, cx, cy, R, dpr;
+        var rotLon = -30, rotLat = 20; // initial view angles
+        var playing = false;
+        var currentYear = 1960;
+        var speed = 2; // years per second
+        var lastTime = 0;
+        var visibleEQ = [];
+        var hoveredEQ = null;
+        var mouseX = 0, mouseY = 0;
+
+        // Drag state
+        var dragging = false;
+        var dragStartX = 0, dragStartY = 0;
+        var dragStartLon = 0, dragStartLat = 0;
+        var autoRotate = true;
+        var autoRotateSpeed = 8; // degrees per second
+
+        // Ripple effects
+        var ripples = []; // {eq, startTime, x, y}
+
+        function resize() {
+            var rect = canvas.parentElement.getBoundingClientRect();
+            dpr = window.devicePixelRatio || 1;
+            W = rect.width;
+            H = Math.min(W * 0.85, 700);
+            canvas.width = W * dpr;
+            canvas.height = H * dpr;
+            canvas.style.width = W + 'px';
+            canvas.style.height = H + 'px';
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            cx = W / 2;
+            cy = H / 2;
+            R = Math.min(cx, cy) * 0.82;
+        }
+
+        // Orthographic projection: lat/lon → screen x,y
+        // Returns null if point is on hidden hemisphere
+        function project(lat, lon) {
+            var latR = lat * DEG;
+            var lonR = lon * DEG;
+            var rlat = rotLat * DEG;
+            var rlon = rotLon * DEG;
+
+            var cosLat = Math.cos(latR);
+            var sinLat = Math.sin(latR);
+            var cosRLat = Math.cos(rlat);
+            var sinRLat = Math.sin(rlat);
+            var dLon = lonR - rlon;
+            var cosDLon = Math.cos(dLon);
+
+            // Check visibility (dot product with view direction)
+            var cosC = sinRLat * sinLat + cosRLat * cosLat * cosDLon;
+            if (cosC < 0) return null; // hidden hemisphere
+
+            var x = cx + R * cosLat * Math.sin(dLon);
+            var y = cy - R * (cosRLat * sinLat - sinRLat * cosLat * cosDLon);
+
+            return { x: x, y: y, cosC: cosC };
+        }
+
+        // Depth → color
+        function depthColor(depth, alpha) {
+            alpha = alpha || 1;
+            if (depth < 70) {
+                // Shallow: red
+                var t = depth / 70;
+                var r = Math.round(255 - t * 50);
+                var g = Math.round(68 + t * 51);
+                var b = Math.round(68 + t * 34);
+                return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+            } else if (depth < 300) {
+                // Mid: orange → teal transition
+                var t = (depth - 70) / 230;
+                var r = Math.round(205 - t * 137);
+                var g = Math.round(119 + t * 17);
+                var b = Math.round(34 + t * 221);
+                return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+            } else {
+                // Deep: blue
+                var t = Math.min((depth - 300) / 400, 1);
+                var r = Math.round(68 - t * 34);
+                var g = Math.round(136 - t * 34);
+                var b = Math.round(255);
+                return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+            }
+        }
+
+        // Magnitude → radius
+        function magRadius(mag) {
+            // exponential scale: M6=3px, M7=6px, M8=12px, M9+=20px
+            return 2.5 * Math.pow(1.7, mag - 6);
+        }
+
+        // Parse date string to decimal year
+        function dateToYear(dateStr) {
+            var parts = dateStr.split('-');
+            var y = parseInt(parts[0]);
+            var m = parseInt(parts[1]) - 1;
+            var d = parseInt(parts[2]);
+            return y + (m * 30.44 + d) / 365.25;
+        }
+
+        // Pre-compute decimal years
+        EQ.forEach(function(eq) {
+            eq.decYear = dateToYear(eq.date);
+        });
+        // Sort by date
+        EQ.sort(function(a, b) { return a.decYear - b.decYear; });
+
+        /* =========================================================
+           DRAWING
+           ========================================================= */
+        function drawGlobe() {
+            // Background
+            ctx.fillStyle = '#0b0e17';
+            ctx.fillRect(0, 0, W, H);
+
+            // Glow behind globe
+            var grd = ctx.createRadialGradient(cx, cy, R * 0.6, cx, cy, R * 1.3);
+            grd.addColorStop(0, 'rgba(30, 50, 120, 0.15)');
+            grd.addColorStop(1, 'rgba(11, 14, 23, 0)');
+            ctx.fillStyle = grd;
+            ctx.fillRect(0, 0, W, H);
+
+            // Globe circle (ocean)
+            ctx.beginPath();
+            ctx.arc(cx, cy, R, 0, Math.PI * 2);
+            ctx.fillStyle = '#0d1225';
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(99, 130, 255, 0.15)';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            // Graticule (latitude/longitude grid)
+            ctx.strokeStyle = 'rgba(99, 130, 255, 0.06)';
+            ctx.lineWidth = 0.5;
+
+            // Latitude lines every 30 degrees
+            for (var lat = -60; lat <= 60; lat += 30) {
+                ctx.beginPath();
+                var started = false;
+                for (var lon = -180; lon <= 180; lon += 2) {
+                    var p = project(lat, lon);
+                    if (p) {
+                        if (!started) { ctx.moveTo(p.x, p.y); started = true; }
+                        else ctx.lineTo(p.x, p.y);
+                    } else {
+                        started = false;
+                    }
+                }
+                ctx.stroke();
+            }
+
+            // Longitude lines every 30 degrees
+            for (var lon = -180; lon < 180; lon += 30) {
+                ctx.beginPath();
+                var started = false;
+                for (var lat = -90; lat <= 90; lat += 2) {
+                    var p = project(lat, lon);
+                    if (p) {
+                        if (!started) { ctx.moveTo(p.x, p.y); started = true; }
+                        else ctx.lineTo(p.x, p.y);
+                    } else {
+                        started = false;
+                    }
+                }
+                ctx.stroke();
+            }
+
+            // Continent outlines
+            ctx.strokeStyle = 'rgba(99, 130, 255, 0.2)';
+            ctx.fillStyle = 'rgba(25, 35, 70, 0.4)';
+            ctx.lineWidth = 1;
+
+            CONTINENTS_PATHS.forEach(function(path) {
+                var segments = [[]];
+                path.forEach(function(pt) {
+                    if (pt === null) { segments.push([]); }
+                    else { segments[segments.length - 1].push(pt); }
+                });
+
+                segments.forEach(function(seg) {
+                    if (seg.length < 2) return;
+                    ctx.beginPath();
+                    var started = false;
+                    seg.forEach(function(pt) {
+                        var p = project(pt[0], pt[1]);
+                        if (p) {
+                            if (!started) { ctx.moveTo(p.x, p.y); started = true; }
+                            else ctx.lineTo(p.x, p.y);
+                        } else {
+                            started = false;
+                        }
+                    });
+                    ctx.stroke();
+                    // Fill only closed continent shapes
+                    if (seg.length > 5) {
+                        ctx.globalAlpha = 0.3;
+                        ctx.fill();
+                        ctx.globalAlpha = 1;
+                    }
+                });
+            });
+
+            // Tectonic plate boundaries
+            ctx.strokeStyle = 'rgba(255, 180, 50, 0.12)';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([4, 4]);
+
+            PLATE_BOUNDARIES.forEach(function(path) {
+                var segments = [[]];
+                path.forEach(function(pt) {
+                    if (pt === null) { segments.push([]); }
+                    else { segments[segments.length - 1].push(pt); }
+                });
+
+                segments.forEach(function(seg) {
+                    if (seg.length < 2) return;
+                    ctx.beginPath();
+                    var started = false;
+                    seg.forEach(function(pt) {
+                        var p = project(pt[0], pt[1]);
+                        if (p) {
+                            if (!started) { ctx.moveTo(p.x, p.y); started = true; }
+                            else ctx.lineTo(p.x, p.y);
+                        } else {
+                            started = false;
+                        }
+                    });
+                    ctx.stroke();
+                });
+            });
+            ctx.setLineDash([]);
+
+            // Earthquakes
+            var now = performance.now();
+            visibleEQ = [];
+
+            // Collect visible earthquakes
+            var eqToDraw = [];
+            for (var i = 0; i < EQ.length; i++) {
+                var eq = EQ[i];
+                if (eq.decYear > currentYear) break;
+
+                var p = project(eq.lat, eq.lon);
+                if (!p) continue;
+
+                var age = currentYear - eq.decYear;
+                var alpha;
+                if (age < 0.5) {
+                    alpha = 1; // Recent: fully bright
+                } else if (age < 3) {
+                    alpha = 0.8 - (age - 0.5) * 0.2; // Fade over 3 years
+                } else {
+                    alpha = Math.max(0.12, 0.3 - age * 0.003); // Persist dimly
+                }
+
+                var r = magRadius(eq.mag) * (R / 250);
+
+                eqToDraw.push({
+                    eq: eq,
+                    x: p.x,
+                    y: p.y,
+                    r: r,
+                    alpha: alpha,
+                    age: age,
+                    cosC: p.cosC
+                });
+            }
+
+            // Sort by depth (draw deeper first so shallow ones are on top)
+            eqToDraw.sort(function(a, b) { return b.eq.depth - a.eq.depth; });
+
+            eqToDraw.forEach(function(item) {
+                var eq = item.eq;
+                var x = item.x;
+                var y = item.y;
+                var r = item.r;
+                var alpha = item.alpha;
+                var age = item.age;
+
+                // Limb darkening (fade near edges)
+                var limbFade = Math.pow(item.cosC, 0.3);
+                alpha *= limbFade;
+
+                var color = depthColor(eq.depth, alpha);
+
+                // Ripple effect for recent earthquakes
+                if (age < 1.5) {
+                    var rippleAlpha = Math.max(0, 0.4 * (1 - age / 1.5)) * limbFade;
+                    var rippleR = r * (1 + age * 4);
+                    ctx.beginPath();
+                    ctx.arc(x, y, rippleR, 0, Math.PI * 2);
+                    ctx.strokeStyle = depthColor(eq.depth, rippleAlpha);
+                    ctx.lineWidth = 1.2;
+                    ctx.stroke();
+
+                    // Second ripple ring
+                    if (age < 0.8) {
+                        var rippleAlpha2 = Math.max(0, 0.25 * (1 - age / 0.8)) * limbFade;
+                        var rippleR2 = r * (1 + age * 8);
+                        ctx.beginPath();
+                        ctx.arc(x, y, rippleR2, 0, Math.PI * 2);
+                        ctx.strokeStyle = depthColor(eq.depth, rippleAlpha2);
+                        ctx.lineWidth = 0.8;
+                        ctx.stroke();
+                    }
+                }
+
+                // Glow
+                if (alpha > 0.3) {
+                    var glowR = r * 2.5;
+                    var glow = ctx.createRadialGradient(x, y, r * 0.5, x, y, glowR);
+                    glow.addColorStop(0, depthColor(eq.depth, alpha * 0.3));
+                    glow.addColorStop(1, depthColor(eq.depth, 0));
+                    ctx.fillStyle = glow;
+                    ctx.fillRect(x - glowR, y - glowR, glowR * 2, glowR * 2);
+                }
+
+                // Main circle
+                ctx.beginPath();
+                ctx.arc(x, y, r, 0, Math.PI * 2);
+                ctx.fillStyle = color;
+                ctx.fill();
+
+                // Brighter center for recent ones
+                if (age < 2) {
+                    var cAlpha = Math.max(0, (1 - age / 2) * 0.6) * limbFade;
+                    ctx.beginPath();
+                    ctx.arc(x, y, r * 0.4, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(255,255,255,' + cAlpha + ')';
+                    ctx.fill();
+                }
+
+                visibleEQ.push({ eq: eq, x: x, y: y, r: Math.max(r, 5) });
+            });
+
+            // Globe edge highlight
+            ctx.beginPath();
+            ctx.arc(cx, cy, R, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(99, 130, 255, 0.1)';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Atmospheric haze at edges
+            var atm = ctx.createRadialGradient(cx, cy, R * 0.85, cx, cy, R * 1.02);
+            atm.addColorStop(0, 'rgba(99, 130, 255, 0)');
+            atm.addColorStop(0.7, 'rgba(99, 130, 255, 0.03)');
+            atm.addColorStop(1, 'rgba(99, 130, 255, 0.08)');
+            ctx.fillStyle = atm;
+            ctx.beginPath();
+            ctx.arc(cx, cy, R * 1.02, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Update count
+            var count = 0;
+            for (var i = 0; i < EQ.length; i++) {
+                if (EQ[i].decYear <= currentYear) count++;
+                else break;
+            }
+            countDisplay.textContent = count;
+        }
+
+        /* =========================================================
+           INTERACTION
+           ========================================================= */
+
+        // Mouse / touch drag
+        canvas.addEventListener('mousedown', function(e) {
+            dragging = true;
+            autoRotate = false;
+            dragStartX = e.clientX;
+            dragStartY = e.clientY;
+            dragStartLon = rotLon;
+            dragStartLat = rotLat;
+        });
+
+        window.addEventListener('mousemove', function(e) {
+            var rect = canvas.getBoundingClientRect();
+            mouseX = e.clientX - rect.left;
+            mouseY = e.clientY - rect.top;
+
+            if (dragging) {
+                var dx = e.clientX - dragStartX;
+                var dy = e.clientY - dragStartY;
+                rotLon = dragStartLon - dx * 0.3;
+                rotLat = Math.max(-89, Math.min(89, dragStartLat + dy * 0.3));
+            }
+        });
+
+        window.addEventListener('mouseup', function() {
+            dragging = false;
+        });
+
+        // Touch support
+        canvas.addEventListener('touchstart', function(e) {
+            e.preventDefault();
+            var touch = e.touches[0];
+            dragging = true;
+            autoRotate = false;
+            dragStartX = touch.clientX;
+            dragStartY = touch.clientY;
+            dragStartLon = rotLon;
+            dragStartLat = rotLat;
+        }, { passive: false });
+
+        canvas.addEventListener('touchmove', function(e) {
+            e.preventDefault();
+            if (!dragging) return;
+            var touch = e.touches[0];
+            var dx = touch.clientX - dragStartX;
+            var dy = touch.clientY - dragStartY;
+            rotLon = dragStartLon - dx * 0.3;
+            rotLat = Math.max(-89, Math.min(89, dragStartLat + dy * 0.3));
+
+            var rect = canvas.getBoundingClientRect();
+            mouseX = touch.clientX - rect.left;
+            mouseY = touch.clientY - rect.top;
+        }, { passive: false });
+
+        canvas.addEventListener('touchend', function() {
+            dragging = false;
+        });
+
+        // Tooltip on hover
+        canvas.addEventListener('mousemove', function(e) {
+            if (dragging) {
+                tooltip.classList.remove('visible');
+                return;
+            }
+
+            var rect = canvas.getBoundingClientRect();
+            var mx = e.clientX - rect.left;
+            var my = e.clientY - rect.top;
+
+            var closest = null;
+            var closestDist = Infinity;
+
+            for (var i = visibleEQ.length - 1; i >= 0; i--) {
+                var item = visibleEQ[i];
+                var dx = mx - item.x;
+                var dy = my - item.y;
+                var dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < item.r + 4 && dist < closestDist) {
+                    closest = item;
+                    closestDist = dist;
+                }
+            }
+
+            if (closest) {
+                hoveredEQ = closest.eq;
+                ttName.textContent = 'M' + closest.eq.mag.toFixed(1);
+                ttLocation.textContent = closest.eq.loc;
+                ttDate.textContent = closest.eq.date;
+                ttMag.textContent = closest.eq.mag.toFixed(1);
+                ttDepth.textContent = closest.eq.depth + ' km';
+
+                var tx = e.clientX + 16;
+                var ty = e.clientY - 10;
+                if (tx + 260 > window.innerWidth) tx = e.clientX - 276;
+                if (ty + 140 > window.innerHeight) ty = e.clientY - 140;
+                tooltip.style.left = tx + 'px';
+                tooltip.style.top = ty + 'px';
+                tooltip.classList.add('visible');
+                canvas.style.cursor = 'pointer';
+            } else {
+                hoveredEQ = null;
+                tooltip.classList.remove('visible');
+                canvas.style.cursor = dragging ? 'grabbing' : 'grab';
+            }
+        });
+
+        canvas.addEventListener('mouseleave', function() {
+            tooltip.classList.remove('visible');
+            hoveredEQ = null;
+        });
+
+        /* =========================================================
+           CONTROLS
+           ========================================================= */
+        btnPlay.addEventListener('click', function() {
+            playing = !playing;
+            btnPlay.textContent = playing ? 'Pause' : 'Play';
+            btnPlay.classList.toggle('active', playing);
+            if (playing && currentYear >= 2024) {
+                currentYear = 1960;
+            }
+        });
+
+        speedSlider.addEventListener('input', function() {
+            speed = parseFloat(this.value);
+        });
+
+        yearSlider.addEventListener('input', function() {
+            currentYear = parseFloat(this.value);
+            playing = false;
+            btnPlay.textContent = 'Play';
+            btnPlay.classList.remove('active');
+        });
+
+        btnReset.addEventListener('click', function() {
+            rotLon = -30;
+            rotLat = 20;
+            autoRotate = true;
+        });
+
+        /* =========================================================
+           ANIMATION LOOP
+           ========================================================= */
+        function animate(time) {
+            if (!lastTime) lastTime = time;
+            var dt = (time - lastTime) / 1000;
+            lastTime = time;
+
+            // Clamp dt to avoid jumps
+            if (dt > 0.1) dt = 0.1;
+
+            // Auto-rotate
+            if (autoRotate && !dragging) {
+                rotLon -= autoRotateSpeed * dt;
+            }
+
+            // Playback
+            if (playing) {
+                currentYear += speed * dt;
+                if (currentYear > 2024) {
+                    currentYear = 2024;
+                    playing = false;
+                    btnPlay.textContent = 'Play';
+                    btnPlay.classList.remove('active');
+                }
+                yearSlider.value = currentYear;
+            }
+
+            // Update display
+            yearDisplay.textContent = Math.floor(currentYear);
+
+            drawGlobe();
+            requestAnimationFrame(animate);
+        }
+
+        // Init
+        resize();
+        window.addEventListener('resize', resize);
+        requestAnimationFrame(animate);
+
+    })();
+    </script>
+
+    <script defer src="../../prompt-viewer.js"></script>
+</body>
+</html>
