@@ -1,0 +1,1453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Olympic Medal Bubble Chart &mdash; Data Visualization Gallery</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-deep: #0b0e17;
+            --bg-surface: #0f1320;
+            --bg-panel: #131828;
+            --border-dim: #1c2340;
+            --border-bright: #2a3560;
+            --text-primary: #e8ecf4;
+            --text-secondary: #8892b0;
+            --text-dim: #4a5580;
+            --accent-blue: #6382ff;
+            --accent-blue-glow: rgba(99, 130, 255, 0.25);
+            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'JetBrains Mono', 'Consolas', monospace;
+
+            /* Continent colors */
+            --europe: #6382ff;
+            --americas: #38d9a9;
+            --asia: #ff6b6b;
+            --oceania: #b197fc;
+            --africa: #ffd43b;
+        }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { font-size: 16px; }
+
+        body {
+            font-family: var(--font-sans);
+            background: var(--bg-deep);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .dot-grid {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            background-image: radial-gradient(circle, rgba(99, 130, 255, 0.06) 1px, transparent 1px);
+            background-size: 32px 32px;
+            pointer-events: none;
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 2rem 2rem 3rem;
+        }
+
+        /* Nav */
+        .nav-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+        .back-link {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            letter-spacing: 0.06em;
+            color: var(--text-dim);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        .back-link:hover { color: var(--accent-blue); }
+        .back-link::before { content: '\2190  '; }
+
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .header h1 {
+            font-size: clamp(1.6rem, 4vw, 2.4rem);
+            font-weight: 600;
+            letter-spacing: -0.02em;
+            margin-bottom: 0.4rem;
+        }
+        .header h1 span {
+            background: linear-gradient(135deg, #ffd43b, #ff6b6b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .header-sub {
+            font-size: 0.9rem;
+            font-weight: 300;
+            color: var(--text-secondary);
+            max-width: 580px;
+            margin: 0 auto;
+        }
+
+        /* Year display */
+        .year-display {
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+        .year-number {
+            font-family: var(--font-mono);
+            font-size: clamp(3rem, 8vw, 5rem);
+            font-weight: 700;
+            color: var(--text-primary);
+            opacity: 0.15;
+            line-height: 1;
+            user-select: none;
+            transition: opacity 0.3s;
+        }
+        .year-number.playing { opacity: 0.25; }
+        .year-city {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            letter-spacing: 0.06em;
+            margin-top: 4px;
+        }
+
+        /* Canvas wrapper */
+        .chart-wrapper {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-dim);
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 1.5rem;
+            position: relative;
+        }
+        #vizCanvas {
+            display: block;
+            width: 100%;
+            cursor: crosshair;
+        }
+
+        /* Annotation overlay */
+        .annotation {
+            position: absolute;
+            font-family: var(--font-mono);
+            font-size: 0.6rem;
+            letter-spacing: 0.04em;
+            color: var(--text-secondary);
+            background: rgba(11, 14, 23, 0.85);
+            border: 1px solid var(--border-bright);
+            border-radius: 4px;
+            padding: 6px 10px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.4s;
+            max-width: 200px;
+            line-height: 1.4;
+        }
+        .annotation.visible { opacity: 1; }
+
+        /* Controls */
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 1.5rem;
+            padding: 16px 20px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border-dim);
+            border-radius: 8px;
+        }
+        .btn {
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            letter-spacing: 0.04em;
+            color: var(--text-primary);
+            background: var(--bg-surface);
+            border: 1px solid var(--border-dim);
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.15s;
+            user-select: none;
+        }
+        .btn:hover {
+            border-color: var(--accent-blue);
+            color: var(--accent-blue);
+        }
+        .btn.active {
+            background: var(--accent-blue);
+            border-color: var(--accent-blue);
+            color: #0b0e17;
+        }
+        .btn-play { min-width: 70px; }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .control-label {
+            font-family: var(--font-mono);
+            font-size: 0.6rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text-dim);
+        }
+
+        /* Mode toggle */
+        .mode-toggle {
+            display: flex;
+            gap: 0;
+            border: 1px solid var(--border-dim);
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        .mode-btn {
+            font-family: var(--font-mono);
+            font-size: 0.65rem;
+            letter-spacing: 0.04em;
+            color: var(--text-dim);
+            background: var(--bg-surface);
+            border: none;
+            padding: 7px 14px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .mode-btn:not(:last-child) { border-right: 1px solid var(--border-dim); }
+        .mode-btn:hover { color: var(--text-secondary); }
+        .mode-btn.active {
+            background: var(--accent-blue);
+            color: #0b0e17;
+        }
+
+        /* Slider */
+        .slider-wrap {
+            flex: 1;
+            min-width: 120px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            flex: 1;
+            height: 4px;
+            background: var(--border-dim);
+            border-radius: 2px;
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: var(--accent-blue);
+            cursor: pointer;
+            box-shadow: 0 0 8px var(--accent-blue-glow);
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: var(--accent-blue);
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 0 8px var(--accent-blue-glow);
+        }
+
+        /* Legend */
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-bottom: 1.5rem;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-family: var(--font-mono);
+            font-size: 0.65rem;
+            color: var(--text-secondary);
+            letter-spacing: 0.04em;
+            cursor: pointer;
+            transition: opacity 0.2s;
+            user-select: none;
+        }
+        .legend-item.dimmed { opacity: 0.3; }
+        .legend-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 3px;
+        }
+
+        /* Tooltip */
+        .tooltip {
+            position: fixed;
+            z-index: 100;
+            background: #1a1f35;
+            border: 1px solid var(--border-bright);
+            border-radius: 6px;
+            padding: 12px 16px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.15s;
+            max-width: 280px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+        }
+        .tooltip.visible { opacity: 1; }
+        .tooltip-name {
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-bottom: 4px;
+        }
+        .tooltip-continent {
+            font-family: var(--font-mono);
+            font-size: 0.6rem;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+        .tooltip-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+            margin-bottom: 2px;
+            gap: 16px;
+        }
+        .tooltip-val {
+            font-family: var(--font-mono);
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+        .tooltip-medal-row {
+            display: flex;
+            gap: 12px;
+            margin-top: 6px;
+            padding-top: 6px;
+            border-top: 1px solid rgba(42, 53, 96, 0.5);
+        }
+        .tooltip-medal {
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .medal-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .medal-gold { background: #ffd43b; }
+        .medal-silver { background: #c0c0c0; }
+        .medal-bronze { background: #cd7f32; }
+
+        /* Info */
+        .info-panel {
+            padding: 16px 20px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border-dim);
+            border-radius: 8px;
+            font-size: 0.78rem;
+            color: var(--text-dim);
+            line-height: 1.6;
+        }
+        .info-panel a {
+            color: var(--text-secondary);
+            text-decoration: none;
+        }
+        .info-panel a:hover { color: var(--accent-blue); }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            margin-top: 2rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border-dim);
+        }
+        .footer a {
+            font-family: var(--font-mono);
+            font-size: 0.6rem;
+            color: var(--text-dim);
+            text-decoration: none;
+            letter-spacing: 0.06em;
+        }
+        .footer a:hover { color: var(--accent-blue); }
+
+        @media (max-width: 768px) {
+            .container { padding: 1.5rem 1rem 2rem; }
+            .controls { gap: 10px; padding: 12px 14px; }
+            .legend { gap: 12px; }
+            .slider-wrap { min-width: 100px; }
+            .mode-toggle { margin-top: 4px; }
+            .annotation { font-size: 0.55rem; max-width: 150px; padding: 4px 8px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="dot-grid"></div>
+
+    <div class="container">
+        <div class="nav-row">
+            <a href="../index.html" class="back-link">Data Viz Gallery</a>
+        </div>
+
+        <div class="header">
+            <h1>Olympic <span>Medal</span> Race</h1>
+            <p class="header-sub">Cumulative medal counts for 30 countries across 28 Summer Olympics, 1896&ndash;2024. Bubble size shows total medals; vertical position shows gold ratio.</p>
+        </div>
+
+        <div class="year-display">
+            <div class="year-number" id="yearDisplay">1896</div>
+            <div class="year-city" id="cityDisplay">Athens</div>
+        </div>
+
+        <div class="chart-wrapper">
+            <canvas id="vizCanvas"></canvas>
+        </div>
+
+        <div class="controls">
+            <button class="btn btn-play" id="btnPlay">Play</button>
+            <div class="control-group">
+                <span class="control-label">Speed</span>
+                <input type="range" id="speedSlider" min="1" max="5" value="3" step="1">
+            </div>
+            <div class="slider-wrap">
+                <span class="control-label">Year</span>
+                <input type="range" id="yearSlider" min="0" max="1000" value="0" step="1">
+            </div>
+            <div class="mode-toggle">
+                <button class="mode-btn active" data-mode="bubble">Bubble</button>
+                <button class="mode-btn" data-mode="bar">Bar Race</button>
+            </div>
+        </div>
+
+        <div class="legend" id="legend"></div>
+
+        <div class="info-panel">
+            <strong>About this visualization</strong> &mdash; Cumulative medal data is approximate, compiled from
+            <a href="https://en.wikipedia.org/wiki/All-time_Olympic_Games_medal_table" target="_blank" rel="noopener">Wikipedia's all-time Olympic medal table</a>
+            and IOC records. Medals are attributed to current national boundaries (e.g., Russia includes Soviet-era medals for consistency).
+            The bubble chart plots total medals on X, gold ratio (gold/total) on Y, with bubble size proportional to total medals.
+            Bar race mode shows the top 15 countries by cumulative total medals.
+        </div>
+
+        <div class="footer">
+            <a href="../index.html">&larr; Back to Gallery</a> &nbsp;&middot;&nbsp;
+            <a href="../../index.html">HTML Style Guides</a>
+        </div>
+    </div>
+
+    <div class="tooltip" id="tooltip">
+        <div class="tooltip-name" id="ttName"></div>
+        <div class="tooltip-continent" id="ttContinent"></div>
+        <div class="tooltip-row"><span>Total medals</span> <span class="tooltip-val" id="ttTotal"></span></div>
+        <div class="tooltip-row"><span>Gold ratio</span> <span class="tooltip-val" id="ttRatio"></span></div>
+        <div class="tooltip-row"><span>Rank</span> <span class="tooltip-val" id="ttRank"></span></div>
+        <div class="tooltip-medal-row">
+            <span class="tooltip-medal"><span class="medal-dot medal-gold"></span> <span id="ttGold">0</span></span>
+            <span class="tooltip-medal"><span class="medal-dot medal-silver"></span> <span id="ttSilver">0</span></span>
+            <span class="tooltip-medal"><span class="medal-dot medal-bronze"></span> <span id="ttBronze">0</span></span>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        'use strict';
+
+        /* =============================================
+           DATASET — Summer Olympics 1896-2024
+           Cumulative gold/silver/bronze by country at each Games
+           Data is approximate, compiled from IOC / Wikipedia
+           ============================================= */
+
+        // Each Olympics: [year, city]
+        var GAMES = [
+            [1896,'Athens'],[1900,'Paris'],[1904,'St. Louis'],[1908,'London'],
+            [1912,'Stockholm'],[1920,'Antwerp'],[1924,'Paris'],[1928,'Amsterdam'],
+            [1932,'Los Angeles'],[1936,'Berlin'],[1948,'London'],[1952,'Helsinki'],
+            [1956,'Melbourne'],[1960,'Rome'],[1964,'Tokyo'],[1968,'Mexico City'],
+            [1972,'Munich'],[1976,'Montreal'],[1980,'Moscow'],[1984,'Los Angeles'],
+            [1988,'Seoul'],[1992,'Barcelona'],[1996,'Atlanta'],[2000,'Sydney'],
+            [2004,'Athens'],[2008,'Beijing'],[2012,'London'],[2016,'Rio'],
+            [2020,'Tokyo'],[2024,'Paris']
+        ];
+
+        var GAME_YEARS = GAMES.map(function(g) { return g[0]; });
+
+        var CONTINENTS = {
+            'Europe':   { color: '#6382ff', label: 'Europe' },
+            'Americas': { color: '#38d9a9', label: 'Americas' },
+            'Asia':     { color: '#ff6b6b', label: 'Asia' },
+            'Oceania':  { color: '#b197fc', label: 'Oceania' },
+            'Africa':   { color: '#ffd43b', label: 'Africa' }
+        };
+
+        // Each country: { name, code, continent, medals: [[g,s,b], ...] }
+        // medals[i] = cumulative [gold, silver, bronze] AFTER Games i
+        // 30 entries covering GAMES[0..29]
+        // Data compiled from historical Olympic records (approximate)
+
+        var DATA = [
+            { name: 'United States', code: 'USA', continent: 'Americas', medals: [
+                [11,7,2],[20,15,16],[97,47,38],[100,51,41],[102,56,42],[119,69,54],[146,84,61],[168,101,76],
+                [209,131,96],[213,137,101],[247,167,130],[287,206,167],[321,231,189],[352,260,216],[385,291,240],
+                [413,316,260],[447,345,283],[481,373,302],[481,373,302],[564,434,354],[599,469,385],[639,503,414],
+                [682,541,448],[718,579,478],[756,618,510],[794,656,546],[830,694,580],[867,733,614],[908,770,649],
+                [952,808,686]
+            ]},
+            { name: 'Russia', code: 'RUS', continent: 'Europe', medals: [
+                [0,0,0],[0,0,0],[0,0,0],[1,4,3],[1,4,3],[3,6,3],[3,6,3],[3,6,3],
+                [3,6,3],[3,6,3],[3,6,3],[74,58,55],[111,86,80],[154,113,109],[191,137,134],
+                [230,170,165],[259,199,186],[288,226,209],[343,276,252],[343,276,252],
+                [398,328,296],[439,368,340],[480,402,371],[522,438,407],[553,470,439],
+                [596,504,471],[629,539,505],[658,567,530],[708,603,563],[753,637,596]
+            ]},
+            { name: 'Great Britain', code: 'GBR', continent: 'Europe', medals: [
+                [2,3,2],[17,8,12],[18,9,12],[82,64,52],[90,70,60],[105,82,69],[109,87,73],[115,93,79],
+                [120,98,83],[122,100,85],[132,113,95],[134,118,100],[140,123,106],[148,129,114],
+                [154,136,120],[157,142,128],[161,145,134],[164,149,139],[169,152,142],[173,157,147],
+                [178,163,152],[183,169,158],[189,174,165],[196,183,173],[202,190,179],
+                [211,199,187],[234,224,209],[255,244,232],[280,269,256],[309,297,281]
+            ]},
+            { name: 'Germany', code: 'GER', continent: 'Europe', medals: [
+                [6,5,2],[8,7,3],[9,8,6],[12,11,8],[14,14,13],[14,14,13],[16,17,19],[18,20,22],
+                [20,24,25],[53,50,42],[53,50,42],[53,50,42],[60,57,51],[73,68,62],[83,78,75],
+                [93,88,85],[106,102,98],[129,125,115],[152,152,140],[160,158,149],
+                [179,174,164],[199,193,183],[215,211,203],[231,229,224],[248,247,241],
+                [261,261,254],[275,275,268],[289,289,283],[301,301,296],[317,318,313]
+            ]},
+            { name: 'France', code: 'FRA', continent: 'Europe', medals: [
+                [5,4,2],[27,38,32],[28,40,34],[33,43,39],[39,48,44],[50,56,49],[56,63,57],[64,71,62],
+                [74,78,68],[77,82,73],[84,89,81],[89,94,87],[93,100,92],[98,107,99],[103,112,104],
+                [109,118,110],[113,122,117],[118,127,121],[121,131,125],[127,138,131],
+                [133,145,140],[141,153,148],[147,162,158],[157,172,167],[166,183,176],
+                [177,194,188],[191,207,201],[203,220,213],[215,233,224],[248,266,249]
+            ]},
+            { name: 'China', code: 'CHN', continent: 'Asia', medals: [
+                [0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],
+                [0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],
+                [0,0,0],[0,0,0],[0,0,0],[0,0,0],[15,8,9],
+                [20,16,15],[32,38,30],[48,54,43],[80,80,63],[112,108,89],
+                [163,140,117],[201,171,151],[238,200,178],[278,231,208],[320,264,240]
+            ]},
+            { name: 'Italy', code: 'ITA', continent: 'Europe', medals: [
+                [0,2,0],[3,3,3],[3,3,3],[5,5,6],[8,8,7],[21,17,11],[25,21,15],[31,27,20],
+                [37,33,26],[40,37,30],[47,46,38],[55,53,44],[60,59,49],[67,66,55],
+                [76,69,62],[81,77,69],[86,82,74],[92,87,79],[96,91,83],[106,101,93],
+                [117,107,101],[127,118,112],[135,128,120],[144,137,130],[154,147,140],
+                [166,157,152],[178,169,163],[190,183,175],[204,196,186],[218,212,200]
+            ]},
+            { name: 'Australia', code: 'AUS', continent: 'Oceania', medals: [
+                [2,0,0],[3,2,3],[3,2,3],[3,2,3],[5,4,5],[6,6,6],[9,8,8],[10,10,10],
+                [13,13,12],[13,13,12],[15,15,14],[22,21,20],[35,33,29],[43,42,37],[50,47,43],
+                [55,50,50],[62,56,56],[62,58,58],[66,61,61],[83,76,72],
+                [92,85,80],[102,95,91],[112,111,103],[140,133,120],[152,146,133],
+                [163,160,146],[175,173,162],[188,187,177],[206,205,194],[221,221,212]
+            ]},
+            { name: 'Japan', code: 'JPN', continent: 'Asia', medals: [
+                [0,0,0],[0,0,0],[0,0,0],[0,0,0],[2,2,0],[0,0,0],[2,2,1],[4,4,4],
+                [11,8,8],[17,13,13],[17,13,13],[21,20,20],[30,31,28],[37,38,34],
+                [53,49,42],[60,56,50],[69,63,56],[74,70,61],[74,70,61],[82,77,68],
+                [94,85,78],[100,94,86],[110,104,96],[120,115,107],[130,126,118],
+                [142,138,130],[152,149,141],[161,158,151],[182,175,164],[206,194,178]
+            ]},
+            { name: 'Hungary', code: 'HUN', continent: 'Europe', medals: [
+                [2,1,3],[3,2,4],[4,3,4],[7,6,7],[8,8,9],[8,8,9],[13,14,14],[16,17,17],
+                [20,21,22],[26,25,26],[39,35,36],[55,48,48],[63,54,56],[69,61,63],
+                [82,67,70],[89,73,77],[95,82,84],[98,88,89],[103,95,96],[113,101,100],
+                [122,108,108],[133,116,114],[138,121,120],[147,130,130],[152,135,136],
+                [159,143,143],[165,149,149],[171,155,156],[177,162,164],[183,168,170]
+            ]},
+            { name: 'Sweden', code: 'SWE', continent: 'Europe', medals: [
+                [0,0,0],[1,1,1],[1,1,1],[8,6,11],[24,24,17],[36,33,28],[40,38,35],[45,42,38],
+                [48,46,40],[51,49,43],[63,57,50],[71,63,56],[76,69,60],[80,73,62],
+                [86,78,66],[90,82,70],[93,85,73],[96,89,76],[98,91,79],[100,93,82],
+                [103,97,87],[106,101,90],[110,105,95],[113,110,100],[117,114,103],
+                [121,118,107],[124,122,110],[127,126,113],[130,130,117],[135,134,122]
+            ]},
+            { name: 'South Korea', code: 'KOR', continent: 'Asia', medals: [
+                [0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],
+                [0,0,0],[0,0,0],[2,0,2],[3,0,3],[4,1,4],[5,2,5],[6,5,6],
+                [8,6,8],[9,7,9],[10,8,11],[12,10,14],[18,16,21],
+                [30,25,27],[39,33,37],[48,42,46],[56,54,57],[65,62,66],
+                [76,73,77],[87,83,86],[100,93,97],[113,103,109],[126,115,121]
+            ]},
+            { name: 'Cuba', code: 'CUB', continent: 'Americas', medals: [
+                [0,0,0],[1,1,0],[5,3,3],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],
+                [0,0,0],[0,0,0],[0,0,0],[0,0,0],[1,1,0],[1,1,0],[1,1,0],
+                [2,1,0],[3,1,4],[7,4,3],[8,7,5],[8,7,5],
+                [22,18,13],[39,25,25],[48,36,31],[58,44,43],[67,51,51],
+                [74,58,58],[79,63,65],[85,67,71],[92,72,76],[97,77,81]
+            ]},
+            { name: 'Netherlands', code: 'NED', continent: 'Europe', medals: [
+                [0,0,0],[1,1,3],[1,2,3],[1,2,3],[3,4,5],[4,5,7],[6,7,8],[12,12,10],
+                [13,13,14],[17,16,17],[24,22,24],[27,27,27],[29,30,29],[32,32,31],
+                [37,36,36],[40,39,40],[43,42,44],[46,45,47],[49,48,51],[52,51,54],
+                [55,54,58],[61,58,62],[67,63,67],[72,69,73],[77,74,78],
+                [84,79,84],[91,84,90],[99,91,97],[114,106,112],[128,117,125]
+            ]},
+            { name: 'Romania', code: 'ROU', continent: 'Europe', medals: [
+                [0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,1,0],[0,1,0],[0,1,0],[1,1,0],
+                [1,1,0],[1,1,0],[1,1,0],[4,3,2],[5,3,5],[6,5,6],[7,6,7],
+                [11,10,12],[16,16,16],[23,22,17],[28,26,22],[38,36,30],
+                [50,44,39],[56,52,45],[60,57,52],[66,62,58],[72,68,62],
+                [78,75,68],[84,81,75],[90,87,83],[96,93,89],[101,99,95]
+            ]},
+            { name: 'Kenya', code: 'KEN', continent: 'Africa', medals: [
+                [0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],
+                [0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[1,0,0],
+                [3,4,2],[4,5,4],[5,6,6],[6,7,7],[6,7,7],
+                [8,9,9],[11,12,12],[14,17,16],[18,20,19],[21,23,23],
+                [24,27,27],[28,33,33],[33,38,37],[40,44,43],[47,51,49]
+            ]},
+            { name: 'Jamaica', code: 'JAM', continent: 'Americas', medals: [
+                [0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],
+                [0,0,0],[0,0,0],[1,2,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],
+                [0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],
+                [0,0,0],[1,3,2],[3,4,4],[9,6,4],[10,8,5],
+                [14,10,7],[18,14,10],[22,18,14],[26,22,18],[31,26,22]
+            ]},
+            { name: 'Ethiopia', code: 'ETH', continent: 'Africa', medals: [
+                [0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],
+                [0,0,0],[0,0,0],[0,0,0],[0,0,0],[1,0,0],[2,0,0],[3,0,1],
+                [4,0,2],[4,0,2],[4,0,2],[4,0,2],[4,0,2],
+                [5,1,3],[5,1,5],[9,2,7],[12,3,9],[14,5,13],
+                [18,7,15],[21,9,17],[24,11,19],[28,14,21],[33,17,24]
+            ]},
+            { name: 'Canada', code: 'CAN', continent: 'Americas', medals: [
+                [0,0,0],[1,0,1],[4,1,1],[7,2,4],[10,3,4],[10,6,6],[10,6,6],[12,8,9],
+                [14,10,11],[14,10,11],[14,10,11],[15,11,13],[17,13,15],[18,15,18],
+                [20,18,21],[22,21,23],[23,22,26],[24,25,29],[24,25,29],[34,34,37],
+                [38,38,41],[43,43,47],[49,49,53],[56,55,60],[62,61,67],
+                [68,67,74],[73,73,80],[82,82,89],[89,89,95],[96,97,102]
+            ]},
+            { name: 'Brazil', code: 'BRA', continent: 'Americas', medals: [
+                [0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[1,1,1],[0,0,0],[0,0,0],
+                [0,0,0],[0,0,0],[0,0,0],[1,0,1],[1,0,2],[1,0,2],[1,0,2],
+                [1,0,2],[2,0,2],[2,0,2],[2,0,2],[3,3,5],
+                [5,6,8],[6,8,11],[9,11,14],[12,14,17],[15,18,23],
+                [18,22,26],[23,28,31],[30,36,39],[37,41,45],[44,46,51]
+            ]},
+            { name: 'Norway', code: 'NOR', continent: 'Europe', medals: [
+                [0,0,0],[0,0,0],[0,0,0],[2,3,3],[4,5,3],[13,10,5],[14,12,9],[15,14,11],
+                [16,15,13],[17,16,14],[17,16,15],[20,19,17],[21,22,20],[21,22,20],
+                [22,23,21],[22,24,23],[23,25,24],[23,25,25],[23,25,25],[23,25,26],
+                [25,27,28],[26,28,29],[28,29,30],[29,31,32],[30,33,34],
+                [31,34,35],[32,35,36],[33,36,37],[34,37,38],[35,38,40]
+            ]},
+            { name: 'Poland', code: 'POL', continent: 'Europe', medals: [
+                [0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,1,0],[1,1,3],[2,2,3],
+                [2,4,3],[2,4,3],[4,5,4],[5,7,5],[6,8,6],[8,10,10],[10,13,14],
+                [14,15,17],[17,18,20],[20,20,23],[22,22,27],[23,23,28],
+                [28,27,34],[32,30,38],[38,35,42],[44,39,48],[50,45,55],
+                [55,50,60],[60,55,67],[65,60,72],[70,65,77],[75,70,82]
+            ]},
+            { name: 'New Zealand', code: 'NZL', continent: 'Oceania', medals: [
+                [0,0,0],[0,0,0],[0,0,0],[1,0,0],[1,0,0],[1,0,1],[2,0,1],[2,0,1],
+                [2,0,1],[3,0,2],[3,0,2],[4,2,2],[6,2,3],[6,2,4],[8,3,4],
+                [9,3,4],[10,5,4],[11,5,5],[13,7,6],[16,11,8],
+                [18,13,10],[21,14,12],[24,17,14],[28,20,17],[31,23,20],
+                [34,26,22],[38,30,26],[42,34,30],[51,38,35],[56,43,39]
+            ]},
+            { name: 'Spain', code: 'ESP', continent: 'Europe', medals: [
+                [0,0,0],[1,0,0],[1,0,0],[1,0,0],[1,0,0],[2,1,0],[2,2,0],[2,2,1],
+                [2,2,1],[2,2,1],[3,2,1],[4,2,1],[4,2,1],[4,2,1],[4,2,1],
+                [4,3,1],[5,4,2],[5,4,2],[6,5,3],[7,7,5],
+                [10,9,7],[17,13,9],[20,19,14],[25,24,17],[30,30,20],
+                [37,36,24],[42,42,28],[47,48,33],[51,51,37],[56,56,42]
+            ]},
+            { name: 'India', code: 'IND', continent: 'Asia', medals: [
+                [0,0,0],[0,2,0],[0,2,0],[1,2,0],[1,2,0],[1,2,0],[1,2,0],[2,2,0],
+                [3,2,0],[3,2,0],[4,2,0],[5,2,0],[6,2,0],[7,2,0],[8,2,0],
+                [8,3,1],[8,3,2],[8,3,2],[8,3,3],[8,3,3],
+                [8,4,4],[8,4,4],[8,4,4],[8,4,5],[8,4,6],
+                [9,5,8],[10,8,11],[10,10,14],[14,13,20],[20,17,26]
+            ]},
+            { name: 'Turkey', code: 'TUR', continent: 'Europe', medals: [
+                [0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],
+                [0,0,0],[1,0,1],[6,4,2],[7,5,3],[8,5,3],[10,7,4],[12,8,4],
+                [13,9,5],[14,10,6],[15,10,7],[15,10,7],[15,10,7],
+                [21,14,9],[24,18,13],[27,22,17],[30,26,21],[33,30,25],
+                [36,34,29],[39,38,33],[42,42,37],[48,45,40],[54,49,44]
+            ]},
+            { name: 'Argentina', code: 'ARG', continent: 'Americas', medals: [
+                [0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[3,3,1],
+                [3,4,2],[5,6,3],[6,7,4],[7,8,5],[7,8,5],[7,8,5],[7,8,5],
+                [7,8,6],[7,8,6],[7,8,6],[7,8,6],[7,8,6],
+                [7,9,7],[7,9,8],[7,10,9],[8,11,12],[11,13,14],
+                [13,15,16],[14,16,19],[16,18,22],[18,20,24],[21,22,27]
+            ]},
+            { name: 'Denmark', code: 'DEN', continent: 'Europe', medals: [
+                [1,2,3],[2,3,3],[4,5,4],[6,8,5],[7,12,8],[10,14,11],[11,15,12],[12,17,14],
+                [13,18,15],[14,20,17],[16,21,17],[18,22,20],[19,23,22],[22,26,23],
+                [23,27,24],[24,28,27],[25,30,28],[27,32,28],[27,33,28],[28,34,30],
+                [30,36,32],[32,38,34],[33,40,36],[35,42,38],[37,44,39],
+                [39,46,40],[41,48,42],[43,50,45],[45,52,47],[48,55,50]
+            ]},
+            { name: 'South Africa', code: 'RSA', continent: 'Africa', medals: [
+                [0,0,0],[0,0,0],[0,0,0],[1,1,0],[2,2,0],[3,3,4],[3,3,4],[3,3,4],
+                [5,4,4],[5,4,4],[5,4,5],[5,4,5],[5,4,5],[5,4,5],[5,4,5],
+                [5,4,5],[5,4,5],[5,4,5],[5,4,5],[5,4,5],
+                [5,5,6],[6,8,8],[9,10,11],[12,13,14],[14,16,17],
+                [16,19,20],[19,22,24],[22,25,27],[26,28,30],[30,31,33]
+            ]},
+            { name: 'Mexico', code: 'MEX', continent: 'Americas', medals: [
+                [0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,2],
+                [2,0,2],[2,0,3],[2,1,3],[3,1,3],[3,1,3],[3,1,3],[3,1,3],
+                [4,3,3],[4,3,3],[4,3,3],[4,3,3],[6,5,5],
+                [6,5,6],[6,5,6],[7,6,8],[9,8,10],[10,9,11],
+                [11,10,13],[12,12,15],[13,13,18],[14,15,21],[15,17,24]
+            ]}
+        ];
+
+        // Annotations triggered at specific game indices
+        var ANNOTATIONS = [
+            { gameIdx: 0, text: '1896: First modern Olympics in Athens. Only 14 nations compete.', x: 0.05, y: 0.08 },
+            { gameIdx: 11, text: '1952: Soviet Union enters the Olympics for the first time, instantly a superpower.', x: 0.6, y: 0.08 },
+            { gameIdx: 18, text: '1980: US-led boycott of Moscow Games. USSR dominates medal table.', x: 0.55, y: 0.08 },
+            { gameIdx: 19, text: '1984: Soviet-led boycott of LA Games. US wins record 83 golds.', x: 0.55, y: 0.08 },
+            { gameIdx: 25, text: '2008: Beijing Olympics. China tops gold medal table (51 golds) for the first time.', x: 0.55, y: 0.08 },
+            { gameIdx: 29, text: '2024: Paris Olympics. Record 206 nations compete.', x: 0.55, y: 0.08 }
+        ];
+
+        var TOP_N = 15;
+
+        /* =============================================
+           STATE
+           ============================================= */
+        var canvas = document.getElementById('vizCanvas');
+        var ctx = canvas.getContext('2d');
+        var W, H, dpr;
+        var currentGameIdx = 0;
+        var targetGameIdx = 0;
+        var isPlaying = false;
+        var playSpeed = 3;
+        var hoveredCountry = -1;
+        var mouseX = 0, mouseY = 0;
+        var lastFrameTime = 0;
+        var continentFilter = {};
+        var viewMode = 'bubble'; // 'bubble' or 'bar'
+
+        // Animation state per country
+        var bubbleStates = DATA.map(function() {
+            return { displayX: 0, displayY: 0, displayR: 0, displayBarW: 0, displayBarY: 0 };
+        });
+
+        /* =============================================
+           HELPERS
+           ============================================= */
+        function lerp(a, b, t) { return a + (b - a) * t; }
+
+        function getMedalsAtGame(countryIdx, gameIdx) {
+            var gi = Math.floor(gameIdx);
+            var frac = gameIdx - gi;
+            var d = DATA[countryIdx].medals;
+            if (gi < 0) gi = 0;
+            if (gi >= d.length - 1) return { g: d[d.length-1][0], s: d[d.length-1][1], b: d[d.length-1][2] };
+            var g0 = d[gi], g1 = d[gi + 1];
+            return {
+                g: lerp(g0[0], g1[0], frac),
+                s: lerp(g0[1], g1[1], frac),
+                b: lerp(g0[2], g1[2], frac)
+            };
+        }
+
+        function getTotalAtGame(countryIdx, gameIdx) {
+            var m = getMedalsAtGame(countryIdx, gameIdx);
+            return m.g + m.s + m.b;
+        }
+
+        function getGoldRatioAtGame(countryIdx, gameIdx) {
+            var m = getMedalsAtGame(countryIdx, gameIdx);
+            var total = m.g + m.s + m.b;
+            if (total === 0) return 0;
+            return m.g / total;
+        }
+
+        function getRankedData(gameIdx) {
+            var items = [];
+            for (var i = 0; i < DATA.length; i++) {
+                var m = getMedalsAtGame(i, gameIdx);
+                var total = m.g + m.s + m.b;
+                items.push({
+                    idx: i,
+                    name: DATA[i].name,
+                    code: DATA[i].code,
+                    continent: DATA[i].continent,
+                    total: total,
+                    gold: m.g,
+                    silver: m.s,
+                    bronze: m.b,
+                    goldRatio: total > 0 ? m.g / total : 0
+                });
+            }
+            items.sort(function(a, b) { return b.total - a.total; });
+            return items;
+        }
+
+        function adjustAlpha(hex, alpha) {
+            var r = parseInt(hex.slice(1, 3), 16);
+            var g = parseInt(hex.slice(3, 5), 16);
+            var b = parseInt(hex.slice(5, 7), 16);
+            return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+        }
+
+        function getYearFromGameIdx(gi) {
+            var i = Math.floor(gi);
+            var frac = gi - i;
+            if (i < 0) return GAME_YEARS[0];
+            if (i >= GAME_YEARS.length - 1) return GAME_YEARS[GAME_YEARS.length - 1];
+            return Math.round(lerp(GAME_YEARS[i], GAME_YEARS[i + 1], frac));
+        }
+
+        function getCityFromGameIdx(gi) {
+            var i = Math.round(gi);
+            if (i < 0) i = 0;
+            if (i >= GAMES.length) i = GAMES.length - 1;
+            return GAMES[i][1];
+        }
+
+        function formatNum(n) {
+            return Math.round(n).toLocaleString();
+        }
+
+        /* =============================================
+           CANVAS SETUP
+           ============================================= */
+        function resize() {
+            dpr = window.devicePixelRatio || 1;
+            var rect = canvas.parentElement.getBoundingClientRect();
+            var targetW = rect.width;
+            var targetH = Math.max(480, Math.min(650, window.innerHeight * 0.6));
+            canvas.style.height = targetH + 'px';
+            W = canvas.width = targetW * dpr;
+            H = canvas.height = targetH * dpr;
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+
+        /* =============================================
+           DRAWING — BUBBLE MODE
+           ============================================= */
+        var BUBBLE_PAD = { top: 50, bottom: 40, left: 70, right: 40 };
+
+        function drawBubble(timestamp, dt) {
+            var ranked = getRankedData(currentGameIdx);
+            var cw = W / dpr;
+            var ch = H / dpr;
+            var plotW = cw - BUBBLE_PAD.left - BUBBLE_PAD.right;
+            var plotH = ch - BUBBLE_PAD.top - BUBBLE_PAD.bottom;
+
+            // Determine any continent filter
+            var anyFiltered = false;
+            for (var c in continentFilter) {
+                if (continentFilter[c] === false) { anyFiltered = true; break; }
+            }
+
+            // Find max total for scaling
+            var maxTotal = 1;
+            for (var i = 0; i < ranked.length; i++) {
+                if (anyFiltered && continentFilter[ranked[i].continent] === false) continue;
+                if (ranked[i].total > maxTotal) maxTotal = ranked[i].total;
+            }
+
+            // Max bubble radius
+            var maxR = Math.min(plotW, plotH) * 0.06;
+            var minR = 4;
+
+            // Clear
+            ctx.clearRect(0, 0, cw, ch);
+
+            // Grid
+            drawBubbleGrid(cw, ch, plotW, plotH, maxTotal);
+
+            // Draw bubbles
+            hoveredCountry = -1;
+            var canvasRect = canvas.getBoundingClientRect();
+            var localX = mouseX - canvasRect.left;
+            var localY = mouseY - canvasRect.top;
+
+            // Sort by size (largest first so small ones draw on top)
+            var drawOrder = ranked.slice().sort(function(a, b) { return a.total - b.total; });
+
+            for (var di = 0; di < drawOrder.length; di++) {
+                var item = drawOrder[di];
+                if (item.total < 1) continue;
+                if (anyFiltered && continentFilter[item.continent] === false) continue;
+
+                var targetX = BUBBLE_PAD.left + (item.total / maxTotal) * plotW * 0.9 + plotW * 0.05;
+                var targetY = BUBBLE_PAD.top + plotH - (item.goldRatio * plotH * 0.9 + plotH * 0.05);
+                var targetR = minR + (Math.sqrt(item.total) / Math.sqrt(maxTotal)) * (maxR - minR);
+
+                var bs = bubbleStates[item.idx];
+                var smoothing = Math.min(1, dt * 5);
+                bs.displayX = lerp(bs.displayX || targetX, targetX, smoothing);
+                bs.displayY = lerp(bs.displayY || targetY, targetY, smoothing);
+                bs.displayR = lerp(bs.displayR || targetR, targetR, smoothing);
+
+                var bx = bs.displayX;
+                var by = bs.displayY;
+                var br = bs.displayR;
+
+                // Hover detection
+                var dx = localX - bx;
+                var dy = localY - by;
+                if (dx * dx + dy * dy <= (br + 4) * (br + 4)) {
+                    hoveredCountry = item.idx;
+                }
+
+                var isHovered = (hoveredCountry === item.idx);
+                var color = CONTINENTS[item.continent].color;
+
+                // Glow on hover
+                if (isHovered) {
+                    ctx.shadowColor = color;
+                    ctx.shadowBlur = 16;
+                }
+
+                // Bubble fill
+                ctx.globalAlpha = isHovered ? 0.95 : 0.7;
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.arc(bx, by, br, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Bubble border
+                ctx.globalAlpha = isHovered ? 1 : 0.5;
+                ctx.strokeStyle = color;
+                ctx.lineWidth = isHovered ? 2 : 1;
+                ctx.stroke();
+
+                ctx.globalAlpha = 1;
+                ctx.shadowColor = 'transparent';
+                ctx.shadowBlur = 0;
+
+                // Label inside bubble
+                if (br > 14) {
+                    ctx.font = (isHovered ? '600 ' : '500 ') + Math.max(8, Math.min(12, br * 0.6)) + 'px "JetBrains Mono"';
+                    ctx.fillStyle = isHovered ? '#fff' : 'rgba(255,255,255,0.9)';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(item.code, bx, by);
+                } else if (br > 8) {
+                    ctx.font = '500 7px "JetBrains Mono"';
+                    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(item.code, bx, by);
+                }
+            }
+
+            updateTooltip(ranked);
+        }
+
+        function drawBubbleGrid(cw, ch, plotW, plotH, maxTotal) {
+            // X axis — total medals
+            ctx.strokeStyle = 'rgba(99, 130, 255, 0.07)';
+            ctx.lineWidth = 0.5;
+            var xSteps = 5;
+            for (var i = 0; i <= xSteps; i++) {
+                var x = BUBBLE_PAD.left + (plotW / xSteps) * i;
+                ctx.beginPath();
+                ctx.moveTo(x, BUBBLE_PAD.top);
+                ctx.lineTo(x, ch - BUBBLE_PAD.bottom);
+                ctx.stroke();
+
+                // Label
+                var val = Math.round((maxTotal / xSteps) * i * 0.9 + maxTotal * 0.05 * (i > 0 ? 0 : 1));
+                if (i === 0) val = 0;
+                ctx.font = '500 9px "JetBrains Mono"';
+                ctx.fillStyle = 'rgba(74, 85, 128, 0.6)';
+                ctx.textAlign = 'center';
+                ctx.fillText(formatNum(Math.round((maxTotal * 0.9 / xSteps) * i)), x, ch - BUBBLE_PAD.bottom + 16);
+            }
+
+            // X axis label
+            ctx.font = '400 10px "Inter"';
+            ctx.fillStyle = 'rgba(136, 146, 176, 0.5)';
+            ctx.textAlign = 'center';
+            ctx.fillText('Total Medals', BUBBLE_PAD.left + plotW / 2, ch - 8);
+
+            // Y axis — gold ratio
+            var ySteps = 5;
+            for (var j = 0; j <= ySteps; j++) {
+                var y = BUBBLE_PAD.top + (plotH / ySteps) * j;
+                ctx.strokeStyle = 'rgba(99, 130, 255, 0.07)';
+                ctx.beginPath();
+                ctx.moveTo(BUBBLE_PAD.left, y);
+                ctx.lineTo(cw - BUBBLE_PAD.right, y);
+                ctx.stroke();
+
+                var ratio = (1 - j / ySteps) * 0.9 + 0.05;
+                if (j === ySteps) ratio = 0;
+                if (j === 0) ratio = 0.9;
+                ctx.font = '500 9px "JetBrains Mono"';
+                ctx.fillStyle = 'rgba(74, 85, 128, 0.6)';
+                ctx.textAlign = 'right';
+                var pct = Math.round(((ySteps - j) / ySteps) * 60);
+                ctx.fillText(pct + '%', BUBBLE_PAD.left - 8, y + 3);
+            }
+
+            // Y axis label
+            ctx.save();
+            ctx.translate(14, BUBBLE_PAD.top + plotH / 2);
+            ctx.rotate(-Math.PI / 2);
+            ctx.font = '400 10px "Inter"';
+            ctx.fillStyle = 'rgba(136, 146, 176, 0.5)';
+            ctx.textAlign = 'center';
+            ctx.fillText('Gold Ratio (gold / total)', 0, 0);
+            ctx.restore();
+        }
+
+        /* =============================================
+           DRAWING — BAR RACE MODE
+           ============================================= */
+        var BAR_PAD = { top: 30, bottom: 20, left: 100, right: 80 };
+
+        function drawBarRace(timestamp, dt) {
+            var ranked = getRankedData(currentGameIdx);
+            var cw = W / dpr;
+            var ch = H / dpr;
+            var availH = ch - BAR_PAD.top - BAR_PAD.bottom;
+            var barH = Math.min(28, (availH / TOP_N) - 5);
+            var gap = (availH - barH * TOP_N) / (TOP_N - 1);
+            var availW = cw - BAR_PAD.left - BAR_PAD.right;
+
+            var anyFiltered = false;
+            for (var c in continentFilter) {
+                if (continentFilter[c] === false) { anyFiltered = true; break; }
+            }
+
+            var maxTotal = 1;
+            var visibleIdx = 0;
+            for (var i = 0; i < ranked.length && visibleIdx < TOP_N; i++) {
+                if (anyFiltered && continentFilter[ranked[i].continent] === false) continue;
+                if (ranked[i].total > maxTotal) maxTotal = ranked[i].total;
+                visibleIdx++;
+            }
+
+            // Clear
+            ctx.clearRect(0, 0, cw, ch);
+
+            // Grid lines
+            ctx.strokeStyle = 'rgba(99, 130, 255, 0.05)';
+            ctx.lineWidth = 0.5;
+            var gridSteps = 5;
+            for (var g = 0; g <= gridSteps; g++) {
+                var gx = BAR_PAD.left + (availW / gridSteps) * g;
+                ctx.beginPath();
+                ctx.moveTo(gx, BAR_PAD.top - 10);
+                ctx.lineTo(gx, ch - BAR_PAD.bottom + 10);
+                ctx.stroke();
+
+                if (g > 0) {
+                    var gridVal = (maxTotal / gridSteps) * g;
+                    ctx.font = '500 9px "JetBrains Mono"';
+                    ctx.fillStyle = 'rgba(74, 85, 128, 0.6)';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(formatNum(Math.round(gridVal)), gx, BAR_PAD.top - 14);
+                }
+            }
+
+            // Draw bars
+            hoveredCountry = -1;
+            visibleIdx = 0;
+            var canvasRect = canvas.getBoundingClientRect();
+            var localX = mouseX - canvasRect.left;
+            var localY = mouseY - canvasRect.top;
+
+            for (var i = 0; i < ranked.length && visibleIdx < TOP_N; i++) {
+                var item = ranked[i];
+                if (anyFiltered && continentFilter[item.continent] === false) continue;
+
+                var bs = bubbleStates[item.idx];
+                var targetBarW = (item.total / maxTotal) * availW;
+                var targetBarY = BAR_PAD.top + visibleIdx * (barH + gap);
+
+                var smoothing = Math.min(1, dt * 6);
+                bs.displayBarW = lerp(bs.displayBarW || 0, targetBarW, smoothing);
+                bs.displayBarY = lerp(bs.displayBarY || targetBarY, targetBarY, smoothing);
+
+                var bx = BAR_PAD.left;
+                var by = bs.displayBarY;
+                var bw = bs.displayBarW;
+                var color = CONTINENTS[item.continent].color;
+
+                // Hover
+                if (localX >= bx && localX <= bx + bw && localY >= by && localY <= by + barH) {
+                    hoveredCountry = item.idx;
+                }
+
+                var isHovered = (hoveredCountry === item.idx);
+                var alpha = isHovered ? 1.0 : 0.75;
+
+                if (isHovered) {
+                    ctx.shadowColor = color;
+                    ctx.shadowBlur = 12;
+                }
+
+                // Tricolor bar: gold | silver | bronze
+                var goldW = item.total > 0 ? (item.gold / item.total) * bw : 0;
+                var silverW = item.total > 0 ? (item.silver / item.total) * bw : 0;
+                var bronzeW = bw - goldW - silverW;
+
+                ctx.globalAlpha = alpha;
+
+                // Gold segment
+                ctx.fillStyle = '#ffd43b';
+                roundedRectLeft(ctx, bx, by, goldW, barH, 3);
+                ctx.fill();
+
+                // Silver segment
+                ctx.fillStyle = '#c0c0c0';
+                ctx.fillRect(bx + goldW, by, silverW, barH);
+
+                // Bronze segment
+                ctx.fillStyle = '#cd7f32';
+                roundedRectRight(ctx, bx + goldW + silverW, by, bronzeW, barH, 3);
+                ctx.fill();
+
+                ctx.globalAlpha = 1;
+                ctx.shadowColor = 'transparent';
+                ctx.shadowBlur = 0;
+
+                // Country name
+                ctx.font = (isHovered ? '600' : '400') + ' 11px "Inter"';
+                ctx.fillStyle = isHovered ? '#fff' : 'rgba(232, 236, 244, 0.8)';
+                ctx.textAlign = 'right';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(item.code, BAR_PAD.left - 10, by + barH / 2);
+
+                // Total label
+                ctx.font = '500 10px "JetBrains Mono"';
+                ctx.fillStyle = isHovered ? '#fff' : 'rgba(136, 146, 176, 0.8)';
+                ctx.textAlign = 'left';
+                ctx.fillText(formatNum(Math.round(item.total)), bx + bw + 8, by + barH / 2);
+
+                visibleIdx++;
+            }
+
+            updateTooltip(ranked);
+        }
+
+        function roundedRectLeft(ctx, x, y, w, h, r) {
+            if (w < r) r = w;
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.lineTo(x + w, y);
+            ctx.lineTo(x + w, y + h);
+            ctx.lineTo(x + r, y + h);
+            ctx.arcTo(x, y + h, x, y + h - r, r);
+            ctx.lineTo(x, y + r);
+            ctx.arcTo(x, y, x + r, y, r);
+            ctx.closePath();
+        }
+
+        function roundedRectRight(ctx, x, y, w, h, r) {
+            if (w < r) r = Math.max(0, w);
+            if (w <= 0) return;
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.lineTo(x + w - r, y);
+            ctx.arcTo(x + w, y, x + w, y + r, r);
+            ctx.lineTo(x + w, y + h - r);
+            ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+            ctx.lineTo(x, y + h);
+            ctx.closePath();
+        }
+
+        /* =============================================
+           MAIN DRAW LOOP
+           ============================================= */
+        function draw(timestamp) {
+            if (!lastFrameTime) lastFrameTime = timestamp;
+            var dt = Math.min((timestamp - lastFrameTime) / 1000, 0.1);
+            lastFrameTime = timestamp;
+
+            // Auto-play
+            if (isPlaying) {
+                var speedMap = [0.3, 0.6, 1.2, 2.5, 5];
+                var rate = speedMap[playSpeed - 1] || 1.2;
+                targetGameIdx = Math.min(GAMES.length - 1, targetGameIdx + dt * rate);
+                if (targetGameIdx >= GAMES.length - 1) {
+                    targetGameIdx = GAMES.length - 1;
+                    isPlaying = false;
+                    document.getElementById('btnPlay').textContent = 'Play';
+                    document.getElementById('yearDisplay').classList.remove('playing');
+                }
+                // Update slider
+                var prog = targetGameIdx / (GAMES.length - 1);
+                document.getElementById('yearSlider').value = Math.round(prog * 1000);
+            }
+
+            // Smooth game index transition
+            currentGameIdx = lerp(currentGameIdx, targetGameIdx, Math.min(1, dt * 8));
+            if (Math.abs(currentGameIdx - targetGameIdx) < 0.005) currentGameIdx = targetGameIdx;
+
+            // Update displays
+            var displayYear = getYearFromGameIdx(currentGameIdx);
+            var displayCity = getCityFromGameIdx(currentGameIdx);
+            document.getElementById('yearDisplay').textContent = displayYear;
+            document.getElementById('cityDisplay').textContent = displayCity;
+
+            // Update annotations
+            updateAnnotations();
+
+            // Draw based on mode
+            if (viewMode === 'bubble') {
+                drawBubble(timestamp, dt);
+            } else {
+                drawBarRace(timestamp, dt);
+            }
+
+            requestAnimationFrame(draw);
+        }
+
+        /* =============================================
+           ANNOTATIONS
+           ============================================= */
+        var annotationEls = [];
+        function initAnnotations() {
+            var wrapper = document.querySelector('.chart-wrapper');
+            ANNOTATIONS.forEach(function(ann) {
+                var el = document.createElement('div');
+                el.className = 'annotation';
+                el.textContent = ann.text;
+                el.style.left = (ann.x * 100) + '%';
+                el.style.top = (ann.y * 100) + '%';
+                wrapper.appendChild(el);
+                annotationEls.push(el);
+            });
+        }
+
+        function updateAnnotations() {
+            var gi = Math.round(currentGameIdx);
+            for (var i = 0; i < ANNOTATIONS.length; i++) {
+                var ann = ANNOTATIONS[i];
+                var show = Math.abs(gi - ann.gameIdx) <= 1;
+                annotationEls[i].classList.toggle('visible', show);
+            }
+        }
+
+        /* =============================================
+           TOOLTIP
+           ============================================= */
+        var tooltip = document.getElementById('tooltip');
+        var ttName = document.getElementById('ttName');
+        var ttContinent = document.getElementById('ttContinent');
+        var ttTotal = document.getElementById('ttTotal');
+        var ttRatio = document.getElementById('ttRatio');
+        var ttRank = document.getElementById('ttRank');
+        var ttGold = document.getElementById('ttGold');
+        var ttSilver = document.getElementById('ttSilver');
+        var ttBronze = document.getElementById('ttBronze');
+
+        function updateTooltip(ranked) {
+            if (hoveredCountry < 0) {
+                tooltip.classList.remove('visible');
+                return;
+            }
+
+            var item = DATA[hoveredCountry];
+            var m = getMedalsAtGame(hoveredCountry, currentGameIdx);
+            var total = m.g + m.s + m.b;
+            var goldRatio = total > 0 ? m.g / total : 0;
+            var rank = 0;
+            for (var i = 0; i < ranked.length; i++) {
+                if (ranked[i].idx === hoveredCountry) { rank = i + 1; break; }
+            }
+
+            ttName.textContent = item.name;
+            ttName.style.color = CONTINENTS[item.continent].color;
+            ttContinent.textContent = item.continent;
+            ttContinent.style.color = CONTINENTS[item.continent].color;
+            ttTotal.textContent = formatNum(Math.round(total));
+            ttRatio.textContent = (goldRatio * 100).toFixed(1) + '%';
+            ttRank.textContent = '#' + rank + ' of ' + DATA.length;
+            ttGold.textContent = Math.round(m.g);
+            ttSilver.textContent = Math.round(m.s);
+            ttBronze.textContent = Math.round(m.b);
+
+            tooltip.classList.add('visible');
+
+            var tw = tooltip.offsetWidth;
+            var th = tooltip.offsetHeight;
+            var tx = mouseX + 16;
+            var ty = mouseY - th / 2;
+            if (tx + tw > window.innerWidth - 10) tx = mouseX - tw - 16;
+            if (ty < 10) ty = 10;
+            if (ty + th > window.innerHeight - 10) ty = window.innerHeight - th - 10;
+            tooltip.style.left = tx + 'px';
+            tooltip.style.top = ty + 'px';
+        }
+
+        /* =============================================
+           CONTROLS
+           ============================================= */
+        document.getElementById('btnPlay').addEventListener('click', function() {
+            if (isPlaying) {
+                isPlaying = false;
+                this.textContent = 'Play';
+                document.getElementById('yearDisplay').classList.remove('playing');
+            } else {
+                if (targetGameIdx >= GAMES.length - 1) targetGameIdx = 0;
+                isPlaying = true;
+                this.textContent = 'Pause';
+                document.getElementById('yearDisplay').classList.add('playing');
+            }
+        });
+
+        document.getElementById('speedSlider').addEventListener('input', function() {
+            playSpeed = parseInt(this.value);
+        });
+
+        document.getElementById('yearSlider').addEventListener('input', function() {
+            var t = parseInt(this.value) / 1000;
+            targetGameIdx = t * (GAMES.length - 1);
+            if (isPlaying) {
+                isPlaying = false;
+                document.getElementById('btnPlay').textContent = 'Play';
+                document.getElementById('yearDisplay').classList.remove('playing');
+            }
+        });
+
+        // Mode toggle
+        document.querySelectorAll('.mode-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var mode = this.getAttribute('data-mode');
+                if (mode === viewMode) return;
+                viewMode = mode;
+                document.querySelectorAll('.mode-btn').forEach(function(b) {
+                    b.classList.toggle('active', b.getAttribute('data-mode') === mode);
+                });
+            });
+        });
+
+        // Mouse tracking
+        canvas.addEventListener('mousemove', function(e) {
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+        });
+        canvas.addEventListener('mouseleave', function() {
+            mouseX = -1000;
+            mouseY = -1000;
+            hoveredCountry = -1;
+            tooltip.classList.remove('visible');
+        });
+
+        // Touch support
+        canvas.addEventListener('touchstart', function(e) {
+            var touch = e.touches[0];
+            mouseX = touch.clientX;
+            mouseY = touch.clientY;
+        }, { passive: true });
+        canvas.addEventListener('touchmove', function(e) {
+            var touch = e.touches[0];
+            mouseX = touch.clientX;
+            mouseY = touch.clientY;
+        }, { passive: true });
+        canvas.addEventListener('touchend', function() {
+            mouseX = -1000;
+            mouseY = -1000;
+            hoveredCountry = -1;
+            tooltip.classList.remove('visible');
+        });
+
+        /* =============================================
+           LEGEND
+           ============================================= */
+        function buildLegend() {
+            var container = document.getElementById('legend');
+            container.innerHTML = '';
+            for (var key in CONTINENTS) {
+                var c = CONTINENTS[key];
+                var el = document.createElement('div');
+                el.className = 'legend-item';
+                el.setAttribute('data-continent', key);
+                el.innerHTML = '<span class="legend-dot" style="background:' + c.color + '"></span>' + c.label;
+                el.addEventListener('click', (function(k) {
+                    return function() {
+                        if (continentFilter[k] === false) {
+                            continentFilter[k] = true;
+                            this.classList.remove('dimmed');
+                        } else {
+                            continentFilter[k] = false;
+                            this.classList.add('dimmed');
+                        }
+                    };
+                })(key));
+                container.appendChild(el);
+            }
+        }
+        buildLegend();
+
+        /* =============================================
+           KEYBOARD SHORTCUTS
+           ============================================= */
+        document.addEventListener('keydown', function(e) {
+            if (e.key === ' ' || e.code === 'Space') {
+                e.preventDefault();
+                document.getElementById('btnPlay').click();
+            } else if (e.key === 'ArrowRight') {
+                targetGameIdx = Math.min(GAMES.length - 1, Math.floor(targetGameIdx) + 1);
+                var prog = targetGameIdx / (GAMES.length - 1);
+                document.getElementById('yearSlider').value = Math.round(prog * 1000);
+            } else if (e.key === 'ArrowLeft') {
+                targetGameIdx = Math.max(0, Math.ceil(targetGameIdx) - 1);
+                var prog = targetGameIdx / (GAMES.length - 1);
+                document.getElementById('yearSlider').value = Math.round(prog * 1000);
+            } else if (e.key === 'b' || e.key === 'B') {
+                var nextMode = viewMode === 'bubble' ? 'bar' : 'bubble';
+                viewMode = nextMode;
+                document.querySelectorAll('.mode-btn').forEach(function(b) {
+                    b.classList.toggle('active', b.getAttribute('data-mode') === nextMode);
+                });
+            }
+        });
+
+        /* =============================================
+           INIT
+           ============================================= */
+        initAnnotations();
+
+        // Initialize positions for bubble mode
+        var initRanked = getRankedData(0);
+        for (var i = 0; i < initRanked.length; i++) {
+            var item = initRanked[i];
+            var bs = bubbleStates[item.idx];
+            var cw = 1100; // approximate
+            var ch = 550;
+            bs.displayX = cw / 2;
+            bs.displayY = ch / 2;
+            bs.displayR = 0;
+            bs.displayBarW = 0;
+            bs.displayBarY = BAR_PAD.top + Math.min(i, TOP_N - 1) * 30;
+        }
+
+        window.addEventListener('resize', resize);
+        resize();
+        requestAnimationFrame(draw);
+    })();
+    </script>
+<script defer src="../../prompt-viewer.js"></script>
+</body>
+</html>

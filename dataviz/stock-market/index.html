@@ -1,0 +1,1151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Global Stock Market Treemap &mdash; Data Visualization Gallery</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-deep: #0b0e17;
+            --bg-surface: #0f1320;
+            --bg-panel: #131828;
+            --border-dim: #1c2340;
+            --border-bright: #2a3560;
+            --text-primary: #e8ecf4;
+            --text-secondary: #8892b0;
+            --text-dim: #4a5580;
+            --accent-blue: #6382ff;
+            --accent-blue-glow: rgba(99, 130, 255, 0.25);
+            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'JetBrains Mono', 'Consolas', monospace;
+
+            /* Performance colors */
+            --perf-deep-red: #cc2936;
+            --perf-red: #e04040;
+            --perf-light-red: #c75050;
+            --perf-neutral: #445;
+            --perf-light-green: #50a060;
+            --perf-green: #2ecc71;
+            --perf-deep-green: #1db954;
+        }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { font-size: 16px; }
+
+        body {
+            font-family: var(--font-sans);
+            background: var(--bg-deep);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .dot-grid {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            background-image: radial-gradient(circle, rgba(99, 130, 255, 0.06) 1px, transparent 1px);
+            background-size: 32px 32px;
+            pointer-events: none;
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem 2rem 3rem;
+        }
+
+        /* Nav */
+        .nav-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+        .back-link {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            letter-spacing: 0.06em;
+            color: var(--text-dim);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        .back-link:hover { color: var(--accent-blue); }
+        .back-link::before { content: '\2190  '; }
+
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+        .header h1 {
+            font-size: clamp(1.6rem, 4vw, 2.4rem);
+            font-weight: 600;
+            letter-spacing: -0.02em;
+            margin-bottom: 0.4rem;
+        }
+        .header h1 span {
+            background: linear-gradient(135deg, var(--perf-green), var(--accent-blue));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .header-sub {
+            font-size: 0.9rem;
+            font-weight: 300;
+            color: var(--text-secondary);
+            max-width: 560px;
+            margin: 0 auto;
+        }
+
+        /* Sector summary bar */
+        .sector-bar {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-bottom: 1rem;
+            padding: 12px 16px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border-dim);
+            border-radius: 8px;
+        }
+        .sector-chip {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-family: var(--font-mono);
+            font-size: 0.6rem;
+            letter-spacing: 0.03em;
+            color: var(--text-secondary);
+            padding: 4px 10px;
+            border-radius: 4px;
+            background: var(--bg-surface);
+            border: 1px solid var(--border-dim);
+            cursor: pointer;
+            transition: all 0.2s;
+            user-select: none;
+        }
+        .sector-chip:hover {
+            border-color: var(--accent-blue);
+            color: var(--text-primary);
+        }
+        .sector-chip.active {
+            border-color: var(--accent-blue);
+            background: rgba(99, 130, 255, 0.12);
+            color: var(--text-primary);
+        }
+        .sector-chip .chip-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 2px;
+            flex-shrink: 0;
+        }
+        .sector-chip .chip-cap {
+            font-weight: 500;
+            color: var(--text-dim);
+        }
+
+        /* Breadcrumb */
+        .breadcrumb {
+            font-family: var(--font-mono);
+            font-size: 0.65rem;
+            letter-spacing: 0.04em;
+            color: var(--text-dim);
+            margin-bottom: 0.5rem;
+            min-height: 1.2em;
+        }
+        .breadcrumb .crumb-link {
+            color: var(--accent-blue);
+            cursor: pointer;
+            transition: color 0.15s;
+        }
+        .breadcrumb .crumb-link:hover {
+            color: var(--text-primary);
+        }
+        .breadcrumb .crumb-sep {
+            margin: 0 6px;
+            color: var(--text-dim);
+        }
+
+        /* Canvas wrapper */
+        .chart-wrapper {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-dim);
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 1.5rem;
+            position: relative;
+        }
+        #treemapCanvas {
+            display: block;
+            width: 100%;
+            cursor: pointer;
+        }
+
+        /* Legend */
+        .legend-bar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 1.5rem;
+            padding: 12px 20px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border-dim);
+            border-radius: 8px;
+        }
+        .legend-label {
+            font-family: var(--font-mono);
+            font-size: 0.6rem;
+            letter-spacing: 0.04em;
+            color: var(--text-dim);
+            white-space: nowrap;
+        }
+        .legend-gradient {
+            width: 200px;
+            height: 14px;
+            border-radius: 3px;
+            flex-shrink: 0;
+        }
+        .legend-ticks {
+            display: flex;
+            justify-content: space-between;
+            width: 200px;
+        }
+        .legend-tick {
+            font-family: var(--font-mono);
+            font-size: 0.55rem;
+            color: var(--text-dim);
+        }
+        .legend-center {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+        }
+
+        /* Tooltip */
+        .tooltip {
+            position: fixed;
+            z-index: 100;
+            background: #1a1f35;
+            border: 1px solid var(--border-bright);
+            border-radius: 6px;
+            padding: 12px 16px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.15s;
+            max-width: 280px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+        }
+        .tooltip.visible { opacity: 1; }
+        .tooltip-name {
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-bottom: 2px;
+        }
+        .tooltip-ticker {
+            font-family: var(--font-mono);
+            font-size: 0.65rem;
+            letter-spacing: 0.06em;
+            color: var(--text-dim);
+            margin-bottom: 8px;
+        }
+        .tooltip-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+            margin-bottom: 2px;
+        }
+        .tooltip-val {
+            font-family: var(--font-mono);
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+        .tooltip-change-pos { color: var(--perf-green); }
+        .tooltip-change-neg { color: var(--perf-red); }
+
+        /* Info */
+        .info-panel {
+            padding: 16px 20px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border-dim);
+            border-radius: 8px;
+            font-size: 0.78rem;
+            color: var(--text-dim);
+            line-height: 1.6;
+        }
+        .info-panel a {
+            color: var(--text-secondary);
+            text-decoration: none;
+        }
+        .info-panel a:hover { color: var(--accent-blue); }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            margin-top: 2rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border-dim);
+        }
+        .footer a {
+            font-family: var(--font-mono);
+            font-size: 0.6rem;
+            color: var(--text-dim);
+            text-decoration: none;
+            letter-spacing: 0.06em;
+        }
+        .footer a:hover { color: var(--accent-blue); }
+
+        @media (max-width: 768px) {
+            .container { padding: 1.5rem 1rem 2rem; }
+            .sector-bar { gap: 4px; padding: 10px 12px; }
+            .sector-chip { font-size: 0.55rem; padding: 3px 7px; }
+            .legend-bar { gap: 8px; padding: 10px 14px; flex-wrap: wrap; }
+            .legend-gradient { width: 150px; }
+            .legend-ticks { width: 150px; }
+        }
+
+        @media (max-width: 480px) {
+            .sector-chip .chip-cap { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="dot-grid"></div>
+
+    <div class="container">
+        <div class="nav-row">
+            <a href="../index.html" class="back-link">Data Viz Gallery</a>
+        </div>
+
+        <div class="header">
+            <h1>Global <span>Stock Market</span> Treemap</h1>
+            <p class="header-sub">Market capitalization by sector and company. Size represents market cap; color shows YTD performance. Click a sector to drill in.</p>
+        </div>
+
+        <div class="sector-bar" id="sectorBar"></div>
+
+        <div class="breadcrumb" id="breadcrumb">ALL SECTORS</div>
+
+        <div class="chart-wrapper">
+            <canvas id="treemapCanvas"></canvas>
+        </div>
+
+        <div class="legend-bar">
+            <span class="legend-label">YTD LOSS</span>
+            <div class="legend-center">
+                <canvas class="legend-gradient" id="legendGradient" width="200" height="14"></canvas>
+                <div class="legend-ticks">
+                    <span class="legend-tick">-40%</span>
+                    <span class="legend-tick">-20%</span>
+                    <span class="legend-tick">0%</span>
+                    <span class="legend-tick">+20%</span>
+                    <span class="legend-tick">+40%</span>
+                </div>
+            </div>
+            <span class="legend-label">YTD GAIN</span>
+        </div>
+
+        <div class="info-panel">
+            Data represents approximate market capitalizations and YTD performance of ~80 major global companies as of early 2025.
+            Figures are illustrative and sourced from public market data.
+            Treemap uses a squarified layout algorithm for optimal aspect ratios.
+        </div>
+    </div>
+
+    <div class="tooltip" id="tooltip">
+        <div class="tooltip-name" id="ttName"></div>
+        <div class="tooltip-ticker" id="ttTicker"></div>
+        <div class="tooltip-row">
+            <span>Market Cap</span>
+            <span class="tooltip-val" id="ttCap"></span>
+        </div>
+        <div class="tooltip-row">
+            <span>YTD Change</span>
+            <span class="tooltip-val" id="ttChange"></span>
+        </div>
+        <div class="tooltip-row">
+            <span>Sector</span>
+            <span class="tooltip-val" id="ttSector"></span>
+        </div>
+    </div>
+
+    <div class="footer">
+        <a href="../index.html">Data Viz Gallery</a>
+        &nbsp;&middot;&nbsp;
+        <a href="../../index.html">HTML Style Guides</a>
+    </div>
+
+    <script>
+    (function() {
+        'use strict';
+
+        /* ───── DATA ───── */
+        const SECTORS = {
+            'Technology': {
+                color: '#6382ff',
+                companies: [
+                    { name: 'Apple', ticker: 'AAPL', marketCap: 3440, ytdChange: 5.2 },
+                    { name: 'Microsoft', ticker: 'MSFT', marketCap: 3180, ytdChange: 8.1 },
+                    { name: 'NVIDIA', ticker: 'NVDA', marketCap: 3050, ytdChange: 22.5 },
+                    { name: 'Alphabet', ticker: 'GOOGL', marketCap: 2180, ytdChange: 6.3 },
+                    { name: 'Amazon', ticker: 'AMZN', marketCap: 2140, ytdChange: 12.7 },
+                    { name: 'Meta Platforms', ticker: 'META', marketCap: 1620, ytdChange: 15.8 },
+                    { name: 'Taiwan Semiconductor', ticker: 'TSM', marketCap: 920, ytdChange: 18.4 },
+                    { name: 'Broadcom', ticker: 'AVGO', marketCap: 810, ytdChange: 14.3 },
+                    { name: 'Samsung Electronics', ticker: '005930.KS', marketCap: 380, ytdChange: -8.2 },
+                    { name: 'Adobe', ticker: 'ADBE', marketCap: 245, ytdChange: -3.6 },
+                    { name: 'Salesforce', ticker: 'CRM', marketCap: 270, ytdChange: 4.8 },
+                    { name: 'Oracle', ticker: 'ORCL', marketCap: 390, ytdChange: 11.2 },
+                    { name: 'AMD', ticker: 'AMD', marketCap: 220, ytdChange: -12.5 },
+                    { name: 'Intel', ticker: 'INTC', marketCap: 105, ytdChange: -28.3 },
+                    { name: 'ServiceNow', ticker: 'NOW', marketCap: 190, ytdChange: 9.1 },
+                ]
+            },
+            'Healthcare': {
+                color: '#38d9a9',
+                companies: [
+                    { name: 'Eli Lilly', ticker: 'LLY', marketCap: 740, ytdChange: 12.1 },
+                    { name: 'UnitedHealth', ticker: 'UNH', marketCap: 530, ytdChange: -2.4 },
+                    { name: 'Johnson & Johnson', ticker: 'JNJ', marketCap: 380, ytdChange: -1.8 },
+                    { name: 'Novo Nordisk', ticker: 'NVO', marketCap: 520, ytdChange: -15.2 },
+                    { name: 'AbbVie', ticker: 'ABBV', marketCap: 340, ytdChange: 7.5 },
+                    { name: 'Merck', ticker: 'MRK', marketCap: 290, ytdChange: -5.3 },
+                    { name: 'Pfizer', ticker: 'PFE', marketCap: 150, ytdChange: -8.7 },
+                    { name: 'Thermo Fisher', ticker: 'TMO', marketCap: 210, ytdChange: 3.2 },
+                    { name: 'Amgen', ticker: 'AMGN', marketCap: 165, ytdChange: 1.4 },
+                    { name: 'Danaher', ticker: 'DHR', marketCap: 170, ytdChange: 4.6 },
+                ]
+            },
+            'Finance': {
+                color: '#ffd43b',
+                companies: [
+                    { name: 'Berkshire Hathaway', ticker: 'BRK.B', marketCap: 880, ytdChange: 9.5 },
+                    { name: 'JPMorgan Chase', ticker: 'JPM', marketCap: 640, ytdChange: 11.3 },
+                    { name: 'Visa', ticker: 'V', marketCap: 580, ytdChange: 6.8 },
+                    { name: 'Mastercard', ticker: 'MA', marketCap: 430, ytdChange: 7.2 },
+                    { name: 'Bank of America', ticker: 'BAC', marketCap: 320, ytdChange: 4.1 },
+                    { name: 'Goldman Sachs', ticker: 'GS', marketCap: 170, ytdChange: 8.9 },
+                    { name: 'Morgan Stanley', ticker: 'MS', marketCap: 160, ytdChange: 6.4 },
+                    { name: 'HSBC', ticker: 'HSBC', marketCap: 175, ytdChange: 3.7 },
+                    { name: 'Charles Schwab', ticker: 'SCHW', marketCap: 135, ytdChange: 5.2 },
+                    { name: 'S&P Global', ticker: 'SPGI', marketCap: 155, ytdChange: 8.6 },
+                ]
+            },
+            'Consumer': {
+                color: '#ff6b6b',
+                companies: [
+                    { name: 'Tesla', ticker: 'TSLA', marketCap: 790, ytdChange: -18.5 },
+                    { name: 'Walmart', ticker: 'WMT', marketCap: 580, ytdChange: 8.3 },
+                    { name: 'Procter & Gamble', ticker: 'PG', marketCap: 380, ytdChange: 2.1 },
+                    { name: 'Costco', ticker: 'COST', marketCap: 370, ytdChange: 10.4 },
+                    { name: 'Coca-Cola', ticker: 'KO', marketCap: 270, ytdChange: 1.5 },
+                    { name: 'PepsiCo', ticker: 'PEP', marketCap: 230, ytdChange: -2.8 },
+                    { name: "McDonald's", ticker: 'MCD', marketCap: 210, ytdChange: 3.9 },
+                    { name: 'Nike', ticker: 'NKE', marketCap: 120, ytdChange: -22.1 },
+                    { name: 'LVMH', ticker: 'MC.PA', marketCap: 340, ytdChange: -6.4 },
+                    { name: 'Toyota Motor', ticker: 'TM', marketCap: 280, ytdChange: 2.8 },
+                ]
+            },
+            'Energy': {
+                color: '#e0a050',
+                companies: [
+                    { name: 'Saudi Aramco', ticker: '2222.SR', marketCap: 1780, ytdChange: -4.2 },
+                    { name: 'ExxonMobil', ticker: 'XOM', marketCap: 480, ytdChange: 3.6 },
+                    { name: 'Chevron', ticker: 'CVX', marketCap: 290, ytdChange: 1.2 },
+                    { name: 'Shell', ticker: 'SHEL', marketCap: 230, ytdChange: -1.5 },
+                    { name: 'TotalEnergies', ticker: 'TTE', marketCap: 160, ytdChange: -3.1 },
+                    { name: 'ConocoPhillips', ticker: 'COP', marketCap: 140, ytdChange: -5.8 },
+                    { name: 'Enbridge', ticker: 'ENB', marketCap: 90, ytdChange: 6.2 },
+                    { name: 'Schlumberger', ticker: 'SLB', marketCap: 70, ytdChange: -9.4 },
+                    { name: 'BP', ticker: 'BP', marketCap: 100, ytdChange: -7.3 },
+                ]
+            },
+            'Industrials': {
+                color: '#b197fc',
+                companies: [
+                    { name: 'Caterpillar', ticker: 'CAT', marketCap: 190, ytdChange: 9.7 },
+                    { name: 'General Electric', ticker: 'GE', marketCap: 195, ytdChange: 16.4 },
+                    { name: 'RTX Corp', ticker: 'RTX', marketCap: 155, ytdChange: 7.8 },
+                    { name: 'Honeywell', ticker: 'HON', marketCap: 145, ytdChange: -4.1 },
+                    { name: 'Union Pacific', ticker: 'UNP', marketCap: 150, ytdChange: 3.5 },
+                    { name: 'Boeing', ticker: 'BA', marketCap: 130, ytdChange: -14.8 },
+                    { name: 'Lockheed Martin', ticker: 'LMT', marketCap: 125, ytdChange: 8.2 },
+                    { name: 'Deere & Company', ticker: 'DE', marketCap: 115, ytdChange: -6.3 },
+                    { name: 'Siemens', ticker: 'SIE.DE', marketCap: 150, ytdChange: 11.5 },
+                    { name: '3M', ticker: 'MMM', marketCap: 72, ytdChange: 13.2 },
+                ]
+            },
+            'Communications': {
+                color: '#74c0fc',
+                companies: [
+                    { name: 'Netflix', ticker: 'NFLX', marketCap: 390, ytdChange: 19.3 },
+                    { name: 'Walt Disney', ticker: 'DIS', marketCap: 200, ytdChange: 5.6 },
+                    { name: 'Comcast', ticker: 'CMCSA', marketCap: 155, ytdChange: -3.2 },
+                    { name: 'T-Mobile US', ticker: 'TMUS', marketCap: 250, ytdChange: 10.8 },
+                    { name: 'Verizon', ticker: 'VZ', marketCap: 170, ytdChange: 2.4 },
+                    { name: 'AT&T', ticker: 'T', marketCap: 150, ytdChange: 4.7 },
+                    { name: 'Spotify', ticker: 'SPOT', marketCap: 85, ytdChange: 24.6 },
+                    { name: 'Tencent', ticker: '0700.HK', marketCap: 450, ytdChange: 7.9 },
+                ]
+            },
+            'Utilities': {
+                color: '#69db7c',
+                companies: [
+                    { name: 'NextEra Energy', ticker: 'NEE', marketCap: 160, ytdChange: 6.3 },
+                    { name: 'Southern Company', ticker: 'SO', marketCap: 95, ytdChange: 4.1 },
+                    { name: 'Duke Energy', ticker: 'DUK', marketCap: 88, ytdChange: 3.5 },
+                    { name: 'Dominion Energy', ticker: 'D', marketCap: 47, ytdChange: -1.2 },
+                    { name: 'Sempra', ticker: 'SRE', marketCap: 52, ytdChange: 2.8 },
+                    { name: 'Exelon', ticker: 'EXC', marketCap: 44, ytdChange: 5.6 },
+                    { name: 'American Electric', ticker: 'AEP', marketCap: 50, ytdChange: 1.9 },
+                ]
+            }
+        };
+
+        /* ───── DERIVED DATA ───── */
+        const sectorList = Object.keys(SECTORS).map(name => {
+            const s = SECTORS[name];
+            const totalCap = s.companies.reduce((a, c) => a + c.marketCap, 0);
+            const avgYtd = s.companies.reduce((a, c) => a + c.ytdChange, 0) / s.companies.length;
+            return { name, color: s.color, companies: s.companies, totalCap, avgYtd };
+        });
+        sectorList.sort((a, b) => b.totalCap - a.totalCap);
+
+        /* ───── STATE ───── */
+        let currentView = 'sectors'; // 'sectors' or sector name
+        let animProgress = 1; // 0..1 for transition animation
+        let prevLayout = null;
+        let currLayout = null;
+        let hoveredItem = null;
+        let canvasW = 0, canvasH = 0;
+
+        /* ───── CANVAS SETUP ───── */
+        const canvas = document.getElementById('treemapCanvas');
+        const ctx = canvas.getContext('2d');
+        const tooltip = document.getElementById('tooltip');
+        const ttName = document.getElementById('ttName');
+        const ttTicker = document.getElementById('ttTicker');
+        const ttCap = document.getElementById('ttCap');
+        const ttChange = document.getElementById('ttChange');
+        const ttSector = document.getElementById('ttSector');
+        const breadcrumb = document.getElementById('breadcrumb');
+        const sectorBarEl = document.getElementById('sectorBar');
+
+        function resize() {
+            const wrapper = canvas.parentElement;
+            const w = wrapper.clientWidth;
+            const h = Math.max(400, Math.min(600, w * 0.55));
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = w * dpr;
+            canvas.height = h * dpr;
+            canvas.style.height = h + 'px';
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            canvasW = w;
+            canvasH = h;
+            if (animProgress >= 1) {
+                currLayout = computeLayout();
+                prevLayout = null;
+            }
+        }
+
+        /* ───── SQUARIFIED TREEMAP ───── */
+        function squarify(items, x, y, w, h) {
+            if (items.length === 0) return [];
+            const totalValue = items.reduce((a, it) => a + it.value, 0);
+            if (totalValue <= 0 || w <= 0 || h <= 0) return [];
+
+            const rects = [];
+            let remaining = items.map(it => ({ ...it, normValue: (it.value / totalValue) * w * h }));
+
+            function layoutRow(row, rx, ry, rw, rh, isVertical) {
+                const rowSum = row.reduce((a, it) => a + it.normValue, 0);
+                if (isVertical) {
+                    const rowWidth = rowSum / rh;
+                    let cy = ry;
+                    for (const it of row) {
+                        const itemH = it.normValue / rowWidth;
+                        rects.push({ ...it, x: rx, y: cy, w: rowWidth, h: itemH });
+                        cy += itemH;
+                    }
+                    return { x: rx + rowWidth, y: ry, w: rw - rowWidth, h: rh };
+                } else {
+                    const rowHeight = rowSum / rw;
+                    let cx = rx;
+                    for (const it of row) {
+                        const itemW = it.normValue / rowHeight;
+                        rects.push({ ...it, x: cx, y: ry, w: itemW, h: rowHeight });
+                        cx += itemW;
+                    }
+                    return { x: rx, y: ry + rowHeight, w: rw, h: rh - rowHeight };
+                }
+            }
+
+            function worstAspect(row, sideLength) {
+                const s = row.reduce((a, it) => a + it.normValue, 0);
+                let worst = 0;
+                for (const it of row) {
+                    const r = it.normValue;
+                    const aspect = Math.max(
+                        (sideLength * sideLength * r) / (s * s),
+                        (s * s) / (sideLength * sideLength * r)
+                    );
+                    worst = Math.max(worst, aspect);
+                }
+                return worst;
+            }
+
+            let bx = x, by = y, bw = w, bh = h;
+
+            while (remaining.length > 0) {
+                const isVertical = bh > bw;
+                const side = isVertical ? bh : bw;
+                const row = [remaining[0]];
+                remaining = remaining.slice(1);
+
+                while (remaining.length > 0) {
+                    const candidate = [...row, remaining[0]];
+                    if (worstAspect(candidate, side) <= worstAspect(row, side)) {
+                        row.push(remaining[0]);
+                        remaining = remaining.slice(1);
+                    } else {
+                        break;
+                    }
+                }
+
+                // Re-normalize remaining for the leftover area
+                const rowSum = row.reduce((a, it) => a + it.normValue, 0);
+                const result = layoutRow(row, bx, by, bw, bh, isVertical);
+                bx = result.x;
+                by = result.y;
+                bw = result.w;
+                bh = result.h;
+
+                // Renormalize remaining to fit the new area
+                const remainingSum = remaining.reduce((a, it) => a + it.normValue, 0);
+                if (remainingSum > 0 && bw > 0 && bh > 0) {
+                    const newArea = bw * bh;
+                    const factor = newArea / remainingSum;
+                    remaining = remaining.map(it => ({ ...it, normValue: it.normValue * factor }));
+                }
+            }
+
+            return rects;
+        }
+
+        function computeLayout() {
+            const pad = 3;
+            if (currentView === 'sectors') {
+                const items = sectorList.map(s => ({
+                    id: s.name,
+                    label: s.name,
+                    value: s.totalCap,
+                    ytdChange: s.avgYtd,
+                    sectorColor: s.color,
+                    type: 'sector',
+                    ticker: '',
+                    sectorName: s.name,
+                    marketCap: s.totalCap
+                }));
+                return squarify(items, pad, pad, canvasW - pad * 2, canvasH - pad * 2);
+            } else {
+                const sector = sectorList.find(s => s.name === currentView);
+                if (!sector) return [];
+                const items = sector.companies.map(c => ({
+                    id: c.ticker,
+                    label: c.name,
+                    value: c.marketCap,
+                    ytdChange: c.ytdChange,
+                    sectorColor: sector.color,
+                    type: 'company',
+                    ticker: c.ticker,
+                    sectorName: sector.name,
+                    marketCap: c.marketCap
+                }));
+                items.sort((a, b) => b.value - a.value);
+                return squarify(items, pad, pad, canvasW - pad * 2, canvasH - pad * 2);
+            }
+        }
+
+        /* ───── COLOR ───── */
+        function perfColor(ytd) {
+            // Diverging red-to-green scale, clamped at +/-40%
+            const t = Math.max(-40, Math.min(40, ytd)) / 40; // -1 to 1
+            if (t < 0) {
+                const a = -t; // 0 to 1
+                const r = Math.round(30 + a * 170);
+                const g = Math.round(35 + (1 - a) * 25 - a * 10);
+                const b = Math.round(45 + (1 - a) * 15 - a * 10);
+                return `rgb(${r},${g},${b})`;
+            } else {
+                const a = t;
+                const r = Math.round(30 - a * 5);
+                const g = Math.round(35 + a * 140);
+                const b = Math.round(45 + a * 50);
+                return `rgb(${r},${g},${b})`;
+            }
+        }
+
+        function perfColorBright(ytd) {
+            const t = Math.max(-40, Math.min(40, ytd)) / 40;
+            if (t < 0) {
+                const a = -t;
+                const r = Math.round(50 + a * 180);
+                const g = Math.round(50 + (1 - a) * 30 - a * 15);
+                const b = Math.round(60 + (1 - a) * 20 - a * 15);
+                return `rgb(${r},${g},${b})`;
+            } else {
+                const a = t;
+                const r = Math.round(50 - a * 10);
+                const g = Math.round(50 + a * 160);
+                const b = Math.round(60 + a * 60);
+                return `rgb(${r},${g},${b})`;
+            }
+        }
+
+        /* ───── FORMAT ───── */
+        function fmtCap(b) {
+            if (b >= 1000) return '$' + (b / 1000).toFixed(2) + 'T';
+            return '$' + b.toFixed(0) + 'B';
+        }
+
+        function fmtChange(v) {
+            const sign = v >= 0 ? '+' : '';
+            return sign + v.toFixed(1) + '%';
+        }
+
+        /* ───── LEGEND GRADIENT ───── */
+        function drawLegend() {
+            const lc = document.getElementById('legendGradient');
+            const lctx = lc.getContext('2d');
+            const dpr = window.devicePixelRatio || 1;
+            lc.width = 200 * dpr;
+            lc.height = 14 * dpr;
+            lctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            for (let i = 0; i < 200; i++) {
+                const ytd = -40 + (i / 199) * 80;
+                lctx.fillStyle = perfColor(ytd);
+                lctx.fillRect(i, 0, 1, 14);
+            }
+        }
+
+        /* ───── SECTOR BAR ───── */
+        function buildSectorBar() {
+            sectorBarEl.innerHTML = '';
+            for (const s of sectorList) {
+                const chip = document.createElement('div');
+                chip.className = 'sector-chip' + (currentView === s.name ? ' active' : '');
+                chip.innerHTML = `<span class="chip-dot" style="background:${s.color}"></span>${s.name} <span class="chip-cap">${fmtCap(s.totalCap)}</span>`;
+                chip.addEventListener('click', () => drillTo(s.name));
+                sectorBarEl.appendChild(chip);
+            }
+        }
+
+        function updateBreadcrumb() {
+            if (currentView === 'sectors') {
+                breadcrumb.innerHTML = 'ALL SECTORS';
+            } else {
+                breadcrumb.innerHTML = '<span class="crumb-link" id="crumbBack">ALL SECTORS</span><span class="crumb-sep">/</span>' + currentView.toUpperCase();
+                document.getElementById('crumbBack').addEventListener('click', () => drillTo('sectors'));
+            }
+        }
+
+        /* ───── TRANSITIONS ───── */
+        function drillTo(target) {
+            if (target === currentView) {
+                if (target !== 'sectors') {
+                    target = 'sectors';
+                } else {
+                    return;
+                }
+            }
+            prevLayout = currLayout;
+            currentView = target;
+            currLayout = computeLayout();
+
+            // Match items between prev and curr for smooth morphing
+            // If drilling into a sector, expand that sector rect to fill the canvas
+            animProgress = 0;
+            buildSectorBar();
+            updateBreadcrumb();
+        }
+
+        function lerp(a, b, t) {
+            return a + (b - a) * t;
+        }
+
+        function easeInOutCubic(t) {
+            return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+        }
+
+        /* ───── RENDERING ───── */
+        function getInterpolatedLayout() {
+            if (!prevLayout || animProgress >= 1) return currLayout;
+            const t = easeInOutCubic(animProgress);
+
+            // For drill-in: expand the clicked sector rect to fill, then morph children into it
+            // For drill-out: collapse children back into sector rect
+            // Simple approach: cross-fade with position interpolation
+
+            // Try to match items by id
+            const prevMap = {};
+            for (const r of prevLayout) prevMap[r.id] = r;
+            const currMap = {};
+            for (const r of currLayout) currMap[r.id] = r;
+
+            const result = [];
+
+            // Morphing current items
+            for (const c of currLayout) {
+                const p = prevMap[c.id];
+                if (p) {
+                    // Direct match — interpolate
+                    result.push({
+                        ...c,
+                        x: lerp(p.x, c.x, t),
+                        y: lerp(p.y, c.y, t),
+                        w: lerp(p.w, c.w, t),
+                        h: lerp(p.h, c.h, t),
+                        opacity: 1
+                    });
+                } else {
+                    // New item — find parent sector rect
+                    const parent = prevMap[c.sectorName];
+                    if (parent) {
+                        result.push({
+                            ...c,
+                            x: lerp(parent.x, c.x, t),
+                            y: lerp(parent.y, c.y, t),
+                            w: lerp(parent.w, c.w, t),
+                            h: lerp(parent.h, c.h, t),
+                            opacity: t
+                        });
+                    } else {
+                        result.push({ ...c, opacity: t });
+                    }
+                }
+            }
+
+            // Fading out items that are only in prev
+            for (const p of prevLayout) {
+                if (!currMap[p.id]) {
+                    const child = currMap[p.sectorName];
+                    if (child) {
+                        result.push({
+                            ...p,
+                            x: lerp(p.x, child.x, t),
+                            y: lerp(p.y, child.y, t),
+                            w: lerp(p.w, child.w, t),
+                            h: lerp(p.h, child.h, t),
+                            opacity: 1 - t
+                        });
+                    } else {
+                        // Collapse to center
+                        result.push({ ...p, opacity: 1 - t });
+                    }
+                }
+            }
+
+            return result;
+        }
+
+        function drawRect(r, isHovered) {
+            const gap = 2;
+            const rx = r.x + gap;
+            const ry = r.y + gap;
+            const rw = r.w - gap * 2;
+            const rh = r.h - gap * 2;
+
+            if (rw <= 0 || rh <= 0) return;
+
+            const alpha = r.opacity !== undefined ? r.opacity : 1;
+
+            // Background fill — performance color
+            ctx.globalAlpha = alpha;
+            const bgColor = perfColor(r.ytdChange);
+            const bgBright = perfColorBright(r.ytdChange);
+            ctx.fillStyle = isHovered ? bgBright : bgColor;
+            ctx.beginPath();
+            roundRect(ctx, rx, ry, rw, rh, 4);
+            ctx.fill();
+
+            // Hover border
+            if (isHovered) {
+                ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                roundRect(ctx, rx, ry, rw, rh, 4);
+                ctx.stroke();
+            }
+
+            // Sector outline on sector view
+            if (r.type === 'sector') {
+                ctx.strokeStyle = r.sectorColor;
+                ctx.lineWidth = 1.5;
+                ctx.globalAlpha = alpha * 0.4;
+                ctx.beginPath();
+                roundRect(ctx, rx + 0.5, ry + 0.5, rw - 1, rh - 1, 4);
+                ctx.stroke();
+                ctx.globalAlpha = alpha;
+            }
+
+            // Labels
+            const minTextW = 50;
+            const minTextH = 30;
+            if (rw > minTextW && rh > minTextH) {
+                const pad = 8;
+
+                // Ticker or sector name
+                const labelText = r.type === 'sector' ? r.label : r.ticker;
+                const fontSize = r.type === 'sector'
+                    ? Math.min(Math.max(11, rw / 9), 22)
+                    : Math.min(Math.max(9, rw / 7), 18);
+
+                ctx.font = `700 ${fontSize}px 'JetBrains Mono', monospace`;
+                ctx.fillStyle = 'rgba(255,255,255,' + (0.92 * alpha) + ')';
+                ctx.textBaseline = 'top';
+
+                // Truncate label if needed
+                let displayLabel = labelText;
+                while (ctx.measureText(displayLabel).width > rw - pad * 2 && displayLabel.length > 2) {
+                    displayLabel = displayLabel.slice(0, -1);
+                }
+                if (displayLabel.length < labelText.length) displayLabel += '.';
+
+                ctx.fillText(displayLabel, rx + pad, ry + pad);
+
+                // Market cap
+                if (rh > 50) {
+                    const capSize = Math.min(Math.max(8, fontSize * 0.65), 14);
+                    ctx.font = `400 ${capSize}px 'JetBrains Mono', monospace`;
+                    ctx.fillStyle = 'rgba(255,255,255,' + (0.55 * alpha) + ')';
+                    ctx.fillText(fmtCap(r.marketCap), rx + pad, ry + pad + fontSize + 4);
+                }
+
+                // YTD change
+                if (rh > 70) {
+                    const changeSize = Math.min(Math.max(9, fontSize * 0.75), 16);
+                    ctx.font = `600 ${changeSize}px 'JetBrains Mono', monospace`;
+                    const changeStr = fmtChange(r.ytdChange);
+                    ctx.fillStyle = r.ytdChange >= 0
+                        ? 'rgba(46, 204, 113,' + (0.9 * alpha) + ')'
+                        : 'rgba(224, 64, 64,' + (0.9 * alpha) + ')';
+                    ctx.fillText(changeStr, rx + pad, ry + rh - pad - changeSize);
+                }
+
+                // Company name (below ticker, if space)
+                if (r.type === 'company' && rh > 90 && rw > 80) {
+                    const nameSize = Math.min(Math.max(8, fontSize * 0.55), 11);
+                    ctx.font = `400 ${nameSize}px 'Inter', sans-serif`;
+                    ctx.fillStyle = 'rgba(255,255,255,' + (0.4 * alpha) + ')';
+                    let dispName = r.label;
+                    while (ctx.measureText(dispName).width > rw - pad * 2 && dispName.length > 3) {
+                        dispName = dispName.slice(0, -1);
+                    }
+                    if (dispName.length < r.label.length) dispName += '...';
+                    const capLineH = rh > 50 ? fontSize * 0.65 + 8 : 4;
+                    ctx.fillText(dispName, rx + pad, ry + pad + fontSize + capLineH);
+                }
+            } else if (rw > 25 && rh > 18) {
+                // Tiny cell: just ticker
+                const tinySize = Math.min(Math.max(7, rw / 5), 11);
+                ctx.font = `600 ${tinySize}px 'JetBrains Mono', monospace`;
+                ctx.fillStyle = 'rgba(255,255,255,' + (0.7 * alpha) + ')';
+                ctx.textBaseline = 'middle';
+                const txt = r.type === 'sector' ? r.label.slice(0, 4) : r.ticker.slice(0, 5);
+                const tw = ctx.measureText(txt).width;
+                if (tw < rw - 4) {
+                    ctx.fillText(txt, rx + (rw - tw) / 2, ry + rh / 2);
+                }
+            }
+
+            ctx.globalAlpha = 1;
+        }
+
+        function roundRect(ctx, x, y, w, h, r) {
+            r = Math.min(r, w / 2, h / 2);
+            ctx.moveTo(x + r, y);
+            ctx.lineTo(x + w - r, y);
+            ctx.arcTo(x + w, y, x + w, y + r, r);
+            ctx.lineTo(x + w, y + h - r);
+            ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+            ctx.lineTo(x + r, y + h);
+            ctx.arcTo(x, y + h, x, y + h - r, r);
+            ctx.lineTo(x, y + r);
+            ctx.arcTo(x, y, x + r, y, r);
+            ctx.closePath();
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvasW, canvasH);
+
+            const layout = getInterpolatedLayout();
+            if (!layout) return;
+
+            for (const r of layout) {
+                const isHovered = hoveredItem && hoveredItem.id === r.id && animProgress >= 1;
+                drawRect(r, isHovered);
+            }
+        }
+
+        /* ───── HIT TESTING ───── */
+        function hitTest(mx, my) {
+            if (animProgress < 1) return null;
+            if (!currLayout) return null;
+            // Reverse order for z-order (last drawn = top)
+            for (let i = currLayout.length - 1; i >= 0; i--) {
+                const r = currLayout[i];
+                if (mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h) {
+                    return r;
+                }
+            }
+            return null;
+        }
+
+        /* ───── EVENTS ───── */
+        let mouseX = 0, mouseY = 0;
+
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            mouseX = e.clientX - rect.left;
+            mouseY = e.clientY - rect.top;
+            const hit = hitTest(mouseX, mouseY);
+            hoveredItem = hit;
+
+            if (hit) {
+                canvas.style.cursor = hit.type === 'sector' ? 'pointer' : 'default';
+                ttName.textContent = hit.label;
+                ttTicker.textContent = hit.type === 'company' ? hit.ticker : hit.label + ' Sector';
+                ttCap.textContent = fmtCap(hit.marketCap);
+                const changeStr = fmtChange(hit.ytdChange);
+                ttChange.textContent = changeStr;
+                ttChange.className = 'tooltip-val ' + (hit.ytdChange >= 0 ? 'tooltip-change-pos' : 'tooltip-change-neg');
+                ttSector.textContent = hit.sectorName;
+
+                // Position tooltip
+                let tx = e.clientX + 14;
+                let ty = e.clientY - 10;
+                const tw = 260;
+                const th = 130;
+                if (tx + tw > window.innerWidth - 10) tx = e.clientX - tw - 14;
+                if (ty + th > window.innerHeight - 10) ty = e.clientY - th + 10;
+                if (ty < 10) ty = 10;
+                tooltip.style.left = tx + 'px';
+                tooltip.style.top = ty + 'px';
+                tooltip.classList.add('visible');
+            } else {
+                canvas.style.cursor = 'default';
+                tooltip.classList.remove('visible');
+            }
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            hoveredItem = null;
+            tooltip.classList.remove('visible');
+        });
+
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+            const hit = hitTest(mx, my);
+
+            if (hit) {
+                if (hit.type === 'sector') {
+                    drillTo(hit.id);
+                } else if (currentView !== 'sectors') {
+                    // Clicking a company in drill-in view — go back to sectors
+                    // (no-op, let them use breadcrumb or back)
+                }
+            } else {
+                // Clicked empty space — go back
+                if (currentView !== 'sectors') {
+                    drillTo('sectors');
+                }
+            }
+        });
+
+        // Touch support
+        canvas.addEventListener('touchstart', (e) => {
+            const touch = e.touches[0];
+            const rect = canvas.getBoundingClientRect();
+            const mx = touch.clientX - rect.left;
+            const my = touch.clientY - rect.top;
+            const hit = hitTest(mx, my);
+
+            if (hit) {
+                hoveredItem = hit;
+                // Show tooltip briefly
+                ttName.textContent = hit.label;
+                ttTicker.textContent = hit.type === 'company' ? hit.ticker : hit.label + ' Sector';
+                ttCap.textContent = fmtCap(hit.marketCap);
+                const changeStr = fmtChange(hit.ytdChange);
+                ttChange.textContent = changeStr;
+                ttChange.className = 'tooltip-val ' + (hit.ytdChange >= 0 ? 'tooltip-change-pos' : 'tooltip-change-neg');
+                ttSector.textContent = hit.sectorName;
+                tooltip.style.left = (touch.clientX - 130) + 'px';
+                tooltip.style.top = (touch.clientY - 140) + 'px';
+                tooltip.classList.add('visible');
+
+                if (hit.type === 'sector') {
+                    setTimeout(() => drillTo(hit.id), 300);
+                }
+            } else if (currentView !== 'sectors') {
+                drillTo('sectors');
+            }
+
+            setTimeout(() => {
+                tooltip.classList.remove('visible');
+                hoveredItem = null;
+            }, 1500);
+        }, { passive: true });
+
+        /* ───── ANIMATION LOOP ───── */
+        let lastTime = 0;
+        const ANIM_DURATION = 600; // ms
+
+        function animate(time) {
+            if (lastTime === 0) lastTime = time;
+            const dt = time - lastTime;
+            lastTime = time;
+
+            if (animProgress < 1) {
+                animProgress = Math.min(1, animProgress + dt / ANIM_DURATION);
+                if (animProgress >= 1) {
+                    prevLayout = null;
+                }
+            }
+
+            draw();
+            requestAnimationFrame(animate);
+        }
+
+        /* ───── INIT ───── */
+        function init() {
+            resize();
+            drawLegend();
+            buildSectorBar();
+            updateBreadcrumb();
+            currLayout = computeLayout();
+            requestAnimationFrame(animate);
+        }
+
+        window.addEventListener('resize', () => {
+            resize();
+            drawLegend();
+        });
+
+        init();
+    })();
+    </script>
+    <script defer src="../../prompt-viewer.js"></script>
+</body>
+</html>
