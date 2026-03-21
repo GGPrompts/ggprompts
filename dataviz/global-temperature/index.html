@@ -1,0 +1,1262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Global Warming Stripes &mdash; Data Visualization Gallery</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-deep: #0b0e17;
+            --bg-surface: #0f1320;
+            --bg-panel: #131828;
+            --border-dim: #1c2340;
+            --border-bright: #2a3560;
+            --text-primary: #e8ecf4;
+            --text-secondary: #8892b0;
+            --text-dim: #4a5580;
+            --accent-blue: #6382ff;
+            --accent-blue-glow: rgba(99, 130, 255, 0.25);
+            --cold-blue: #08306b;
+            --warm-red: #b30000;
+            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'JetBrains Mono', 'Consolas', monospace;
+        }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { font-size: 16px; }
+
+        body {
+            font-family: var(--font-sans);
+            background: var(--bg-deep);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Dot grid */
+        .dot-grid {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            background-image: radial-gradient(circle, rgba(99, 130, 255, 0.06) 1px, transparent 1px);
+            background-size: 32px 32px;
+            pointer-events: none;
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 2rem 2rem 3rem;
+        }
+
+        /* Nav */
+        .nav-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+        .back-link {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            letter-spacing: 0.06em;
+            color: var(--text-dim);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        .back-link:hover { color: var(--accent-blue); }
+        .back-link::before { content: '\2190  '; }
+
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .header h1 {
+            font-size: clamp(1.6rem, 4vw, 2.4rem);
+            font-weight: 600;
+            letter-spacing: -0.02em;
+            margin-bottom: 0.4rem;
+        }
+        .header h1 span {
+            background: linear-gradient(135deg, #4292c6, #ef3b2c);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .header-sub {
+            font-size: 0.9rem;
+            font-weight: 300;
+            color: var(--text-secondary);
+            max-width: 560px;
+            margin: 0 auto;
+        }
+
+        /* Anomaly display */
+        .anomaly-display {
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+        .anomaly-number {
+            font-family: var(--font-mono);
+            font-size: clamp(2.4rem, 6vw, 4rem);
+            font-weight: 700;
+            line-height: 1;
+            user-select: none;
+            transition: color 0.3s;
+        }
+        .anomaly-label {
+            font-family: var(--font-mono);
+            font-size: 0.6rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--text-dim);
+            margin-top: 4px;
+        }
+
+        /* Canvas wrapper */
+        .chart-wrapper {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-dim);
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 1.5rem;
+            position: relative;
+        }
+        #stripesCanvas {
+            display: block;
+            width: 100%;
+            cursor: crosshair;
+        }
+
+        /* Detail panel (click-to-freeze) */
+        .detail-panel {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: rgba(19, 24, 40, 0.92);
+            border: 1px solid var(--border-bright);
+            border-radius: 8px;
+            padding: 14px 18px;
+            min-width: 200px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+            z-index: 10;
+        }
+        .detail-panel.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .detail-year {
+            font-family: var(--font-mono);
+            font-size: 1.6rem;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+            margin-bottom: 3px;
+        }
+        .detail-val {
+            font-family: var(--font-mono);
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+        .detail-close {
+            position: absolute;
+            top: 8px;
+            right: 10px;
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            cursor: pointer;
+            background: none;
+            border: none;
+            font-family: var(--font-mono);
+            transition: color 0.15s;
+        }
+        .detail-close:hover { color: var(--text-primary); }
+
+        /* Timeline scrubber */
+        .timeline-wrapper {
+            padding: 0 2px;
+            margin-bottom: 1.5rem;
+        }
+        .timeline-canvas-wrap {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-dim);
+            border-radius: 8px;
+            overflow: hidden;
+            position: relative;
+        }
+        #timelineCanvas {
+            display: block;
+            width: 100%;
+            cursor: pointer;
+        }
+
+        /* Controls */
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 1.5rem;
+            padding: 16px 20px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border-dim);
+            border-radius: 8px;
+        }
+        .btn {
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            letter-spacing: 0.04em;
+            color: var(--text-primary);
+            background: var(--bg-surface);
+            border: 1px solid var(--border-dim);
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.15s;
+            user-select: none;
+        }
+        .btn:hover {
+            border-color: var(--accent-blue);
+            color: var(--accent-blue);
+        }
+        .btn.active {
+            background: var(--accent-blue);
+            border-color: var(--accent-blue);
+            color: #0b0e17;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .control-label {
+            font-family: var(--font-mono);
+            font-size: 0.6rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text-dim);
+        }
+
+        /* Color scale legend */
+        .color-legend {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+        .color-legend-label {
+            font-family: var(--font-mono);
+            font-size: 0.6rem;
+            letter-spacing: 0.06em;
+            color: var(--text-dim);
+        }
+        .color-bar {
+            width: 240px;
+            height: 12px;
+            border-radius: 3px;
+            border: 1px solid var(--border-dim);
+        }
+
+        /* Decade btns */
+        .decade-btns {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+        .decade-btn {
+            font-family: var(--font-mono);
+            font-size: 0.65rem;
+            color: var(--text-dim);
+            background: none;
+            border: 1px solid var(--border-dim);
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .decade-btn:hover {
+            border-color: var(--accent-blue);
+            color: var(--accent-blue);
+        }
+        .decade-btn.active {
+            border-color: var(--accent-blue);
+            color: var(--accent-blue);
+            background: rgba(99, 130, 255, 0.1);
+        }
+
+        /* Tooltip */
+        .tooltip {
+            position: fixed;
+            z-index: 100;
+            background: #1a1f35;
+            border: 1px solid var(--border-bright);
+            border-radius: 6px;
+            padding: 12px 16px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.15s;
+            max-width: 240px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        }
+        .tooltip.visible { opacity: 1; }
+        .tooltip-year {
+            font-family: var(--font-mono);
+            font-weight: 700;
+            font-size: 1.1rem;
+            margin-bottom: 6px;
+        }
+        .tooltip-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+            margin-bottom: 2px;
+        }
+        .tooltip-val {
+            font-family: var(--font-mono);
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+        .tooltip-swatch {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border-radius: 3px;
+            vertical-align: middle;
+            margin-right: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+
+        /* Info */
+        .info-panel {
+            padding: 16px 20px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border-dim);
+            border-radius: 8px;
+            font-size: 0.78rem;
+            color: var(--text-dim);
+            line-height: 1.6;
+        }
+        .info-panel a {
+            color: var(--text-secondary);
+            text-decoration: none;
+        }
+        .info-panel a:hover { color: var(--accent-blue); }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            margin-top: 2rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border-dim);
+        }
+        .footer a {
+            font-family: var(--font-mono);
+            font-size: 0.6rem;
+            color: var(--text-dim);
+            text-decoration: none;
+            letter-spacing: 0.06em;
+        }
+        .footer a:hover { color: var(--accent-blue); }
+
+        @media (max-width: 768px) {
+            .container { padding: 1.5rem 1rem 2rem; }
+            .controls { gap: 10px; padding: 12px 14px; }
+            .decade-btns { gap: 4px; }
+            .decade-btn { padding: 4px 7px; font-size: 0.6rem; }
+            .color-legend { gap: 6px; }
+            .color-bar { width: 160px; }
+            .detail-panel { top: 8px; right: 8px; padding: 10px 14px; min-width: 170px; }
+            .detail-year { font-size: 1.2rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="dot-grid"></div>
+
+    <div class="container">
+        <div class="nav-row">
+            <a href="../index.html" class="back-link">Data Viz Gallery</a>
+        </div>
+
+        <div class="header">
+            <h1>Global <span>Warming Stripes</span></h1>
+            <p class="header-sub">140 years of global temperature anomaly data from NASA GISS, rendered as warming stripes. Each stripe is one year &mdash; blue is cooler, red is warmer than the 1951&ndash;1980 baseline.</p>
+        </div>
+
+        <div class="anomaly-display">
+            <div class="anomaly-number" id="anomalyDisplay">---</div>
+            <div class="anomaly-label">Temperature anomaly vs 1951&ndash;1980 baseline</div>
+        </div>
+
+        <div class="chart-wrapper">
+            <canvas id="stripesCanvas"></canvas>
+            <div class="detail-panel" id="detailPanel">
+                <button class="detail-close" id="detailClose">ESC</button>
+                <div class="detail-year" id="detailYear"></div>
+                <div class="detail-row"><span>Anomaly</span> <span class="detail-val" id="detailAnomaly"></span></div>
+                <div class="detail-row"><span>vs. previous</span> <span class="detail-val" id="detailDelta"></span></div>
+                <div class="detail-row"><span>Decade avg</span> <span class="detail-val" id="detailDecade"></span></div>
+                <div class="detail-row"><span>Rank</span> <span class="detail-val" id="detailRank"></span></div>
+            </div>
+        </div>
+
+        <div class="color-legend" id="colorLegend">
+            <span class="color-legend-label">-0.5 C</span>
+            <canvas class="color-bar" id="colorBarCanvas" width="240" height="12"></canvas>
+            <span class="color-legend-label">+1.3 C</span>
+        </div>
+
+        <div class="timeline-wrapper">
+            <div class="timeline-canvas-wrap">
+                <canvas id="timelineCanvas"></canvas>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="btn" id="btnLineToggle">Show Line Chart</button>
+            <button class="btn" id="btnPlay">Play Intro</button>
+            <div class="decade-btns" id="decadeBtns"></div>
+        </div>
+
+        <div class="info-panel">
+            <strong>About this visualization</strong> &mdash; Temperature anomaly data is approximate and based on
+            <a href="https://data.giss.nasa.gov/gistemp/" target="_blank" rel="noopener">NASA GISS Surface Temperature Analysis (GISTEMP v4)</a>.
+            Anomalies are relative to the 1951&ndash;1980 global mean. The warming stripes visualization was originally conceived by
+            <a href="https://showyourstripes.info/" target="_blank" rel="noopener">Ed Hawkins (University of Reading)</a>.
+        </div>
+
+        <div class="footer">
+            <a href="../index.html">&larr; Back to Gallery</a> &nbsp;&middot;&nbsp;
+            <a href="../../index.html">HTML Style Guides</a>
+        </div>
+    </div>
+
+    <div class="tooltip" id="tooltip">
+        <div class="tooltip-year" id="ttYear"></div>
+        <div class="tooltip-row"><span><span class="tooltip-swatch" id="ttSwatch"></span>Anomaly</span> <span class="tooltip-val" id="ttAnomaly"></span></div>
+        <div class="tooltip-row"><span>Rank</span> <span class="tooltip-val" id="ttRank"></span></div>
+        <div class="tooltip-row"><span>Decade avg</span> <span class="tooltip-val" id="ttDecade"></span></div>
+    </div>
+
+    <script>
+    (function() {
+        'use strict';
+
+        /* -------------------------------------------------
+           NASA GISS Global Mean Temperature Anomaly (C)
+           Base period: 1951-1980
+           Source: data.giss.nasa.gov/gistemp/
+           ------------------------------------------------- */
+        var DATA = [
+            {year:1880,anomaly:-0.16},{year:1881,anomaly:-0.08},{year:1882,anomaly:-0.10},{year:1883,anomaly:-0.17},
+            {year:1884,anomaly:-0.28},{year:1885,anomaly:-0.33},{year:1886,anomaly:-0.31},{year:1887,anomaly:-0.36},
+            {year:1888,anomaly:-0.17},{year:1889,anomaly:-0.10},{year:1890,anomaly:-0.35},{year:1891,anomaly:-0.22},
+            {year:1892,anomaly:-0.27},{year:1893,anomaly:-0.31},{year:1894,anomaly:-0.32},{year:1895,anomaly:-0.23},
+            {year:1896,anomaly:-0.09},{year:1897,anomaly:-0.12},{year:1898,anomaly:-0.26},{year:1899,anomaly:-0.17},
+            {year:1900,anomaly:-0.08},{year:1901,anomaly:-0.15},{year:1902,anomaly:-0.28},{year:1903,anomaly:-0.37},
+            {year:1904,anomaly:-0.47},{year:1905,anomaly:-0.26},{year:1906,anomaly:-0.22},{year:1907,anomaly:-0.39},
+            {year:1908,anomaly:-0.43},{year:1909,anomaly:-0.48},{year:1910,anomaly:-0.43},{year:1911,anomaly:-0.44},
+            {year:1912,anomaly:-0.36},{year:1913,anomaly:-0.34},{year:1914,anomaly:-0.15},{year:1915,anomaly:-0.14},
+            {year:1916,anomaly:-0.36},{year:1917,anomaly:-0.46},{year:1918,anomaly:-0.30},{year:1919,anomaly:-0.28},
+            {year:1920,anomaly:-0.27},{year:1921,anomaly:-0.19},{year:1922,anomaly:-0.28},{year:1923,anomaly:-0.26},
+            {year:1924,anomaly:-0.27},{year:1925,anomaly:-0.20},{year:1926,anomaly:-0.07},{year:1927,anomaly:-0.18},
+            {year:1928,anomaly:-0.19},{year:1929,anomaly:-0.34},{year:1930,anomaly:-0.10},{year:1931,anomaly:-0.07},
+            {year:1932,anomaly:-0.12},{year:1933,anomaly:-0.26},{year:1934,anomaly:-0.12},{year:1935,anomaly:-0.17},
+            {year:1936,anomaly:-0.14},{year:1937,anomaly:-0.02},{year:1938,anomaly:-0.01},{year:1939,anomaly:-0.02},
+            {year:1940,anomaly: 0.10},{year:1941,anomaly: 0.15},{year:1942,anomaly: 0.09},{year:1943,anomaly: 0.09},
+            {year:1944,anomaly: 0.20},{year:1945,anomaly: 0.09},{year:1946,anomaly:-0.07},{year:1947,anomaly:-0.03},
+            {year:1948,anomaly:-0.05},{year:1949,anomaly:-0.08},{year:1950,anomaly:-0.17},{year:1951,anomaly:-0.01},
+            {year:1952,anomaly: 0.02},{year:1953,anomaly: 0.08},{year:1954,anomaly:-0.13},{year:1955,anomaly:-0.15},
+            {year:1956,anomaly:-0.20},{year:1957,anomaly: 0.04},{year:1958,anomaly: 0.06},{year:1959,anomaly: 0.03},
+            {year:1960,anomaly:-0.02},{year:1961,anomaly: 0.06},{year:1962,anomaly: 0.03},{year:1963,anomaly: 0.07},
+            {year:1964,anomaly:-0.20},{year:1965,anomaly:-0.11},{year:1966,anomaly:-0.03},{year:1967,anomaly:-0.02},
+            {year:1968,anomaly:-0.07},{year:1969,anomaly: 0.06},{year:1970,anomaly: 0.04},{year:1971,anomaly:-0.09},
+            {year:1972,anomaly: 0.02},{year:1973,anomaly: 0.16},{year:1974,anomaly:-0.07},{year:1975,anomaly:-0.01},
+            {year:1976,anomaly:-0.10},{year:1977,anomaly: 0.18},{year:1978,anomaly: 0.07},{year:1979,anomaly: 0.16},
+            {year:1980,anomaly: 0.26},{year:1981,anomaly: 0.32},{year:1982,anomaly: 0.14},{year:1983,anomaly: 0.31},
+            {year:1984,anomaly: 0.16},{year:1985,anomaly: 0.12},{year:1986,anomaly: 0.18},{year:1987,anomaly: 0.33},
+            {year:1988,anomaly: 0.39},{year:1989,anomaly: 0.27},{year:1990,anomaly: 0.45},{year:1991,anomaly: 0.41},
+            {year:1992,anomaly: 0.22},{year:1993,anomaly: 0.24},{year:1994,anomaly: 0.31},{year:1995,anomaly: 0.45},
+            {year:1996,anomaly: 0.35},{year:1997,anomaly: 0.46},{year:1998,anomaly: 0.61},{year:1999,anomaly: 0.40},
+            {year:2000,anomaly: 0.39},{year:2001,anomaly: 0.54},{year:2002,anomaly: 0.63},{year:2003,anomaly: 0.62},
+            {year:2004,anomaly: 0.54},{year:2005,anomaly: 0.68},{year:2006,anomaly: 0.64},{year:2007,anomaly: 0.66},
+            {year:2008,anomaly: 0.54},{year:2009,anomaly: 0.64},{year:2010,anomaly: 0.72},{year:2011,anomaly: 0.61},
+            {year:2012,anomaly: 0.65},{year:2013,anomaly: 0.68},{year:2014,anomaly: 0.75},{year:2015,anomaly: 0.90},
+            {year:2016,anomaly: 1.01},{year:2017,anomaly: 0.92},{year:2018,anomaly: 0.85},{year:2019,anomaly: 0.98},
+            {year:2020,anomaly: 1.02},{year:2021,anomaly: 0.85},{year:2022,anomaly: 0.89},{year:2023,anomaly: 1.17},
+            {year:2024,anomaly: 1.29}
+        ];
+
+        var YEAR_MIN = DATA[0].year;
+        var YEAR_MAX = DATA[DATA.length - 1].year;
+        var N = DATA.length;
+
+        /* Pre-compute: sorted ranks (warmest = 1) */
+        var sortedByAnomaly = DATA.slice().sort(function(a, b) { return b.anomaly - a.anomaly; });
+        var rankMap = {};
+        for (var r = 0; r < sortedByAnomaly.length; r++) {
+            rankMap[sortedByAnomaly[r].year] = r + 1;
+        }
+
+        /* Decade averages */
+        var decadeAvg = {};
+        for (var d = 1880; d <= 2020; d += 10) {
+            var sum = 0, count = 0;
+            for (var j = 0; j < N; j++) {
+                if (DATA[j].year >= d && DATA[j].year < d + 10) {
+                    sum += DATA[j].anomaly;
+                    count++;
+                }
+            }
+            decadeAvg[d] = count > 0 ? sum / count : 0;
+        }
+
+        function getDecadeAvg(year) {
+            var decade = Math.floor(year / 10) * 10;
+            return decadeAvg[decade] !== undefined ? decadeAvg[decade] : 0;
+        }
+
+        /* -------------------------------------------------
+           COLOR PALETTE — diverging blue-white-red
+           Centered on 0 (1951-1980 baseline)
+           Range: approx -0.5 to +1.3
+           ------------------------------------------------- */
+        var COLOR_MIN = -0.5;
+        var COLOR_MAX = 1.3;
+
+        /* 11-stop diverging palette (blue -> white -> red) */
+        var PALETTE = [
+            { pos: 0.00, r: 8,   g: 48,  b: 107 },
+            { pos: 0.10, r: 33,  g: 102, b: 172 },
+            { pos: 0.20, r: 67,  g: 147, b: 195 },
+            { pos: 0.30, r: 146, g: 197, b: 222 },
+            { pos: 0.40, r: 209, g: 229, b: 240 },
+            { pos: 0.50, r: 247, g: 247, b: 247 },
+            { pos: 0.60, r: 253, g: 219, b: 199 },
+            { pos: 0.70, r: 244, g: 165, b: 130 },
+            { pos: 0.80, r: 214, g: 96,  b: 77  },
+            { pos: 0.90, r: 178, g: 24,  b: 43  },
+            { pos: 1.00, r: 103, g: 0,   b: 13  }
+        ];
+
+        function anomalyToColor(anomaly) {
+            var t = (anomaly - COLOR_MIN) / (COLOR_MAX - COLOR_MIN);
+            t = Math.max(0, Math.min(1, t));
+
+            /* Find the two palette stops around t */
+            var lo = PALETTE[0], hi = PALETTE[PALETTE.length - 1];
+            for (var i = 0; i < PALETTE.length - 1; i++) {
+                if (t >= PALETTE[i].pos && t <= PALETTE[i + 1].pos) {
+                    lo = PALETTE[i];
+                    hi = PALETTE[i + 1];
+                    break;
+                }
+            }
+            var f = (hi.pos === lo.pos) ? 0 : (t - lo.pos) / (hi.pos - lo.pos);
+            var r = Math.round(lo.r + (hi.r - lo.r) * f);
+            var g = Math.round(lo.g + (hi.g - lo.g) * f);
+            var b = Math.round(lo.b + (hi.b - lo.b) * f);
+            return { r: r, g: g, b: b };
+        }
+
+        function colorToCSS(c, alpha) {
+            if (alpha !== undefined) return 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',' + alpha + ')';
+            return 'rgb(' + c.r + ',' + c.g + ',' + c.b + ')';
+        }
+
+        /* Pre-compute stripe colors */
+        var stripeColors = DATA.map(function(d) { return anomalyToColor(d.anomaly); });
+
+        /* -------------------------------------------------
+           STATE
+           ------------------------------------------------- */
+        var canvas = document.getElementById('stripesCanvas');
+        var ctx = canvas.getContext('2d');
+        var timelineCanvas = document.getElementById('timelineCanvas');
+        var tlCtx = timelineCanvas.getContext('2d');
+
+        var W, H, dpr;
+        var tlW, tlH;
+        var hoveredIndex = -1;
+        var frozenIndex = -1;   /* click-to-freeze */
+        var mouseX = -1000, mouseY = -1000;
+        var showLine = false;
+
+        /* Animated intro state */
+        var introProgress = 0;   /* 0 = nothing drawn, 1 = all stripes drawn */
+        var introRunning = true;
+        var introStartTime = 0;
+        var INTRO_DURATION = 2.2; /* seconds */
+
+        /* -------------------------------------------------
+           CANVAS SETUP
+           ------------------------------------------------- */
+        function resize() {
+            dpr = window.devicePixelRatio || 1;
+
+            /* Main canvas */
+            var rect = canvas.parentElement.getBoundingClientRect();
+            var targetW = rect.width;
+            var targetH = Math.max(300, Math.min(500, window.innerHeight * 0.45));
+            canvas.style.height = targetH + 'px';
+            W = canvas.width = Math.round(targetW * dpr);
+            H = canvas.height = Math.round(targetH * dpr);
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+            /* Timeline canvas */
+            var tlRect = timelineCanvas.parentElement.getBoundingClientRect();
+            var tlTargetH = 60;
+            timelineCanvas.style.height = tlTargetH + 'px';
+            tlW = timelineCanvas.width = Math.round(tlRect.width * dpr);
+            tlH = timelineCanvas.height = Math.round(tlTargetH * dpr);
+            tlCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+
+        /* -------------------------------------------------
+           STRIPE GEOMETRY
+           ------------------------------------------------- */
+        var PAD_LEFT = 0;
+        var PAD_RIGHT = 0;
+
+        function getStripeWidth() {
+            var availW = (W / dpr) - PAD_LEFT - PAD_RIGHT;
+            return availW / N;
+        }
+
+        function indexFromCanvasX(x) {
+            var sw = getStripeWidth();
+            var idx = Math.floor((x - PAD_LEFT) / sw);
+            return Math.max(0, Math.min(N - 1, idx));
+        }
+
+        /* -------------------------------------------------
+           DRAW MAIN STRIPES
+           ------------------------------------------------- */
+        function drawStripes() {
+            var w = W / dpr;
+            var h = H / dpr;
+            var sw = getStripeWidth();
+
+            ctx.clearRect(0, 0, w, h);
+
+            /* How many stripes to draw (intro animation) */
+            var visibleCount = introRunning
+                ? Math.floor(introProgress * N)
+                : N;
+
+            /* Draw stripes */
+            for (var i = 0; i < visibleCount; i++) {
+                var x = PAD_LEFT + i * sw;
+                var c = stripeColors[i];
+
+                /* Dim if not hovered and something is hovered or frozen */
+                var activeIdx = frozenIndex >= 0 ? frozenIndex : hoveredIndex;
+                var alpha = 1.0;
+                if (activeIdx >= 0 && i !== activeIdx) {
+                    alpha = 0.55;
+                }
+
+                ctx.fillStyle = colorToCSS(c, alpha);
+                ctx.fillRect(x, 0, Math.ceil(sw) + 0.5, h);
+            }
+
+            /* Hover/frozen highlight stripe */
+            var highlightIdx = frozenIndex >= 0 ? frozenIndex : hoveredIndex;
+            if (highlightIdx >= 0 && highlightIdx < visibleCount) {
+                var hx = PAD_LEFT + highlightIdx * sw;
+                ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(hx + 1, 1, Math.ceil(sw) - 2, h - 2);
+
+                /* Year label on stripe */
+                ctx.font = '600 11px "JetBrains Mono"';
+                ctx.fillStyle = '#fff';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'top';
+                ctx.shadowColor = 'rgba(0,0,0,0.7)';
+                ctx.shadowBlur = 4;
+                ctx.fillText(DATA[highlightIdx].year, hx + sw / 2, 8);
+                ctx.shadowColor = 'transparent';
+                ctx.shadowBlur = 0;
+            }
+
+            /* Line chart overlay */
+            if (showLine && visibleCount > 1) {
+                drawLineOverlay(w, h, sw, visibleCount);
+            }
+
+            /* Decade labels along bottom */
+            ctx.font = '400 10px "JetBrains Mono"';
+            ctx.fillStyle = 'rgba(255,255,255,0.5)';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom';
+            ctx.shadowColor = 'rgba(0,0,0,0.8)';
+            ctx.shadowBlur = 3;
+            for (var d = 1880; d <= 2020; d += 20) {
+                var di = d - YEAR_MIN;
+                if (di >= 0 && di < visibleCount) {
+                    var dx = PAD_LEFT + di * sw + sw / 2;
+                    ctx.fillText(d, dx, h - 6);
+                }
+            }
+            ctx.shadowColor = 'transparent';
+            ctx.shadowBlur = 0;
+        }
+
+        /* -------------------------------------------------
+           LINE CHART OVERLAY
+           ------------------------------------------------- */
+        function drawLineOverlay(w, h, sw, visibleCount) {
+            var padTop = 30;
+            var padBot = 30;
+            var chartH = h - padTop - padBot;
+
+            /* Find range */
+            var minA = Infinity, maxA = -Infinity;
+            for (var i = 0; i < N; i++) {
+                if (DATA[i].anomaly < minA) minA = DATA[i].anomaly;
+                if (DATA[i].anomaly > maxA) maxA = DATA[i].anomaly;
+            }
+            var range = maxA - minA || 1;
+
+            /* Zero line */
+            var zeroY = padTop + chartH * (1 - (0 - minA) / range);
+            ctx.setLineDash([4, 4]);
+            ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(PAD_LEFT, zeroY);
+            ctx.lineTo(PAD_LEFT + visibleCount * sw, zeroY);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            /* Zero label */
+            ctx.font = '500 9px "JetBrains Mono"';
+            ctx.fillStyle = 'rgba(255,255,255,0.4)';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'bottom';
+            ctx.fillText('0.0 C baseline', PAD_LEFT + 6, zeroY - 4);
+
+            /* Line */
+            ctx.beginPath();
+            ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+            ctx.lineWidth = 2;
+            ctx.lineJoin = 'round';
+            ctx.lineCap = 'round';
+            for (var i = 0; i < visibleCount; i++) {
+                var x = PAD_LEFT + i * sw + sw / 2;
+                var y = padTop + chartH * (1 - (DATA[i].anomaly - minA) / range);
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+
+            /* Dots at key points (every 20 years + last) */
+            ctx.fillStyle = '#fff';
+            for (var i = 0; i < visibleCount; i++) {
+                var yr = DATA[i].year;
+                if (yr % 20 === 0 || i === visibleCount - 1) {
+                    var x = PAD_LEFT + i * sw + sw / 2;
+                    var y = padTop + chartH * (1 - (DATA[i].anomaly - minA) / range);
+                    ctx.beginPath();
+                    ctx.arc(x, y, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            /* Highlighted point */
+            var highlightIdx = frozenIndex >= 0 ? frozenIndex : hoveredIndex;
+            if (highlightIdx >= 0 && highlightIdx < visibleCount) {
+                var x = PAD_LEFT + highlightIdx * sw + sw / 2;
+                var y = padTop + chartH * (1 - (DATA[highlightIdx].anomaly - minA) / range);
+                ctx.beginPath();
+                ctx.fillStyle = '#fff';
+                ctx.arc(x, y, 5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+                ctx.lineWidth = 1;
+                ctx.arc(x, y, 9, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+        }
+
+        /* -------------------------------------------------
+           DRAW TIMELINE SCRUBBER
+           ------------------------------------------------- */
+        function drawTimeline() {
+            var w = tlW / dpr;
+            var h = tlH / dpr;
+            var padLeft = 40;
+            var padRight = 16;
+            var padTop = 8;
+            var padBot = 20;
+            var chartW = w - padLeft - padRight;
+            var chartH = h - padTop - padBot;
+
+            tlCtx.clearRect(0, 0, w, h);
+
+            /* Find range for y axis */
+            var minA = -0.5, maxA = 1.3;
+            var range = maxA - minA;
+
+            /* Background bars (mini stripes) */
+            var barW = chartW / N;
+            for (var i = 0; i < N; i++) {
+                var x = padLeft + i * barW;
+                var c = stripeColors[i];
+                tlCtx.fillStyle = colorToCSS(c, 0.35);
+                tlCtx.fillRect(x, padTop, Math.ceil(barW) + 0.5, chartH);
+            }
+
+            /* Area fill */
+            tlCtx.beginPath();
+            var zeroY = padTop + chartH * (1 - (0 - minA) / range);
+            tlCtx.moveTo(padLeft, zeroY);
+            for (var i = 0; i < N; i++) {
+                var x = padLeft + i * barW + barW / 2;
+                var y = padTop + chartH * (1 - (DATA[i].anomaly - minA) / range);
+                tlCtx.lineTo(x, y);
+            }
+            tlCtx.lineTo(padLeft + (N - 1) * barW + barW / 2, zeroY);
+            tlCtx.closePath();
+            tlCtx.fillStyle = 'rgba(99, 130, 255, 0.12)';
+            tlCtx.fill();
+
+            /* Line */
+            tlCtx.beginPath();
+            tlCtx.strokeStyle = 'rgba(99, 130, 255, 0.6)';
+            tlCtx.lineWidth = 1.5;
+            tlCtx.lineJoin = 'round';
+            for (var i = 0; i < N; i++) {
+                var x = padLeft + i * barW + barW / 2;
+                var y = padTop + chartH * (1 - (DATA[i].anomaly - minA) / range);
+                if (i === 0) tlCtx.moveTo(x, y);
+                else tlCtx.lineTo(x, y);
+            }
+            tlCtx.stroke();
+
+            /* Zero line */
+            tlCtx.setLineDash([3, 3]);
+            tlCtx.strokeStyle = 'rgba(255,255,255,0.15)';
+            tlCtx.lineWidth = 0.5;
+            tlCtx.beginPath();
+            tlCtx.moveTo(padLeft, zeroY);
+            tlCtx.lineTo(w - padRight, zeroY);
+            tlCtx.stroke();
+            tlCtx.setLineDash([]);
+
+            /* Y-axis labels */
+            tlCtx.font = '400 8px "JetBrains Mono"';
+            tlCtx.fillStyle = 'rgba(74, 85, 128, 0.7)';
+            tlCtx.textAlign = 'right';
+            tlCtx.textBaseline = 'middle';
+            tlCtx.fillText('0.0', padLeft - 6, zeroY);
+            var topY = padTop + chartH * (1 - (maxA - minA) / range);
+            tlCtx.fillText('+' + maxA.toFixed(1), padLeft - 6, topY + 4);
+
+            /* Decade labels */
+            tlCtx.font = '400 8px "JetBrains Mono"';
+            tlCtx.fillStyle = 'rgba(74, 85, 128, 0.6)';
+            tlCtx.textAlign = 'center';
+            tlCtx.textBaseline = 'top';
+            for (var d = 1880; d <= 2020; d += 20) {
+                var di = d - YEAR_MIN;
+                var dx = padLeft + di * barW + barW / 2;
+                tlCtx.fillText(d, dx, h - padBot + 6);
+            }
+
+            /* Highlight marker on timeline */
+            var activeIdx = frozenIndex >= 0 ? frozenIndex : hoveredIndex;
+            if (activeIdx >= 0) {
+                var mx = padLeft + activeIdx * barW + barW / 2;
+                tlCtx.strokeStyle = 'rgba(255,255,255,0.6)';
+                tlCtx.lineWidth = 1;
+                tlCtx.beginPath();
+                tlCtx.moveTo(mx, padTop);
+                tlCtx.lineTo(mx, padTop + chartH);
+                tlCtx.stroke();
+
+                var my = padTop + chartH * (1 - (DATA[activeIdx].anomaly - minA) / range);
+                tlCtx.fillStyle = '#fff';
+                tlCtx.beginPath();
+                tlCtx.arc(mx, my, 3, 0, Math.PI * 2);
+                tlCtx.fill();
+            }
+        }
+
+        /* -------------------------------------------------
+           COLOR BAR LEGEND
+           ------------------------------------------------- */
+        function drawColorBar() {
+            var bar = document.getElementById('colorBarCanvas');
+            var bCtx = bar.getContext('2d');
+            var bDpr = window.devicePixelRatio || 1;
+            bar.width = 240 * bDpr;
+            bar.height = 12 * bDpr;
+            bCtx.setTransform(bDpr, 0, 0, bDpr, 0, 0);
+
+            for (var x = 0; x < 240; x++) {
+                var t = x / 239;
+                var anomaly = COLOR_MIN + t * (COLOR_MAX - COLOR_MIN);
+                var c = anomalyToColor(anomaly);
+                bCtx.fillStyle = colorToCSS(c);
+                bCtx.fillRect(x, 0, 1, 12);
+            }
+        }
+
+        /* -------------------------------------------------
+           ANOMALY DISPLAY
+           ------------------------------------------------- */
+        function updateAnomalyDisplay(idx) {
+            var el = document.getElementById('anomalyDisplay');
+            if (idx < 0 || idx >= N) {
+                el.textContent = '---';
+                el.style.color = 'var(--text-dim)';
+                return;
+            }
+            var a = DATA[idx].anomaly;
+            var sign = a >= 0 ? '+' : '';
+            el.textContent = sign + a.toFixed(2) + ' C';
+            var c = stripeColors[idx];
+            el.style.color = colorToCSS(c);
+        }
+
+        /* -------------------------------------------------
+           TOOLTIP
+           ------------------------------------------------- */
+        var tooltip = document.getElementById('tooltip');
+        var ttYear = document.getElementById('ttYear');
+        var ttAnomaly = document.getElementById('ttAnomaly');
+        var ttRank = document.getElementById('ttRank');
+        var ttDecade = document.getElementById('ttDecade');
+        var ttSwatch = document.getElementById('ttSwatch');
+
+        function showTooltip(idx) {
+            if (idx < 0 || idx >= N) {
+                tooltip.classList.remove('visible');
+                return;
+            }
+            var d = DATA[idx];
+            var c = stripeColors[idx];
+            var sign = d.anomaly >= 0 ? '+' : '';
+
+            ttYear.textContent = d.year;
+            ttYear.style.color = colorToCSS(c);
+            ttAnomaly.textContent = sign + d.anomaly.toFixed(2) + ' C';
+            ttAnomaly.style.color = colorToCSS(c);
+            ttRank.textContent = '#' + rankMap[d.year] + ' of ' + N + ' (warmest)';
+            var da = getDecadeAvg(d.year);
+            var dsign = da >= 0 ? '+' : '';
+            ttDecade.textContent = dsign + da.toFixed(2) + ' C';
+            ttSwatch.style.backgroundColor = colorToCSS(c);
+
+            tooltip.classList.add('visible');
+
+            /* Position */
+            var tw = tooltip.offsetWidth;
+            var th = tooltip.offsetHeight;
+            var tx = mouseX + 16;
+            var ty = mouseY - th / 2;
+            if (tx + tw > window.innerWidth - 10) tx = mouseX - tw - 16;
+            if (ty < 10) ty = 10;
+            if (ty + th > window.innerHeight - 10) ty = window.innerHeight - th - 10;
+            tooltip.style.left = tx + 'px';
+            tooltip.style.top = ty + 'px';
+        }
+
+        /* -------------------------------------------------
+           DETAIL PANEL (click-to-freeze)
+           ------------------------------------------------- */
+        var detailPanel = document.getElementById('detailPanel');
+
+        function showDetailPanel(idx) {
+            if (idx < 0 || idx >= N) {
+                detailPanel.classList.remove('visible');
+                return;
+            }
+            var d = DATA[idx];
+            var c = stripeColors[idx];
+            var sign = d.anomaly >= 0 ? '+' : '';
+
+            document.getElementById('detailYear').textContent = d.year;
+            document.getElementById('detailYear').style.color = colorToCSS(c);
+            document.getElementById('detailAnomaly').textContent = sign + d.anomaly.toFixed(2) + ' C';
+            document.getElementById('detailAnomaly').style.color = colorToCSS(c);
+
+            /* Delta vs previous year */
+            if (idx > 0) {
+                var delta = d.anomaly - DATA[idx - 1].anomaly;
+                var dsign = delta >= 0 ? '+' : '';
+                document.getElementById('detailDelta').textContent = dsign + delta.toFixed(2) + ' C';
+            } else {
+                document.getElementById('detailDelta').textContent = '---';
+            }
+
+            var da = getDecadeAvg(d.year);
+            var dasign = da >= 0 ? '+' : '';
+            document.getElementById('detailDecade').textContent = dasign + da.toFixed(2) + ' C';
+            document.getElementById('detailRank').textContent = '#' + rankMap[d.year] + ' warmest';
+
+            detailPanel.classList.add('visible');
+        }
+
+        function hideDetailPanel() {
+            frozenIndex = -1;
+            detailPanel.classList.remove('visible');
+        }
+
+        document.getElementById('detailClose').addEventListener('click', function(e) {
+            e.stopPropagation();
+            hideDetailPanel();
+        });
+
+        /* -------------------------------------------------
+           MAIN ANIMATION LOOP
+           ------------------------------------------------- */
+        function frame(timestamp) {
+            if (!introStartTime) introStartTime = timestamp;
+
+            /* Intro animation */
+            if (introRunning) {
+                var elapsed = (timestamp - introStartTime) / 1000;
+                introProgress = Math.min(1, elapsed / INTRO_DURATION);
+                /* Ease out */
+                introProgress = 1 - Math.pow(1 - introProgress, 2.5);
+                if (introProgress >= 1) {
+                    introProgress = 1;
+                    introRunning = false;
+                }
+            }
+
+            drawStripes();
+            drawTimeline();
+
+            /* Update anomaly display */
+            var displayIdx = frozenIndex >= 0 ? frozenIndex : hoveredIndex;
+            updateAnomalyDisplay(displayIdx >= 0 ? displayIdx : N - 1);
+
+            requestAnimationFrame(frame);
+        }
+
+        /* -------------------------------------------------
+           MOUSE / TOUCH EVENTS — MAIN CANVAS
+           ------------------------------------------------- */
+        canvas.addEventListener('mousemove', function(e) {
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+            var rect = canvas.getBoundingClientRect();
+            var localX = e.clientX - rect.left;
+            hoveredIndex = indexFromCanvasX(localX);
+            if (frozenIndex < 0) {
+                showTooltip(hoveredIndex);
+            }
+        });
+
+        canvas.addEventListener('mouseleave', function() {
+            mouseX = -1000;
+            mouseY = -1000;
+            hoveredIndex = -1;
+            if (frozenIndex < 0) {
+                tooltip.classList.remove('visible');
+            }
+        });
+
+        canvas.addEventListener('click', function(e) {
+            var rect = canvas.getBoundingClientRect();
+            var localX = e.clientX - rect.left;
+            var idx = indexFromCanvasX(localX);
+
+            if (frozenIndex === idx) {
+                /* Click same stripe = unfreeze */
+                hideDetailPanel();
+            } else {
+                frozenIndex = idx;
+                showDetailPanel(idx);
+                tooltip.classList.remove('visible');
+            }
+        });
+
+        /* Touch support */
+        canvas.addEventListener('touchstart', function(e) {
+            var touch = e.touches[0];
+            mouseX = touch.clientX;
+            mouseY = touch.clientY;
+            var rect = canvas.getBoundingClientRect();
+            var localX = touch.clientX - rect.left;
+            var idx = indexFromCanvasX(localX);
+            hoveredIndex = idx;
+
+            if (frozenIndex === idx) {
+                hideDetailPanel();
+            } else {
+                frozenIndex = idx;
+                showDetailPanel(idx);
+            }
+            showTooltip(idx);
+        }, { passive: true });
+
+        canvas.addEventListener('touchmove', function(e) {
+            var touch = e.touches[0];
+            mouseX = touch.clientX;
+            mouseY = touch.clientY;
+            var rect = canvas.getBoundingClientRect();
+            var localX = touch.clientX - rect.left;
+            hoveredIndex = indexFromCanvasX(localX);
+            showTooltip(hoveredIndex);
+        }, { passive: true });
+
+        canvas.addEventListener('touchend', function() {
+            mouseX = -1000;
+            mouseY = -1000;
+            hoveredIndex = -1;
+            if (frozenIndex < 0) {
+                tooltip.classList.remove('visible');
+            }
+        });
+
+        /* -------------------------------------------------
+           TIMELINE CLICK — jump to year
+           ------------------------------------------------- */
+        timelineCanvas.addEventListener('click', function(e) {
+            var rect = timelineCanvas.getBoundingClientRect();
+            var localX = e.clientX - rect.left;
+            var padLeft = 40;
+            var padRight = 16;
+            var chartW = (tlW / dpr) - padLeft - padRight;
+            var barW = chartW / N;
+            var idx = Math.floor((localX - padLeft) / barW);
+            idx = Math.max(0, Math.min(N - 1, idx));
+            frozenIndex = idx;
+            showDetailPanel(idx);
+        });
+
+        timelineCanvas.addEventListener('mousemove', function(e) {
+            var rect = timelineCanvas.getBoundingClientRect();
+            var localX = e.clientX - rect.left;
+            var padLeft = 40;
+            var padRight = 16;
+            var chartW = (tlW / dpr) - padLeft - padRight;
+            var barW = chartW / N;
+            var idx = Math.floor((localX - padLeft) / barW);
+            idx = Math.max(0, Math.min(N - 1, idx));
+            if (frozenIndex < 0) {
+                hoveredIndex = idx;
+                mouseX = e.clientX;
+                mouseY = e.clientY;
+                showTooltip(idx);
+            }
+            timelineCanvas.style.cursor = 'pointer';
+        });
+
+        timelineCanvas.addEventListener('mouseleave', function() {
+            if (frozenIndex < 0) {
+                hoveredIndex = -1;
+                tooltip.classList.remove('visible');
+            }
+            timelineCanvas.style.cursor = 'pointer';
+        });
+
+        /* -------------------------------------------------
+           CONTROLS
+           ------------------------------------------------- */
+        /* Line toggle */
+        document.getElementById('btnLineToggle').addEventListener('click', function() {
+            showLine = !showLine;
+            this.textContent = showLine ? 'Hide Line Chart' : 'Show Line Chart';
+            this.classList.toggle('active', showLine);
+        });
+
+        /* Replay intro */
+        document.getElementById('btnPlay').addEventListener('click', function() {
+            introProgress = 0;
+            introRunning = true;
+            introStartTime = 0;
+            frozenIndex = -1;
+            hideDetailPanel();
+        });
+
+        /* Decade buttons */
+        function buildDecadeButtons() {
+            var container = document.getElementById('decadeBtns');
+            var decades = [1880, 1900, 1920, 1940, 1960, 1980, 2000, 2020];
+            decades.forEach(function(d) {
+                var btn = document.createElement('button');
+                btn.className = 'decade-btn';
+                btn.textContent = d + 's';
+                btn.setAttribute('data-decade', d);
+                btn.addEventListener('click', function() {
+                    var idx = d - YEAR_MIN;
+                    idx = Math.max(0, Math.min(N - 1, idx));
+                    frozenIndex = idx;
+                    showDetailPanel(idx);
+
+                    /* Highlight active */
+                    document.querySelectorAll('.decade-btn').forEach(function(b) {
+                        b.classList.remove('active');
+                    });
+                    this.classList.add('active');
+                });
+                container.appendChild(btn);
+            });
+        }
+        buildDecadeButtons();
+
+        /* ESC key to unfreeze */
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                hideDetailPanel();
+                document.querySelectorAll('.decade-btn').forEach(function(b) {
+                    b.classList.remove('active');
+                });
+            } else if (e.key === 'ArrowRight') {
+                e.preventDefault();
+                var idx = frozenIndex >= 0 ? frozenIndex : (hoveredIndex >= 0 ? hoveredIndex : 0);
+                idx = Math.min(N - 1, idx + 1);
+                frozenIndex = idx;
+                showDetailPanel(idx);
+            } else if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                var idx = frozenIndex >= 0 ? frozenIndex : (hoveredIndex >= 0 ? hoveredIndex : N - 1);
+                idx = Math.max(0, idx - 1);
+                frozenIndex = idx;
+                showDetailPanel(idx);
+            } else if (e.key === 'l' || e.key === 'L') {
+                document.getElementById('btnLineToggle').click();
+            }
+        });
+
+        /* -------------------------------------------------
+           INIT
+           ------------------------------------------------- */
+        window.addEventListener('resize', function() {
+            resize();
+            drawColorBar();
+        });
+
+        resize();
+        drawColorBar();
+        requestAnimationFrame(frame);
+    })();
+    </script>
+<script defer src="../../prompt-viewer.js"></script>
+</body>
+</html>

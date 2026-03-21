@@ -1,0 +1,1250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Model Scaling Timeline &mdash; Data Visualization Gallery</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-deep: #0b0e17;
+            --bg-surface: #0f1320;
+            --bg-panel: #131828;
+            --border-dim: #1c2340;
+            --border-bright: #2a3560;
+            --text-primary: #e8ecf4;
+            --text-secondary: #8892b0;
+            --text-dim: #4a5580;
+            --accent-blue: #6382ff;
+            --accent-blue-glow: rgba(99, 130, 255, 0.25);
+            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'JetBrains Mono', 'Consolas', monospace;
+
+            /* Lab colors */
+            --openai: #10a37f;
+            --anthropic: #d97706;
+            --google: #34a853;
+            --meta: #8b5cf6;
+            --mistral: #ef4444;
+            --deepseek: #06b6d4;
+            --microsoft: #3b82f6;
+            --other: #6b7280;
+        }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { font-size: 16px; }
+
+        body {
+            font-family: var(--font-sans);
+            background: var(--bg-deep);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Dot grid */
+        .dot-grid {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            background-image: radial-gradient(circle, rgba(99, 130, 255, 0.06) 1px, transparent 1px);
+            background-size: 32px 32px;
+            pointer-events: none;
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 2rem 2rem 3rem;
+        }
+
+        /* Nav */
+        .nav-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+        .back-link {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            letter-spacing: 0.06em;
+            color: var(--text-dim);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        .back-link:hover { color: var(--accent-blue); }
+        .back-link::before { content: '\2190  '; }
+
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .header h1 {
+            font-size: clamp(1.6rem, 4vw, 2.4rem);
+            font-weight: 600;
+            letter-spacing: -0.02em;
+            margin-bottom: 0.4rem;
+        }
+        .header h1 span {
+            background: linear-gradient(135deg, var(--accent-blue), #38d9a9);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .header-sub {
+            font-size: 0.9rem;
+            font-weight: 300;
+            color: var(--text-secondary);
+            max-width: 580px;
+            margin: 0 auto;
+        }
+
+        /* Date display */
+        .date-display {
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+        .date-number {
+            font-family: var(--font-mono);
+            font-size: clamp(2rem, 6vw, 3.5rem);
+            font-weight: 700;
+            color: var(--text-primary);
+            opacity: 0.15;
+            line-height: 1;
+            user-select: none;
+            transition: opacity 0.3s;
+        }
+        .date-number.playing {
+            opacity: 0.25;
+        }
+
+        /* Canvas wrapper */
+        .chart-wrapper {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-dim);
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 1.5rem;
+            position: relative;
+        }
+        #scatterCanvas {
+            display: block;
+            width: 100%;
+            cursor: crosshair;
+        }
+
+        /* Controls */
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 1.5rem;
+            padding: 16px 20px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border-dim);
+            border-radius: 8px;
+        }
+        .btn {
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            letter-spacing: 0.04em;
+            color: var(--text-primary);
+            background: var(--bg-surface);
+            border: 1px solid var(--border-dim);
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.15s;
+            user-select: none;
+        }
+        .btn:hover {
+            border-color: var(--accent-blue);
+            color: var(--accent-blue);
+        }
+        .btn.active {
+            background: var(--accent-blue);
+            border-color: var(--accent-blue);
+            color: #0b0e17;
+        }
+        .btn-play {
+            min-width: 70px;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .control-label {
+            font-family: var(--font-mono);
+            font-size: 0.6rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text-dim);
+        }
+
+        /* Slider */
+        .slider-wrap {
+            flex: 1;
+            min-width: 120px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            flex: 1;
+            height: 4px;
+            background: var(--border-dim);
+            border-radius: 2px;
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: var(--accent-blue);
+            cursor: pointer;
+            box-shadow: 0 0 8px var(--accent-blue-glow);
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: var(--accent-blue);
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 0 8px var(--accent-blue-glow);
+        }
+
+        /* Legend */
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-bottom: 1.5rem;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-family: var(--font-mono);
+            font-size: 0.65rem;
+            color: var(--text-secondary);
+            letter-spacing: 0.04em;
+            cursor: pointer;
+            transition: opacity 0.2s;
+            user-select: none;
+        }
+        .legend-item.dimmed {
+            opacity: 0.3;
+        }
+        .legend-item:hover {
+            opacity: 1;
+        }
+        .legend-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        /* Tooltip */
+        .tooltip {
+            position: fixed;
+            z-index: 100;
+            background: #1a1f35;
+            border: 1px solid var(--border-bright);
+            border-radius: 6px;
+            padding: 12px 16px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.15s;
+            max-width: 280px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+        }
+        .tooltip.visible { opacity: 1; }
+        .tooltip-name {
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-bottom: 4px;
+        }
+        .tooltip-lab {
+            font-family: var(--font-mono);
+            font-size: 0.6rem;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+        .tooltip-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+            margin-bottom: 2px;
+        }
+        .tooltip-val {
+            font-family: var(--font-mono);
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        /* Info */
+        .info-panel {
+            padding: 16px 20px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border-dim);
+            border-radius: 8px;
+            font-size: 0.78rem;
+            color: var(--text-dim);
+            line-height: 1.6;
+        }
+        .info-panel a {
+            color: var(--text-secondary);
+            text-decoration: none;
+        }
+        .info-panel a:hover { color: var(--accent-blue); }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            margin-top: 2rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border-dim);
+        }
+        .footer a {
+            font-family: var(--font-mono);
+            font-size: 0.6rem;
+            color: var(--text-dim);
+            text-decoration: none;
+            letter-spacing: 0.06em;
+        }
+        .footer a:hover { color: var(--accent-blue); }
+
+        @media (max-width: 768px) {
+            .container { padding: 1.5rem 1rem 2rem; }
+            .controls { gap: 10px; padding: 12px 14px; }
+            .legend { gap: 12px; }
+            .slider-wrap { min-width: 100px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="dot-grid"></div>
+
+    <div class="container">
+        <div class="nav-row">
+            <a href="../index.html" class="back-link">Data Viz Gallery</a>
+        </div>
+
+        <div class="header">
+            <h1>AI Model <span>Scaling</span> Timeline</h1>
+            <p class="header-sub">Watch 50 notable AI models appear chronologically, plotted by parameter count vs. benchmark performance (MMLU). Size encodes parameters, color encodes lab.</p>
+        </div>
+
+        <div class="date-display">
+            <div class="date-number" id="dateDisplay">2017</div>
+        </div>
+
+        <div class="chart-wrapper">
+            <canvas id="scatterCanvas"></canvas>
+        </div>
+
+        <div class="controls">
+            <button class="btn btn-play" id="btnPlay">Play</button>
+            <div class="control-group">
+                <span class="control-label">Speed</span>
+                <input type="range" id="speedSlider" min="1" max="5" value="2" step="1">
+            </div>
+            <div class="slider-wrap">
+                <span class="control-label">Time</span>
+                <input type="range" id="timeSlider" min="0" max="1000" value="0" step="1">
+            </div>
+            <button class="btn" id="btnReset">Reset</button>
+        </div>
+
+        <div class="legend" id="legend"></div>
+
+        <div class="info-panel">
+            <strong>About this visualization</strong> &mdash; Parameter counts and MMLU benchmark scores are approximate, compiled from
+            published papers, technical reports, and community estimates. Where exact parameter counts are undisclosed (e.g. GPT-4),
+            widely-cited estimates are used. MMLU (Massive Multitask Language Understanding) is a standardized benchmark measuring
+            knowledge across 57 subjects. Some models use 5-shot MMLU; others use 0-shot or CoT variants &mdash; scores are
+            approximate and meant to illustrate the scaling trend rather than provide exact comparisons.
+        </div>
+
+        <div class="footer">
+            <a href="../index.html">&larr; Back to Gallery</a> &nbsp;&middot;&nbsp;
+            <a href="../../index.html">HTML Style Guides</a>
+        </div>
+    </div>
+
+    <div class="tooltip" id="tooltip">
+        <div class="tooltip-name" id="ttName"></div>
+        <div class="tooltip-lab" id="ttLab"></div>
+        <div class="tooltip-row"><span>Released</span> <span class="tooltip-val" id="ttDate"></span></div>
+        <div class="tooltip-row"><span>Parameters</span> <span class="tooltip-val" id="ttParams"></span></div>
+        <div class="tooltip-row"><span>MMLU Score</span> <span class="tooltip-val" id="ttScore"></span></div>
+    </div>
+
+    <script>
+    (function() {
+        'use strict';
+
+        /* ---------------------------------------------------
+           DATASET — ~50 notable AI models, 2017-2026
+           params: approximate parameter count
+           score: approximate MMLU benchmark score (0-100)
+           date: release date as fractional year
+           --------------------------------------------------- */
+        var LABS = {
+            'OpenAI':    { color: '#10a37f', label: 'OpenAI' },
+            'Anthropic': { color: '#d97706', label: 'Anthropic' },
+            'Google':    { color: '#34a853', label: 'Google' },
+            'Meta':      { color: '#8b5cf6', label: 'Meta' },
+            'Mistral':   { color: '#ef4444', label: 'Mistral' },
+            'DeepSeek':  { color: '#06b6d4', label: 'DeepSeek' },
+            'Microsoft': { color: '#3b82f6', label: 'Microsoft' },
+            'Other':     { color: '#6b7280', label: 'Other' }
+        };
+
+        // date as fractional year (e.g., 2023.5 = July 2023)
+        // params in raw number (e.g., 175e9 = 175B)
+        // score: MMLU approximate %
+        var MODELS = [
+            // 2017-2018: Pre-MMLU era — scores are retroactive estimates or extrapolated
+            { name: 'Transformer (Original)',  lab: 'Google',    date: 2017.5,  params: 213e6,   score: 25 },
+            { name: 'GPT-1',                   lab: 'OpenAI',    date: 2018.5,  params: 117e6,   score: 26 },
+            { name: 'BERT-Large',              lab: 'Google',    date: 2018.8,  params: 340e6,   score: 32 },
+
+            // 2019
+            { name: 'GPT-2',                   lab: 'OpenAI',    date: 2019.1,  params: 1.5e9,   score: 32 },
+            { name: 'T5-11B',                  lab: 'Google',    date: 2019.8,  params: 11e9,    score: 39 },
+
+            // 2020
+            { name: 'GPT-3',                   lab: 'OpenAI',    date: 2020.4,  params: 175e9,   score: 43 },
+
+            // 2021
+            { name: 'Gopher',                  lab: 'Other',     date: 2021.9,  params: 280e9,   score: 60 },
+            { name: 'Chinchilla',              lab: 'Other',     date: 2021.95, params: 70e9,    score: 67 },
+
+            // 2022
+            { name: 'PaLM',                    lab: 'Google',    date: 2022.3,  params: 540e9,   score: 69 },
+            { name: 'LLaMA 1 (65B)',           lab: 'Meta',      date: 2022.1,  params: 65e9,    score: 64 },
+            { name: 'Claude 1',                lab: 'Anthropic', date: 2022.25, params: 52e9,    score: 55 },
+
+            // 2023 Q1
+            { name: 'LLaMA 1 (7B)',            lab: 'Meta',      date: 2023.1,  params: 7e9,     score: 35 },
+            { name: 'GPT-3.5 Turbo',           lab: 'OpenAI',    date: 2023.0,  params: 20e9,    score: 70 },
+
+            // 2023 Q2
+            { name: 'GPT-4',                   lab: 'OpenAI',    date: 2023.2,  params: 1.8e12,  score: 86 },
+            { name: 'PaLM 2',                  lab: 'Google',    date: 2023.35, params: 340e9,   score: 78 },
+            { name: 'Claude 2',                lab: 'Anthropic', date: 2023.5,  params: 130e9,   score: 75 },
+
+            // 2023 Q3-Q4
+            { name: 'LLaMA 2 (70B)',           lab: 'Meta',      date: 2023.55, params: 70e9,    score: 68 },
+            { name: 'LLaMA 2 (13B)',           lab: 'Meta',      date: 2023.55, params: 13e9,    score: 55 },
+            { name: 'Mistral 7B',              lab: 'Mistral',   date: 2023.7,  params: 7.3e9,   score: 60 },
+            { name: 'Phi-1',                   lab: 'Microsoft', date: 2023.5,  params: 1.3e9,   score: 44 },
+            { name: 'Phi-2',                   lab: 'Microsoft', date: 2023.9,  params: 2.7e9,   score: 57 },
+            { name: 'DeepSeek LLM (67B)',      lab: 'DeepSeek',  date: 2023.85, params: 67e9,    score: 71 },
+            { name: 'Gemini 1.0 Ultra',        lab: 'Google',    date: 2023.9,  params: 1.6e12,  score: 90 },
+            { name: 'Gemini 1.0 Pro',          lab: 'Google',    date: 2023.9,  params: 300e9,   score: 79 },
+            { name: 'Mixtral 8x7B',            lab: 'Mistral',   date: 2023.9,  params: 46.7e9,  score: 71 },
+
+            // 2024 Q1
+            { name: 'Claude 3 Haiku',          lab: 'Anthropic', date: 2024.15, params: 20e9,    score: 75 },
+            { name: 'Claude 3 Sonnet',         lab: 'Anthropic', date: 2024.15, params: 70e9,    score: 79 },
+            { name: 'Claude 3 Opus',           lab: 'Anthropic', date: 2024.15, params: 200e9,   score: 87 },
+            { name: 'Mistral Small',           lab: 'Mistral',   date: 2024.1,  params: 22e9,    score: 72 },
+            { name: 'Mistral Medium',          lab: 'Mistral',   date: 2024.1,  params: 70e9,    score: 75 },
+            { name: 'Mistral Large',           lab: 'Mistral',   date: 2024.15, params: 123e9,   score: 81 },
+
+            // 2024 Q2-Q3
+            { name: 'GPT-4o',                  lab: 'OpenAI',    date: 2024.35, params: 200e9,   score: 88 },
+            { name: 'Phi-3 Mini',              lab: 'Microsoft', date: 2024.3,  params: 3.8e9,   score: 69 },
+            { name: 'Phi-3 Medium',            lab: 'Microsoft', date: 2024.3,  params: 14e9,    score: 78 },
+            { name: 'Gemini 1.5 Pro',          lab: 'Google',    date: 2024.3,  params: 600e9,   score: 85 },
+            { name: 'LLaMA 3 (70B)',           lab: 'Meta',      date: 2024.3,  params: 70e9,    score: 79 },
+            { name: 'LLaMA 3 (8B)',            lab: 'Meta',      date: 2024.3,  params: 8e9,     score: 66 },
+            { name: 'Claude 3.5 Sonnet',       lab: 'Anthropic', date: 2024.45, params: 175e9,   score: 89 },
+            { name: 'DeepSeek V2',             lab: 'DeepSeek',  date: 2024.4,  params: 236e9,   score: 78 },
+
+            // 2024 Q4
+            { name: 'LLaMA 3.1 (405B)',        lab: 'Meta',      date: 2024.55, params: 405e9,   score: 87 },
+            { name: 'Gemini 2.0 Flash',        lab: 'Google',    date: 2024.9,  params: 350e9,   score: 84 },
+            { name: 'DeepSeek V3',             lab: 'DeepSeek',  date: 2024.95, params: 685e9,   score: 88 },
+
+            // 2025
+            { name: 'GPT-4.5',                 lab: 'OpenAI',    date: 2025.15, params: 1.5e12,  score: 90 },
+            { name: 'Claude 3.5 Opus',         lab: 'Anthropic', date: 2025.05, params: 350e9,   score: 90 },
+            { name: 'Claude 4 Sonnet',         lab: 'Anthropic', date: 2025.35, params: 250e9,   score: 91 },
+            { name: 'Claude 4 Opus',           lab: 'Anthropic', date: 2025.35, params: 500e9,   score: 93 },
+            { name: 'Gemini 2.5 Pro',          lab: 'Google',    date: 2025.2,  params: 1.2e12,  score: 92 },
+            { name: 'LLaMA 4 Scout',           lab: 'Meta',      date: 2025.3,  params: 109e9,   score: 80 },
+            { name: 'LLaMA 4 Maverick',        lab: 'Meta',      date: 2025.3,  params: 400e9,   score: 88 },
+            { name: 'DeepSeek V4',             lab: 'DeepSeek',  date: 2025.25, params: 1e12,    score: 91 },
+            { name: 'GPT-5',                   lab: 'OpenAI',    date: 2025.35, params: 2e12,    score: 93 },
+            { name: 'Mistral Large 2',         lab: 'Mistral',   date: 2025.1,  params: 200e9,   score: 84 }
+        ];
+
+        // Sort by date for chronological playback
+        MODELS.sort(function(a, b) { return a.date - b.date; });
+
+        var MIN_DATE = 2017.0;
+        var MAX_DATE = 2026.0;
+        var MIN_PARAMS = 1e8;   // 100M
+        var MAX_PARAMS = 3e12;  // 3T
+
+        /* ---------------------------------------------------
+           ANNOTATIONS — key milestones
+           --------------------------------------------------- */
+        var ANNOTATIONS = [
+            { date: 2020.4,  text: 'GPT-3 kickstarts\nthe scaling era',           targetName: 'GPT-3' },
+            { date: 2023.2,  text: 'GPT-4 crosses\n86% MMLU',                     targetName: 'GPT-4' },
+            { date: 2023.7,  text: 'Open models\nclose the gap',                   targetName: 'Mistral 7B' },
+            { date: 2024.45, text: 'Claude 3.5 Sonnet\nsets new efficiency bar',   targetName: 'Claude 3.5 Sonnet' },
+            { date: 2025.35, text: 'Frontier models\nconverge at ~93%',            targetName: 'GPT-5' }
+        ];
+
+        /* ---------------------------------------------------
+           STATE
+           --------------------------------------------------- */
+        var canvas = document.getElementById('scatterCanvas');
+        var ctx = canvas.getContext('2d');
+        var W, H, dpr;
+        var currentTime = MIN_DATE;
+        var targetTime = MIN_DATE;
+        var isPlaying = false;
+        var playSpeed = 2;
+        var hoveredModel = -1;
+        var mouseX = -1000, mouseY = -1000;
+        var lastFrameTime = 0;
+        var labFilter = {};
+
+        // Animation state for each model (entrance animation)
+        var modelStates = MODELS.map(function() {
+            return { appeared: false, alpha: 0, scale: 0, x: 0, y: 0 };
+        });
+
+        // Chart padding
+        var PAD = { top: 55, right: 50, bottom: 55, left: 75 };
+
+        /* ---------------------------------------------------
+           HELPERS
+           --------------------------------------------------- */
+        function lerp(a, b, t) { return a + (b - a) * t; }
+
+        function easeOutElastic(t) {
+            if (t === 0 || t === 1) return t;
+            return Math.pow(2, -10 * t) * Math.sin((t - 0.1) * 5 * Math.PI) + 1;
+        }
+
+        function easeOutCubic(t) {
+            return 1 - Math.pow(1 - t, 3);
+        }
+
+        function logScale(value, min, max, rangeMin, rangeMax) {
+            var logMin = Math.log10(min);
+            var logMax = Math.log10(max);
+            var logVal = Math.log10(Math.max(min, Math.min(max, value)));
+            var t = (logVal - logMin) / (logMax - logMin);
+            return rangeMin + t * (rangeMax - rangeMin);
+        }
+
+        function linearScale(value, min, max, rangeMin, rangeMax) {
+            var t = (value - min) / (max - min);
+            return rangeMin + t * (rangeMax - rangeMin);
+        }
+
+        function formatParams(n) {
+            if (n >= 1e12) return (n / 1e12).toFixed(1) + 'T';
+            if (n >= 1e9) return (n / 1e9).toFixed(0) + 'B';
+            if (n >= 1e6) return (n / 1e6).toFixed(0) + 'M';
+            return n.toString();
+        }
+
+        function formatParamsFull(n) {
+            if (n >= 1e12) return (n / 1e12).toFixed(2) + ' trillion';
+            if (n >= 1e9) return (n / 1e9).toFixed(1) + ' billion';
+            if (n >= 1e6) return (n / 1e6).toFixed(0) + ' million';
+            return n.toLocaleString();
+        }
+
+        function dateToString(d) {
+            var year = Math.floor(d);
+            var monthFrac = (d - year) * 12;
+            var month = Math.floor(monthFrac);
+            var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            return months[Math.min(11, Math.max(0, month))] + ' ' + year;
+        }
+
+        function hexToRgb(hex) {
+            var r = parseInt(hex.slice(1, 3), 16);
+            var g = parseInt(hex.slice(3, 5), 16);
+            var b = parseInt(hex.slice(5, 7), 16);
+            return { r: r, g: g, b: b };
+        }
+
+        function rgba(hex, a) {
+            var c = hexToRgb(hex);
+            return 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',' + a + ')';
+        }
+
+        /* ---------------------------------------------------
+           CANVAS SETUP
+           --------------------------------------------------- */
+        function resize() {
+            dpr = window.devicePixelRatio || 1;
+            var rect = canvas.parentElement.getBoundingClientRect();
+            var targetW = rect.width;
+            var targetH = Math.max(480, Math.min(640, window.innerHeight * 0.6));
+            canvas.style.height = targetH + 'px';
+            W = canvas.width = targetW * dpr;
+            H = canvas.height = targetH * dpr;
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+
+        /* ---------------------------------------------------
+           COORDINATE TRANSFORMS
+           --------------------------------------------------- */
+        function getChartWidth() { return (W / dpr) - PAD.left - PAD.right; }
+        function getChartHeight() { return (H / dpr) - PAD.top - PAD.bottom; }
+
+        function paramsToX(params) {
+            return logScale(params, MIN_PARAMS, MAX_PARAMS, PAD.left, PAD.left + getChartWidth());
+        }
+
+        function scoreToY(score) {
+            return linearScale(score, 0, 100, PAD.top + getChartHeight(), PAD.top);
+        }
+
+        function dotRadius(params) {
+            var logP = Math.log10(params);
+            var minLog = Math.log10(MIN_PARAMS);
+            var maxLog = Math.log10(MAX_PARAMS);
+            var t = (logP - minLog) / (maxLog - minLog);
+            return 4 + t * 14;
+        }
+
+        /* ---------------------------------------------------
+           TREND LINE CALCULATION
+           Uses a moving window to compute the frontier
+           --------------------------------------------------- */
+        function computeTrendLine(upToTime) {
+            var visible = [];
+            for (var i = 0; i < MODELS.length; i++) {
+                if (MODELS[i].date <= upToTime) {
+                    visible.push(MODELS[i]);
+                }
+            }
+            if (visible.length < 2) return [];
+
+            // Sort by params for the trend
+            visible.sort(function(a, b) { return a.params - b.params; });
+
+            // Compute a LOESS-like smoothed upper envelope
+            // Group into log-spaced bins and take the best score in each
+            var numBins = 20;
+            var logMin = Math.log10(MIN_PARAMS);
+            var logMax = Math.log10(MAX_PARAMS);
+            var bins = [];
+            for (var b = 0; b < numBins; b++) {
+                var binLogCenter = logMin + (b + 0.5) * (logMax - logMin) / numBins;
+                var binLogStart = logMin + b * (logMax - logMin) / numBins;
+                var binLogEnd = logMin + (b + 1) * (logMax - logMin) / numBins;
+                var bestScore = -1;
+                var avgParams = 0;
+                var count = 0;
+                for (var j = 0; j < visible.length; j++) {
+                    var lp = Math.log10(visible[j].params);
+                    if (lp >= binLogStart && lp < binLogEnd) {
+                        if (visible[j].score > bestScore) bestScore = visible[j].score;
+                        avgParams += visible[j].params;
+                        count++;
+                    }
+                }
+                if (count > 0) {
+                    bins.push({ params: avgParams / count, score: bestScore });
+                }
+            }
+
+            return bins;
+        }
+
+        /* ---------------------------------------------------
+           DRAWING
+           --------------------------------------------------- */
+        function draw(timestamp) {
+            if (!lastFrameTime) lastFrameTime = timestamp;
+            var dt = Math.min((timestamp - lastFrameTime) / 1000, 0.1);
+            lastFrameTime = timestamp;
+
+            // Auto-play
+            if (isPlaying) {
+                var speedMap = [0.3, 0.6, 1.2, 2.5, 5.0];
+                var rate = speedMap[playSpeed - 1] || 1.2;
+                targetTime = Math.min(MAX_DATE, targetTime + dt * rate);
+                if (targetTime >= MAX_DATE) {
+                    targetTime = MAX_DATE;
+                    isPlaying = false;
+                    document.getElementById('btnPlay').textContent = 'Play';
+                    document.getElementById('dateDisplay').classList.remove('playing');
+                }
+                var prog = (targetTime - MIN_DATE) / (MAX_DATE - MIN_DATE);
+                document.getElementById('timeSlider').value = Math.round(prog * 1000);
+            }
+
+            // Smooth time transition
+            currentTime = lerp(currentTime, targetTime, Math.min(1, dt * 6));
+            if (Math.abs(currentTime - targetTime) < 0.001) currentTime = targetTime;
+
+            // Update display
+            document.getElementById('dateDisplay').textContent = dateToString(currentTime);
+
+            var cw = W / dpr;
+            var ch = H / dpr;
+
+            // Determine which labs are filtered
+            var anyFiltered = false;
+            for (var lk in labFilter) {
+                if (labFilter[lk] === false) { anyFiltered = true; break; }
+            }
+
+            // Clear
+            ctx.clearRect(0, 0, cw, ch);
+
+            // --- GRID ---
+            drawGrid(cw, ch);
+
+            // --- TREND LINE ---
+            drawTrendLine(cw, ch);
+
+            // --- DOTS ---
+            hoveredModel = -1;
+            var canvasRect = canvas.getBoundingClientRect();
+            var localMX = mouseX - canvasRect.left;
+            var localMY = mouseY - canvasRect.top;
+            var closestDist = Infinity;
+            var closestIdx = -1;
+
+            for (var i = 0; i < MODELS.length; i++) {
+                var m = MODELS[i];
+                var ms = modelStates[i];
+
+                // Determine if visible
+                var isVisible = m.date <= currentTime;
+                if (anyFiltered && labFilter[m.lab] === false) isVisible = false;
+
+                if (isVisible && !ms.appeared) {
+                    ms.appeared = true;
+                    ms.alpha = 0;
+                    ms.scale = 0;
+                }
+                if (!isVisible) {
+                    ms.appeared = false;
+                    ms.alpha = Math.max(0, ms.alpha - dt * 4);
+                    ms.scale = Math.max(0, ms.scale - dt * 4);
+                }
+
+                if (ms.appeared) {
+                    ms.alpha = Math.min(1, ms.alpha + dt * 3);
+                    ms.scale = Math.min(1, ms.scale + dt * 4);
+                }
+
+                if (ms.alpha <= 0 && !ms.appeared) continue;
+
+                var px = paramsToX(m.params);
+                var py = scoreToY(m.score);
+                ms.x = px;
+                ms.y = py;
+                var r = dotRadius(m.params);
+                var easeScale = easeOutCubic(ms.scale);
+                var drawR = r * easeScale;
+                var alpha = ms.alpha * 0.85;
+
+                var color = LABS[m.lab].color;
+
+                // Check hover (distance-based)
+                var dx = localMX - px;
+                var dy = localMY - py;
+                var dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < drawR + 6 && dist < closestDist && ms.alpha > 0.3) {
+                    closestDist = dist;
+                    closestIdx = i;
+                }
+
+                // Draw glow
+                if (drawR > 0) {
+                    ctx.globalAlpha = alpha * 0.3;
+                    var glow = ctx.createRadialGradient(px, py, 0, px, py, drawR * 2.5);
+                    glow.addColorStop(0, rgba(color, 0.4));
+                    glow.addColorStop(1, rgba(color, 0));
+                    ctx.fillStyle = glow;
+                    ctx.beginPath();
+                    ctx.arc(px, py, drawR * 2.5, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Draw dot
+                    ctx.globalAlpha = alpha;
+                    ctx.fillStyle = color;
+                    ctx.beginPath();
+                    ctx.arc(px, py, drawR, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Inner highlight
+                    ctx.globalAlpha = alpha * 0.5;
+                    ctx.fillStyle = '#fff';
+                    ctx.beginPath();
+                    ctx.arc(px - drawR * 0.25, py - drawR * 0.25, drawR * 0.3, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.globalAlpha = 1;
+                }
+            }
+
+            // Hover highlight
+            if (closestIdx >= 0) {
+                hoveredModel = closestIdx;
+                var hm = MODELS[closestIdx];
+                var hms = modelStates[closestIdx];
+                var hx = hms.x;
+                var hy = hms.y;
+                var hr = dotRadius(hm.params) * easeOutCubic(hms.scale);
+                var hcolor = LABS[hm.lab].color;
+
+                // Hover ring
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(hx, hy, hr + 4, 0, Math.PI * 2);
+                ctx.stroke();
+
+                // Label
+                ctx.font = '600 11px "Inter"';
+                ctx.fillStyle = '#fff';
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'bottom';
+                var labelX = hx + hr + 8;
+                var labelY = hy - 4;
+                if (labelX + 100 > cw - PAD.right) {
+                    ctx.textAlign = 'right';
+                    labelX = hx - hr - 8;
+                }
+                ctx.fillText(hm.name, labelX, labelY);
+
+                ctx.font = '400 9px "JetBrains Mono"';
+                ctx.fillStyle = rgba(hcolor, 0.9);
+                ctx.fillText(formatParams(hm.params) + ' params  |  ' + hm.score.toFixed(1) + '% MMLU', labelX, labelY + 14);
+            }
+
+            // --- ANNOTATIONS ---
+            drawAnnotations(cw, ch);
+
+            // Tooltip
+            updateTooltip();
+
+            requestAnimationFrame(draw);
+        }
+
+        /* ---------------------------------------------------
+           GRID DRAWING
+           --------------------------------------------------- */
+        function drawGrid(cw, ch) {
+            ctx.save();
+
+            // X-axis grid lines (log scale)
+            var xTicks = [1e8, 3e8, 1e9, 3e9, 1e10, 3e10, 1e11, 3e11, 1e12, 3e12];
+            var xLabels = ['100M', '300M', '1B', '3B', '10B', '30B', '100B', '300B', '1T', '3T'];
+
+            for (var i = 0; i < xTicks.length; i++) {
+                var x = paramsToX(xTicks[i]);
+                if (x < PAD.left || x > cw - PAD.right) continue;
+
+                ctx.strokeStyle = 'rgba(99, 130, 255, 0.06)';
+                ctx.lineWidth = 0.5;
+                ctx.beginPath();
+                ctx.moveTo(x, PAD.top);
+                ctx.lineTo(x, ch - PAD.bottom);
+                ctx.stroke();
+
+                ctx.font = '500 9px "JetBrains Mono"';
+                ctx.fillStyle = 'rgba(74, 85, 128, 0.7)';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'top';
+                ctx.fillText(xLabels[i], x, ch - PAD.bottom + 8);
+            }
+
+            // X-axis label
+            ctx.font = '500 10px "Inter"';
+            ctx.fillStyle = 'rgba(136, 146, 176, 0.6)';
+            ctx.textAlign = 'center';
+            ctx.fillText('Parameters (log scale)', PAD.left + getChartWidth() / 2, ch - 10);
+
+            // Y-axis grid lines (linear 0-100)
+            var yTicks = [0, 20, 40, 60, 80, 100];
+            for (var j = 0; j < yTicks.length; j++) {
+                var y = scoreToY(yTicks[j]);
+
+                ctx.strokeStyle = 'rgba(99, 130, 255, 0.06)';
+                ctx.lineWidth = 0.5;
+                ctx.beginPath();
+                ctx.moveTo(PAD.left, y);
+                ctx.lineTo(cw - PAD.right, y);
+                ctx.stroke();
+
+                ctx.font = '500 9px "JetBrains Mono"';
+                ctx.fillStyle = 'rgba(74, 85, 128, 0.7)';
+                ctx.textAlign = 'right';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(yTicks[j] + '%', PAD.left - 10, y);
+            }
+
+            // Y-axis label
+            ctx.save();
+            ctx.translate(16, PAD.top + getChartHeight() / 2);
+            ctx.rotate(-Math.PI / 2);
+            ctx.font = '500 10px "Inter"';
+            ctx.fillStyle = 'rgba(136, 146, 176, 0.6)';
+            ctx.textAlign = 'center';
+            ctx.fillText('MMLU Benchmark Score', 0, 0);
+            ctx.restore();
+
+            // Chart border
+            ctx.strokeStyle = 'rgba(99, 130, 255, 0.12)';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(PAD.left, PAD.top, getChartWidth(), getChartHeight());
+
+            ctx.restore();
+        }
+
+        /* ---------------------------------------------------
+           TREND LINE
+           --------------------------------------------------- */
+        function drawTrendLine() {
+            var bins = computeTrendLine(currentTime);
+            if (bins.length < 2) return;
+
+            ctx.save();
+            ctx.beginPath();
+
+            // Smooth curve through bin points
+            var points = [];
+            for (var i = 0; i < bins.length; i++) {
+                points.push({
+                    x: paramsToX(bins[i].params),
+                    y: scoreToY(bins[i].score)
+                });
+            }
+
+            // Draw smoothed path using cardinal spline
+            ctx.moveTo(points[0].x, points[0].y);
+            for (var i = 1; i < points.length; i++) {
+                var xc = (points[i - 1].x + points[i].x) / 2;
+                var yc = (points[i - 1].y + points[i].y) / 2;
+                ctx.quadraticCurveTo(points[i - 1].x, points[i - 1].y, xc, yc);
+            }
+            // Finish to last point
+            ctx.quadraticCurveTo(
+                points[points.length - 1].x, points[points.length - 1].y,
+                points[points.length - 1].x, points[points.length - 1].y
+            );
+
+            ctx.strokeStyle = 'rgba(99, 130, 255, 0.2)';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([6, 4]);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Label the trend line
+            if (points.length > 1) {
+                var lastPt = points[points.length - 1];
+                ctx.font = '400 9px "JetBrains Mono"';
+                ctx.fillStyle = 'rgba(99, 130, 255, 0.35)';
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'bottom';
+                ctx.fillText('SCALING FRONTIER', lastPt.x + 6, lastPt.y - 4);
+            }
+
+            ctx.restore();
+        }
+
+        /* ---------------------------------------------------
+           ANNOTATIONS
+           --------------------------------------------------- */
+        function drawAnnotations() {
+            for (var a = 0; a < ANNOTATIONS.length; a++) {
+                var ann = ANNOTATIONS[a];
+                if (ann.date > currentTime) continue;
+
+                // Find the target model
+                var targetModel = null;
+                var targetIdx = -1;
+                for (var i = 0; i < MODELS.length; i++) {
+                    if (MODELS[i].name === ann.targetName) {
+                        targetModel = MODELS[i];
+                        targetIdx = i;
+                        break;
+                    }
+                }
+                if (!targetModel) continue;
+
+                var ms = modelStates[targetIdx];
+                if (ms.alpha < 0.3) continue;
+
+                var px = paramsToX(targetModel.params);
+                var py = scoreToY(targetModel.score);
+                var r = dotRadius(targetModel.params);
+
+                // Annotation appears slightly after the model
+                var timeSinceAppear = currentTime - ann.date;
+                var annAlpha = Math.min(1, Math.max(0, timeSinceAppear * 4)) * 0.65;
+                if (annAlpha <= 0) continue;
+
+                // Draw annotation line and text
+                var lines = ann.text.split('\n');
+                var textX, textY, lineEndX, lineEndY;
+
+                // Position annotation above-right by default
+                textX = px + r + 30;
+                textY = py - r - 20;
+
+                // Adjust if too far right
+                var cw = W / dpr;
+                if (textX + 120 > cw - PAD.right) {
+                    textX = px - r - 30;
+                }
+                if (textY < PAD.top + 20) {
+                    textY = py + r + 30;
+                }
+
+                ctx.save();
+                ctx.globalAlpha = annAlpha;
+
+                // Connector line
+                ctx.strokeStyle = 'rgba(232, 236, 244, 0.25)';
+                ctx.lineWidth = 1;
+                ctx.setLineDash([3, 3]);
+                ctx.beginPath();
+                ctx.moveTo(px, py);
+                ctx.lineTo(textX, textY);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // Text background
+                ctx.font = '400 9px "Inter"';
+                var maxLineW = 0;
+                for (var l = 0; l < lines.length; l++) {
+                    var lw = ctx.measureText(lines[l]).width;
+                    if (lw > maxLineW) maxLineW = lw;
+                }
+                var bgPad = 6;
+                var bgH = lines.length * 13 + bgPad * 2;
+                var bgW = maxLineW + bgPad * 2;
+                var bgX = textX - bgPad;
+                var bgY = textY - bgPad;
+
+                ctx.fillStyle = 'rgba(11, 14, 23, 0.85)';
+                ctx.fillRect(bgX, bgY, bgW, bgH);
+                ctx.strokeStyle = 'rgba(99, 130, 255, 0.15)';
+                ctx.lineWidth = 0.5;
+                ctx.strokeRect(bgX, bgY, bgW, bgH);
+
+                // Text
+                ctx.fillStyle = 'rgba(232, 236, 244, 0.8)';
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'top';
+                for (var l = 0; l < lines.length; l++) {
+                    ctx.fillText(lines[l], textX, textY + l * 13);
+                }
+
+                ctx.restore();
+            }
+        }
+
+        /* ---------------------------------------------------
+           TOOLTIP
+           --------------------------------------------------- */
+        var tooltip = document.getElementById('tooltip');
+        var ttName = document.getElementById('ttName');
+        var ttLab = document.getElementById('ttLab');
+        var ttDate = document.getElementById('ttDate');
+        var ttParams = document.getElementById('ttParams');
+        var ttScore = document.getElementById('ttScore');
+
+        function updateTooltip() {
+            if (hoveredModel < 0) {
+                tooltip.classList.remove('visible');
+                return;
+            }
+
+            var m = MODELS[hoveredModel];
+            var color = LABS[m.lab].color;
+
+            ttName.textContent = m.name;
+            ttName.style.color = color;
+            ttLab.textContent = m.lab;
+            ttLab.style.color = color;
+            ttDate.textContent = dateToString(m.date);
+            ttParams.textContent = formatParamsFull(m.params);
+            ttScore.textContent = m.score.toFixed(1) + '%';
+
+            tooltip.classList.add('visible');
+
+            var tw = tooltip.offsetWidth;
+            var th = tooltip.offsetHeight;
+            var tx = mouseX + 16;
+            var ty = mouseY - th / 2;
+            if (tx + tw > window.innerWidth - 10) tx = mouseX - tw - 16;
+            if (ty < 10) ty = 10;
+            if (ty + th > window.innerHeight - 10) ty = window.innerHeight - th - 10;
+            tooltip.style.left = tx + 'px';
+            tooltip.style.top = ty + 'px';
+        }
+
+        /* ---------------------------------------------------
+           CONTROLS
+           --------------------------------------------------- */
+        document.getElementById('btnPlay').addEventListener('click', function() {
+            if (isPlaying) {
+                isPlaying = false;
+                this.textContent = 'Play';
+                document.getElementById('dateDisplay').classList.remove('playing');
+            } else {
+                if (targetTime >= MAX_DATE - 0.01) targetTime = MIN_DATE;
+                isPlaying = true;
+                this.textContent = 'Pause';
+                document.getElementById('dateDisplay').classList.add('playing');
+            }
+        });
+
+        document.getElementById('speedSlider').addEventListener('input', function() {
+            playSpeed = parseInt(this.value);
+        });
+
+        document.getElementById('timeSlider').addEventListener('input', function() {
+            var t = parseInt(this.value) / 1000;
+            targetTime = MIN_DATE + t * (MAX_DATE - MIN_DATE);
+            if (isPlaying) {
+                isPlaying = false;
+                document.getElementById('btnPlay').textContent = 'Play';
+                document.getElementById('dateDisplay').classList.remove('playing');
+            }
+        });
+
+        document.getElementById('btnReset').addEventListener('click', function() {
+            targetTime = MIN_DATE;
+            currentTime = MIN_DATE;
+            isPlaying = false;
+            document.getElementById('btnPlay').textContent = 'Play';
+            document.getElementById('dateDisplay').classList.remove('playing');
+            document.getElementById('timeSlider').value = 0;
+            // Reset model states
+            for (var i = 0; i < modelStates.length; i++) {
+                modelStates[i].appeared = false;
+                modelStates[i].alpha = 0;
+                modelStates[i].scale = 0;
+            }
+            // Reset filters
+            labFilter = {};
+            buildLegend();
+        });
+
+        // Mouse tracking
+        canvas.addEventListener('mousemove', function(e) {
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+        });
+        canvas.addEventListener('mouseleave', function() {
+            mouseX = -1000;
+            mouseY = -1000;
+            hoveredModel = -1;
+            tooltip.classList.remove('visible');
+        });
+
+        // Touch support
+        canvas.addEventListener('touchstart', function(e) {
+            var touch = e.touches[0];
+            mouseX = touch.clientX;
+            mouseY = touch.clientY;
+        }, { passive: true });
+        canvas.addEventListener('touchmove', function(e) {
+            var touch = e.touches[0];
+            mouseX = touch.clientX;
+            mouseY = touch.clientY;
+        }, { passive: true });
+        canvas.addEventListener('touchend', function() {
+            mouseX = -1000;
+            mouseY = -1000;
+            hoveredModel = -1;
+            tooltip.classList.remove('visible');
+        });
+
+        /* ---------------------------------------------------
+           LEGEND
+           --------------------------------------------------- */
+        function buildLegend() {
+            var container = document.getElementById('legend');
+            container.innerHTML = '';
+            for (var key in LABS) {
+                var lab = LABS[key];
+                var el = document.createElement('div');
+                el.className = 'legend-item';
+                if (labFilter[key] === false) el.classList.add('dimmed');
+                el.setAttribute('data-lab', key);
+                el.innerHTML = '<span class="legend-dot" style="background:' + lab.color + '"></span>' + lab.label;
+                el.addEventListener('click', (function(k) {
+                    return function() {
+                        if (labFilter[k] === false) {
+                            labFilter[k] = true;
+                            this.classList.remove('dimmed');
+                        } else {
+                            labFilter[k] = false;
+                            this.classList.add('dimmed');
+                        }
+                    };
+                })(key));
+                container.appendChild(el);
+            }
+        }
+        buildLegend();
+
+        /* ---------------------------------------------------
+           KEYBOARD SHORTCUTS
+           --------------------------------------------------- */
+        document.addEventListener('keydown', function(e) {
+            if (e.key === ' ' || e.code === 'Space') {
+                e.preventDefault();
+                document.getElementById('btnPlay').click();
+            } else if (e.key === 'ArrowRight') {
+                targetTime = Math.min(MAX_DATE, targetTime + 0.25);
+                var prog = (targetTime - MIN_DATE) / (MAX_DATE - MIN_DATE);
+                document.getElementById('timeSlider').value = Math.round(prog * 1000);
+            } else if (e.key === 'ArrowLeft') {
+                targetTime = Math.max(MIN_DATE, targetTime - 0.25);
+                var prog = (targetTime - MIN_DATE) / (MAX_DATE - MIN_DATE);
+                document.getElementById('timeSlider').value = Math.round(prog * 1000);
+            }
+        });
+
+        /* ---------------------------------------------------
+           INIT
+           --------------------------------------------------- */
+        window.addEventListener('resize', resize);
+        resize();
+        requestAnimationFrame(draw);
+    })();
+    </script>
+<script defer src="../../prompt-viewer.js"></script>
+</body>
+</html>
