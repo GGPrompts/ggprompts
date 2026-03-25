@@ -48,8 +48,67 @@ Suggested themes/styles not yet in the collection. Organized by category.
 - [x] Cassette Futurism — Alien/2001-era analog sci-fi, CRT screens, chunky switches
 - [x] Dieselpunk — 1930s-40s industrial futurism, riveted steel, propeller-age machinery
 - [x] Cozy Game UI — Stardew Valley / Animal Crossing warmth, soft pixels, pastel palette
+- [ ] Cassette Vaporwave
+- [ ] Cottagecore Dark (Goblincore x Dark Academia)
+- [ ] Ice / Frost
+- [ ] Terracotta Warriors
+- [ ] Paper Marbling (Ebru)
+- [ ] Soviet Arcade
 
 ## Typography-Focused
 - [x] Blackletter/Fraktur — gothic calligraphy, medieval manuscript, heavy strokes
 - [x] Grunge Typography — 90s zine culture, distressed type, xerox textures, collage
 - [x] Vintage Signage — hand-painted shop signs, fairground lettering, aged paint
+
+---
+
+# Other Section Ideas
+
+Ideas for content across the site (stories, tech guides, architecture maps, games, tools, kids).
+
+## Stories
+- [ ] Day of the Dead — The Ofrenda
+- [ ] Chalkboard — The Proof
+- [ ] Circuit Board — The First Chip
+- [ ] Soviet Space — The Hidden Cosmonaut
+- [ ] Coral Reef — The Bleaching
+- [ ] Origami — The Thousand Cranes
+- [ ] Gothic Cathedral — The Master Builder
+- [ ] Art Nouveau — The Metro Entrances
+
+## Tech Guides
+- [ ] Zed Editor
+- [ ] WebAssembly (WASM)
+- [ ] Playwright / Cypress
+- [ ] Pandas / Polars
+- [ ] Lua
+- [ ] AWS CLI
+- [ ] Tailwind CSS
+- [ ] Svelte
+- [ ] Nix / NixOS
+
+## Architecture Maps
+- [ ] Lichess
+- [ ] Bluesky / AT Protocol
+- [ ] Home Assistant
+- [ ] Obsidian
+- [ ] Tailscale
+- [ ] React
+
+## Games
+- [ ] Frogger
+- [ ] Space Invaders (Classic)
+
+## Tools
+- [ ] Bezier Curve Editor
+- [ ] Diff Viewer
+- [ ] Favicon Generator
+- [ ] Music Theory Visualizer
+- [ ] CSS Battle Arena
+
+## Kids
+- [ ] Sticker Scene Builder
+- [ ] Alphabet Tracing
+- [ ] Counting Game
+- [ ] Jigsaw Puzzle
+- [ ] Dress-Up / Paper Dolls
