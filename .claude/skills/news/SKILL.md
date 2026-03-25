@@ -29,7 +29,7 @@ Arguments: `$ARGUMENTS`
 
 ## Phase 1 — Research (5 parallel sonnet subagents)
 
-Launch 5 **sonnet** subagents in parallel, each using WebSearch:
+Launch 6 **sonnet** subagents in parallel, each using WebSearch:
 
 ### Agent 1: AI Industry News
 Search for the latest from Claude/Anthropic, OpenAI, Google AI/DeepMind, Meta AI, xAI, Mistral, and general AI industry news. Focus on product launches, policy changes, funding rounds, partnerships.
@@ -46,6 +46,9 @@ Search for AI community discussions, notable AI YouTube videos, podcast highligh
 ### Agent 5: GitHub Trending
 Search for today's top trending GitHub repositories — not just AI/ML, but across all languages and topics. Use WebSearch to find GitHub trending pages, aggregator sites (e.g., trendshift.io, ossinsight.io), and dev community posts about trending repos. Return the top 5-8 repos with: repo name, author, language, stars/growth, and a 1-sentence description. Include the GitHub URL for each.
 
+### Agent 6: Developer Tool Changelogs
+Search for the latest releases and changelog entries for **Claude Code**, **Codex CLI**, and **GitHub Copilot CLI**. Check GitHub releases pages (e.g., `anthropics/claude-code`, `openai/codex`), official blogs (Anthropic, OpenAI, GitHub), and developer community posts. For each tool that has recent updates (last 48 hours), return: tool name, version number (if available), release date, and 3-5 key changelog bullet points. If a tool has no recent updates, note "no recent changes" and move on.
+
 **Agents 1-4 return:** 5-8 ranked story summaries with:
 - Headline
 - 2-3 sentence summary
@@ -57,6 +60,11 @@ Search for today's top trending GitHub repositories — not just AI/ML, but acro
 - Language and star count/growth
 - 1-sentence description
 - GitHub URL
+
+**Agent 6 returns:** Per tool (only if updates found):
+- Tool name and version
+- Release date
+- 3-5 key changelog bullet points
 
 ## Phase 1.5 — Deduplicate
 
@@ -83,7 +91,8 @@ This is where Claude exercises editorial judgment. Instead of rigid required sec
    - `.cols-2`, `.cols-3`, `.cols-2-1` — Column layouts as appropriate
 4. **Plan page structure** — masthead, then sections in order of importance.
 5. **GitHub Trending table** — Always include a `.data-table` near the end of the edition showing 5-8 trending repos with columns: Repo, Language, Stars/Growth, Description. Each repo name links to its GitHub URL.
-6. **Only constants:** masthead with date, at least one lead story, source attribution on every story, GitHub Trending table, footer with archive link.
+6. **Tool Updates box** — If Agent 6 found recent updates for any of Claude Code, Codex CLI, or Copilot CLI, include a `.card-feature` with label "Toolbox" near the GitHub Trending table. List each tool with its version and 3-5 bullet points. Omit tools with no recent changes. Skip the entire section if no tools had updates.
+7. **Only constants:** masthead with date, at least one lead story, source attribution on every story, GitHub Trending table, footer with archive link.
 
 Output a structured editorial plan before building.
 
