@@ -984,6 +984,7 @@
     let timerSeconds = 0;
     let bestScores = {};
     let updateTimeout = null;
+    let diffTimeout = null;
 
     /* ── DOM refs ──────────────────────────────────────── */
     const $ = s => document.querySelector(s);
@@ -1144,8 +1145,8 @@
 
         /* If diff is visible, refresh it */
         if (elOverlayContainer.classList.contains('active')) {
-            clearTimeout(updateTimeout);
-            updateTimeout = setTimeout(renderDiff, 300);
+            clearTimeout(diffTimeout);
+            diffTimeout = setTimeout(renderDiff, 300);
         }
     }
 
@@ -1249,10 +1250,14 @@
             ctx.globalAlpha = 1;
             ctx.drawImage(targetCanvas, 0, 0);
 
-            /* Compute diff overlay */
+            /* Compute diff overlay on a temp canvas */
             const dataTarget = targetCanvas.getContext('2d').getImageData(0, 0, w, h).data;
             const dataOutput = outputCanvas.getContext('2d').getImageData(0, 0, w, h).data;
-            const diffImg = ctx.createImageData(w, h);
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = w;
+            tempCanvas.height = h;
+            const tempCtx = tempCanvas.getContext('2d');
+            const diffImg = tempCtx.createImageData(w, h);
 
             for (let i = 0; i < dataTarget.length; i += 4) {
                 const dr = Math.abs(dataTarget[i] - dataOutput[i]);
@@ -1271,12 +1276,14 @@
                     diffImg.data[i] = dataOutput[i];
                     diffImg.data[i + 1] = dataOutput[i + 1];
                     diffImg.data[i + 2] = dataOutput[i + 2];
-                    diffImg.data[i + 3] = Math.floor(opacity * 80);
+                    diffImg.data[i + 3] = 80;
                 }
             }
 
+            /* putImageData ignores globalAlpha, so draw via temp canvas */
+            tempCtx.putImageData(diffImg, 0, 0);
             ctx.globalAlpha = opacity;
-            ctx.putImageData(diffImg, 0, 0);
+            ctx.drawImage(tempCanvas, 0, 0);
         } catch (e) {
             /* Silently fail */
         }
@@ -1440,10 +1447,34 @@
 
         $('#btnCopySolution').addEventListener('click', () => {
             const ch = CHALLENGES[currentChallenge];
-            navigator.clipboard.writeText(ch.solution).then(() => {
+            const text = ch.solution;
+            const onDone = () => {
                 $('#btnCopySolution').textContent = 'Copied!';
                 setTimeout(() => { $('#btnCopySolution').textContent = 'Copy'; }, 1500);
-            });
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(onDone).catch(() => {
+                    const ta = document.createElement('textarea');
+                    ta.value = text;
+                    ta.style.position = 'fixed';
+                    ta.style.opacity = '0';
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(ta);
+                    onDone();
+                });
+            } else {
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                ta.style.position = 'fixed';
+                ta.style.opacity = '0';
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                onDone();
+            }
         });
 
         /* Close modals on backdrop click */
