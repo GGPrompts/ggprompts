@@ -1,0 +1,1651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Home Assistant Architecture Map — Architecture Guide</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Nunito:wght@400;600;700;800&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* === Typography === */
+            --font-display: 'Barlow', sans-serif;
+            --font-body: 'Nunito', sans-serif;
+            --font-mono: 'IBM Plex Mono', monospace;
+
+            /* === Spacing === */
+            --space-xs: 4px;
+            --space-sm: 8px;
+            --space-md: 16px;
+            --space-lg: 24px;
+            --space-xl: 32px;
+            --space-2xl: 48px;
+            --space-3xl: 64px;
+
+            /* === Smart Home Palette === */
+            --home-deep: #0c1a2e;
+            --home-dark: #0f2440;
+            --home-mid: #163456;
+            --home-accent: #18b4e8;
+            --home-warm: #38bdf8;
+            --home-glow: #7dd3fc;
+            --home-amber: #fbbf24;
+            --home-amber-dim: rgba(251, 191, 36, 0.15);
+
+            /* === Core Palette === */
+            --void: #080e1a;
+            --void-light: #0b1324;
+            --panel: #101c30;
+            --panel-light: #152640;
+            --panel-lighter: #1c3050;
+
+            /* === Mapped Vars === */
+            --bg-base: var(--void);
+            --bg-elevated: #0b1324;
+            --bg-card: var(--panel-light);
+            --bg-card-hover: var(--panel-lighter);
+            --bg-muted: #060a14;
+
+            /* === Text === */
+            --text-primary: #c8d8e8;
+            --text-bright: #e8f0f8;
+            --text-secondary: #8ca0b8;
+            --text-tertiary: #506880;
+            --text-link: #38bdf8;
+            --text-link-hover: #7dd3fc;
+
+            /* === Domain Colors === */
+            --domain-core: #18b4e8;
+            --domain-os: #f59e0b;
+            --domain-integration: #10b981;
+            --domain-protocol: #a78bfa;
+            --domain-automation: #f97316;
+            --domain-ui: #ec4899;
+            --domain-cloud: #6366f1;
+            --domain-device: #14b8a6;
+
+            /* === Accents === */
+            --accent-blue: #18b4e8;
+            --accent-green: #10b981;
+            --accent-amber: #f59e0b;
+            --accent-purple: #a78bfa;
+            --accent-orange: #f97316;
+            --accent-pink: #ec4899;
+            --accent-indigo: #6366f1;
+            --accent-teal: #14b8a6;
+
+            /* === Borders === */
+            --border-subtle: rgba(56, 189, 248, 0.08);
+            --border-default: rgba(56, 189, 248, 0.15);
+            --border-strong: rgba(56, 189, 248, 0.3);
+
+            /* === Radius === */
+            --radius-sm: 4px;
+            --radius-md: 6px;
+            --radius: 8px;
+            --radius-lg: 12px;
+
+            /* === Shadows === */
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5);
+            --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.6);
+            --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.7);
+
+            /* === Transitions === */
+            --transition-fast: 0.15s ease;
+            --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* === Reset === */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { font-size: 17px; scroll-behavior: smooth; scroll-padding-top: 52px; }
+
+        body {
+            font-family: var(--font-body);
+            font-size: 1rem;
+            line-height: 1.6;
+            color: var(--text-primary);
+            background: var(--bg-base);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* === Smart Home Grid Background === */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            background:
+                radial-gradient(circle at 20% 30%, rgba(24, 180, 232, 0.03) 0%, transparent 50%),
+                radial-gradient(circle at 80% 70%, rgba(56, 189, 248, 0.02) 0%, transparent 50%),
+                repeating-linear-gradient(0deg, transparent, transparent 59px, rgba(56, 189, 248, 0.03) 59px, rgba(56, 189, 248, 0.03) 60px),
+                repeating-linear-gradient(90deg, transparent, transparent 59px, rgba(56, 189, 248, 0.03) 59px, rgba(56, 189, 248, 0.03) 60px);
+            pointer-events: none;
+        }
+
+        /* === Back Link === */
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-sm);
+            padding: var(--space-md) var(--space-xl);
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.85rem;
+            letter-spacing: 0.02em;
+            transition: color var(--transition-fast);
+            position: relative;
+            z-index: 1;
+        }
+        .back-link::before { content: '\2190'; }
+        .back-link:hover { color: var(--text-link); }
+
+        /* === Hero === */
+        .hero {
+            background: linear-gradient(135deg, var(--void) 0%, var(--home-deep) 30%, var(--home-dark) 60%, var(--panel) 100%);
+            padding: var(--space-3xl) var(--space-xl) var(--space-2xl);
+            border-bottom: 1px solid var(--border-default);
+            position: relative;
+            overflow: hidden;
+            z-index: 1;
+        }
+        .hero::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 600px 400px at 20% 50%, rgba(24, 180, 232, 0.08), transparent),
+                radial-gradient(ellipse 500px 300px at 80% 30%, rgba(56, 189, 248, 0.05), transparent);
+            pointer-events: none;
+        }
+        /* Animated house silhouette */
+        .hero::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            right: 5%;
+            width: 200px;
+            height: 160px;
+            opacity: 0.04;
+            background:
+                linear-gradient(135deg, var(--home-accent) 0%, transparent 70%);
+            clip-path: polygon(50% 5%, 100% 45%, 100% 100%, 0% 100%, 0% 45%);
+            pointer-events: none;
+        }
+        .hero-inner {
+            max-width: 1120px;
+            margin: 0 auto;
+            position: relative;
+        }
+        .hero h1 {
+            font-family: var(--font-display);
+            font-size: 2.4rem;
+            font-weight: 700;
+            line-height: 1.15;
+            margin-bottom: var(--space-md);
+            background: linear-gradient(135deg, var(--text-bright) 0%, var(--home-warm) 50%, var(--home-glow) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .hero .tagline {
+            font-size: 1.15rem;
+            color: var(--text-secondary);
+            max-width: 680px;
+            line-height: 1.5;
+        }
+        .hero .meta {
+            margin-top: var(--space-lg);
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-md);
+        }
+        .meta-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-xs);
+            padding: var(--space-xs) var(--space-sm);
+            background: rgba(56, 189, 248, 0.08);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-sm);
+            font-size: 0.78rem;
+            font-family: var(--font-mono);
+            color: var(--text-secondary);
+            letter-spacing: 0.02em;
+        }
+        .meta-badge .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        /* === Sticky Jump Nav === */
+        .jump-nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: var(--bg-muted);
+            border-bottom: 1px solid var(--border-default);
+        }
+        .jump-nav-inner {
+            max-width: 1120px;
+            margin: 0 auto;
+            padding: 0 var(--space-md);
+            display: flex;
+            gap: 0;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            white-space: nowrap;
+            scrollbar-width: thin;
+            scrollbar-color: var(--border-default) transparent;
+        }
+        .jump-nav-inner::-webkit-scrollbar { height: 4px; }
+        .jump-nav-inner::-webkit-scrollbar-track { background: transparent; }
+        .jump-nav-inner::-webkit-scrollbar-thumb { background: var(--border-default); border-radius: 2px; }
+        .jump-nav a {
+            display: inline-block;
+            padding: var(--space-sm) var(--space-md);
+            color: var(--text-tertiary);
+            text-decoration: none;
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+            border-bottom: 2px solid transparent;
+            transition: all var(--transition-fast);
+        }
+        .jump-nav a:hover {
+            color: var(--home-accent);
+            border-bottom-color: var(--home-accent);
+        }
+
+        /* === Container === */
+        .container {
+            max-width: 1120px;
+            margin: 0 auto;
+            padding: var(--space-2xl) var(--space-xl);
+            position: relative;
+            z-index: 1;
+        }
+
+        /* === Section === */
+        .section {
+            margin-bottom: var(--space-3xl);
+            scroll-margin-top: 52px;
+        }
+        .section-header {
+            display: flex;
+            align-items: baseline;
+            gap: var(--space-md);
+            margin-bottom: var(--space-xl);
+            padding-bottom: var(--space-md);
+            border-bottom: 1px solid var(--border-default);
+        }
+        .section-number {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--home-accent);
+            font-weight: 500;
+        }
+        .section-title {
+            font-family: var(--font-display);
+            font-size: 1.6rem;
+            font-weight: 700;
+        }
+        .section-description {
+            color: var(--text-secondary);
+            margin-bottom: var(--space-xl);
+            max-width: 720px;
+            line-height: 1.65;
+        }
+
+        /* === Subsection === */
+        .subsection { margin-bottom: var(--space-xl); }
+        .subsection-title {
+            font-family: var(--font-display);
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: var(--space-md);
+            color: var(--text-bright);
+        }
+        .subsection p {
+            color: var(--text-secondary);
+            margin-bottom: var(--space-md);
+            line-height: 1.65;
+        }
+
+        /* === Interactive Architecture Canvas === */
+        .arch-canvas {
+            position: relative;
+            width: 100%;
+            min-height: 680px;
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            margin: var(--space-lg) 0;
+        }
+        .arch-canvas svg {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+        }
+        .arch-canvas svg line, .arch-canvas svg path {
+            pointer-events: none;
+        }
+
+        .arch-node {
+            position: absolute;
+            padding: var(--space-md) var(--space-lg);
+            background: var(--bg-card);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius);
+            cursor: pointer;
+            transition: all var(--transition);
+            z-index: 2;
+            min-width: 120px;
+            text-align: center;
+        }
+        .arch-node:hover {
+            transform: translateY(-3px) scale(1.04);
+            box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+            z-index: 10;
+        }
+        .arch-node.active {
+            border-color: var(--home-accent);
+            box-shadow: 0 0 20px rgba(24, 180, 232, 0.25);
+            z-index: 10;
+        }
+        .arch-node .node-icon {
+            font-size: 1.6rem;
+            margin-bottom: var(--space-xs);
+            display: block;
+        }
+        .arch-node .node-label {
+            font-family: var(--font-display);
+            font-size: 0.78rem;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            color: var(--text-bright);
+        }
+        .arch-node .node-sub {
+            font-family: var(--font-mono);
+            font-size: 0.65rem;
+            color: var(--text-tertiary);
+            margin-top: 2px;
+        }
+
+        /* Node domain colors */
+        .arch-node[data-domain="core"] { border-left: 3px solid var(--domain-core); }
+        .arch-node[data-domain="core"]:hover,
+        .arch-node[data-domain="core"].active { border-color: var(--domain-core); }
+        .arch-node[data-domain="os"] { border-left: 3px solid var(--domain-os); }
+        .arch-node[data-domain="os"]:hover,
+        .arch-node[data-domain="os"].active { border-color: var(--domain-os); }
+        .arch-node[data-domain="integration"] { border-left: 3px solid var(--domain-integration); }
+        .arch-node[data-domain="integration"]:hover,
+        .arch-node[data-domain="integration"].active { border-color: var(--domain-integration); }
+        .arch-node[data-domain="protocol"] { border-left: 3px solid var(--domain-protocol); }
+        .arch-node[data-domain="protocol"]:hover,
+        .arch-node[data-domain="protocol"].active { border-color: var(--domain-protocol); }
+        .arch-node[data-domain="automation"] { border-left: 3px solid var(--domain-automation); }
+        .arch-node[data-domain="automation"]:hover,
+        .arch-node[data-domain="automation"].active { border-color: var(--domain-automation); }
+        .arch-node[data-domain="ui"] { border-left: 3px solid var(--domain-ui); }
+        .arch-node[data-domain="ui"]:hover,
+        .arch-node[data-domain="ui"].active { border-color: var(--domain-ui); }
+        .arch-node[data-domain="cloud"] { border-left: 3px solid var(--domain-cloud); }
+        .arch-node[data-domain="cloud"]:hover,
+        .arch-node[data-domain="cloud"].active { border-color: var(--domain-cloud); }
+        .arch-node[data-domain="device"] { border-left: 3px solid var(--domain-device); }
+        .arch-node[data-domain="device"]:hover,
+        .arch-node[data-domain="device"].active { border-color: var(--domain-device); }
+
+        /* Detail panel */
+        .detail-panel {
+            position: fixed;
+            top: 0;
+            right: -420px;
+            width: 400px;
+            height: 100vh;
+            background: var(--panel);
+            border-left: 1px solid var(--border-default);
+            z-index: 200;
+            transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow-y: auto;
+            padding: var(--space-xl);
+            box-shadow: -8px 0 30px rgba(0,0,0,0.5);
+        }
+        .detail-panel.open { right: 0; }
+        .detail-panel .close-btn {
+            position: absolute;
+            top: var(--space-md);
+            right: var(--space-md);
+            background: var(--bg-card);
+            border: 1px solid var(--border-default);
+            color: var(--text-secondary);
+            width: 32px;
+            height: 32px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all var(--transition-fast);
+        }
+        .detail-panel .close-btn:hover {
+            color: #ef4444;
+            border-color: #ef4444;
+        }
+        .detail-panel h3 {
+            font-family: var(--font-display);
+            font-size: 1.2rem;
+            font-weight: 700;
+            margin-bottom: var(--space-sm);
+            padding-right: var(--space-xl);
+        }
+        .detail-panel .detail-domain {
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-bottom: var(--space-lg);
+            padding: 2px var(--space-sm);
+            border-radius: var(--radius-sm);
+            display: inline-block;
+        }
+        .detail-panel .detail-desc {
+            color: var(--text-secondary);
+            line-height: 1.65;
+            margin-bottom: var(--space-lg);
+            font-size: 0.92rem;
+        }
+        .detail-panel .detail-tech {
+            margin-bottom: var(--space-lg);
+        }
+        .detail-panel .detail-tech h4 {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-tertiary);
+            margin-bottom: var(--space-sm);
+        }
+        .detail-panel .tech-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-xs);
+        }
+        .detail-panel .tech-tag {
+            padding: 2px 10px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-sm);
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            color: var(--text-secondary);
+        }
+        .detail-panel .detail-connections h4 {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-tertiary);
+            margin-bottom: var(--space-sm);
+        }
+        .detail-panel .conn-list {
+            list-style: none;
+        }
+        .detail-panel .conn-list li {
+            padding: var(--space-xs) 0;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        .detail-panel .conn-list li::before {
+            content: '\2192 ';
+            color: var(--home-accent);
+        }
+        .detail-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.4);
+            z-index: 199;
+            display: none;
+            cursor: pointer;
+        }
+        .detail-overlay.open { display: block; }
+
+        /* === Domain Badges === */
+        .component-badge {
+            display: inline-block;
+            padding: 2px var(--space-sm);
+            border-radius: var(--radius-sm);
+            font-size: 0.72rem;
+            font-weight: 600;
+            font-family: var(--font-mono);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .badge-core { background: rgba(24, 180, 232, 0.15); color: var(--domain-core); border: 1px solid rgba(24, 180, 232, 0.3); }
+        .badge-os { background: rgba(245, 158, 11, 0.15); color: var(--domain-os); border: 1px solid rgba(245, 158, 11, 0.3); }
+        .badge-integration { background: rgba(16, 185, 129, 0.15); color: var(--domain-integration); border: 1px solid rgba(16, 185, 129, 0.3); }
+        .badge-protocol { background: rgba(167, 139, 250, 0.15); color: var(--domain-protocol); border: 1px solid rgba(167, 139, 250, 0.3); }
+        .badge-automation { background: rgba(249, 115, 22, 0.15); color: var(--domain-automation); border: 1px solid rgba(249, 115, 22, 0.3); }
+        .badge-ui { background: rgba(236, 72, 153, 0.15); color: var(--domain-ui); border: 1px solid rgba(236, 72, 153, 0.3); }
+        .badge-cloud { background: rgba(99, 102, 241, 0.15); color: var(--domain-cloud); border: 1px solid rgba(99, 102, 241, 0.3); }
+        .badge-device { background: rgba(20, 184, 166, 0.15); color: var(--domain-device); border: 1px solid rgba(20, 184, 166, 0.3); }
+
+        /* === Info Cards === */
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: var(--space-lg);
+            margin: var(--space-lg) 0;
+        }
+        .info-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius);
+            padding: var(--space-lg);
+            transition: all var(--transition);
+        }
+        .info-card:hover {
+            border-color: var(--border-strong);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+        .info-card h4 {
+            font-family: var(--font-display);
+            font-size: 0.95rem;
+            font-weight: 600;
+            margin-bottom: var(--space-sm);
+            color: var(--home-accent);
+        }
+        .info-card p {
+            font-size: 0.88rem;
+            color: var(--text-secondary);
+            line-height: 1.55;
+        }
+        .info-card .card-meta {
+            margin-top: var(--space-md);
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+        }
+
+        /* === Stat Row === */
+        .stat-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: var(--space-lg);
+            margin: var(--space-xl) 0;
+        }
+        .stat-item {
+            text-align: center;
+            padding: var(--space-lg);
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius);
+        }
+        .stat-value {
+            font-family: var(--font-display);
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--home-accent);
+        }
+        .stat-label {
+            font-size: 0.78rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-top: var(--space-xs);
+        }
+
+        /* === Flow Diagram (CSS-only) === */
+        .flow-diagram {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--space-md);
+            flex-wrap: wrap;
+            padding: var(--space-lg) 0;
+        }
+        .flow-box {
+            padding: var(--space-sm) var(--space-md);
+            background: var(--bg-card);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius);
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            color: var(--text-primary);
+            text-align: center;
+            min-width: 100px;
+        }
+        .flow-arrow {
+            color: var(--home-accent);
+            font-size: 1.2rem;
+        }
+
+        /* === Diagram Container === */
+        .diagram-container {
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-lg);
+            padding: var(--space-xl);
+            margin: var(--space-lg) 0;
+            overflow-x: auto;
+            position: relative;
+        }
+        .diagram-label {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: var(--space-md);
+        }
+
+        /* === Callout === */
+        .callout {
+            background: var(--bg-card);
+            border-left: 3px solid var(--home-accent);
+            border-radius: 0 var(--radius) var(--radius) 0;
+            padding: var(--space-lg);
+            margin: var(--space-lg) 0;
+        }
+        .callout.callout-green { border-left-color: var(--accent-green); }
+        .callout.callout-amber { border-left-color: var(--accent-amber); }
+        .callout.callout-purple { border-left-color: var(--accent-purple); }
+        .callout .callout-title {
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--home-accent);
+            margin-bottom: var(--space-sm);
+            font-weight: 500;
+        }
+        .callout.callout-green .callout-title { color: var(--accent-green); }
+        .callout.callout-amber .callout-title { color: var(--accent-amber); }
+        .callout.callout-purple .callout-title { color: var(--accent-purple); }
+        .callout p {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            line-height: 1.55;
+        }
+
+        /* === Legend === */
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-md);
+            margin: var(--space-lg) 0;
+            padding: var(--space-md);
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius);
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: var(--space-xs);
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+        }
+        .legend-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        /* === Tables === */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.88rem;
+            margin: var(--space-lg) 0;
+        }
+        .data-table th {
+            text-align: left;
+            padding: var(--space-sm) var(--space-md);
+            background: var(--bg-card);
+            border-bottom: 2px solid var(--border-strong);
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-tertiary);
+            font-weight: 500;
+        }
+        .data-table td {
+            padding: var(--space-sm) var(--space-md);
+            border-bottom: 1px solid var(--border-subtle);
+            vertical-align: top;
+        }
+        .data-table tr:hover td { background: var(--bg-card-hover); }
+
+        /* === Footer === */
+        .site-footer {
+            border-top: 1px solid var(--border-default);
+            padding: var(--space-xl);
+            text-align: center;
+            color: var(--text-tertiary);
+            font-size: 0.82rem;
+            position: relative;
+            z-index: 1;
+        }
+        .site-footer a { color: var(--text-link); text-decoration: none; }
+
+        /* === Responsive === */
+        @media (max-width: 768px) {
+            html { font-size: 16px; }
+            .hero h1 { font-size: 1.8rem; }
+            .hero { padding: var(--space-2xl) var(--space-md) var(--space-xl); }
+            .section-title { font-size: 1.3rem; }
+            .card-grid { grid-template-columns: 1fr; }
+            .stat-row { grid-template-columns: repeat(2, 1fr); }
+            .container { padding: var(--space-xl) var(--space-md); }
+            .arch-canvas { min-height: 520px; }
+            .arch-node { padding: var(--space-sm) var(--space-md); min-width: 85px; }
+            .arch-node .node-label { font-size: 0.66rem; }
+            .arch-node .node-sub { font-size: 0.56rem; }
+            .arch-node .node-icon { font-size: 1.2rem; }
+            .detail-panel { width: 100%; right: -110%; }
+            .flow-diagram { flex-direction: column; }
+            .flow-arrow { transform: rotate(90deg); }
+            .diagram-container { padding: var(--space-md); margin-left: calc(-1 * var(--space-md)); margin-right: calc(-1 * var(--space-md)); border-radius: 0; border-left: 0; border-right: 0; }
+        }
+    </style>
+</head>
+<body>
+    <a href="../index.html" class="back-link">Architecture Maps</a>
+
+    <!-- Hero -->
+    <header class="hero">
+        <div class="hero-inner">
+            <h1>Home Assistant Internals</h1>
+            <p class="tagline">Interactive architecture map of Home Assistant &mdash; the open-source home automation platform. Covering the Core event bus, state machine, HASS OS, Supervisor, Add-ons, 2700+ integrations, MQTT, Zigbee/Z-Wave, automations engine, Lovelace dashboard, Companion app, Nabu Casa cloud, ESPHome, and energy monitoring.</p>
+            <div class="meta">
+                <span class="meta-badge"><span class="dot" style="background:var(--accent-green)"></span> Open Source (Apache 2.0)</span>
+                <span class="meta-badge">Since 2013</span>
+                <span class="meta-badge">Python / asyncio</span>
+                <span class="meta-badge">2700+ Integrations</span>
+                <span class="meta-badge">1M+ Active Installs</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Jump Nav -->
+    <nav class="jump-nav">
+        <div class="jump-nav-inner">
+            <a href="#overview">Overview</a>
+            <a href="#core">Core</a>
+            <a href="#os-supervisor">OS / Supervisor</a>
+            <a href="#integrations">Integrations</a>
+            <a href="#protocols">Protocols</a>
+            <a href="#automations">Automations</a>
+            <a href="#dashboard">Dashboard</a>
+            <a href="#companion">Companion</a>
+            <a href="#cloud">Cloud</a>
+            <a href="#energy">Energy</a>
+        </div>
+    </nav>
+
+    <div class="container">
+
+        <!-- ============ SECTION 1: OVERVIEW ============ -->
+        <section class="section" id="overview">
+            <div class="section-header">
+                <span class="section-number">01</span>
+                <h2 class="section-title">System Overview</h2>
+            </div>
+            <p class="section-description">Home Assistant is an open-source home automation platform founded by Paulus Schoutsen in 2013. It runs locally (typically on a Raspberry Pi or NUC), prioritizes privacy and local control, and supports an extraordinary breadth of smart home devices through its modular integration system. The project is backed by Nabu Casa, a company founded by the core team to provide optional cloud services.</p>
+
+            <div class="stat-row">
+                <div class="stat-item">
+                    <div class="stat-value">2700+</div>
+                    <div class="stat-label">Integrations</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">1M+</div>
+                    <div class="stat-label">Active Installs</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">14K+</div>
+                    <div class="stat-label">Contributors</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">10yr+</div>
+                    <div class="stat-label">Active Development</div>
+                </div>
+            </div>
+
+            <!-- Interactive Architecture Diagram -->
+            <div class="diagram-label">Interactive Architecture Diagram &mdash; Click nodes for details</div>
+            <div class="arch-canvas" id="archCanvas">
+                <svg id="archSvg"></svg>
+            </div>
+
+            <div class="legend">
+                <div class="legend-item"><div class="legend-dot" style="background:var(--domain-core)"></div> HA Core</div>
+                <div class="legend-item"><div class="legend-dot" style="background:var(--domain-os)"></div> OS / Supervisor</div>
+                <div class="legend-item"><div class="legend-dot" style="background:var(--domain-integration)"></div> Integrations</div>
+                <div class="legend-item"><div class="legend-dot" style="background:var(--domain-protocol)"></div> Protocols</div>
+                <div class="legend-item"><div class="legend-dot" style="background:var(--domain-automation)"></div> Automations</div>
+                <div class="legend-item"><div class="legend-dot" style="background:var(--domain-ui)"></div> UI / Dashboard</div>
+                <div class="legend-item"><div class="legend-dot" style="background:var(--domain-cloud)"></div> Cloud / Remote</div>
+                <div class="legend-item"><div class="legend-dot" style="background:var(--domain-device)"></div> Devices</div>
+            </div>
+        </section>
+
+        <!-- ============ SECTION 2: CORE ============ -->
+        <section class="section" id="core">
+            <div class="section-header">
+                <span class="section-number">02</span>
+                <h2 class="section-title">HA Core &mdash; The Python Heart</h2>
+            </div>
+            <p class="section-description">Home Assistant Core is a Python 3 application built on asyncio. At its center are three fundamental systems: the Event Bus (pub/sub message backbone), the State Machine (entity state tracking), and the Service Registry (callable actions). Every integration, automation, and UI interaction flows through these primitives.</p>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>Event Bus</h4>
+                    <p>An in-process asyncio pub/sub system. All state changes, service calls, time events, and system signals are fired as events. Integrations and automations subscribe to specific event types. The bus decouples producers from consumers, enabling the plugin architecture.</p>
+                    <div class="card-meta"><span class="component-badge badge-core">Core</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>State Machine</h4>
+                    <p>Tracks the current state of every entity in the system (lights, sensors, switches, etc.). Each state has an entity_id, state value, attributes dict, and last_changed/last_updated timestamps. State changes fire <code>state_changed</code> events on the bus.</p>
+                    <div class="card-meta"><span class="component-badge badge-core">Core</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Service Registry</h4>
+                    <p>Registry of callable services organized by domain (e.g., <code>light.turn_on</code>, <code>climate.set_temperature</code>). Integrations register services; automations, scripts, and the UI invoke them. Services accept structured data and execute asynchronously.</p>
+                    <div class="card-meta"><span class="component-badge badge-core">Core</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Entity Registry</h4>
+                    <p>Persistent registry mapping integration-provided unique IDs to user-facing entity_ids. Handles entity renaming, disabling, area assignment, and platform lifecycle. Stored in <code>.storage/core.entity_registry</code> as JSON.</p>
+                    <div class="card-meta"><span class="component-badge badge-core">Core</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Config Entries</h4>
+                    <p>The UI-driven configuration system. Each integration instance creates a config entry with its setup data. Entries support reload, reconfigure, and discovery flows. Replaces older YAML-based configuration for supported integrations.</p>
+                    <div class="card-meta"><span class="component-badge badge-core">Core</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Recorder / History</h4>
+                    <p>SQLAlchemy-based persistence layer that records state changes to a database (SQLite by default, PostgreSQL/MariaDB supported). Powers the history graphs, logbook, and long-term statistics. Runs in a separate thread to avoid blocking the event loop.</p>
+                    <div class="card-meta"><span class="component-badge badge-core">Core</span></div>
+                </div>
+            </div>
+
+            <div class="callout">
+                <div class="callout-title">Design Philosophy</div>
+                <p>Home Assistant follows a "local first" philosophy. All processing runs on local hardware, data stays on your network, and cloud connectivity is entirely optional. The core is designed to work even when internet access is unavailable &mdash; a critical requirement for a home automation system that controls physical infrastructure.</p>
+            </div>
+        </section>
+
+        <!-- ============ SECTION 3: OS / SUPERVISOR ============ -->
+        <section class="section" id="os-supervisor">
+            <div class="section-header">
+                <span class="section-number">03</span>
+                <h2 class="section-title">HASS OS &amp; Supervisor</h2>
+            </div>
+            <p class="section-description">Home Assistant Operating System (HASS OS) is a minimal Linux distribution purpose-built for running Home Assistant. The Supervisor is a Docker-based orchestrator that manages the Core container, Add-ons, updates, backups, and system health &mdash; providing an appliance-like experience.</p>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>HASS OS</h4>
+                    <p>A Buildroot-based Linux distribution optimized for home automation appliances. Minimal footprint, OTA updates via RAUC, NetworkManager for networking, systemd for service management. Supports Raspberry Pi, ODROID, Intel NUC, and VMs (QEMU/VirtualBox/Hyper-V).</p>
+                    <div class="card-meta"><span class="component-badge badge-os">OS</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Supervisor</h4>
+                    <p>Python-based container orchestrator that manages Docker containers for Core, Add-ons, and system services. Handles automated updates, snapshot/backup management, hardware discovery (USB, GPIO, Bluetooth), and health monitoring. Exposes a REST API for the UI.</p>
+                    <div class="card-meta"><span class="component-badge badge-os">OS</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Add-ons</h4>
+                    <p>Docker containers managed by the Supervisor that extend system functionality. Examples: Mosquitto MQTT broker, MariaDB, VS Code Server, Zigbee2MQTT, Node-RED, Samba, DuckDNS. Add-ons can expose ports, use hardware, and communicate with Core via its API.</p>
+                    <div class="card-meta"><span class="component-badge badge-os">OS</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Backup System</h4>
+                    <p>Full and partial backup system managed by the Supervisor. Creates tar archives of configuration, database, Add-on data, and secrets. Supports scheduled automated backups and one-click restore. Backups can be uploaded to cloud storage via Add-ons.</p>
+                    <div class="card-meta"><span class="component-badge badge-os">OS</span></div>
+                </div>
+            </div>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Container Architecture</div>
+                <div class="flow-diagram">
+                    <div class="flow-box">HASS OS<br><small>Buildroot Linux</small></div>
+                    <span class="flow-arrow">&rarr;</span>
+                    <div class="flow-box">Docker Engine</div>
+                    <span class="flow-arrow">&rarr;</span>
+                    <div class="flow-box">Supervisor<br><small>Orchestrator</small></div>
+                    <span class="flow-arrow">&rarr;</span>
+                    <div class="flow-box">HA Core<br><small>Container</small></div>
+                    <span class="flow-arrow">+</span>
+                    <div class="flow-box">Add-ons<br><small>Containers</small></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============ SECTION 4: INTEGRATIONS ============ -->
+        <section class="section" id="integrations">
+            <div class="section-header">
+                <span class="section-number">04</span>
+                <h2 class="section-title">Integration System</h2>
+            </div>
+            <p class="section-description">Integrations are the plugin system of Home Assistant. Each integration lives in its own Python package under <code>homeassistant/components/</code> and provides entities (sensors, switches, lights, etc.) by communicating with devices or services. With 2700+ official integrations and thousands of custom ones via HACS, HA supports nearly every smart home device on the market.</p>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>Integration Lifecycle</h4>
+                    <p>Integrations implement <code>async_setup_entry()</code> for config-entry-based setup. They create platform entities, register services, subscribe to events, and set up device connections. Integrations can be loaded, unloaded, and reloaded at runtime without restarting Core.</p>
+                    <div class="card-meta"><span class="component-badge badge-integration">Integration</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Config Flow</h4>
+                    <p>UI-driven setup wizard system. Integrations define multi-step forms using <code>config_flow.py</code> with data schemas. Supports autodiscovery (mDNS/SSDP/USB), user input, OAuth2, and reauth flows. Each completed flow creates a config entry.</p>
+                    <div class="card-meta"><span class="component-badge badge-integration">Integration</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>HACS</h4>
+                    <p>Home Assistant Community Store &mdash; a meta-integration that manages custom integrations, Lovelace cards, themes, and Python scripts from GitHub repositories. Provides a UI for browsing, installing, and updating community-maintained components.</p>
+                    <div class="card-meta"><span class="component-badge badge-integration">Integration</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Entity Platforms</h4>
+                    <p>Standardized entity types: Light, Switch, Sensor, Binary Sensor, Climate, Cover, Media Player, Camera, Lock, Vacuum, Fan, Number, Select, Button, and more. Each platform defines a base class with standard attributes and services that integrations implement.</p>
+                    <div class="card-meta"><span class="component-badge badge-integration">Integration</span></div>
+                </div>
+            </div>
+
+            <div class="callout callout-green">
+                <div class="callout-title">Integration Quality Scale</div>
+                <p>Home Assistant rates integrations on a quality scale from "no score" through Bronze, Silver, Gold, to Platinum. Higher tiers require config flow support, test coverage, diagnostics, entity translation, device actions, and strict adherence to architectural guidelines. This drives consistent quality across the ecosystem.</p>
+            </div>
+        </section>
+
+        <!-- ============ SECTION 5: PROTOCOLS ============ -->
+        <section class="section" id="protocols">
+            <div class="section-header">
+                <span class="section-number">05</span>
+                <h2 class="section-title">Protocols &amp; Communication</h2>
+            </div>
+            <p class="section-description">Home Assistant communicates with smart home devices through multiple protocol stacks. MQTT provides lightweight pub/sub messaging, Zigbee and Z-Wave handle mesh networking for battery-powered sensors, and newer protocols like Matter/Thread aim to unify the ecosystem. ESPHome compiles custom firmware for ESP32/ESP8266 microcontrollers.</p>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>MQTT</h4>
+                    <p>Lightweight publish/subscribe messaging protocol. HA includes a native MQTT integration and typically uses the Mosquitto Add-on as broker. MQTT Discovery allows devices to self-register with HA by publishing config topics. Widely used by DIY and commercial IoT devices.</p>
+                    <div class="card-meta"><span class="component-badge badge-protocol">Protocol</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Zigbee (ZHA / Z2M)</h4>
+                    <p>Low-power mesh networking protocol (IEEE 802.15.4). Supported via ZHA (Zigbee Home Automation, native integration using zigpy) or Zigbee2MQTT (bridge via MQTT). Requires a USB coordinator (ConBee, Sonoff, SLZB). Supports 100s of device types from Aqara, IKEA, Hue, Sonoff, etc.</p>
+                    <div class="card-meta"><span class="component-badge badge-protocol">Protocol</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Z-Wave JS</h4>
+                    <p>Z-Wave protocol support via the Z-Wave JS project. Runs a Z-Wave JS Server as an Add-on or external service, communicating over WebSockets. Provides comprehensive device support, OTA firmware updates, S2 security, and SmartStart provisioning.</p>
+                    <div class="card-meta"><span class="component-badge badge-protocol">Protocol</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>ESPHome</h4>
+                    <p>Framework for ESP32/ESP8266/RP2040 microcontrollers. Users define device behavior in YAML, ESPHome compiles and flashes custom C++ firmware. Native API integration with HA provides encrypted, low-latency communication. Used for DIY sensors, displays, LED controllers, and more.</p>
+                    <div class="card-meta"><span class="component-badge badge-device">Device</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Matter / Thread</h4>
+                    <p>Next-generation smart home standard backed by Apple, Google, Amazon, and Samsung. Thread provides the IPv6 mesh network layer; Matter defines the application protocol. HA includes a Matter Server integration for local control of Matter-certified devices.</p>
+                    <div class="card-meta"><span class="component-badge badge-protocol">Protocol</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>WebSocket API</h4>
+                    <p>Primary real-time API for the frontend and external clients. Provides authenticated bidirectional communication for state subscriptions, service calls, event listening, and admin operations. Powers the Lovelace dashboard and Companion apps.</p>
+                    <div class="card-meta"><span class="component-badge badge-core">Core</span></div>
+                </div>
+            </div>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Protocol Stack</div>
+                <div class="flow-diagram">
+                    <div class="flow-box">Zigbee<br><small>802.15.4 Mesh</small></div>
+                    <span class="flow-arrow">&rarr;</span>
+                    <div class="flow-box">Coordinator<br><small>USB Dongle</small></div>
+                    <span class="flow-arrow">&rarr;</span>
+                    <div class="flow-box">ZHA / Z2M</div>
+                    <span class="flow-arrow">&rarr;</span>
+                    <div class="flow-box">HA Core<br><small>Event Bus</small></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============ SECTION 6: AUTOMATIONS ============ -->
+        <section class="section" id="automations">
+            <div class="section-header">
+                <span class="section-number">06</span>
+                <h2 class="section-title">Automations Engine</h2>
+            </div>
+            <p class="section-description">The automations engine is the intelligence layer of Home Assistant. Automations follow a Trigger-Condition-Action model: triggers fire on events (state changes, time, device events), conditions gate execution (time of day, entity states, zones), and actions execute services (turn on lights, send notifications, call scripts).</p>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>Triggers</h4>
+                    <p>Event sources that start an automation: state changes, numeric state thresholds, time patterns, sunrise/sunset, zone entry/exit, device triggers, webhook, MQTT messages, calendar events, and template conditions becoming true.</p>
+                    <div class="card-meta"><span class="component-badge badge-automation">Automation</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Conditions</h4>
+                    <p>Boolean gates evaluated before actions run: state conditions, numeric state, time windows, zone presence, template evaluation, and/or/not logic. If any condition fails, the automation stops without executing actions.</p>
+                    <div class="card-meta"><span class="component-badge badge-automation">Automation</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Actions &amp; Scripts</h4>
+                    <p>Sequences of service calls, delays, conditions, choose/if-then, repeat loops, parallel execution, and variable assignment. Scripts are reusable action sequences. Actions can target specific entities, areas, or device groups.</p>
+                    <div class="card-meta"><span class="component-badge badge-automation">Automation</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Blueprints</h4>
+                    <p>Sharable automation templates. A blueprint defines the automation structure with configurable inputs (entity selectors, number sliders, etc.). Users instantiate blueprints without writing YAML. Community blueprints are shared via the Blueprint Exchange forum.</p>
+                    <div class="card-meta"><span class="component-badge badge-automation">Automation</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Template Engine (Jinja2)</h4>
+                    <p>Jinja2 templates power dynamic values throughout HA: automation conditions, sensor definitions, notification messages, dashboard cards. Templates can access all entity states, call math functions, format dates, and evaluate complex logic.</p>
+                    <div class="card-meta"><span class="component-badge badge-automation">Automation</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Scenes</h4>
+                    <p>Snapshots of desired entity states. A scene captures light brightness/color, thermostat settings, cover positions, etc. Activating a scene applies all captured states simultaneously. Can be created from the UI or defined in YAML.</p>
+                    <div class="card-meta"><span class="component-badge badge-automation">Automation</span></div>
+                </div>
+            </div>
+
+            <div class="callout callout-amber">
+                <div class="callout-title">Automation Modes</div>
+                <p>Each automation has a mode controlling concurrency: <strong>single</strong> (skip if already running), <strong>restart</strong> (cancel previous and start fresh), <strong>queued</strong> (queue and run sequentially), or <strong>parallel</strong> (run all instances simultaneously). This prevents race conditions when triggers fire rapidly.</p>
+            </div>
+        </section>
+
+        <!-- ============ SECTION 7: DASHBOARD ============ -->
+        <section class="section" id="dashboard">
+            <div class="section-header">
+                <span class="section-number">07</span>
+                <h2 class="section-title">Lovelace Dashboard</h2>
+            </div>
+            <p class="section-description">Lovelace is the customizable dashboard system for Home Assistant. Built as a modern web application using Lit (Web Components), it provides a rich library of cards for controlling devices, visualizing data, and displaying camera feeds. Dashboards are defined in YAML or configured visually through the UI editor.</p>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>Dashboard Engine</h4>
+                    <p>Single-page application built with Lit web components. Communicates with HA Core via WebSocket API for real-time state updates. Supports multiple dashboards, views (tabs), and responsive layout with masonry or grid modes.</p>
+                    <div class="card-meta"><span class="component-badge badge-ui">UI</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Card System</h4>
+                    <p>Modular card components: entities, buttons, gauges, graphs, weather, map, media control, thermostat, light, alarm panel, and more. Custom cards from HACS extend the library with 3D floorplans, calendars, vacuum maps, and advanced visualizations.</p>
+                    <div class="card-meta"><span class="component-badge badge-ui">UI</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Themes</h4>
+                    <p>CSS variable-based theming system. Themes override 50+ CSS variables controlling colors, fonts, borders, and shadows. Applied globally or per-dashboard. Community themes provide Material Design, iOS-inspired, dark, neon, and minimal aesthetics.</p>
+                    <div class="card-meta"><span class="component-badge badge-ui">UI</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Visual Editor</h4>
+                    <p>Drag-and-drop dashboard editor built into the UI. Add, remove, and configure cards without editing YAML. Supports sections layout (grid-based), conditional cards, badges, and header/footer widgets. Power users can switch to raw YAML mode.</p>
+                    <div class="card-meta"><span class="component-badge badge-ui">UI</span></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============ SECTION 8: COMPANION APP ============ -->
+        <section class="section" id="companion">
+            <div class="section-header">
+                <span class="section-number">08</span>
+                <h2 class="section-title">Companion App</h2>
+            </div>
+            <p class="section-description">The official Companion App for iOS and Android extends Home Assistant beyond the local network. It provides location tracking, push notifications, device sensors (battery, connectivity, steps), and widgets. The app connects to HA Core via the WebSocket API, either directly on the local network or through Nabu Casa remote access.</p>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>Mobile Sensors</h4>
+                    <p>The app exposes 30+ device sensors to HA: battery level, charging state, WiFi SSID, Bluetooth, steps, screen brightness, storage, audio volume, and more. These become entities in HA usable in automations (e.g., "if phone battery below 20%, turn on charger").</p>
+                    <div class="card-meta"><span class="component-badge badge-cloud">Mobile</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Location Tracking</h4>
+                    <p>GPS-based device tracking with configurable accuracy and update intervals. Creates <code>device_tracker</code> entities for presence detection. Integrates with HA zones for "person entered home" / "person left work" automations.</p>
+                    <div class="card-meta"><span class="component-badge badge-cloud">Mobile</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Notifications</h4>
+                    <p>Push notification service with rich features: images, action buttons, critical alerts (bypass DND), notification groups, clearing, and replacement. Supports Android-specific channels and iOS-specific categories. The primary way HA alerts users to events.</p>
+                    <div class="card-meta"><span class="component-badge badge-cloud">Mobile</span></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============ SECTION 9: CLOUD ============ -->
+        <section class="section" id="cloud">
+            <div class="section-header">
+                <span class="section-number">09</span>
+                <h2 class="section-title">Nabu Casa Cloud</h2>
+            </div>
+            <p class="section-description">Nabu Casa provides optional cloud services that complement local Home Assistant installations. Founded by the HA core team, the $7.50/month subscription funds full-time development. Cloud services include secure remote access (no port forwarding), Google Assistant and Alexa voice integrations, and cloud-based text-to-speech.</p>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>Remote Access</h4>
+                    <p>Encrypted tunnel via Nabu Casa's relay infrastructure. No port forwarding, dynamic DNS, or SSL certificate management needed. Uses a unique subdomain (<code>*.ui.nabu.casa</code>) with automatic TLS. Traffic is relayed but end-to-end encrypted.</p>
+                    <div class="card-meta"><span class="component-badge badge-cloud">Cloud</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Voice Assistants</h4>
+                    <p>Cloud bridges for Google Assistant and Amazon Alexa. Exposes HA entities as smart home devices to voice platforms. Supports on/off, brightness, color, temperature, locks, covers, and media control. No custom Actions/Skills setup required.</p>
+                    <div class="card-meta"><span class="component-badge badge-cloud">Cloud</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Cloud TTS &amp; STT</h4>
+                    <p>Cloud-based text-to-speech and speech-to-text services. TTS converts text notifications to spoken audio on media players. STT enables the local voice assistant pipeline (Assist) to use cloud-based speech recognition as an alternative to local Whisper.</p>
+                    <div class="card-meta"><span class="component-badge badge-cloud">Cloud</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Assist &amp; Voice</h4>
+                    <p>HA's own voice assistant framework. Fully local pipeline: Wake word (openWakeWord) &rarr; STT (Whisper) &rarr; Intent recognition (HA Intents) &rarr; TTS (Piper). Can run entirely on local hardware with no cloud dependency. Supports custom sentences and languages.</p>
+                    <div class="card-meta"><span class="component-badge badge-cloud">Cloud</span></div>
+                </div>
+            </div>
+
+            <div class="callout callout-purple">
+                <div class="callout-title">Year of the Voice</div>
+                <p>In 2023, Home Assistant declared "Year of the Voice" and invested heavily in building a fully local voice assistant stack. The Assist pipeline, powered by Whisper (STT), Piper (TTS), and openWakeWord, can run entirely on a Raspberry Pi 4 or better &mdash; providing voice control without any cloud dependency.</p>
+            </div>
+        </section>
+
+        <!-- ============ SECTION 10: ENERGY ============ -->
+        <section class="section" id="energy">
+            <div class="section-header">
+                <span class="section-number">10</span>
+                <h2 class="section-title">Energy Monitoring</h2>
+            </div>
+            <p class="section-description">The Energy Dashboard is a first-class feature in Home Assistant for tracking electricity consumption, solar production, gas usage, and water consumption. It integrates with smart meters, CT clamp sensors, solar inverters, and utility APIs to provide detailed breakdowns of energy usage per device and cost calculations.</p>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>Energy Dashboard</h4>
+                    <p>Dedicated dashboard showing daily/weekly/monthly energy usage with stacked bar charts. Breaks down consumption by individual devices, compares grid vs. solar usage, tracks costs with configurable tariffs, and shows self-sufficiency percentage.</p>
+                    <div class="card-meta"><span class="component-badge badge-device">Device</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Long-Term Statistics</h4>
+                    <p>The statistics engine compiles 5-minute aggregates (min/max/mean/sum) from raw sensor data. These are stored efficiently and kept indefinitely, even as detailed history is purged. Powers the energy dashboard, trend analysis, and history graphs with years of data.</p>
+                    <div class="card-meta"><span class="component-badge badge-core">Core</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Smart Meters &amp; CTs</h4>
+                    <p>Supports utility smart meters (P1, DSMR), whole-home CT clamp monitors (Emporia Vue, Shelly EM, IoTaWatt), solar inverters (Enphase, SolarEdge, Fronius), and individual device power monitors (smart plugs with energy metering).</p>
+                    <div class="card-meta"><span class="component-badge badge-device">Device</span></div>
+                </div>
+            </div>
+        </section>
+
+    </div>
+
+    <!-- Detail Panel (for interactive diagram) -->
+    <div class="detail-overlay" id="detailOverlay"></div>
+    <div class="detail-panel" id="detailPanel">
+        <button class="close-btn" id="detailClose">&times;</button>
+        <h3 id="detailTitle"></h3>
+        <div class="detail-domain" id="detailDomain"></div>
+        <p class="detail-desc" id="detailDesc"></p>
+        <div class="detail-tech">
+            <h4>Technology</h4>
+            <div class="tech-tags" id="detailTech"></div>
+        </div>
+        <div class="detail-connections">
+            <h4>Connections</h4>
+            <ul class="conn-list" id="detailConns"></ul>
+        </div>
+    </div>
+
+    <footer class="site-footer">
+        <a href="../index.html">Architecture Maps</a> &middot; Part of <a href="../../index.html">GG Prompts</a>
+    </footer>
+
+    <script>
+    (() => {
+        // =============== ARCHITECTURE DATA ===============
+        const nodes = [
+            {
+                id: 'eventbus',
+                label: 'Event Bus',
+                sub: 'Async Pub/Sub',
+                icon: '\u26A1',
+                domain: 'core',
+                x: 50, y: 8,
+                desc: 'The central nervous system of Home Assistant. An in-process asyncio pub/sub system where all state changes, service calls, time events, and system signals are published as events. Every integration, automation, and frontend subscription flows through the event bus. Events include state_changed, call_service, homeassistant_start/stop, and custom events.',
+                tech: ['Python asyncio', 'In-Process Pub/Sub', 'Event Objects', 'Type-Based Routing'],
+                connections: ['Receives state_changed events from the State Machine', 'Dispatches service calls to the Service Registry', 'Feeds automation triggers with event data', 'Streams real-time updates to the WebSocket API']
+            },
+            {
+                id: 'statemachine',
+                label: 'State Machine',
+                sub: 'Entity States',
+                icon: '\uD83D\uDCCA',
+                domain: 'core',
+                x: 35, y: 22,
+                desc: 'Tracks the current state of every entity in the system. Each entity has an entity_id (e.g., light.living_room), a state value (on/off/42.5), an attributes dictionary (brightness, color_temp, friendly_name), and last_changed/last_updated timestamps. State changes fire state_changed events on the Event Bus, triggering automations and UI updates.',
+                tech: ['Python dict', 'Entity States', 'Attributes', 'Timestamps'],
+                connections: ['Fires state_changed events on the Event Bus', 'Updated by integrations via hass.states.async_set()', 'Read by automations for condition evaluation', 'Queried by the Recorder for persistence']
+            },
+            {
+                id: 'services',
+                label: 'Service Registry',
+                sub: 'Callable Actions',
+                icon: '\u2699',
+                domain: 'core',
+                x: 65, y: 22,
+                desc: 'Registry of callable services organized by domain. Services like light.turn_on, climate.set_temperature, and notify.mobile_app are registered by integrations and invoked by automations, scripts, the UI, and external API clients. Each service defines a schema for its data parameters and executes asynchronously.',
+                tech: ['Python callables', 'Voluptuous Schemas', 'Domain.Service Pattern', 'Async Execution'],
+                connections: ['Invoked by automations and scripts', 'Called by the WebSocket API and REST API', 'Registered by integrations during setup', 'Triggers state changes via integration logic']
+            },
+            {
+                id: 'supervisor',
+                label: 'Supervisor',
+                sub: 'Container Orchestrator',
+                icon: '\uD83D\uDCE6',
+                domain: 'os',
+                x: 12, y: 8,
+                desc: 'Python-based Docker orchestrator that manages the HA Core container, Add-on containers, system updates, backups, and hardware discovery. Provides a REST API for the UI panels (Add-on Store, System, Snapshots). Handles OTA updates for both Core and HASS OS. Only available in the supervised installation methods.',
+                tech: ['Python', 'Docker API', 'REST API', 'RAUC Updates'],
+                connections: ['Manages HA Core as a Docker container', 'Orchestrates Add-on container lifecycle', 'Handles system updates and backups', 'Discovers USB hardware (Zigbee, Z-Wave dongles)']
+            },
+            {
+                id: 'addons',
+                label: 'Add-ons',
+                sub: 'Docker Containers',
+                icon: '\uD83E\uDDE9',
+                domain: 'os',
+                x: 12, y: 25,
+                desc: 'Docker containers managed by the Supervisor that extend system functionality. Popular Add-ons include Mosquitto (MQTT broker), MariaDB (database), Zigbee2MQTT, Node-RED, ESPHome Dashboard, VS Code Server, Samba, and Let\'s Encrypt. Add-ons can expose network ports, access USB hardware, and communicate with HA Core via its API.',
+                tech: ['Docker', 'S6-overlay', 'bashio', 'Add-on Repository'],
+                connections: ['Managed by the Supervisor', 'Communicate with HA Core via REST/WS API', 'Mosquitto provides MQTT broker for integrations', 'Zigbee2MQTT bridges Zigbee devices via MQTT']
+            },
+            {
+                id: 'mqtt',
+                label: 'MQTT',
+                sub: 'Message Broker',
+                icon: '\uD83D\uDCE1',
+                domain: 'protocol',
+                x: 12, y: 50,
+                desc: 'Lightweight publish/subscribe messaging protocol for IoT devices. HA\'s MQTT integration connects to a broker (typically the Mosquitto Add-on) and supports MQTT Discovery, where devices self-register by publishing JSON config to discovery topics. Used extensively by Zigbee2MQTT, Tasmota, ESPHome (optional), and commercial IoT devices.',
+                tech: ['MQTT 3.1.1/5.0', 'Mosquitto Broker', 'MQTT Discovery', 'QoS 0/1/2'],
+                connections: ['Receives messages from IoT devices', 'Publishes commands to device topics', 'MQTT Discovery auto-creates entities in HA', 'Bridges Zigbee2MQTT data to HA Core']
+            },
+            {
+                id: 'zigbee',
+                label: 'Zigbee',
+                sub: 'ZHA / Zigbee2MQTT',
+                icon: '\uD83D\uDCF6',
+                domain: 'protocol',
+                x: 12, y: 70,
+                desc: 'Low-power 802.15.4 mesh networking protocol for smart home devices. Supported via two paths: ZHA (native integration using the zigpy library) or Zigbee2MQTT (external bridge that converts Zigbee to MQTT). Requires a USB coordinator dongle (ConBee II, Sonoff ZBDongle, SLZB-06). Supports devices from Aqara, IKEA, Hue, Sonoff, Tuya, and hundreds more.',
+                tech: ['IEEE 802.15.4', 'zigpy', 'Zigbee2MQTT', 'USB Coordinator'],
+                connections: ['ZHA connects directly to HA Core', 'Zigbee2MQTT bridges via MQTT', 'Coordinator manages the Zigbee mesh network', 'Devices report state and receive commands']
+            },
+            {
+                id: 'zwave',
+                label: 'Z-Wave',
+                sub: 'Z-Wave JS',
+                icon: '\uD83C\uDF10',
+                domain: 'protocol',
+                x: 12, y: 88,
+                desc: 'Sub-GHz wireless protocol designed for home automation. Supported via the Z-Wave JS project, which runs a JS-based Z-Wave driver as an Add-on or external service. Communicates with HA Core over WebSockets. Provides comprehensive device support, S2 security, SmartStart provisioning, and OTA firmware updates.',
+                tech: ['Z-Wave JS', 'WebSocket', 'S2 Security', 'USB Controller'],
+                connections: ['Z-Wave JS Server runs as an Add-on', 'Communicates with HA Core via WebSocket', 'Manages the Z-Wave mesh via USB controller', 'Supports 700/800 series controllers']
+            },
+            {
+                id: 'automations',
+                label: 'Automations',
+                sub: 'Trigger-Condition-Action',
+                icon: '\u2699\uFE0F',
+                domain: 'automation',
+                x: 65, y: 45,
+                desc: 'The intelligence layer of Home Assistant. Automations follow a Trigger-Condition-Action model: triggers fire on events (state changes, time, device events, webhooks), conditions gate execution (time windows, entity states, zones), and actions execute services (turn on lights, send notifications, run scripts). Supports multiple modes (single, restart, queued, parallel).',
+                tech: ['YAML / UI Config', 'Jinja2 Templates', 'Trigger Platform', 'Action Sequences'],
+                connections: ['Subscribes to Event Bus for trigger evaluation', 'Reads State Machine for condition checks', 'Calls Service Registry to execute actions', 'Can trigger scripts and other automations']
+            },
+            {
+                id: 'lovelace',
+                label: 'Lovelace',
+                sub: 'Dashboard UI',
+                icon: '\uD83D\uDDA5',
+                domain: 'ui',
+                x: 88, y: 8,
+                desc: 'The customizable dashboard system for Home Assistant. Built as a single-page application using Lit (Web Components), it communicates with HA Core via the WebSocket API for real-time state updates. Provides 30+ built-in card types, a visual drag-and-drop editor, theming, multiple dashboards, and conditional rendering. Custom cards from HACS extend the library.',
+                tech: ['Lit / Web Components', 'WebSocket API', 'YAML / Visual Editor', 'CSS Themes'],
+                connections: ['Connects to HA Core via WebSocket API', 'Renders entity states in real-time', 'Invokes services for device control', 'Loads custom cards from HACS']
+            },
+            {
+                id: 'companion',
+                label: 'Companion App',
+                sub: 'iOS / Android',
+                icon: '\uD83D\uDCF1',
+                domain: 'ui',
+                x: 88, y: 28,
+                desc: 'Official mobile apps for iOS and Android. Provides remote dashboard access, push notifications, location tracking, and 30+ device sensors (battery, WiFi, Bluetooth, steps). Connects via WebSocket API locally or through Nabu Casa for remote access. Supports widgets, Apple Watch/Wear OS, Shortcuts/Tasker integration, and critical alerts.',
+                tech: ['Swift (iOS)', 'Kotlin (Android)', 'WebSocket', 'Push Notifications'],
+                connections: ['Connects to HA Core via WebSocket API', 'Sends location updates as device_tracker entities', 'Receives push notifications from HA', 'Publishes phone sensors as HA entities']
+            },
+            {
+                id: 'nabucasa',
+                label: 'Nabu Casa',
+                sub: 'Cloud Services',
+                icon: '\u2601',
+                domain: 'cloud',
+                x: 88, y: 50,
+                desc: 'Optional cloud subscription ($7.50/mo) that funds HA development. Provides secure remote access via encrypted relay (no port forwarding needed), Google Assistant and Alexa voice integration bridges, cloud TTS/STT services, and webhook relay. All services are optional; HA runs fully locally without them.',
+                tech: ['Encrypted Relay', 'Google Assistant Bridge', 'Alexa Bridge', 'Cloud TTS/STT'],
+                connections: ['Provides remote access tunnel to HA Core', 'Bridges Google Assistant voice commands', 'Bridges Amazon Alexa voice commands', 'Offers cloud speech services for Assist']
+            },
+            {
+                id: 'esphome',
+                label: 'ESPHome',
+                sub: 'MCU Firmware',
+                icon: '\uD83D\uDD0C',
+                domain: 'device',
+                x: 35, y: 88,
+                desc: 'Framework for programming ESP32, ESP8266, and RP2040 microcontrollers using simple YAML configuration. ESPHome compiles custom C++ firmware, flashes it OTA, and provides a native encrypted API for direct integration with HA. Used for DIY sensors, LED strips, displays, buttons, climate controllers, and more. The ESPHome Dashboard Add-on provides a web-based management UI.',
+                tech: ['C++ (compiled)', 'YAML Config', 'Native API', 'OTA Updates'],
+                connections: ['Native API integration with HA Core', 'Can optionally use MQTT for communication', 'Dashboard Add-on managed by Supervisor', 'Supports ESP32, ESP8266, RP2040 chips']
+            },
+            {
+                id: 'energy',
+                label: 'Energy',
+                sub: 'Monitoring Dashboard',
+                icon: '\u26A1',
+                domain: 'device',
+                x: 50, y: 68,
+                desc: 'First-class energy monitoring feature tracking electricity consumption, solar production, gas, and water usage. Integrates with smart meters (P1/DSMR), CT clamp sensors (Emporia Vue, Shelly EM), solar inverters (Enphase, SolarEdge), and smart plugs with metering. Provides daily/weekly/monthly breakdowns, per-device analysis, cost calculation with tariff support, and self-sufficiency tracking.',
+                tech: ['Statistics Engine', 'Long-Term Storage', 'Tariff Calculation', 'Solar/Grid Tracking'],
+                connections: ['Reads energy sensors from the State Machine', 'Uses Long-Term Statistics for historical data', 'Rendered as a dedicated Lovelace dashboard', 'Calculates costs using configurable tariffs']
+            },
+            {
+                id: 'recorder',
+                label: 'Recorder',
+                sub: 'History Database',
+                icon: '\uD83D\uDCBE',
+                domain: 'core',
+                x: 50, y: 45,
+                desc: 'SQLAlchemy-based persistence layer that records entity state changes to a database. Default storage is SQLite; supports PostgreSQL and MariaDB for larger installations. Runs in a separate thread to avoid blocking the asyncio event loop. Compiles 5-minute statistical aggregates for long-term retention. Powers history graphs, the logbook, and the energy dashboard.',
+                tech: ['SQLAlchemy', 'SQLite / PostgreSQL / MariaDB', 'Statistics Engine', 'Purge Scheduler'],
+                connections: ['Subscribes to state_changed events from the Event Bus', 'Stores state history and generates statistics', 'Feeds the Energy Dashboard with aggregated data', 'Purges old detailed data per retention settings']
+            },
+            {
+                id: 'integrations',
+                label: 'Integrations',
+                sub: '2700+ Components',
+                icon: '\uD83E\uDE84',
+                domain: 'integration',
+                x: 35, y: 55,
+                desc: 'The plugin system of Home Assistant. Each integration lives under homeassistant/components/ and provides entities by communicating with devices or cloud services. Integrations implement async_setup_entry() for config-entry-based setup, define platforms (light, sensor, switch, etc.), register services, and subscribe to events. 2700+ official integrations, plus thousands more via HACS.',
+                tech: ['Python Packages', 'Config Flow', 'Entity Platforms', 'HACS'],
+                connections: ['Register entities with the State Machine', 'Register services with the Service Registry', 'Fire and listen to events on the Event Bus', 'Communicate with external devices and APIs']
+            }
+        ];
+
+        const edges = [
+            { from: 'eventbus', to: 'statemachine', label: 'State Events', animated: true },
+            { from: 'eventbus', to: 'services', label: 'Service Calls', animated: true },
+            { from: 'eventbus', to: 'automations', label: 'Triggers', animated: true },
+            { from: 'eventbus', to: 'recorder', label: 'State History', animated: false },
+            { from: 'eventbus', to: 'lovelace', label: 'WebSocket', animated: true },
+            { from: 'services', to: 'automations', label: 'Actions', animated: false },
+            { from: 'statemachine', to: 'integrations', label: 'Entity States', animated: false },
+            { from: 'integrations', to: 'eventbus', label: 'Events', animated: true },
+            { from: 'supervisor', to: 'addons', label: 'Manages', animated: false },
+            { from: 'addons', to: 'mqtt', label: 'Mosquitto', animated: false },
+            { from: 'mqtt', to: 'zigbee', label: 'Z2M Bridge', animated: true },
+            { from: 'mqtt', to: 'integrations', label: 'MQTT Discovery', animated: true },
+            { from: 'zigbee', to: 'integrations', label: 'ZHA', animated: true },
+            { from: 'zwave', to: 'integrations', label: 'Z-Wave JS', animated: true },
+            { from: 'esphome', to: 'integrations', label: 'Native API', animated: true },
+            { from: 'lovelace', to: 'services', label: 'UI Actions', animated: false },
+            { from: 'companion', to: 'eventbus', label: 'WS API', animated: true },
+            { from: 'nabucasa', to: 'eventbus', label: 'Remote Relay', animated: true },
+            { from: 'recorder', to: 'energy', label: 'Statistics', animated: false },
+            { from: 'energy', to: 'lovelace', label: 'Dashboard', animated: false }
+        ];
+
+        // =============== RENDER NODES ===============
+        const canvas = document.getElementById('archCanvas');
+        const svg = document.getElementById('archSvg');
+        const nodeElements = {};
+
+        function renderNodes() {
+            nodes.forEach(n => {
+                const el = document.createElement('div');
+                el.className = 'arch-node';
+                el.setAttribute('data-domain', n.domain);
+                el.setAttribute('data-id', n.id);
+                el.innerHTML = `
+                    <span class="node-icon">${n.icon}</span>
+                    <span class="node-label">${n.label}</span>
+                    <span class="node-sub">${n.sub}</span>
+                `;
+                el.style.left = `${n.x}%`;
+                el.style.top = `${n.y}%`;
+                el.style.transform = 'translate(-50%, -50%)';
+                el.addEventListener('click', () => openDetail(n));
+                canvas.appendChild(el);
+                nodeElements[n.id] = el;
+            });
+        }
+
+        // =============== RENDER EDGES (SVG) ===============
+        function getNodeCenter(id) {
+            const el = nodeElements[id];
+            if (!el) return { x: 0, y: 0 };
+            const cr = el.getBoundingClientRect();
+            const pr = canvas.getBoundingClientRect();
+            return {
+                x: cr.left + cr.width / 2 - pr.left,
+                y: cr.top + cr.height / 2 - pr.top
+            };
+        }
+
+        function renderEdges() {
+            svg.innerHTML = '';
+            svg.setAttribute('width', canvas.offsetWidth);
+            svg.setAttribute('height', canvas.offsetHeight);
+
+            // Define arrow marker
+            const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+            const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+            marker.setAttribute('id', 'arrowhead');
+            marker.setAttribute('markerWidth', '8');
+            marker.setAttribute('markerHeight', '6');
+            marker.setAttribute('refX', '8');
+            marker.setAttribute('refY', '3');
+            marker.setAttribute('orient', 'auto');
+            const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+            polygon.setAttribute('points', '0 0, 8 3, 0 6');
+            polygon.setAttribute('fill', 'rgba(56, 189, 248, 0.5)');
+            marker.appendChild(polygon);
+            defs.appendChild(marker);
+            svg.appendChild(defs);
+
+            edges.forEach(e => {
+                const from = getNodeCenter(e.from);
+                const to = getNodeCenter(e.to);
+
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', from.x);
+                line.setAttribute('y1', from.y);
+                line.setAttribute('x2', to.x);
+                line.setAttribute('y2', to.y);
+                line.setAttribute('stroke', 'rgba(56, 189, 248, 0.2)');
+                line.setAttribute('stroke-width', '1.5');
+                line.setAttribute('marker-end', 'url(#arrowhead)');
+
+                if (e.animated) {
+                    line.setAttribute('stroke-dasharray', '6 4');
+                    line.innerHTML = `<animate attributeName="stroke-dashoffset" from="0" to="-20" dur="1.5s" repeatCount="indefinite"/>`;
+                }
+
+                svg.appendChild(line);
+
+                // Edge label
+                const mx = (from.x + to.x) / 2;
+                const my = (from.y + to.y) / 2;
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('x', mx);
+                text.setAttribute('y', my - 6);
+                text.setAttribute('text-anchor', 'middle');
+                text.setAttribute('fill', 'rgba(140, 160, 184, 0.6)');
+                text.setAttribute('font-size', '10');
+                text.setAttribute('font-family', "'IBM Plex Mono', monospace");
+                text.textContent = e.label;
+                svg.appendChild(text);
+            });
+        }
+
+        // =============== DETAIL PANEL ===============
+        const detailPanel = document.getElementById('detailPanel');
+        const detailOverlay = document.getElementById('detailOverlay');
+        const detailTitle = document.getElementById('detailTitle');
+        const detailDomain = document.getElementById('detailDomain');
+        const detailDesc = document.getElementById('detailDesc');
+        const detailTech = document.getElementById('detailTech');
+        const detailConns = document.getElementById('detailConns');
+
+        const domainColors = {
+            core: 'var(--domain-core)', os: 'var(--domain-os)', integration: 'var(--domain-integration)',
+            protocol: 'var(--domain-protocol)', automation: 'var(--domain-automation)', ui: 'var(--domain-ui)',
+            cloud: 'var(--domain-cloud)', device: 'var(--domain-device)'
+        };
+        const domainNames = {
+            core: 'HA Core', os: 'OS / Supervisor', integration: 'Integration',
+            protocol: 'Protocol', automation: 'Automation', ui: 'UI / Dashboard',
+            cloud: 'Cloud / Remote', device: 'Device / Hardware'
+        };
+
+        function openDetail(node) {
+            document.querySelectorAll('.arch-node').forEach(n => n.classList.remove('active'));
+            const el = nodeElements[node.id];
+            if (el) el.classList.add('active');
+
+            detailTitle.textContent = node.label;
+            detailDomain.textContent = domainNames[node.domain] || node.domain;
+            detailDomain.style.background = `${domainColors[node.domain]}20`;
+            detailDomain.style.color = domainColors[node.domain];
+            detailDomain.style.border = `1px solid ${domainColors[node.domain]}50`;
+            detailDesc.textContent = node.desc;
+
+            detailTech.innerHTML = node.tech.map(t => `<span class="tech-tag">${t}</span>`).join('');
+            detailConns.innerHTML = node.connections.map(c => `<li>${c}</li>`).join('');
+
+            detailPanel.classList.add('open');
+            detailOverlay.classList.add('open');
+        }
+
+        function closeDetail() {
+            detailPanel.classList.remove('open');
+            detailOverlay.classList.remove('open');
+            document.querySelectorAll('.arch-node').forEach(n => n.classList.remove('active'));
+        }
+
+        document.getElementById('detailClose').addEventListener('click', closeDetail);
+        detailOverlay.addEventListener('click', closeDetail);
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDetail(); });
+
+        // =============== INIT ===============
+        renderNodes();
+
+        let resizeTimer;
+        function handleResize() {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => {
+                renderEdges();
+            }, 100);
+        }
+
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                renderEdges();
+            });
+        });
+
+        window.addEventListener('resize', handleResize);
+
+        // Highlight connected edges on node hover
+        document.querySelectorAll('.arch-node').forEach(nodeEl => {
+            nodeEl.addEventListener('mouseenter', () => {
+                const id = nodeEl.getAttribute('data-id');
+                const connectedIds = new Set();
+                edges.forEach(e => {
+                    if (e.from === id) connectedIds.add(e.to);
+                    if (e.to === id) connectedIds.add(e.from);
+                });
+                document.querySelectorAll('.arch-node').forEach(n => {
+                    const nid = n.getAttribute('data-id');
+                    if (nid !== id && !connectedIds.has(nid)) {
+                        n.style.opacity = '0.3';
+                    }
+                });
+                const lines = svg.querySelectorAll('line');
+                const labels = svg.querySelectorAll('text');
+                edges.forEach((e, i) => {
+                    if (e.from === id || e.to === id) {
+                        if (lines[i]) {
+                            lines[i].setAttribute('stroke', 'rgba(56, 189, 248, 0.6)');
+                            lines[i].setAttribute('stroke-width', '2.5');
+                        }
+                        if (labels[i]) {
+                            labels[i].setAttribute('fill', 'rgba(56, 189, 248, 0.9)');
+                        }
+                    } else {
+                        if (lines[i]) {
+                            lines[i].setAttribute('stroke', 'rgba(56, 189, 248, 0.08)');
+                        }
+                        if (labels[i]) {
+                            labels[i].setAttribute('fill', 'rgba(140, 160, 184, 0.2)');
+                        }
+                    }
+                });
+            });
+            nodeEl.addEventListener('mouseleave', () => {
+                document.querySelectorAll('.arch-node').forEach(n => {
+                    n.style.opacity = '1';
+                });
+                const lines = svg.querySelectorAll('line');
+                const labels = svg.querySelectorAll('text');
+                edges.forEach((e, i) => {
+                    if (lines[i]) {
+                        lines[i].setAttribute('stroke', 'rgba(56, 189, 248, 0.2)');
+                        lines[i].setAttribute('stroke-width', '1.5');
+                    }
+                    if (labels[i]) {
+                        labels[i].setAttribute('fill', 'rgba(140, 160, 184, 0.6)');
+                    }
+                });
+            });
+        });
+    })();
+    </script>
+<script defer src="../../prompt-viewer.js"></script>
+</body>
+</html>

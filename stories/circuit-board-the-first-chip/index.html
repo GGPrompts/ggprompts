@@ -1,0 +1,1484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The First Chip &mdash; A Circuit Board Interactive Story</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;600;700;900&family=Exo+2:wght@300;400;600;700&family=Source+Code+Pro:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        /* =============================================
+           CIRCUIT BOARD — PCB AESTHETIC
+        ============================================= */
+        :root {
+            --pcb-dark: #0a1a0a;
+            --pcb-green: #0d2b0d;
+            --pcb-green-mid: #1a3d1a;
+            --pcb-green-light: #2a5a2a;
+            --pcb-mask: #1e4d1e;
+
+            --copper: #c87533;
+            --copper-bright: #e8a54b;
+            --copper-dim: #8b5a2b;
+            --copper-trace: rgba(200, 117, 51, 0.4);
+            --copper-glow: rgba(232, 165, 75, 0.15);
+
+            --solder: #c0c0c0;
+            --solder-bright: #e8e8e8;
+            --solder-dim: #808080;
+
+            --led-red: #ff3333;
+            --led-green: #33ff33;
+            --led-blue: #3388ff;
+            --led-yellow: #ffcc00;
+            --led-amber: #ff8800;
+
+            --silkscreen: #f0f0e8;
+            --silkscreen-dim: rgba(240, 240, 232, 0.6);
+            --silkscreen-ghost: rgba(240, 240, 232, 0.3);
+
+            --font-display: 'Orbitron', sans-serif;
+            --font-heading: 'Exo 2', sans-serif;
+            --font-body: 'Exo 2', sans-serif;
+            --font-mono: 'Share Tech Mono', 'Source Code Pro', monospace;
+
+            --space-1: 4px;
+            --space-2: 8px;
+            --space-3: 12px;
+            --space-4: 16px;
+            --space-5: 24px;
+            --space-6: 32px;
+            --space-7: 48px;
+            --space-8: 64px;
+
+            --transition-fast: 0.15s ease-out;
+            --transition-base: 0.25s ease-out;
+            --transition-slow: 0.5s ease-out;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html { font-size: 16px; scroll-behavior: smooth; }
+
+        body {
+            font-family: var(--font-body);
+            font-size: 1.05rem;
+            line-height: 1.7;
+            color: var(--silkscreen);
+            background-color: var(--pcb-green);
+            min-height: 100vh;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+            position: relative;
+        }
+
+        /* PCB texture background */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background:
+                /* Fiberglass weave texture */
+                repeating-linear-gradient(
+                    0deg,
+                    transparent 0px,
+                    transparent 3px,
+                    rgba(0, 50, 0, 0.15) 3px,
+                    rgba(0, 50, 0, 0.15) 4px
+                ),
+                repeating-linear-gradient(
+                    90deg,
+                    transparent 0px,
+                    transparent 3px,
+                    rgba(0, 50, 0, 0.15) 3px,
+                    rgba(0, 50, 0, 0.15) 4px
+                ),
+                /* Solder mask gradient */
+                radial-gradient(ellipse at 30% 20%, var(--pcb-green-mid) 0%, transparent 60%),
+                radial-gradient(ellipse at 70% 80%, var(--pcb-green-mid) 0%, transparent 50%),
+                linear-gradient(180deg, var(--pcb-dark) 0%, var(--pcb-green) 3%, var(--pcb-green) 97%, var(--pcb-dark) 100%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* Copper edge traces */
+        body::after {
+            content: '';
+            position: fixed;
+            inset: 0;
+            border: 3px solid var(--copper-trace);
+            box-shadow:
+                inset 0 0 40px rgba(0, 0, 0, 0.5),
+                inset 6px 0 0 var(--copper-trace),
+                inset -6px 0 0 var(--copper-trace),
+                inset 0 6px 0 var(--copper-trace),
+                inset 0 -6px 0 var(--copper-trace);
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        /* =============================================
+           TRACE CANVAS OVERLAY
+        ============================================= */
+        #traceCanvas {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 1;
+            opacity: 0.6;
+        }
+
+        /* =============================================
+           GAME CONTAINER
+        ============================================= */
+        .game-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2.5rem 2rem 4rem;
+            position: relative;
+            z-index: 2;
+        }
+
+        .back-to-stories {
+            display: inline-block;
+            color: var(--silkscreen-ghost);
+            text-decoration: none;
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            margin-bottom: 2rem;
+            transition: color var(--transition-base);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+        .back-to-stories:hover { color: var(--copper-bright); }
+        .back-to-stories::before { content: '\2190  '; }
+
+        /* =============================================
+           TITLE SCREEN
+        ============================================= */
+        .title-screen {
+            text-align: center;
+            padding: 5rem 1rem 4rem;
+            animation: powerOn 1.5s ease-out;
+        }
+
+        @keyframes powerOn {
+            0% { opacity: 0; filter: brightness(3) blur(4px); }
+            30% { opacity: 1; filter: brightness(1.5) blur(1px); }
+            100% { opacity: 1; filter: brightness(1) blur(0); }
+        }
+
+        .title-screen h1 {
+            font-family: var(--font-display);
+            font-size: 3rem;
+            color: var(--copper-bright);
+            text-shadow:
+                0 0 20px rgba(232, 165, 75, 0.4),
+                0 0 40px rgba(232, 165, 75, 0.2);
+            margin-bottom: 0.5rem;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+        }
+
+        .title-subtitle {
+            font-family: var(--font-heading);
+            color: var(--led-green);
+            font-size: 1.2rem;
+            margin-bottom: 0.5rem;
+            opacity: 0.9;
+            text-shadow: 0 0 10px rgba(51, 255, 51, 0.3);
+            letter-spacing: 2px;
+        }
+
+        .title-tagline {
+            font-family: var(--font-body);
+            color: var(--silkscreen-dim);
+            font-size: 1rem;
+            margin-bottom: 2.5rem;
+            max-width: 520px;
+            margin-left: auto;
+            margin-right: auto;
+            font-weight: 300;
+        }
+
+        .title-chip {
+            font-family: var(--font-mono);
+            font-size: 1rem;
+            color: var(--solder);
+            margin-bottom: 2.5rem;
+            padding: 1rem 1.5rem;
+            border: 2px solid var(--copper-dim);
+            display: inline-block;
+            position: relative;
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        .title-chip::before {
+            content: '';
+            position: absolute;
+            top: -4px; left: 20%; right: 20%;
+            height: 4px;
+            background: repeating-linear-gradient(90deg, var(--copper) 0px, var(--copper) 6px, transparent 6px, transparent 12px);
+        }
+
+        .title-chip::after {
+            content: '';
+            position: absolute;
+            bottom: -4px; left: 20%; right: 20%;
+            height: 4px;
+            background: repeating-linear-gradient(90deg, var(--copper) 0px, var(--copper) 6px, transparent 6px, transparent 12px);
+        }
+
+        .title-chip .pin-left,
+        .title-chip .pin-right {
+            position: absolute;
+            top: 20%; bottom: 20%;
+            width: 4px;
+            background: repeating-linear-gradient(180deg, var(--copper) 0px, var(--copper) 6px, transparent 6px, transparent 12px);
+        }
+        .title-chip .pin-left { left: -4px; }
+        .title-chip .pin-right { right: -4px; }
+
+        .start-btn {
+            font-family: var(--font-display);
+            font-size: 1rem;
+            color: var(--pcb-dark);
+            background: var(--copper-bright);
+            border: none;
+            padding: 0.8rem 2.5rem;
+            cursor: pointer;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            transition: all var(--transition-base);
+            position: relative;
+        }
+
+        .start-btn:hover {
+            background: var(--led-yellow);
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(255, 204, 0, 0.4), 0 0 40px rgba(255, 204, 0, 0.2);
+        }
+
+        /* LED indicator dots on button */
+        .start-btn::before {
+            content: '';
+            position: absolute;
+            left: 12px; top: 50%;
+            transform: translateY(-50%);
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: var(--led-green);
+            box-shadow: 0 0 6px var(--led-green);
+            animation: blink 1.5s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        /* =============================================
+           SCENE WRAPPER
+        ============================================= */
+        .scene-wrapper {
+            display: none;
+        }
+
+        .scene-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: var(--space-4);
+            margin-bottom: var(--space-5);
+            border-bottom: 2px solid var(--copper-trace);
+            font-family: var(--font-mono);
+            position: relative;
+        }
+
+        .scene-header::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0; right: 0;
+            height: 2px;
+            background: repeating-linear-gradient(90deg, var(--copper) 0px, var(--copper) 4px, transparent 4px, transparent 8px);
+            opacity: 0.5;
+        }
+
+        .scene-era {
+            font-size: 0.8rem;
+            color: var(--led-amber);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 0 0 8px rgba(255, 136, 0, 0.3);
+        }
+
+        .scene-year {
+            font-family: var(--font-display);
+            font-size: 0.95rem;
+            color: var(--led-green);
+            font-weight: 600;
+            text-shadow: 0 0 8px rgba(51, 255, 51, 0.3);
+        }
+
+        .scene-progress {
+            font-size: 0.75rem;
+            color: var(--silkscreen-ghost);
+        }
+
+        /* =============================================
+           SCENE TYPES
+        ============================================= */
+        #sceneContent {
+            animation: signalIn 0.5s ease-out;
+        }
+
+        @keyframes signalIn {
+            0% { opacity: 0; transform: translateY(8px); filter: blur(1px); }
+            100% { opacity: 1; transform: translateY(0); filter: blur(0); }
+        }
+
+        .scene-narration {
+            font-size: 1.05rem;
+            line-height: 1.8;
+        }
+
+        .scene-narration p {
+            margin-bottom: 1.2rem;
+            color: var(--silkscreen-dim);
+        }
+
+        .scene-investigation {
+            font-size: 1.05rem;
+            line-height: 1.8;
+        }
+
+        .scene-investigation p {
+            margin-bottom: 1.2rem;
+            color: var(--silkscreen-dim);
+        }
+
+        .scene-confrontation {
+            font-size: 1.05rem;
+            line-height: 1.8;
+        }
+
+        .scene-confrontation p {
+            margin-bottom: 1.2rem;
+            color: var(--silkscreen-dim);
+        }
+
+        .scene-ending {
+            font-size: 1.1rem;
+            line-height: 1.9;
+            text-align: center;
+            padding: 2rem 0;
+        }
+
+        .scene-ending p {
+            margin-bottom: 1.2rem;
+            color: var(--silkscreen-dim);
+        }
+
+        /* =============================================
+           TEXT HIGHLIGHT CLASSES
+        ============================================= */
+        .copper-highlight {
+            color: var(--copper-bright);
+            font-weight: 600;
+        }
+
+        .led-green-text {
+            color: var(--led-green);
+            text-shadow: 0 0 6px rgba(51, 255, 51, 0.2);
+        }
+
+        .led-red-text {
+            color: var(--led-red);
+            text-shadow: 0 0 6px rgba(255, 51, 51, 0.2);
+        }
+
+        .led-blue-text {
+            color: var(--led-blue);
+            text-shadow: 0 0 6px rgba(51, 136, 255, 0.2);
+        }
+
+        .led-yellow-text {
+            color: var(--led-yellow);
+            text-shadow: 0 0 6px rgba(255, 204, 0, 0.2);
+        }
+
+        .solder-text {
+            color: var(--solder-bright);
+        }
+
+        /* =============================================
+           COMPONENT BLOCK (diagrams/figures)
+        ============================================= */
+        .component-block {
+            text-align: center;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            border: 2px solid var(--copper-dim);
+            position: relative;
+            background: rgba(0, 0, 0, 0.25);
+        }
+
+        /* Solder points at corners */
+        .component-block::before,
+        .component-block::after {
+            content: '';
+            position: absolute;
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--solder);
+            box-shadow: 0 0 4px var(--solder-dim);
+        }
+        .component-block::before { top: -4px; left: -4px; }
+        .component-block::after { top: -4px; right: -4px; }
+
+        .component-block .solder-bl,
+        .component-block .solder-br {
+            position: absolute;
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--solder);
+            box-shadow: 0 0 4px var(--solder-dim);
+        }
+        .component-block .solder-bl { bottom: -4px; left: -4px; }
+        .component-block .solder-br { bottom: -4px; right: -4px; }
+
+        .component-block .component-label {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--silkscreen-ghost);
+            margin-top: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        /* =============================================
+           SIGNAL TRACE (animated equation block)
+        ============================================= */
+        .signal-trace {
+            font-family: var(--font-mono);
+            font-size: 1.1rem;
+            color: var(--copper-bright);
+            text-align: center;
+            padding: 1.2rem;
+            margin: 1.5rem 0;
+            border: 1px solid var(--copper-trace);
+            position: relative;
+            text-shadow: 0 0 8px rgba(232, 165, 75, 0.3);
+            animation: traceGlow 2s ease-in-out infinite alternate;
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        @keyframes traceGlow {
+            0% { box-shadow: inset 0 0 10px rgba(200, 117, 51, 0.1); }
+            100% { box-shadow: inset 0 0 20px rgba(200, 117, 51, 0.2); }
+        }
+
+        .signal-trace.green {
+            color: var(--led-green);
+            border-color: rgba(51, 255, 51, 0.3);
+            text-shadow: 0 0 8px rgba(51, 255, 51, 0.3);
+        }
+
+        .signal-trace.red {
+            color: var(--led-red);
+            border-color: rgba(255, 51, 51, 0.3);
+            text-shadow: 0 0 8px rgba(255, 51, 51, 0.3);
+        }
+
+        .signal-trace.blue {
+            color: var(--led-blue);
+            border-color: rgba(51, 136, 255, 0.3);
+            text-shadow: 0 0 8px rgba(51, 136, 255, 0.3);
+        }
+
+        /* =============================================
+           QUOTE / DIALOGUE (speaker attribution)
+        ============================================= */
+        .circuit-quote {
+            padding: 1rem 1.5rem;
+            margin: 1.2rem 0;
+            border-left: 3px solid var(--copper-bright);
+            font-style: italic;
+            color: var(--silkscreen);
+            background: rgba(200, 117, 51, 0.05);
+        }
+
+        .circuit-quote .speaker {
+            display: block;
+            font-style: normal;
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            color: var(--copper);
+            margin-top: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* =============================================
+           FACT BOX (data sheet callout)
+        ============================================= */
+        .datasheet-fact {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(51, 136, 255, 0.3);
+            padding: 1rem 1.2rem;
+            margin: 1.5rem 0;
+            font-size: 0.95rem;
+            color: var(--led-blue);
+            position: relative;
+        }
+
+        .datasheet-fact::before {
+            content: 'DATASHEET';
+            position: absolute;
+            top: -10px; left: 12px;
+            font-family: var(--font-display);
+            font-size: 0.6rem;
+            color: var(--pcb-dark);
+            background: var(--led-blue);
+            padding: 1px 8px;
+            letter-spacing: 2px;
+        }
+
+        /* =============================================
+           INTERACTIVE COMPONENTS
+        ============================================= */
+        .clickable-component {
+            display: inline-block;
+            cursor: pointer;
+            padding: 0.3rem 0.8rem;
+            border: 1px dashed var(--copper);
+            color: var(--copper-bright);
+            font-family: var(--font-mono);
+            font-size: 0.9rem;
+            transition: all var(--transition-base);
+            position: relative;
+        }
+
+        .clickable-component::after {
+            content: ' [click]';
+            font-size: 0.7rem;
+            color: var(--silkscreen-ghost);
+        }
+
+        .clickable-component:hover {
+            background: rgba(200, 117, 51, 0.15);
+            border-color: var(--copper-bright);
+            box-shadow: 0 0 10px rgba(200, 117, 51, 0.2);
+        }
+
+        .clickable-component.revealed {
+            border-style: solid;
+            background: rgba(200, 117, 51, 0.1);
+        }
+
+        .clickable-component.revealed::after {
+            content: '';
+        }
+
+        .component-detail {
+            display: none;
+            margin: 0.5rem 0 1rem;
+            padding: 0.8rem 1rem;
+            background: rgba(0, 0, 0, 0.3);
+            border-left: 2px solid var(--led-green);
+            font-size: 0.9rem;
+            color: var(--led-green);
+            animation: signalIn 0.4s ease-out;
+        }
+
+        .component-detail.visible {
+            display: block;
+        }
+
+        /* =============================================
+           LED STATUS INDICATOR
+        ============================================= */
+        .led-indicator {
+            display: inline-block;
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            margin-right: 6px;
+            vertical-align: middle;
+        }
+        .led-indicator.red { background: var(--led-red); box-shadow: 0 0 6px var(--led-red); }
+        .led-indicator.green { background: var(--led-green); box-shadow: 0 0 6px var(--led-green); }
+        .led-indicator.blue { background: var(--led-blue); box-shadow: 0 0 6px var(--led-blue); }
+        .led-indicator.yellow { background: var(--led-yellow); box-shadow: 0 0 6px var(--led-yellow); }
+        .led-indicator.amber { background: var(--led-amber); box-shadow: 0 0 6px var(--led-amber); }
+
+        /* =============================================
+           CHOICES
+        ============================================= */
+        .choices {
+            margin-top: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .choice-btn {
+            font-family: var(--font-heading);
+            font-size: 1rem;
+            color: var(--silkscreen);
+            background: transparent;
+            border: 1px solid var(--copper-trace);
+            padding: 0.9rem 1.2rem;
+            cursor: pointer;
+            text-align: left;
+            transition: all var(--transition-base);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .choice-btn::before {
+            content: attr(data-key);
+            display: inline-block;
+            width: 26px; height: 26px;
+            line-height: 26px;
+            text-align: center;
+            background: var(--copper-trace);
+            color: var(--silkscreen);
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            margin-right: 0.75rem;
+            flex-shrink: 0;
+        }
+
+        .choice-btn:hover {
+            border-color: var(--copper-bright);
+            color: var(--copper-bright);
+            background: rgba(200, 117, 51, 0.08);
+            transform: translateX(4px);
+            box-shadow: 0 0 15px rgba(200, 117, 51, 0.1);
+        }
+
+        .choice-btn:hover::before {
+            background: var(--copper-bright);
+            color: var(--pcb-dark);
+        }
+
+        /* =============================================
+           CLUE TRACKER (collected facts)
+        ============================================= */
+        .clue-tracker {
+            margin-top: 2.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--copper-trace);
+        }
+
+        .clue-tracker h3 {
+            font-family: var(--font-display);
+            font-size: 0.75rem;
+            color: var(--silkscreen-ghost);
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            margin-bottom: 0.75rem;
+        }
+
+        .clue-list {
+            list-style: none;
+        }
+
+        .clue-list li {
+            font-family: var(--font-body);
+            font-size: 0.85rem;
+            color: var(--silkscreen-ghost);
+            padding: 0.3rem 0;
+            padding-left: 1.4rem;
+            position: relative;
+        }
+
+        .clue-list li::before {
+            content: '';
+            position: absolute;
+            left: 0; top: 0.65rem;
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--led-green);
+            box-shadow: 0 0 4px var(--led-green);
+        }
+
+        .clue-list li.new-clue {
+            animation: dataLog 0.5s ease-out;
+            color: var(--copper-bright);
+        }
+
+        @keyframes dataLog {
+            0% { opacity: 0; transform: translateX(-10px); }
+            100% { opacity: 1; transform: translateX(0); }
+        }
+
+        /* =============================================
+           CHIP PACKAGE DIAGRAM
+        ============================================= */
+        .chip-package {
+            display: inline-block;
+            border: 2px solid var(--solder);
+            padding: 0.8rem 1.5rem;
+            position: relative;
+            background: #1a1a1a;
+            color: var(--silkscreen);
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            margin: 1rem 0;
+        }
+
+        .chip-package .notch {
+            position: absolute;
+            top: -1px; left: 50%;
+            transform: translateX(-50%);
+            width: 12px; height: 6px;
+            border-radius: 0 0 6px 6px;
+            background: var(--pcb-green);
+            border: 2px solid var(--solder);
+            border-top: none;
+        }
+
+        /* =============================================
+           RESPONSIVE
+        ============================================= */
+        @media (max-width: 768px) {
+            body::after { border-width: 2px; box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.5); }
+
+            .game-container { padding: 1.5rem 1rem 3rem; }
+
+            .title-screen { padding: 3rem 0.5rem 2rem; }
+            .title-screen h1 { font-size: 2rem; letter-spacing: 1px; }
+            .title-subtitle { font-size: 1rem; }
+            .title-tagline { font-size: 0.9rem; }
+
+            .signal-trace { font-size: 0.9rem; padding: 1rem; }
+
+            .scene-header { flex-wrap: wrap; gap: 0.5rem; }
+
+            .component-block { padding: 1rem; }
+        }
+
+        @media (max-width: 480px) {
+            .title-screen h1 { font-size: 1.6rem; }
+            .title-subtitle { font-size: 0.85rem; }
+            .signal-trace { font-size: 0.8rem; }
+            .title-chip { font-size: 0.8rem; padding: 0.6rem 1rem; }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="traceCanvas"></canvas>
+
+    <div class="game-container">
+        <!-- Title Screen -->
+        <div class="title-screen" id="titleScreen">
+            <a href="../index.html" class="back-to-stories">Stories</a>
+            <h1>The First Chip</h1>
+            <div class="title-subtitle">The Invention of the Integrated Circuit</div>
+            <p class="title-tagline">In 1958, two engineers working 1,200 miles apart had the same impossible idea: put an entire circuit on a single piece of semiconductor. Their parallel invention launched the digital age.</p>
+            <div class="title-chip">
+                <span class="pin-left"></span>
+                <span class="pin-right"></span>
+                IC &bull; SN5400 &bull; TEXAS INSTRUMENTS &bull; 1958
+            </div>
+            <br>
+            <button class="start-btn" onclick="engine.start()">Power On</button>
+        </div>
+
+        <!-- Scene Display -->
+        <div class="scene-wrapper" id="sceneWrapper">
+            <div class="scene-header">
+                <span class="scene-era" id="sceneEra"></span>
+                <span class="scene-year" id="sceneYear"></span>
+                <span class="scene-progress" id="sceneProgress"></span>
+            </div>
+            <div id="sceneContent"></div>
+            <div id="choicesContainer" class="choices"></div>
+            <div class="clue-tracker" id="clueTracker">
+                <h3>Data Log &mdash; Facts Collected</h3>
+                <ul class="clue-list" id="clueList"></ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /* =============================================
+           ANIMATED TRACE PARTICLE SYSTEM
+        ============================================= */
+        (function() {
+            const canvas = document.getElementById('traceCanvas');
+            const ctx = canvas.getContext('2d');
+            let traces = [];
+            let solderPoints = [];
+            const TRACE_COUNT = 12;
+            const SOLDER_COUNT = 20;
+
+            function resize() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                initSolderPoints();
+            }
+
+            function initSolderPoints() {
+                solderPoints = [];
+                for (let i = 0; i < SOLDER_COUNT; i++) {
+                    solderPoints.push({
+                        x: Math.random() * canvas.width,
+                        y: Math.random() * canvas.height,
+                        size: Math.random() * 3 + 1.5,
+                        pulse: Math.random() * Math.PI * 2,
+                        speed: Math.random() * 0.02 + 0.01
+                    });
+                }
+            }
+
+            resize();
+            window.addEventListener('resize', resize);
+
+            function createTrace() {
+                const horizontal = Math.random() > 0.5;
+                return {
+                    x: horizontal ? -50 : Math.random() * canvas.width,
+                    y: horizontal ? Math.random() * canvas.height : -50,
+                    length: Math.random() * 100 + 50,
+                    speed: Math.random() * 1.5 + 0.5,
+                    horizontal: horizontal,
+                    opacity: Math.random() * 0.3 + 0.1,
+                    width: Math.random() * 1.5 + 0.5
+                };
+            }
+
+            for (let i = 0; i < TRACE_COUNT; i++) {
+                const t = createTrace();
+                t.x = Math.random() * canvas.width;
+                t.y = Math.random() * canvas.height;
+                traces.push(t);
+            }
+
+            function animate() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                /* Draw solder points */
+                solderPoints.forEach(p => {
+                    p.pulse += p.speed;
+                    const glow = 0.3 + Math.sin(p.pulse) * 0.15;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(192, 192, 192, ${glow})`;
+                    ctx.fill();
+                });
+
+                /* Draw moving traces */
+                traces.forEach((t, i) => {
+                    if (t.horizontal) {
+                        t.x += t.speed;
+                        ctx.beginPath();
+                        ctx.moveTo(t.x, t.y);
+                        ctx.lineTo(t.x - t.length, t.y);
+                        ctx.strokeStyle = `rgba(200, 117, 51, ${t.opacity})`;
+                        ctx.lineWidth = t.width;
+                        ctx.stroke();
+
+                        if (t.x - t.length > canvas.width) {
+                            traces[i] = createTrace();
+                        }
+                    } else {
+                        t.y += t.speed;
+                        ctx.beginPath();
+                        ctx.moveTo(t.x, t.y);
+                        ctx.lineTo(t.x, t.y - t.length);
+                        ctx.strokeStyle = `rgba(200, 117, 51, ${t.opacity})`;
+                        ctx.lineWidth = t.width;
+                        ctx.stroke();
+
+                        if (t.y - t.length > canvas.height) {
+                            traces[i] = createTrace();
+                        }
+                    }
+                });
+
+                requestAnimationFrame(animate);
+            }
+            animate();
+        })();
+
+        /* =============================================
+           STORY DATA — THE FIRST CHIP
+        ============================================= */
+        const STORY = {
+            intro: {
+                year: '1947',
+                era: 'THE TYRANNY OF NUMBERS',
+                content: `<div class="scene-narration">
+                    <p>It is the late 1940s. The <span class="copper-highlight">transistor</span> has just been invented at Bell Labs by Bardeen, Brattain, and Shockley in 1947 &mdash; a tiny semiconductor device that can switch electrical signals on and off, replacing the bulky vacuum tube.</p>
+
+                    <div class="component-block">
+                        <div style="font-size: 1.2rem; color: var(--copper-bright); margin-bottom: 0.5rem;">
+                            <span class="led-indicator red"></span> Vacuum Tube &nbsp; &rarr; &nbsp; <span class="led-indicator green"></span> Transistor
+                        </div>
+                        <div style="font-size: 0.95rem; color: var(--silkscreen-dim);">
+                            Size: fist-sized &rarr; pencil-eraser &nbsp;&bull;&nbsp; Power: 5-10W &rarr; 0.1W &nbsp;&bull;&nbsp; Lifespan: ~1,000 hrs &rarr; decades
+                        </div>
+                        <span class="solder-bl"></span><span class="solder-br"></span>
+                        <div class="component-label">Fig. 1 &mdash; Component comparison</div>
+                    </div>
+
+                    <p>But there is a devastating problem. A computer like ENIAC (1945) used <span class="led-red-text">17,468 vacuum tubes</span>, weighed 30 tons, and filled a room. Even with transistors, building more powerful computers means connecting <span class="copper-highlight">thousands</span> of discrete components &mdash; transistors, resistors, capacitors &mdash; each soldered by hand with individual wires.</p>
+
+                    <p>Engineers call this <span class="led-yellow-text">"the tyranny of numbers."</span> Every new wire is a potential failure point. Every solder joint can crack. The U.S. military, desperate for smaller, more reliable electronics for missiles and aircraft, is spending millions trying to solve it.</p>
+
+                    <div class="datasheet-fact">ENIAC (1945) could perform 5,000 additions per second but consumed 150 kilowatts of power &mdash; enough to power a small neighborhood. It suffered about one vacuum tube failure every two days.</div>
+                </div>`,
+                fact: 'The "tyranny of numbers" problem: as circuits grew more complex, hand-wiring thousands of discrete components became the bottleneck. Each connection was a potential failure point.',
+                choices: [
+                    { text: 'Meet Jack Kilby at Texas Instruments', next: 'kilby_arrives' },
+                    { text: 'Understand how transistors work first', next: 'transistor_basics' }
+                ]
+            },
+
+            transistor_basics: {
+                year: '1947&ndash;1957',
+                era: 'THE BUILDING BLOCKS',
+                content: `<div class="scene-investigation">
+                    <p>To understand the integrated circuit, you need to understand the <span class="copper-highlight">transistor</span> &mdash; the most important invention of the 20th century.</p>
+
+                    <p>A transistor is a sandwich of <span class="led-blue-text">semiconductor</span> materials. Semiconductors like <span class="copper-highlight">germanium</span> and <span class="copper-highlight">silicon</span> sit between conductors (like copper) and insulators (like glass). Their conductivity can be controlled.</p>
+
+                    <div class="component-block">
+                        <div style="text-align: left; padding: 0.5rem 1rem; line-height: 2.2; font-family: var(--font-mono); font-size: 0.9rem;">
+                            <span class="led-indicator red"></span> <span class="led-red-text">P-type</span> &mdash; semiconductor doped with boron (has "holes" for electrons)<br>
+                            <span class="led-indicator blue"></span> <span class="led-blue-text">N-type</span> &mdash; semiconductor doped with phosphorus (has extra electrons)<br>
+                            <span class="led-indicator yellow"></span> <span class="led-yellow-text">P-N junction</span> &mdash; where P meets N, a one-way valve for current forms
+                        </div>
+                        <span class="solder-bl"></span><span class="solder-br"></span>
+                        <div class="component-label">Fig. 2 &mdash; Semiconductor doping</div>
+                    </div>
+
+                    <p>Stack them as N-P-N or P-N-P and you get a transistor. Apply a small voltage to the middle layer (the <span class="led-yellow-text">base</span>) and it acts like a gate, controlling a much larger current flowing between the outer layers (the <span class="led-blue-text">collector</span> and <span class="led-red-text">emitter</span>).</p>
+
+                    <div class="signal-trace">
+                        INPUT (small signal) &rarr; BASE &rarr; GATE OPENS &rarr; OUTPUT (amplified signal)
+                    </div>
+
+                    <p>This lets transistors do two things: <span class="copper-highlight">amplify</span> signals (for radios, phones) and <span class="copper-highlight">switch</span> on/off (for digital logic: 1s and 0s). Every computer ever built relies on transistors switching billions of times per second.</p>
+
+                    <div class="datasheet-fact">William Shockley, John Bardeen, and Walter Brattain shared the 1956 Nobel Prize in Physics for inventing the transistor. Shockley later founded Shockley Semiconductor in Palo Alto, effectively seeding Silicon Valley.</div>
+                </div>`,
+                fact: 'Transistors use doped semiconductors (P-type and N-type) to create a controllable switch. A small signal at the base gate controls a larger current between collector and emitter.',
+                choices: [
+                    { text: 'Meet Jack Kilby at Texas Instruments', next: 'kilby_arrives' }
+                ]
+            },
+
+            kilby_arrives: {
+                year: 'June 1958',
+                era: 'THE NEW HIRE',
+                content: `<div class="scene-narration">
+                    <p>Dallas, Texas, summer of 1958. <span class="copper-highlight">Jack St. Clair Kilby</span>, a 34-year-old electrical engineer from Great Bend, Kansas, has just started at <span class="led-yellow-text">Texas Instruments</span>. He is tall, quiet, and methodical &mdash; a midwesterner in cowboy country.</p>
+
+                    <p>Kilby arrived too recently to have earned any vacation time. When July comes and the entire company shuts down for a mass two-week holiday, he is one of the few people left in the building. Alone in the lab, with nothing to do but think.</p>
+
+                    <div class="circuit-quote">
+                        "As a new employee, I had no vacation time coming and was left alone to ponder the madhatter world of miniaturization."
+                        <span class="speaker">&mdash; Jack Kilby, 1976 interview</span>
+                    </div>
+
+                    <p>Kilby knows the tyranny of numbers problem well. At his previous job at Centralab in Milwaukee, he worked on the Army's <span class="led-blue-text">Micro-Module</span> program &mdash; an attempt to standardize components into uniform blocks that could snap together. It was expensive, clumsy, and ultimately a dead end.</p>
+
+                    <p>Now, alone in the empty TI lab, Kilby begins to sketch in his lab notebook. What if, instead of connecting separate components, you made <span class="copper-highlight">everything</span> from the same piece of semiconductor?</p>
+
+                    <div class="datasheet-fact">Texas Instruments had hired Kilby specifically to work on circuit miniaturization. TI was already the leading producer of silicon transistors, having built the first commercial silicon transistor in 1954.</div>
+                </div>`,
+                fact: 'Jack Kilby arrived at Texas Instruments in June 1958. Left alone during the company vacation, he had two weeks of uninterrupted time to think about miniaturization.',
+                choices: [
+                    { text: 'Watch Kilby\'s breakthrough idea take shape', next: 'kilby_idea' },
+                    { text: 'Meanwhile, at Fairchild Semiconductor...', next: 'fairchild_begins' }
+                ]
+            },
+
+            kilby_idea: {
+                year: 'July 1958',
+                era: 'THE MONOLITHIC IDEA',
+                content: `<div class="scene-investigation">
+                    <p>July 24, 1958. Page 64 of Jack Kilby's lab notebook. He writes:</p>
+
+                    <div class="circuit-quote">
+                        "The following circuit elements could be made on a single slice: resistors, capacitor, distributed capacitor, transistor."
+                        <span class="speaker">&mdash; Jack Kilby, Lab Notebook #64, July 24, 1958</span>
+                    </div>
+
+                    <p>The idea is radical. Everyone knows how to make <span class="copper-highlight">transistors</span> on germanium or silicon. But resistors? Capacitors? Those are made from completely different materials &mdash; carbon, ceramic, mica. Kilby's insight: the semiconductor itself can be all of these.</p>
+
+                    <div class="component-block">
+                        <div style="text-align: left; padding: 0.5rem 1rem; line-height: 2.2; font-family: var(--font-mono); font-size: 0.9rem;">
+                            <span class="led-indicator green"></span> <span class="led-green-text">Transistor</span> &rarr; P-N-P junction in the germanium<br>
+                            <span class="led-indicator yellow"></span> <span class="led-yellow-text">Resistor</span> &rarr; thin strip of semiconductor (resistance depends on length/width)<br>
+                            <span class="led-indicator blue"></span> <span class="led-blue-text">Capacitor</span> &rarr; reverse-biased P-N junction stores charge<br>
+                            <span class="led-indicator amber"></span> <span style="color: var(--led-amber);">Connections</span> &rarr; gold wire bonds between components
+                        </div>
+                        <span class="solder-bl"></span><span class="solder-br"></span>
+                        <div class="component-label">Fig. 3 &mdash; All components from one material</div>
+                    </div>
+
+                    <p>The semiconductor resistors and capacitors would be <span class="led-red-text">worse</span> than dedicated ones &mdash; less precise, less efficient. But that trade-off wouldn't matter if you could eliminate the tyranny of numbers. No more hand-wiring. No more individual solder joints. Everything on <span class="copper-highlight">one piece of material</span>.</p>
+
+                    <p>On September 12, 1958, Kilby demonstrates his first working integrated circuit to TI executives. It is a simple phase-shift oscillator &mdash; a circuit that produces a sine wave. It is built on a sliver of <span class="led-yellow-text">germanium</span> roughly half an inch long.</p>
+
+                    <div class="signal-trace green">
+                        OSCILLATOR OUTPUT: ~~~~~ sine wave confirmed at 1.3 MHz ~~~~~
+                    </div>
+
+                    <div class="datasheet-fact">Kilby's first IC was crude: components on the germanium were connected by hand-soldered gold "flying wires." But it proved the concept &mdash; multiple circuit elements on a single piece of semiconductor, working together.</div>
+                </div>`,
+                fact: 'On September 12, 1958, Kilby demonstrated the first integrated circuit at TI &mdash; a phase-shift oscillator on a germanium slab. It used gold "flying wires" to connect components.',
+                choices: [
+                    { text: 'Meanwhile, at Fairchild Semiconductor...', next: 'fairchild_begins' },
+                    { text: 'Examine the germanium vs silicon debate', next: 'germanium_silicon' }
+                ]
+            },
+
+            fairchild_begins: {
+                year: '1957&ndash;1958',
+                era: 'THE TRAITOROUS EIGHT',
+                content: `<div class="scene-narration">
+                    <p>Mountain View, California. In 1957, eight young engineers &mdash; furious at the tyrannical management of William Shockley &mdash; do something unprecedented. They quit Shockley Semiconductor together and found their own company: <span class="copper-highlight">Fairchild Semiconductor</span>.</p>
+
+                    <div class="component-block">
+                        <div style="text-align: left; padding: 0.5rem 1rem; line-height: 2; font-family: var(--font-mono); font-size: 0.85rem; color: var(--silkscreen-dim);">
+                            Gordon Moore &bull; Robert Noyce &bull; Julius Blank &bull; Victor Grinich<br>
+                            Jean Hoerni &bull; Eugene Kleiner &bull; Jay Last &bull; Sheldon Roberts
+                        </div>
+                        <span class="solder-bl"></span><span class="solder-br"></span>
+                        <div class="component-label">The "Traitorous Eight" &mdash; Fairchild Semiconductor founders</div>
+                    </div>
+
+                    <p>Shockley calls them <span class="led-red-text">"the traitorous eight."</span> But they have something Shockley doesn't: a vision for practical, manufacturable silicon devices. Their leader in all but title is <span class="copper-highlight">Robert Noyce</span> &mdash; charismatic, brilliant, and nicknamed "the Mayor of Silicon Valley."</p>
+
+                    <p>In January 1959, one of the eight &mdash; <span class="led-blue-text">Jean Hoerni</span> &mdash; invents the <span class="copper-highlight">planar process</span>: a way to build transistors on a flat silicon surface protected by a layer of silicon dioxide (glass). This seemingly small innovation will change everything.</p>
+
+                    <div class="signal-trace blue">
+                        Si substrate &rarr; SiO&#x2082; oxide layer &rarr; etch windows &rarr; diffuse dopants &rarr; flat, protected transistor
+                    </div>
+
+                    <div class="datasheet-fact">The "traitorous eight" left Shockley in 1957, funded by Fairchild Camera. Eugene Kleiner later co-founded Kleiner Perkins, one of Silicon Valley's most famous venture capital firms. Fairchild became the seedbed of the entire semiconductor industry.</div>
+                </div>`,
+                fact: 'The "traitorous eight" left Shockley in 1957 to found Fairchild Semiconductor. Jean Hoerni\'s planar process (Jan 1959) created flat, oxide-protected transistors on silicon.',
+                choices: [
+                    { text: 'See Noyce\'s integrated circuit idea', next: 'noyce_idea' },
+                    { text: 'Go back and see Kilby\'s invention first', next: 'kilby_idea' }
+                ]
+            },
+
+            noyce_idea: {
+                year: 'January 1959',
+                era: 'THE PLANAR SOLUTION',
+                content: `<div class="scene-investigation">
+                    <p><span class="copper-highlight">Robert Noyce</span> looks at Hoerni's planar process and sees what no one else does. If transistors can be built flat, protected under glass... why not build the <span class="led-yellow-text">wiring</span> on top of the glass too?</p>
+
+                    <p>On January 23, 1959, Noyce writes in his lab notebook:</p>
+
+                    <div class="circuit-quote">
+                        "It would be desirable to make multiple devices on a single piece of silicon, in order to be able to make interconnections between devices as part of the manufacturing process, and thus reduce size, weight, etc."
+                        <span class="speaker">&mdash; Robert Noyce, Lab Notebook, January 23, 1959</span>
+                    </div>
+
+                    <p>Where Kilby's chip used <span class="led-red-text">hand-soldered flying wires</span>, Noyce proposes depositing metal traces directly on the oxide layer &mdash; printed connections that are part of the manufacturing process itself. No hand work. Fully <span class="copper-highlight">manufacturable</span>.</p>
+
+                    <div class="component-block">
+                        <div style="font-size: 1rem; color: var(--silkscreen); line-height: 2.2;">
+                            <span style="color: var(--led-red);">Kilby (TI):</span> Components on germanium + flying wires<br>
+                            <span style="color: var(--led-green);">Noyce (Fairchild):</span> Components on silicon + printed metal traces on oxide
+                        </div>
+                        <span class="solder-bl"></span><span class="solder-br"></span>
+                        <div class="component-label">Fig. 4 &mdash; Two approaches to the integrated circuit</div>
+                    </div>
+
+                    <p>Noyce's approach is more practical for mass production. The planar process plus oxide isolation plus metal interconnects: this is the architecture that will scale to billions of transistors.</p>
+
+                    <p>Neither inventor knows about the other's work. They are <span class="led-yellow-text">1,200 miles apart</span>, solving the same problem at the same time.</p>
+
+                    <div class="datasheet-fact">Noyce filed his IC patent on July 30, 1959 &mdash; six months after Kilby's filing on February 6. But Noyce's patent was granted first (April 1961), because Kilby's broader claims faced more review. This triggered a decade-long patent war.</div>
+                </div>`,
+                fact: 'Noyce\'s key insight (Jan 23, 1959): print metal interconnects on the oxide layer instead of hand-wiring. This made ICs manufacturable. He and Kilby worked independently, 1,200 miles apart.',
+                choices: [
+                    { text: 'The patent war begins', next: 'patent_war' },
+                    { text: 'Examine the germanium vs silicon debate', next: 'germanium_silicon' }
+                ]
+            },
+
+            germanium_silicon: {
+                year: '1954&ndash;1965',
+                era: 'THE MATERIAL QUESTION',
+                content: `<div class="scene-confrontation">
+                    <p>A fundamental question divides the semiconductor industry: <span class="copper-highlight">germanium</span> or <span class="copper-highlight">silicon</span>?</p>
+
+                    <div class="component-block">
+                        <div style="text-align: left; padding: 0.5rem 1rem; line-height: 2.2; font-family: var(--font-mono); font-size: 0.85rem;">
+                            <span class="led-indicator amber"></span> <span style="color: var(--led-amber);">GERMANIUM (Ge, element 32)</span><br>
+                            &nbsp;&nbsp; &bull; Used first (Bardeen & Brattain's original transistor)<br>
+                            &nbsp;&nbsp; &bull; Higher electron mobility = faster switching<br>
+                            &nbsp;&nbsp; &bull; Easier to purify in the 1950s<br>
+                            &nbsp;&nbsp; &bull; <span class="led-red-text">Fails above 75&deg;C</span> &mdash; leaks current when hot<br><br>
+                            <span class="led-indicator blue"></span> <span class="led-blue-text">SILICON (Si, element 14)</span><br>
+                            &nbsp;&nbsp; &bull; Second most abundant element in Earth's crust<br>
+                            &nbsp;&nbsp; &bull; Works up to 150&deg;C &mdash; far more thermally stable<br>
+                            &nbsp;&nbsp; &bull; Forms a natural protective oxide (SiO&#x2082;) &mdash; <span class="led-green-text">key advantage</span><br>
+                            &nbsp;&nbsp; &bull; Harder to process but ultimately cheaper at scale
+                        </div>
+                        <span class="solder-bl"></span><span class="solder-br"></span>
+                        <div class="component-label">Fig. 5 &mdash; Germanium vs Silicon</div>
+                    </div>
+
+                    <p>Kilby's first IC used <span style="color: var(--led-amber);">germanium</span> because TI had germanium expertise. Noyce used <span class="led-blue-text">silicon</span> because Fairchild was a silicon shop. History would prove silicon the winner, and for one crucial reason: <span class="copper-highlight">silicon dioxide</span>.</p>
+
+                    <p>When silicon is heated in oxygen, it grows a thin, glass-like layer of SiO&#x2082; on its surface. This oxide is a near-perfect insulator. It protects the transistor. It can be etched with patterns. It lets you build layers. This is what makes Hoerni's planar process &mdash; and Noyce's interconnects &mdash; possible.</p>
+
+                    <div class="signal-trace blue">
+                        Si + O&#x2082; &rarr; SiO&#x2082; (natural insulator) &rarr; planar process &rarr; scalable ICs
+                    </div>
+
+                    <p>Germanium doesn't form a useful oxide. By the mid-1960s, the industry has moved decisively to silicon. The region around Fairchild &mdash; the Santa Clara Valley south of San Francisco &mdash; begins to earn a new name: <span class="copper-highlight">Silicon Valley</span>.</p>
+
+                    <div class="datasheet-fact">Silicon makes up 27.7% of Earth's crust by mass, second only to oxygen. Its natural oxide layer (SiO&#x2082;) is the single most important material property enabling modern chip manufacturing.</div>
+                </div>`,
+                fact: 'Silicon won over germanium because SiO2 (silicon dioxide) forms a natural protective insulator, enabling the planar process and scalable IC manufacturing. This named "Silicon Valley."',
+                choices: [
+                    { text: 'The patent war between Kilby and Noyce', next: 'patent_war' }
+                ]
+            },
+
+            patent_war: {
+                year: '1959&ndash;1966',
+                era: 'THE LEGAL BATTLE',
+                content: `<div class="scene-confrontation">
+                    <p>Two companies. Two inventors. One invention. The legal fight over who invented the integrated circuit will last <span class="led-red-text">nearly a decade</span>.</p>
+
+                    <p><span class="copper-highlight">Jack Kilby</span> (Texas Instruments) filed first &mdash; <span class="led-yellow-text">February 6, 1959</span>. His patent claims are broad: the concept of making all circuit elements from a single body of semiconductor material.</p>
+
+                    <p><span class="copper-highlight">Robert Noyce</span> (Fairchild) filed later &mdash; <span class="led-yellow-text">July 30, 1959</span>. But his patent is more specific and practical: he describes the planar interconnect method that actually makes ICs manufacturable.</p>
+
+                    <div class="component-block">
+                        <div style="font-size: 0.95rem; color: var(--silkscreen); line-height: 2.2; text-align: left; padding: 0 1rem;">
+                            <span class="led-indicator amber"></span> Kilby patent filed: Feb 6, 1959 &mdash; Granted: Jun 23, 1964<br>
+                            <span class="led-indicator blue"></span> Noyce patent filed: Jul 30, 1959 &mdash; Granted: Apr 25, 1961
+                        </div>
+                        <span class="solder-bl"></span><span class="solder-br"></span>
+                        <div class="component-label">Fig. 6 &mdash; The IC patent timeline</div>
+                    </div>
+
+                    <p>The Court of Customs and Patent Appeals rules in 1969 that Noyce's interconnect claims take priority over Kilby's for the practical IC. But Kilby's broad concept patent also stands. In the end, both are recognized. By 1966, TI and Fairchild agree to <span class="copper-highlight">cross-license</span> their patents, ending the war.</p>
+
+                    <div class="circuit-quote">
+                        "If I have seen further, it is by standing on each other's shoulders."
+                        <span class="speaker">&mdash; variation of Newton, often applied to Kilby &amp; Noyce</span>
+                    </div>
+
+                    <div class="datasheet-fact">The patent dispute was resolved through cross-licensing. Both TI and Fairchild (and later all chipmakers) paid royalties. The industry recognized both Kilby and Noyce as co-inventors of the integrated circuit.</div>
+                </div>`,
+                fact: 'Kilby filed his IC patent first (Feb 1959) but Noyce\'s was granted first (Apr 1961). After a decade-long legal battle, both were recognized as co-inventors through cross-licensing.',
+                choices: [
+                    { text: 'See the IC\'s first real-world mission', next: 'apollo' },
+                    { text: 'What if neither inventor had continued?', next: 'ending_incomplete' },
+                    { text: 'Jump ahead to Moore\'s Law', next: 'moores_law' }
+                ]
+            },
+
+            apollo: {
+                year: '1962&ndash;1969',
+                era: 'THE APOLLO GUIDANCE COMPUTER',
+                content: `<div class="scene-narration">
+                    <p>The integrated circuit's first big customer is not a corporation &mdash; it is <span class="copper-highlight">NASA</span>.</p>
+
+                    <p>In 1962, MIT's Instrumentation Laboratory begins designing the <span class="led-blue-text">Apollo Guidance Computer (AGC)</span> for the moon mission. The computer needs to be small enough to fit in a spacecraft, reliable enough to not fail 240,000 miles from Earth, and powerful enough to navigate in real-time.</p>
+
+                    <div class="component-block">
+                        <div style="font-size: 0.95rem; color: var(--silkscreen); line-height: 2;">
+                            <span class="led-indicator green"></span> <span class="led-green-text">Apollo Guidance Computer Specs:</span><br>
+                            &nbsp;&bull; ~2,800 Fairchild ICs (3-input NOR gates)<br>
+                            &nbsp;&bull; 72 KB memory (fixed rope core)<br>
+                            &nbsp;&bull; 2 KB RAM (magnetic core)<br>
+                            &nbsp;&bull; 70 lbs, 1 cubic foot<br>
+                            &nbsp;&bull; 55 watts power consumption
+                        </div>
+                        <span class="solder-bl"></span><span class="solder-br"></span>
+                        <div class="component-label">Fig. 7 &mdash; AGC specifications</div>
+                    </div>
+
+                    <p>At its peak, the Apollo program buys <span class="led-yellow-text">60% of all integrated circuits produced in the United States</span>. This massive demand drives down IC prices from $1,000 per chip in 1962 to under $25 by 1968. NASA's buying power essentially <span class="copper-highlight">bootstraps the entire semiconductor industry</span>.</p>
+
+                    <p>On July 20, 1969, the AGC guides Apollo 11 to the lunar surface. Integrated circuits have just navigated humans to the Moon and back &mdash; the most complex journey in human history, trusted to chips barely a decade old.</p>
+
+                    <div class="datasheet-fact">The Apollo Guidance Computer had less processing power than a modern pocket calculator. But its use of ICs proved that semiconductors could be trusted for the most mission-critical applications imaginable, accelerating civilian adoption.</div>
+                </div>`,
+                fact: 'NASA\'s Apollo program used ~2,800 ICs per guidance computer and at peak bought 60% of all US IC production, driving prices from $1,000 to $25 per chip and bootstrapping the industry.',
+                choices: [
+                    { text: 'Moore\'s Law and the exponential future', next: 'moores_law' }
+                ]
+            },
+
+            moores_law: {
+                year: '1965',
+                era: 'THE PROPHECY',
+                content: `<div class="scene-narration">
+                    <p>April 19, 1965. <span class="copper-highlight">Gordon Moore</span> &mdash; one of the traitorous eight, Noyce's co-founder at Fairchild &mdash; publishes a paper in <em>Electronics</em> magazine. In it, he makes an observation that will define the next 60 years of technology.</p>
+
+                    <div class="circuit-quote">
+                        "The complexity for minimum component costs has increased at a rate of roughly a factor of two per year. There is no reason to believe it will not remain nearly constant for at least 10 years."
+                        <span class="speaker">&mdash; Gordon Moore, Electronics magazine, April 19, 1965</span>
+                    </div>
+
+                    <p>Moore notices that the number of transistors on a chip has been <span class="led-green-text">doubling approximately every year</span>. In 1975, he revises this to a doubling every <span class="copper-highlight">two years</span>. This observation becomes known as <span class="led-yellow-text">Moore's Law</span>.</p>
+
+                    <div class="component-block">
+                        <div style="text-align: left; padding: 0.5rem 1rem; line-height: 2; font-family: var(--font-mono); font-size: 0.85rem;">
+                            <span class="led-indicator red"></span> 1958: Kilby's IC &mdash; <span class="led-red-text">1 transistor</span><br>
+                            <span class="led-indicator amber"></span> 1965: First commercial ICs &mdash; <span style="color: var(--led-amber);">~64 transistors</span><br>
+                            <span class="led-indicator yellow"></span> 1971: Intel 4004 &mdash; <span class="led-yellow-text">2,300 transistors</span><br>
+                            <span class="led-indicator green"></span> 1989: Intel 486 &mdash; <span class="led-green-text">1.2 million transistors</span><br>
+                            <span class="led-indicator blue"></span> 2020: Apple M1 &mdash; <span class="led-blue-text">16 billion transistors</span><br>
+                            <span class="led-indicator blue"></span> 2024: Apple M4 Ultra &mdash; <span class="led-blue-text">134 billion transistors</span>
+                        </div>
+                        <span class="solder-bl"></span><span class="solder-br"></span>
+                        <div class="component-label">Fig. 8 &mdash; Transistor count over time</div>
+                    </div>
+
+                    <p>Moore's Law is not a law of physics &mdash; it is a self-fulfilling <span class="copper-highlight">economic prophecy</span>. The industry organized its R&D roadmaps around it. When engineers believed doubling was possible, they invested to make it happen.</p>
+
+                    <div class="datasheet-fact">Moore's Law has held for nearly 60 years. From 1 transistor (1958) to 134 billion (2024), chip density has increased by a factor of over 100 billion &mdash; the most sustained exponential growth in any human technology.</div>
+                </div>`,
+                fact: 'Gordon Moore predicted in 1965 that transistor counts would double yearly (revised to every 2 years in 1975). This "Moore\'s Law" has held for ~60 years, from 1 transistor to 134 billion.',
+                choices: [
+                    { text: 'See how Noyce and Moore created Intel', next: 'intel_founding' },
+                    { text: 'Jump to the legacy and modern chips', next: 'ending_revolution' }
+                ]
+            },
+
+            intel_founding: {
+                year: '1968',
+                era: 'THE NEXT CHAPTER',
+                content: `<div class="scene-narration">
+                    <p>By 1968, Fairchild Semiconductor is fracturing. Dozens of engineers have left to start their own companies &mdash; so many that the industry jokes about "Fairchildren." The most consequential departure is about to happen.</p>
+
+                    <p><span class="copper-highlight">Robert Noyce</span> and <span class="copper-highlight">Gordon Moore</span> leave Fairchild together to found a new company. They name it <span class="led-blue-text">NM Electronics</span>, then quickly rename it to <span class="led-yellow-text">Intel</span> &mdash; short for "Integrated Electronics."</p>
+
+                    <p>Their third employee is <span class="copper-highlight">Andy Grove</span>, a Hungarian refugee and chemical engineer who will become one of the most important CEOs in tech history.</p>
+
+                    <div class="component-block">
+                        <div style="font-size: 1rem; color: var(--silkscreen); line-height: 2.2;">
+                            <span class="led-indicator blue"></span> 1968 &mdash; Intel founded by Noyce &amp; Moore<br>
+                            <span class="led-indicator green"></span> 1970 &mdash; Intel 1103 DRAM: first commercial memory chip<br>
+                            <span class="led-indicator yellow"></span> 1971 &mdash; <span class="copper-highlight">Intel 4004</span>: first commercial microprocessor<br>
+                            <span class="led-indicator amber"></span> 1974 &mdash; Intel 8080: brain of the Altair 8800 (first personal computer)
+                        </div>
+                        <span class="solder-bl"></span><span class="solder-br"></span>
+                        <div class="component-label">Fig. 9 &mdash; Intel milestones</div>
+                    </div>
+
+                    <p>The Intel 4004 (1971), designed by <span class="led-blue-text">Federico Faggin</span>, Ted Hoff, and Stanley Mazor, is the first <span class="copper-highlight">microprocessor</span> &mdash; an entire CPU on a single chip. It has 2,300 transistors and runs at 740 kHz. It was originally designed for a Japanese calculator, but Intel realizes it can be programmed for anything.</p>
+
+                    <div class="signal-trace green">
+                        Calculator chip &rarr; General-purpose processor &rarr; THE COMPUTER ON A CHIP
+                    </div>
+
+                    <p>The microprocessor transforms the IC from a component into a <span class="led-yellow-text">platform</span>. Now anyone can build a computer. The personal computer revolution is about to begin.</p>
+
+                    <div class="datasheet-fact">The Intel 4004 (1971) had 2,300 transistors on a 12mm&sup2; die, ran at 740 kHz, and cost $60. It had roughly the same computing power as ENIAC, which had filled an entire room 26 years earlier.</div>
+                </div>`,
+                fact: 'Noyce and Moore founded Intel in 1968. The Intel 4004 (1971), the first commercial microprocessor, packed ENIAC-level computing power (2,300 transistors) onto a single chip.',
+                choices: [
+                    { text: 'See the Nobel Prize and lasting legacy', next: 'ending_revolution' }
+                ]
+            },
+
+            ending_incomplete: {
+                year: '1958',
+                era: 'WHAT IF THEY STOPPED?',
+                content: `<div class="scene-ending">
+                    <p>In this timeline, the tyranny of numbers is never solved. Computers remain room-sized machines, maintained by armies of technicians replacing burned-out vacuum tubes.</p>
+
+                    <div class="signal-trace red">
+                        NO IC &rarr; NO MICROPROCESSOR &rarr; NO PERSONAL COMPUTER &rarr; NO INTERNET &rarr; NO SMARTPHONE
+                    </div>
+
+                    <p>But in reality, <span class="copper-highlight">both Kilby and Noyce pressed forward</span>. Two strangers, working independently, each saw the same truth: the future demanded integration.</p>
+
+                    <p>The lesson of the integrated circuit is about the inevitability of great ideas. When the time is right &mdash; when vacuum tubes have failed, when transistors are proven, when the military demands miniaturization &mdash; <span class="led-yellow-text">the idea arrives, whether through one mind or two</span>.</p>
+
+                    <div class="circuit-quote">
+                        "There is no limit to what a man can do or where he can go if he doesn't mind who gets the credit."
+                        <span class="speaker">&mdash; plaque on Robert Noyce's desk</span>
+                    </div>
+                </div>`,
+                fact: 'Great inventions often emerge independently because the conditions are ripe. Kilby and Noyce both solved the same problem without knowing about each other, 1,200 miles apart.',
+                choices: [
+                    { text: 'Go back and continue the real story', next: 'moores_law' },
+                    { text: 'Play Again', next: 'intro' },
+                    { text: 'Back to Stories', next: '_exit' }
+                ]
+            },
+
+            ending_revolution: {
+                year: '2000 and beyond',
+                era: 'THE DIGITAL AGE',
+                content: `<div class="scene-ending">
+                    <p>In <span class="led-yellow-text">2000</span>, Jack Kilby receives the <span class="copper-highlight">Nobel Prize in Physics</span> "for his part in the invention of the integrated circuit." He is 77 years old. Robert Noyce, who would surely have shared the prize, died of a heart attack in 1990 at age 62. The Nobel is not awarded posthumously.</p>
+
+                    <div class="circuit-quote">
+                        "What we didn't realize then was that the integrated circuit would reduce the cost of electronic functions by a factor of a million to one. Nothing had ever done that for anything before."
+                        <span class="speaker">&mdash; Jack Kilby, Nobel Prize lecture, December 2000</span>
+                    </div>
+
+                    <div class="component-block">
+                        <div style="text-align: left; padding: 0.5rem 1rem; line-height: 2.2; font-family: var(--font-mono); font-size: 0.85rem;">
+                            <span class="led-indicator green"></span> <span class="led-green-text">A modern smartphone contains:</span><br>
+                            &nbsp;&bull; ~16 billion transistors in the main processor<br>
+                            &nbsp;&bull; More computing power than all of NASA had in 1969<br>
+                            &nbsp;&bull; GPS, camera, radio, accelerometer &mdash; all ICs<br>
+                            &nbsp;&bull; Cost: ~$500 (ICs inside cost pennies per transistor)
+                        </div>
+                        <span class="solder-bl"></span><span class="solder-br"></span>
+                        <div class="component-label">Fig. 10 &mdash; The IC's legacy in your pocket</div>
+                    </div>
+
+                    <p>From Kilby's crude germanium oscillator to chips with <span class="led-blue-text">134 billion transistors</span>. From a sliver of semiconductor on a lab bench to the foundation of a <span class="led-yellow-text">$600 billion global industry</span>. From two engineers who never met working in parallel &mdash; to a technology that connects eight billion people.</p>
+
+                    <p>Kilby died in 2005. Noyce in 1990. Moore, who predicted it all, stepped back from Intel in 2006 and passed away in 2023 at age 94. Their invention didn't just change electronics &mdash; it <span class="copper-highlight">changed what it means to be human in the 21st century</span>.</p>
+
+                    <div class="signal-trace green">
+                        1 transistor (1958) &rarr; 134,000,000,000 transistors (2024) &rarr; &infin;
+                    </div>
+
+                    <p style="margin-top: 2rem; font-family: var(--font-display); color: var(--copper-bright); font-size: 1.1rem; letter-spacing: 1px;">
+                        From a slab of germanium in a quiet Texas lab, the digital world was born.
+                    </p>
+                </div>`,
+                fact: 'Jack Kilby won the 2000 Nobel Prize in Physics. Noyce died in 1990. Their invention reduced the cost of electronic functions by a factor of one million and enabled the digital age.',
+                choices: [
+                    { text: 'Play Again', next: 'intro' },
+                    { text: 'Back to Stories', next: '_exit' }
+                ]
+            }
+        };
+
+        /* =============================================
+           INTERACTIVE COMPONENT HANDLER
+        ============================================= */
+        document.addEventListener('click', function(e) {
+            const comp = e.target.closest('.clickable-component');
+            if (comp) {
+                comp.classList.toggle('revealed');
+                const detailId = comp.getAttribute('data-detail');
+                if (detailId) {
+                    const detail = document.getElementById(detailId);
+                    if (detail) {
+                        detail.classList.toggle('visible');
+                    }
+                }
+            }
+        });
+
+        /* =============================================
+           GAME ENGINE
+        ============================================= */
+        const engine = {
+            currentScene: null,
+            history: [],
+            clues: [],
+            totalScenes: Object.keys(STORY).length,
+
+            init() {
+                document.addEventListener('keydown', (e) => {
+                    const key = parseInt(e.key);
+                    if (key >= 1 && key <= 9) {
+                        const btns = document.querySelectorAll('.choice-btn');
+                        if (btns[key - 1]) {
+                            btns[key - 1].click();
+                        }
+                    }
+                });
+            },
+
+            start() {
+                document.getElementById('titleScreen').style.display = 'none';
+                document.getElementById('sceneWrapper').style.display = 'block';
+                this.history = [];
+                this.clues = [];
+                document.getElementById('clueList').innerHTML = '';
+                this.goTo('intro');
+            },
+
+            goTo(id) {
+                if (id === '_exit') {
+                    window.location.href = '../index.html';
+                    return;
+                }
+
+                if (id === 'intro') {
+                    this.history = [];
+                    this.clues = [];
+                    document.getElementById('clueList').innerHTML = '';
+                }
+
+                const scene = STORY[id];
+                if (!scene) {
+                    console.error('Scene not found:', id);
+                    return;
+                }
+
+                this.currentScene = id;
+                this.history.push(id);
+                this.renderScene(scene);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            },
+
+            renderScene(scene) {
+                // Update HUD
+                const eraEl = document.getElementById('sceneEra');
+                const yearEl = document.getElementById('sceneYear');
+                const progressEl = document.getElementById('sceneProgress');
+
+                eraEl.textContent = scene.era || '';
+                yearEl.innerHTML = scene.year || '';
+                progressEl.textContent = `${this.history.length} / ${this.totalScenes} scenes`;
+
+                // Inject content with animation reset
+                const contentEl = document.getElementById('sceneContent');
+                contentEl.style.animation = 'none';
+                contentEl.offsetHeight; // force reflow
+                contentEl.style.animation = '';
+                contentEl.innerHTML = scene.content;
+
+                // Add fact to clue tracker
+                if (scene.fact && !this.clues.includes(scene.fact)) {
+                    this.clues.push(scene.fact);
+                    const li = document.createElement('li');
+                    li.textContent = scene.fact;
+                    li.classList.add('new-clue');
+                    document.getElementById('clueList').appendChild(li);
+                    setTimeout(() => li.classList.remove('new-clue'), 2000);
+                }
+
+                // Render choices
+                const choicesEl = document.getElementById('choicesContainer');
+                choicesEl.innerHTML = '';
+                if (scene.choices) {
+                    scene.choices.forEach((choice, i) => {
+                        const btn = document.createElement('button');
+                        btn.className = 'choice-btn';
+                        btn.setAttribute('data-key', i + 1);
+                        btn.textContent = choice.text;
+                        btn.addEventListener('click', () => this.goTo(choice.next));
+                        choicesEl.appendChild(btn);
+                    });
+                }
+            }
+        };
+
+        engine.init();
+    </script>
+<script defer src="../../prompt-viewer.js"></script>
+</body>
+</html>

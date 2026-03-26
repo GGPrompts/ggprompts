@@ -1,0 +1,2479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pandas / Polars — Tech Guide</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=Inter:wght@300;400;500;600;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+    <style>
+        /* ============================================================
+           NOTEBOOK & CHART DESIGN SYSTEM — PANDAS vs POLARS GUIDE
+           ============================================================
+           Inspired by Jupyter notebooks, matplotlib palettes,
+           and the visual language of data science.
+           ============================================================ */
+
+        :root {
+            /* PALETTE — Notebook-inspired with chart accents */
+            --bg: #1b1b2f;
+            --bg-surface: #222240;
+            --bg-elevated: #2a2a4a;
+            --bg-cell: #1e1e3a;
+            --bg-cell-active: #252550;
+            --bg-output: #161628;
+
+            /* Brand colors */
+            --pandas-blue: #150458;
+            --pandas-purple: #e70488;
+            --pandas-accent: #ffca00;
+            --polars-red: #cd792c;
+            --polars-blue: #2196f3;
+            --polars-accent: #4fc3f7;
+
+            /* Chart palette — colorblind-safe, high contrast */
+            --chart-1: #4c78a8;
+            --chart-2: #f58518;
+            --chart-3: #e45756;
+            --chart-4: #72b7b2;
+            --chart-5: #54a24b;
+            --chart-6: #eeca3b;
+            --chart-7: #b279a2;
+            --chart-8: #ff9da6;
+
+            /* Semantic */
+            --accent: #4fc3f7;
+            --accent-dim: #2a7fa8;
+            --accent-glow: rgba(79, 195, 247, 0.12);
+            --success: #54a24b;
+            --warning: #f58518;
+            --danger: #e45756;
+            --info: #4c78a8;
+
+            /* Text */
+            --text-primary: #e8e8f0;
+            --text-body: #b0b0c8;
+            --text-muted: #7878a0;
+            --text-faint: #505070;
+            --text-on-accent: #0a0a1a;
+
+            /* Borders & Rules */
+            --rule: #32325a;
+            --rule-light: #28284a;
+            --rule-heavy: #4040aa;
+
+            /* Cell execution */
+            --cell-number: #7878a0;
+            --cell-border-active: #4fc3f7;
+            --cell-border-idle: #32325a;
+
+            /* Typography */
+            --font-body: 'Inter', -apple-system, sans-serif;
+            --font-mono: 'IBM Plex Mono', 'Consolas', monospace;
+            --font-prose: 'Source Serif 4', Georgia, serif;
+
+            /* Type scale */
+            --text-xs: 0.6875rem;
+            --text-sm: 0.8125rem;
+            --text-base: 0.9375rem;
+            --text-lg: 1.125rem;
+            --text-xl: 1.375rem;
+            --text-2xl: 1.75rem;
+            --text-3xl: 2.25rem;
+            --text-display: 3rem;
+
+            /* Spacing — 4px base */
+            --space-1: 4px;
+            --space-2: 8px;
+            --space-3: 12px;
+            --space-4: 16px;
+            --space-5: 24px;
+            --space-6: 32px;
+            --space-7: 48px;
+            --space-8: 64px;
+
+            /* Transitions */
+            --transition-fast: 0.12s ease;
+            --transition-base: 0.2s ease;
+        }
+
+        /* RESET */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        html {
+            font-size: 16px;
+            scroll-behavior: smooth;
+            scroll-padding-top: 52px;
+            -webkit-text-size-adjust: 100%;
+        }
+
+        body {
+            font-family: var(--font-body);
+            font-size: var(--text-base);
+            line-height: 1.65;
+            color: var(--text-body);
+            background: var(--bg);
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* Subtle grid background like graph paper */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 0;
+            background-image:
+                linear-gradient(rgba(79, 195, 247, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(79, 195, 247, 0.03) 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+
+        /* ============================================================
+           BACK LINK
+           ============================================================ */
+
+        .back-link {
+            position: relative;
+            z-index: 1;
+            display: inline-block;
+            padding: var(--space-4) var(--space-6);
+            font-family: var(--font-mono);
+            font-size: var(--text-sm);
+            color: var(--accent);
+            text-decoration: none;
+            letter-spacing: 0.04em;
+            transition: color var(--transition-base);
+        }
+
+        .back-link::before { content: '\2190 '; }
+        .back-link:hover { color: var(--chart-2); }
+
+        /* ============================================================
+           CONTAINER
+           ============================================================ */
+
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1120px;
+            margin: 0 auto;
+            padding: 0 var(--space-6);
+        }
+
+        /* ============================================================
+           HEADER
+           ============================================================ */
+
+        .site-header {
+            padding: var(--space-8) var(--space-6) var(--space-7);
+            border-bottom: 2px solid var(--rule-heavy);
+            position: relative;
+        }
+
+        .header-kicker {
+            font-family: var(--font-mono);
+            font-size: var(--text-xs);
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: var(--space-3);
+        }
+
+        .site-header h1 {
+            font-family: var(--font-body);
+            font-size: var(--text-display);
+            font-weight: 700;
+            color: var(--text-primary);
+            letter-spacing: -0.02em;
+            line-height: 1.1;
+            margin-bottom: var(--space-3);
+        }
+
+        .site-header h1 .pandas { color: var(--pandas-accent); }
+        .site-header h1 .polars { color: var(--polars-accent); }
+        .site-header h1 .sep { color: var(--text-faint); font-weight: 300; }
+
+        .tagline {
+            font-family: var(--font-prose);
+            font-size: var(--text-lg);
+            color: var(--text-muted);
+            font-style: italic;
+            max-width: 60ch;
+        }
+
+        .header-meta {
+            display: flex;
+            gap: var(--space-5);
+            margin-top: var(--space-5);
+            font-family: var(--font-mono);
+            font-size: var(--text-xs);
+            color: var(--text-muted);
+            letter-spacing: 0.04em;
+            flex-wrap: wrap;
+        }
+
+        .header-meta span::before {
+            content: '';
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: var(--space-2);
+            vertical-align: middle;
+        }
+
+        .header-meta .meta-pandas::before { background: var(--pandas-accent); }
+        .header-meta .meta-polars::before { background: var(--polars-accent); }
+        .header-meta .meta-python::before { background: var(--chart-5); }
+
+        /* ============================================================
+           STICKY JUMP NAV
+           ============================================================ */
+
+        .jump-nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            display: flex;
+            gap: var(--space-1);
+            padding: var(--space-2) var(--space-5);
+            background: var(--bg);
+            border-bottom: 2px solid var(--rule-heavy);
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            white-space: nowrap;
+        }
+
+        .jump-nav a {
+            font-family: var(--font-mono);
+            font-size: var(--text-xs);
+            color: var(--text-muted);
+            text-decoration: none;
+            padding: var(--space-2) var(--space-3);
+            letter-spacing: 0.02em;
+            flex-shrink: 0;
+            border-bottom: 2px solid transparent;
+            transition: all var(--transition-base);
+        }
+
+        .jump-nav a:hover {
+            color: var(--accent);
+            border-bottom-color: var(--accent);
+        }
+
+        /* ============================================================
+           SECTIONS
+           ============================================================ */
+
+        .section {
+            padding: var(--space-8) 0;
+            border-bottom: 1px solid var(--rule-light);
+        }
+
+        .section:last-of-type { border-bottom: none; }
+
+        .section-header {
+            display: flex;
+            align-items: baseline;
+            gap: var(--space-4);
+            margin-bottom: var(--space-6);
+            padding-bottom: var(--space-3);
+            border-bottom: 1px solid var(--rule);
+        }
+
+        .section-number {
+            font-family: var(--font-mono);
+            font-size: var(--text-3xl);
+            font-weight: 600;
+            color: var(--text-faint);
+            line-height: 1;
+            letter-spacing: -0.02em;
+        }
+
+        .section-title {
+            font-family: var(--font-body);
+            font-size: var(--text-2xl);
+            font-weight: 600;
+            color: var(--text-primary);
+            letter-spacing: -0.01em;
+        }
+
+        .section-description {
+            font-family: var(--font-prose);
+            font-size: var(--text-base);
+            color: var(--text-muted);
+            margin-bottom: var(--space-6);
+            max-width: 65ch;
+            line-height: 1.7;
+        }
+
+        /* ============================================================
+           SUBSECTIONS
+           ============================================================ */
+
+        .subsection {
+            margin-bottom: var(--space-7);
+        }
+
+        .subsection:last-child { margin-bottom: 0; }
+
+        .subsection-title {
+            font-family: var(--font-body);
+            font-size: var(--text-lg);
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: var(--space-4);
+            padding-left: var(--space-4);
+            border-left: 3px solid var(--accent);
+        }
+
+        /* ============================================================
+           NOTEBOOK CELLS — side-by-side code comparison
+           ============================================================ */
+
+        .notebook-cell {
+            background: var(--bg-cell);
+            border: 1px solid var(--cell-border-idle);
+            border-radius: 4px;
+            margin-bottom: var(--space-4);
+            overflow: hidden;
+        }
+
+        .cell-header {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+            padding: var(--space-2) var(--space-4);
+            background: var(--bg-elevated);
+            border-bottom: 1px solid var(--rule-light);
+            font-family: var(--font-mono);
+            font-size: var(--text-xs);
+        }
+
+        .cell-label {
+            color: var(--cell-number);
+            letter-spacing: 0.04em;
+        }
+
+        .cell-tag {
+            padding: 1px 8px;
+            border-radius: 3px;
+            font-size: 0.625rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .cell-tag-pandas {
+            background: rgba(255, 202, 0, 0.12);
+            color: var(--pandas-accent);
+            border: 1px solid rgba(255, 202, 0, 0.25);
+        }
+
+        .cell-tag-polars {
+            background: rgba(79, 195, 247, 0.12);
+            color: var(--polars-accent);
+            border: 1px solid rgba(79, 195, 247, 0.25);
+        }
+
+        .cell-tag-both {
+            background: rgba(114, 183, 178, 0.12);
+            color: var(--chart-4);
+            border: 1px solid rgba(114, 183, 178, 0.25);
+        }
+
+        /* Side-by-side comparison layout */
+        .comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--space-4);
+            margin-bottom: var(--space-5);
+        }
+
+        .comparison-col {
+            background: var(--bg-cell);
+            border: 1px solid var(--cell-border-idle);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .comparison-col-header {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+            padding: var(--space-2) var(--space-4);
+            font-family: var(--font-mono);
+            font-size: var(--text-xs);
+            font-weight: 500;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+        }
+
+        .comparison-col.pandas .comparison-col-header {
+            background: rgba(255, 202, 0, 0.08);
+            color: var(--pandas-accent);
+            border-bottom: 2px solid rgba(255, 202, 0, 0.3);
+        }
+
+        .comparison-col.polars .comparison-col-header {
+            background: rgba(79, 195, 247, 0.08);
+            color: var(--polars-accent);
+            border-bottom: 2px solid rgba(79, 195, 247, 0.3);
+        }
+
+        .comparison-col pre {
+            margin: 0;
+            border: none;
+            border-radius: 0;
+        }
+
+        /* ============================================================
+           CODE BLOCKS
+           ============================================================ */
+
+        pre {
+            background: var(--bg-output);
+            border: 1px solid var(--rule-light);
+            border-radius: 4px;
+            padding: var(--space-4) var(--space-5);
+            overflow-x: auto;
+            margin-bottom: var(--space-4);
+            position: relative;
+        }
+
+        pre code {
+            font-family: var(--font-mono);
+            font-size: var(--text-sm);
+            line-height: 1.7;
+            color: var(--text-primary);
+            tab-size: 4;
+        }
+
+        code {
+            font-family: var(--font-mono);
+            font-size: 0.875em;
+            color: var(--accent);
+            background: var(--accent-glow);
+            padding: 1px 6px;
+            border-radius: 3px;
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+            color: var(--text-primary);
+        }
+
+        /* Syntax highlighting classes */
+        .kw { color: #c792ea; }     /* keywords */
+        .fn { color: #82aaff; }     /* functions */
+        .st { color: #c3e88d; }     /* strings */
+        .cm { color: #546e7a; }     /* comments */
+        .nb { color: #f78c6c; }     /* numbers */
+        .op { color: #89ddff; }     /* operators */
+        .var { color: #eeffff; }    /* variables */
+        .cls { color: #ffcb6b; }    /* class names */
+
+        /* ============================================================
+           TABLES — dataframe-style
+           ============================================================ */
+
+        .df-table-wrap {
+            overflow-x: auto;
+            margin-bottom: var(--space-5);
+            border: 1px solid var(--rule);
+            border-radius: 4px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: var(--font-mono);
+            font-size: var(--text-sm);
+        }
+
+        thead {
+            background: var(--bg-elevated);
+        }
+
+        th {
+            padding: var(--space-3) var(--space-4);
+            text-align: left;
+            font-weight: 600;
+            color: var(--text-primary);
+            border-bottom: 2px solid var(--rule-heavy);
+            white-space: nowrap;
+            letter-spacing: 0.02em;
+        }
+
+        td {
+            padding: var(--space-2) var(--space-4);
+            border-bottom: 1px solid var(--rule-light);
+            color: var(--text-body);
+            vertical-align: top;
+        }
+
+        tr:last-child td { border-bottom: none; }
+
+        tr:hover {
+            background: rgba(79, 195, 247, 0.04);
+        }
+
+        /* Index column style */
+        td:first-child,
+        th:first-child {
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        /* Color-coded cells */
+        .val-pandas { color: var(--pandas-accent); }
+        .val-polars { color: var(--polars-accent); }
+        .val-win { color: var(--success); font-weight: 600; }
+        .val-lose { color: var(--danger); }
+        .val-tie { color: var(--text-muted); }
+
+        /* ============================================================
+           ALERTS / CALLOUTS
+           ============================================================ */
+
+        .alert {
+            padding: var(--space-4) var(--space-5);
+            border-radius: 4px;
+            margin-bottom: var(--space-5);
+            font-size: var(--text-sm);
+            line-height: 1.6;
+            border-left: 4px solid;
+        }
+
+        .alert-info {
+            background: rgba(76, 120, 168, 0.1);
+            border-left-color: var(--info);
+            color: var(--text-body);
+        }
+
+        .alert-warning {
+            background: rgba(245, 133, 24, 0.1);
+            border-left-color: var(--warning);
+            color: var(--text-body);
+        }
+
+        .alert-success {
+            background: rgba(84, 162, 75, 0.1);
+            border-left-color: var(--success);
+            color: var(--text-body);
+        }
+
+        .alert-danger {
+            background: rgba(228, 87, 86, 0.1);
+            border-left-color: var(--danger);
+            color: var(--text-body);
+        }
+
+        .alert strong {
+            color: var(--text-primary);
+        }
+
+        .alert code {
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        /* ============================================================
+           BADGES
+           ============================================================ */
+
+        .badge {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 3px;
+            font-family: var(--font-mono);
+            font-size: 0.625rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            vertical-align: middle;
+        }
+
+        .badge-pandas {
+            background: rgba(255, 202, 0, 0.15);
+            color: var(--pandas-accent);
+            border: 1px solid rgba(255, 202, 0, 0.3);
+        }
+
+        .badge-polars {
+            background: rgba(79, 195, 247, 0.15);
+            color: var(--polars-accent);
+            border: 1px solid rgba(79, 195, 247, 0.3);
+        }
+
+        .badge-both {
+            background: rgba(114, 183, 178, 0.15);
+            color: var(--chart-4);
+            border: 1px solid rgba(114, 183, 178, 0.3);
+        }
+
+        .badge-perf {
+            background: rgba(84, 162, 75, 0.15);
+            color: var(--success);
+            border: 1px solid rgba(84, 162, 75, 0.3);
+        }
+
+        /* ============================================================
+           CHART BAR — inline performance bars
+           ============================================================ */
+
+        .perf-bar-wrap {
+            margin-bottom: var(--space-5);
+        }
+
+        .perf-bar {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+            margin-bottom: var(--space-3);
+        }
+
+        .perf-bar-label {
+            font-family: var(--font-mono);
+            font-size: var(--text-xs);
+            color: var(--text-muted);
+            width: 80px;
+            flex-shrink: 0;
+            text-align: right;
+        }
+
+        .perf-bar-track {
+            flex: 1;
+            height: 20px;
+            background: var(--bg-elevated);
+            border-radius: 3px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .perf-bar-fill {
+            height: 100%;
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+            padding-left: var(--space-2);
+            font-family: var(--font-mono);
+            font-size: 0.625rem;
+            color: var(--text-on-accent);
+            font-weight: 600;
+            transition: width 0.6s ease;
+        }
+
+        .perf-bar-fill.pandas-bar {
+            background: linear-gradient(90deg, #e0a800, #ffca00);
+        }
+
+        .perf-bar-fill.polars-bar {
+            background: linear-gradient(90deg, #2196f3, #4fc3f7);
+        }
+
+        .perf-bar-value {
+            font-family: var(--font-mono);
+            font-size: var(--text-xs);
+            color: var(--text-muted);
+            width: 60px;
+            flex-shrink: 0;
+        }
+
+        /* ============================================================
+           COMMAND GRID
+           ============================================================ */
+
+        .command-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: var(--space-4);
+            margin-bottom: var(--space-5);
+        }
+
+        .command-card {
+            background: var(--bg-cell);
+            border: 1px solid var(--rule);
+            border-radius: 4px;
+            padding: var(--space-4);
+        }
+
+        .command-card h4 {
+            font-family: var(--font-mono);
+            font-size: var(--text-sm);
+            font-weight: 600;
+            color: var(--accent);
+            margin-bottom: var(--space-2);
+        }
+
+        .command-card p {
+            font-size: var(--text-sm);
+            color: var(--text-muted);
+            margin-bottom: var(--space-3);
+        }
+
+        .command-card pre {
+            margin-bottom: 0;
+        }
+
+        /* ============================================================
+           VERSUS INDICATOR
+           ============================================================ */
+
+        .vs-divider {
+            display: flex;
+            align-items: center;
+            gap: var(--space-4);
+            margin: var(--space-5) 0;
+        }
+
+        .vs-divider::before,
+        .vs-divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--rule);
+        }
+
+        .vs-divider span {
+            font-family: var(--font-mono);
+            font-size: var(--text-xs);
+            font-weight: 600;
+            color: var(--text-faint);
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+        }
+
+        /* ============================================================
+           FEATURE MATRIX
+           ============================================================ */
+
+        .feature-matrix td:nth-child(2),
+        .feature-matrix td:nth-child(3) {
+            text-align: center;
+            font-weight: 500;
+        }
+
+        .check { color: var(--success); }
+        .cross { color: var(--danger); }
+        .partial { color: var(--warning); }
+
+        /* ============================================================
+           FOOTER
+           ============================================================ */
+
+        .site-footer {
+            padding: var(--space-7) 0;
+            border-top: 2px solid var(--rule-heavy);
+            text-align: center;
+            margin-top: var(--space-6);
+        }
+
+        .site-footer a {
+            font-family: var(--font-mono);
+            font-size: var(--text-sm);
+            color: var(--accent);
+            text-decoration: none;
+            letter-spacing: 0.04em;
+            transition: color var(--transition-base);
+        }
+
+        .site-footer a:hover { color: var(--chart-2); }
+
+        .footer-meta {
+            font-family: var(--font-mono);
+            font-size: var(--text-xs);
+            color: var(--text-faint);
+            margin-top: var(--space-3);
+            letter-spacing: 0.04em;
+        }
+
+        /* ============================================================
+           RESPONSIVE
+           ============================================================ */
+
+        @media (max-width: 768px) {
+            html { font-size: 15px; }
+
+            .container { padding: 0 var(--space-4); }
+
+            .site-header { padding: var(--space-6) var(--space-4) var(--space-5); }
+            .site-header h1 { font-size: var(--text-2xl); }
+
+            .section { padding: var(--space-6) 0; }
+            .section-header { flex-direction: column; gap: var(--space-2); }
+            .section-number { font-size: var(--text-xl); }
+
+            .comparison {
+                grid-template-columns: 1fr;
+            }
+
+            .command-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .header-meta { flex-direction: column; gap: var(--space-2); }
+
+            .perf-bar-label { width: 60px; font-size: 0.6rem; }
+        }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-link">Tech Guides</a>
+
+    <div class="container">
+        <header class="site-header">
+            <div class="header-kicker">Developer Reference &middot; Data Engineering</div>
+            <h1><span class="pandas">Pandas</span> <span class="sep">/</span> <span class="polars">Polars</span></h1>
+            <p class="tagline">Two Python DataFrame libraries, compared side by side &mdash; from basic operations to advanced analytics, with guidance on when to use which.</p>
+            <div class="header-meta">
+                <span class="meta-pandas">Pandas 2.x</span>
+                <span class="meta-polars">Polars 1.x</span>
+                <span class="meta-python">Python 3.10+</span>
+            </div>
+        </header>
+
+        <!-- ============================================================
+             STICKY JUMP NAV
+             ============================================================ -->
+
+        <nav class="jump-nav">
+            <a href="#cheatsheet">Cheat Sheet</a>
+            <a href="#setup">Setup</a>
+            <a href="#dataframes">DataFrames</a>
+            <a href="#io">I/O</a>
+            <a href="#filtering">Filtering</a>
+            <a href="#groupby">GroupBy</a>
+            <a href="#joins">Joins</a>
+            <a href="#window">Window Fns</a>
+            <a href="#lazy">Lazy Eval</a>
+            <a href="#performance">Performance</a>
+            <a href="#choosing">When to Use</a>
+        </nav>
+
+        <!-- ============================================================
+             01. CHEAT SHEET
+             ============================================================ -->
+
+        <section id="cheatsheet" class="section">
+            <div class="section-header">
+                <span class="section-number">01</span>
+                <h2 class="section-title">Quick Reference</h2>
+            </div>
+            <p class="section-description">The most common operations at a glance. Pandas on the left, Polars on the right.</p>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Core Operations</h3>
+                <div class="df-table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Operation</th>
+                                <th>Pandas</th>
+                                <th>Polars</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Create DataFrame</td>
+                                <td><code>pd.DataFrame({"a": [1,2]})</code></td>
+                                <td><code>pl.DataFrame({"a": [1,2]})</code></td>
+                            </tr>
+                            <tr>
+                                <td>Read CSV</td>
+                                <td><code>pd.read_csv("f.csv")</code></td>
+                                <td><code>pl.read_csv("f.csv")</code></td>
+                            </tr>
+                            <tr>
+                                <td>Select columns</td>
+                                <td><code>df[["a", "b"]]</code></td>
+                                <td><code>df.select("a", "b")</code></td>
+                            </tr>
+                            <tr>
+                                <td>Filter rows</td>
+                                <td><code>df[df["a"] > 5]</code></td>
+                                <td><code>df.filter(pl.col("a") > 5)</code></td>
+                            </tr>
+                            <tr>
+                                <td>Add column</td>
+                                <td><code>df["c"] = df["a"] + 1</code></td>
+                                <td><code>df.with_columns((pl.col("a") + 1).alias("c"))</code></td>
+                            </tr>
+                            <tr>
+                                <td>Group &amp; aggregate</td>
+                                <td><code>df.groupby("a").agg({"b": "sum"})</code></td>
+                                <td><code>df.group_by("a").agg(pl.col("b").sum())</code></td>
+                            </tr>
+                            <tr>
+                                <td>Sort</td>
+                                <td><code>df.sort_values("a", ascending=False)</code></td>
+                                <td><code>df.sort("a", descending=True)</code></td>
+                            </tr>
+                            <tr>
+                                <td>Join</td>
+                                <td><code>pd.merge(df1, df2, on="k")</code></td>
+                                <td><code>df1.join(df2, on="k")</code></td>
+                            </tr>
+                            <tr>
+                                <td>Drop nulls</td>
+                                <td><code>df.dropna()</code></td>
+                                <td><code>df.drop_nulls()</code></td>
+                            </tr>
+                            <tr>
+                                <td>Rename columns</td>
+                                <td><code>df.rename(columns={"a": "x"})</code></td>
+                                <td><code>df.rename({"a": "x"})</code></td>
+                            </tr>
+                            <tr>
+                                <td>Shape</td>
+                                <td><code>df.shape</code></td>
+                                <td><code>df.shape</code></td>
+                            </tr>
+                            <tr>
+                                <td>Describe</td>
+                                <td><code>df.describe()</code></td>
+                                <td><code>df.describe()</code></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Key Differences at a Glance</h3>
+                <div class="df-table-wrap">
+                    <table class="feature-matrix">
+                        <thead>
+                            <tr>
+                                <th>Feature</th>
+                                <th>Pandas</th>
+                                <th>Polars</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Index-based</td>
+                                <td class="check">&#10003;</td>
+                                <td class="cross">&#10007;</td>
+                            </tr>
+                            <tr>
+                                <td>Lazy evaluation</td>
+                                <td class="cross">&#10007;</td>
+                                <td class="check">&#10003;</td>
+                            </tr>
+                            <tr>
+                                <td>Multi-threaded</td>
+                                <td class="cross">&#10007;</td>
+                                <td class="check">&#10003;</td>
+                            </tr>
+                            <tr>
+                                <td>Arrow-native</td>
+                                <td class="partial">~</td>
+                                <td class="check">&#10003;</td>
+                            </tr>
+                            <tr>
+                                <td>Ecosystem maturity</td>
+                                <td class="check">&#10003;</td>
+                                <td class="partial">~</td>
+                            </tr>
+                            <tr>
+                                <td>Mutation (in-place)</td>
+                                <td class="check">&#10003;</td>
+                                <td class="cross">&#10007;</td>
+                            </tr>
+                            <tr>
+                                <td>Streaming large files</td>
+                                <td class="cross">&#10007;</td>
+                                <td class="check">&#10003;</td>
+                            </tr>
+                            <tr>
+                                <td>GPU acceleration</td>
+                                <td class="partial">~ (cuDF)</td>
+                                <td class="check">&#10003; (GPU engine)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             02. SETUP & INSTALLATION
+             ============================================================ -->
+
+        <section id="setup" class="section">
+            <div class="section-header">
+                <span class="section-number">02</span>
+                <h2 class="section-title">Setup &amp; Installation</h2>
+            </div>
+            <p class="section-description">Getting started with both libraries. They can coexist in the same environment.</p>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Installation</h3>
+                <div class="comparison">
+                    <div class="comparison-col pandas">
+                        <div class="comparison-col-header">Pandas</div>
+                        <pre><code><span class="cm"># pip</span>
+pip install pandas
+
+<span class="cm"># conda</span>
+conda install pandas
+
+<span class="cm"># With optional dependencies</span>
+pip install pandas[all]
+
+<span class="cm"># Specific extras</span>
+pip install pandas[parquet,excel,sql]</code></pre>
+                    </div>
+                    <div class="comparison-col polars">
+                        <div class="comparison-col-header">Polars</div>
+                        <pre><code><span class="cm"># pip</span>
+pip install polars
+
+<span class="cm"># conda</span>
+conda install polars
+
+<span class="cm"># With all optional features</span>
+pip install polars[all]
+
+<span class="cm"># Specific extras</span>
+pip install polars[numpy,pandas,pyarrow]</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Import Conventions</h3>
+                <div class="comparison">
+                    <div class="comparison-col pandas">
+                        <div class="comparison-col-header">Pandas</div>
+                        <pre><code><span class="kw">import</span> pandas <span class="kw">as</span> pd
+<span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="cm"># Version check</span>
+<span class="fn">print</span>(pd.__version__)</code></pre>
+                    </div>
+                    <div class="comparison-col polars">
+                        <div class="comparison-col-header">Polars</div>
+                        <pre><code><span class="kw">import</span> polars <span class="kw">as</span> pl
+
+<span class="cm"># Version check</span>
+<span class="fn">print</span>(pl.__version__)
+
+<span class="cm"># Optional: expression namespace</span>
+<span class="kw">from</span> polars <span class="kw">import</span> col, lit, when</code></pre>
+                    </div>
+                </div>
+
+                <div class="alert alert-info">
+                    <strong>Interop:</strong> Polars can convert to/from Pandas seamlessly:
+                    <code>df_polars = pl.from_pandas(df_pandas)</code> and
+                    <code>df_pandas = df_polars.to_pandas()</code>.
+                    Polars uses Arrow memory, so conversion to Pandas 2.x with <code>ArrowDtype</code> is zero-copy.
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             03. DATAFRAMES & SERIES
+             ============================================================ -->
+
+        <section id="dataframes" class="section">
+            <div class="section-header">
+                <span class="section-number">03</span>
+                <h2 class="section-title">DataFrames &amp; Series</h2>
+            </div>
+            <p class="section-description">The fundamental data structures. Both libraries center on the DataFrame, but differ in their approach to indexing and mutability.</p>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Creating DataFrames</h3>
+                <div class="comparison">
+                    <div class="comparison-col pandas">
+                        <div class="comparison-col-header">Pandas</div>
+                        <pre><code><span class="cm"># From dict</span>
+df = pd.DataFrame({
+    <span class="st">"name"</span>: [<span class="st">"Alice"</span>, <span class="st">"Bob"</span>, <span class="st">"Carol"</span>],
+    <span class="st">"age"</span>: [<span class="nb">30</span>, <span class="nb">25</span>, <span class="nb">35</span>],
+    <span class="st">"score"</span>: [<span class="nb">85.5</span>, <span class="nb">92.0</span>, <span class="nb">78.3</span>]
+})
+
+<span class="cm"># With explicit index</span>
+df = pd.DataFrame(
+    {<span class="st">"x"</span>: [<span class="nb">1</span>,<span class="nb">2</span>,<span class="nb">3</span>]},
+    index=[<span class="st">"a"</span>,<span class="st">"b"</span>,<span class="st">"c"</span>]
+)
+
+<span class="cm"># From list of dicts</span>
+df = pd.DataFrame([
+    {<span class="st">"a"</span>: <span class="nb">1</span>, <span class="st">"b"</span>: <span class="nb">2</span>},
+    {<span class="st">"a"</span>: <span class="nb">3</span>, <span class="st">"b"</span>: <span class="nb">4</span>}
+])
+
+<span class="cm"># From NumPy array</span>
+df = pd.DataFrame(
+    np.random.randn(<span class="nb">5</span>, <span class="nb">3</span>),
+    columns=[<span class="st">"x"</span>, <span class="st">"y"</span>, <span class="st">"z"</span>]
+)</code></pre>
+                    </div>
+                    <div class="comparison-col polars">
+                        <div class="comparison-col-header">Polars</div>
+                        <pre><code><span class="cm"># From dict</span>
+df = pl.DataFrame({
+    <span class="st">"name"</span>: [<span class="st">"Alice"</span>, <span class="st">"Bob"</span>, <span class="st">"Carol"</span>],
+    <span class="st">"age"</span>: [<span class="nb">30</span>, <span class="nb">25</span>, <span class="nb">35</span>],
+    <span class="st">"score"</span>: [<span class="nb">85.5</span>, <span class="nb">92.0</span>, <span class="nb">78.3</span>]
+})
+
+<span class="cm"># No index concept — use row_nr if needed</span>
+df = pl.DataFrame({
+    <span class="st">"x"</span>: [<span class="nb">1</span>,<span class="nb">2</span>,<span class="nb">3</span>]
+}).with_row_index(<span class="st">"idx"</span>)
+
+<span class="cm"># From list of dicts</span>
+df = pl.DataFrame([
+    {<span class="st">"a"</span>: <span class="nb">1</span>, <span class="st">"b"</span>: <span class="nb">2</span>},
+    {<span class="st">"a"</span>: <span class="nb">3</span>, <span class="st">"b"</span>: <span class="nb">4</span>}
+])
+
+<span class="cm"># With explicit schema</span>
+df = pl.DataFrame(
+    {<span class="st">"x"</span>: [<span class="nb">1</span>,<span class="nb">2</span>], <span class="st">"y"</span>: [<span class="nb">3.0</span>,<span class="nb">4.0</span>]},
+    schema={<span class="st">"x"</span>: pl.Int32, <span class="st">"y"</span>: pl.Float64}
+)</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Series</h3>
+                <div class="comparison">
+                    <div class="comparison-col pandas">
+                        <div class="comparison-col-header">Pandas</div>
+                        <pre><code><span class="cm"># Create a Series</span>
+s = pd.Series([<span class="nb">1</span>, <span class="nb">2</span>, <span class="nb">3</span>], name=<span class="st">"values"</span>)
+
+<span class="cm"># Access by label/position</span>
+s.loc[<span class="nb">0</span>]       <span class="cm"># label-based</span>
+s.iloc[<span class="nb">0</span>]      <span class="cm"># position-based</span>
+
+<span class="cm"># String methods</span>
+df[<span class="st">"name"</span>].str.upper()
+df[<span class="st">"name"</span>].str.contains(<span class="st">"li"</span>)
+
+<span class="cm"># Vectorized math</span>
+(df[<span class="st">"score"</span>] * <span class="nb">1.1</span>).round(<span class="nb">1</span>)</code></pre>
+                    </div>
+                    <div class="comparison-col polars">
+                        <div class="comparison-col-header">Polars</div>
+                        <pre><code><span class="cm"># Create a Series</span>
+s = pl.Series(<span class="st">"values"</span>, [<span class="nb">1</span>, <span class="nb">2</span>, <span class="nb">3</span>])
+
+<span class="cm"># Access by position (no label index)</span>
+s[<span class="nb">0</span>]            <span class="cm"># integer indexing</span>
+s.gather([<span class="nb">0</span>, <span class="nb">2</span>]) <span class="cm"># multiple indices</span>
+
+<span class="cm"># String methods (via expressions)</span>
+df.select(pl.col(<span class="st">"name"</span>).str.to_uppercase())
+df.select(pl.col(<span class="st">"name"</span>).str.contains(<span class="st">"li"</span>))
+
+<span class="cm"># Vectorized math</span>
+df.select((pl.col(<span class="st">"score"</span>) * <span class="nb">1.1</span>).round(<span class="nb">1</span>))</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Column Selection &amp; Manipulation</h3>
+                <div class="comparison">
+                    <div class="comparison-col pandas">
+                        <div class="comparison-col-header">Pandas</div>
+                        <pre><code><span class="cm"># Select columns</span>
+df[[<span class="st">"name"</span>, <span class="st">"age"</span>]]
+
+<span class="cm"># Add / mutate column (in-place)</span>
+df[<span class="st">"senior"</span>] = df[<span class="st">"age"</span>] >= <span class="nb">30</span>
+
+<span class="cm"># Add via assign (returns copy)</span>
+df = df.assign(
+    senior=<span class="kw">lambda</span> x: x[<span class="st">"age"</span>] >= <span class="nb">30</span>,
+    grade=<span class="kw">lambda</span> x: np.where(
+        x[<span class="st">"score"</span>] >= <span class="nb">90</span>, <span class="st">"A"</span>, <span class="st">"B"</span>
+    )
+)
+
+<span class="cm"># Drop columns</span>
+df.drop(columns=[<span class="st">"score"</span>])
+
+<span class="cm"># Rename</span>
+df.rename(columns={<span class="st">"age"</span>: <span class="st">"years"</span>})</code></pre>
+                    </div>
+                    <div class="comparison-col polars">
+                        <div class="comparison-col-header">Polars</div>
+                        <pre><code><span class="cm"># Select columns</span>
+df.select(<span class="st">"name"</span>, <span class="st">"age"</span>)
+df.select(pl.col(<span class="st">"name"</span>, <span class="st">"age"</span>))
+
+<span class="cm"># Add / mutate column (returns new df)</span>
+df = df.with_columns(
+    (pl.col(<span class="st">"age"</span>) >= <span class="nb">30</span>).alias(<span class="st">"senior"</span>)
+)
+
+<span class="cm"># Multiple new columns at once</span>
+df = df.with_columns(
+    (pl.col(<span class="st">"age"</span>) >= <span class="nb">30</span>).alias(<span class="st">"senior"</span>),
+    pl.when(pl.col(<span class="st">"score"</span>) >= <span class="nb">90</span>)
+      .then(pl.lit(<span class="st">"A"</span>))
+      .otherwise(pl.lit(<span class="st">"B"</span>))
+      .alias(<span class="st">"grade"</span>)
+)
+
+<span class="cm"># Drop columns</span>
+df.drop(<span class="st">"score"</span>)
+
+<span class="cm"># Rename</span>
+df.rename({<span class="st">"age"</span>: <span class="st">"years"</span>})</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Data Types</h3>
+                <div class="df-table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>Pandas</th>
+                                <th>Polars</th>
+                                <th>Notes</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Integer</td>
+                                <td><code>int64</code>, <code>Int64</code></td>
+                                <td><code>Int8..Int64</code></td>
+                                <td>Polars is strict about width</td>
+                            </tr>
+                            <tr>
+                                <td>Float</td>
+                                <td><code>float64</code></td>
+                                <td><code>Float32</code>, <code>Float64</code></td>
+                                <td></td>
+                            </tr>
+                            <tr>
+                                <td>String</td>
+                                <td><code>object</code>, <code>string</code></td>
+                                <td><code>Utf8</code> (<code>String</code>)</td>
+                                <td>Polars uses Arrow strings</td>
+                            </tr>
+                            <tr>
+                                <td>Boolean</td>
+                                <td><code>bool</code>, <code>boolean</code></td>
+                                <td><code>Boolean</code></td>
+                                <td></td>
+                            </tr>
+                            <tr>
+                                <td>Datetime</td>
+                                <td><code>datetime64[ns]</code></td>
+                                <td><code>Datetime</code></td>
+                                <td>Polars supports microsecond precision</td>
+                            </tr>
+                            <tr>
+                                <td>Categorical</td>
+                                <td><code>category</code></td>
+                                <td><code>Categorical</code>, <code>Enum</code></td>
+                                <td>Polars Enum is strict/ordered</td>
+                            </tr>
+                            <tr>
+                                <td>Nested</td>
+                                <td><code>object</code> (dicts/lists)</td>
+                                <td><code>List</code>, <code>Struct</code>, <code>Array</code></td>
+                                <td>Polars has first-class nested types</td>
+                            </tr>
+                            <tr>
+                                <td>Null handling</td>
+                                <td><code>NaN</code> / <code>pd.NA</code></td>
+                                <td><code>null</code></td>
+                                <td>Polars uses Arrow null bitmask</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             04. READING & WRITING DATA
+             ============================================================ -->
+
+        <section id="io" class="section">
+            <div class="section-header">
+                <span class="section-number">04</span>
+                <h2 class="section-title">Reading &amp; Writing Data</h2>
+            </div>
+            <p class="section-description">Both libraries support CSV, Parquet, JSON, Excel, and databases. Polars adds lazy scanning for files larger than memory.</p>
+
+            <div class="subsection">
+                <h3 class="subsection-title">CSV</h3>
+                <div class="comparison">
+                    <div class="comparison-col pandas">
+                        <div class="comparison-col-header">Pandas</div>
+                        <pre><code><span class="cm"># Read</span>
+df = pd.read_csv(<span class="st">"data.csv"</span>)
+df = pd.read_csv(<span class="st">"data.csv"</span>,
+    usecols=[<span class="st">"a"</span>, <span class="st">"b"</span>],
+    dtype={<span class="st">"a"</span>: <span class="st">"int32"</span>},
+    nrows=<span class="nb">1000</span>,
+    parse_dates=[<span class="st">"date"</span>]
+)
+
+<span class="cm"># Chunked reading</span>
+<span class="kw">for</span> chunk <span class="kw">in</span> pd.read_csv(<span class="st">"big.csv"</span>,
+                          chunksize=<span class="nb">10000</span>):
+    process(chunk)
+
+<span class="cm"># Write</span>
+df.to_csv(<span class="st">"out.csv"</span>, index=<span class="kw">False</span>)</code></pre>
+                    </div>
+                    <div class="comparison-col polars">
+                        <div class="comparison-col-header">Polars</div>
+                        <pre><code><span class="cm"># Read (eager)</span>
+df = pl.read_csv(<span class="st">"data.csv"</span>)
+df = pl.read_csv(<span class="st">"data.csv"</span>,
+    columns=[<span class="st">"a"</span>, <span class="st">"b"</span>],
+    dtypes={<span class="st">"a"</span>: pl.Int32},
+    n_rows=<span class="nb">1000</span>,
+    try_parse_dates=<span class="kw">True</span>
+)
+
+<span class="cm"># Lazy scan (larger than memory)</span>
+lf = pl.scan_csv(<span class="st">"big.csv"</span>)
+result = lf.filter(
+    pl.col(<span class="st">"a"</span>) > <span class="nb">100</span>
+).collect()
+
+<span class="cm"># Write</span>
+df.write_csv(<span class="st">"out.csv"</span>)</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Parquet</h3>
+                <div class="comparison">
+                    <div class="comparison-col pandas">
+                        <div class="comparison-col-header">Pandas</div>
+                        <pre><code><span class="cm"># Requires pyarrow or fastparquet</span>
+df = pd.read_parquet(<span class="st">"data.parquet"</span>)
+df = pd.read_parquet(<span class="st">"data.parquet"</span>,
+    columns=[<span class="st">"a"</span>, <span class="st">"b"</span>],
+    engine=<span class="st">"pyarrow"</span>
+)
+
+<span class="cm"># Write with compression</span>
+df.to_parquet(<span class="st">"out.parquet"</span>,
+    compression=<span class="st">"snappy"</span>,
+    index=<span class="kw">False</span>
+)
+
+<span class="cm"># Read from S3 (with s3fs)</span>
+df = pd.read_parquet(<span class="st">"s3://bucket/data.parquet"</span>)</code></pre>
+                    </div>
+                    <div class="comparison-col polars">
+                        <div class="comparison-col-header">Polars</div>
+                        <pre><code><span class="cm"># Native Rust parquet reader</span>
+df = pl.read_parquet(<span class="st">"data.parquet"</span>)
+df = pl.read_parquet(<span class="st">"data.parquet"</span>,
+    columns=[<span class="st">"a"</span>, <span class="st">"b"</span>]
+)
+
+<span class="cm"># Write with compression</span>
+df.write_parquet(<span class="st">"out.parquet"</span>,
+    compression=<span class="st">"zstd"</span>
+)
+
+<span class="cm"># Lazy scan — predicate pushdown!</span>
+lf = pl.scan_parquet(<span class="st">"s3://bucket/data.parquet"</span>)
+result = lf.filter(
+    pl.col(<span class="st">"date"</span>) > <span class="st">"2024-01-01"</span>
+).select(<span class="st">"a"</span>, <span class="st">"b"</span>).collect()</code></pre>
+                    </div>
+                </div>
+
+                <div class="alert alert-success">
+                    <strong>Predicate pushdown:</strong> When scanning Parquet lazily, Polars pushes filter predicates into the reader, skipping entire row groups that don't match. This can reduce I/O by 10-100x on partitioned datasets.
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Other Formats</h3>
+                <div class="df-table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Format</th>
+                                <th>Pandas</th>
+                                <th>Polars</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>JSON</td>
+                                <td><code>pd.read_json()</code> / <code>df.to_json()</code></td>
+                                <td><code>pl.read_json()</code> / <code>df.write_json()</code></td>
+                            </tr>
+                            <tr>
+                                <td>NDJSON</td>
+                                <td><code>pd.read_json(lines=True)</code></td>
+                                <td><code>pl.read_ndjson()</code> / <code>pl.scan_ndjson()</code></td>
+                            </tr>
+                            <tr>
+                                <td>Excel</td>
+                                <td><code>pd.read_excel()</code></td>
+                                <td><code>pl.read_excel()</code></td>
+                            </tr>
+                            <tr>
+                                <td>SQL</td>
+                                <td><code>pd.read_sql(query, conn)</code></td>
+                                <td><code>pl.read_database(query, conn)</code></td>
+                            </tr>
+                            <tr>
+                                <td>IPC / Arrow</td>
+                                <td><code>pd.read_feather()</code></td>
+                                <td><code>pl.read_ipc()</code> / <code>pl.scan_ipc()</code></td>
+                            </tr>
+                            <tr>
+                                <td>Delta Lake</td>
+                                <td>via <code>deltalake</code> pkg</td>
+                                <td><code>pl.read_delta()</code> / <code>pl.scan_delta()</code></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             05. FILTERING & SELECTION
+             ============================================================ -->
+
+        <section id="filtering" class="section">
+            <div class="section-header">
+                <span class="section-number">05</span>
+                <h2 class="section-title">Filtering &amp; Selection</h2>
+            </div>
+            <p class="section-description">Selecting rows and columns. Pandas uses bracket indexing and .loc/.iloc; Polars uses expression-based filter/select.</p>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Row Filtering</h3>
+                <div class="comparison">
+                    <div class="comparison-col pandas">
+                        <div class="comparison-col-header">Pandas</div>
+                        <pre><code><span class="cm"># Boolean mask</span>
+df[df[<span class="st">"age"</span>] > <span class="nb">25</span>]
+
+<span class="cm"># Multiple conditions</span>
+df[(df[<span class="st">"age"</span>] > <span class="nb">25</span>) &amp; (df[<span class="st">"score"</span>] >= <span class="nb">80</span>)]
+
+<span class="cm"># Using .query() (string DSL)</span>
+df.query(<span class="st">"age > 25 and score >= 80"</span>)
+
+<span class="cm"># isin</span>
+df[df[<span class="st">"name"</span>].isin([<span class="st">"Alice"</span>, <span class="st">"Bob"</span>])]
+
+<span class="cm"># String contains</span>
+df[df[<span class="st">"name"</span>].str.startswith(<span class="st">"A"</span>)]
+
+<span class="cm"># Between</span>
+df[df[<span class="st">"age"</span>].between(<span class="nb">25</span>, <span class="nb">35</span>)]
+
+<span class="cm"># Null filtering</span>
+df[df[<span class="st">"score"</span>].notna()]
+
+<span class="cm"># Head / tail / sample</span>
+df.head(<span class="nb">5</span>)
+df.tail(<span class="nb">5</span>)
+df.sample(<span class="nb">3</span>)</code></pre>
+                    </div>
+                    <div class="comparison-col polars">
+                        <div class="comparison-col-header">Polars</div>
+                        <pre><code><span class="cm"># Expression-based filter</span>
+df.filter(pl.col(<span class="st">"age"</span>) > <span class="nb">25</span>)
+
+<span class="cm"># Multiple conditions</span>
+df.filter(
+    (pl.col(<span class="st">"age"</span>) > <span class="nb">25</span>) &amp; (pl.col(<span class="st">"score"</span>) >= <span class="nb">80</span>)
+)
+
+<span class="cm"># Using SQL (optional)</span>
+pl.sql(<span class="st">"SELECT * FROM df WHERE age > 25"</span>)
+
+<span class="cm"># is_in</span>
+df.filter(pl.col(<span class="st">"name"</span>).is_in([<span class="st">"Alice"</span>, <span class="st">"Bob"</span>]))
+
+<span class="cm"># String contains</span>
+df.filter(pl.col(<span class="st">"name"</span>).str.starts_with(<span class="st">"A"</span>))
+
+<span class="cm"># is_between</span>
+df.filter(pl.col(<span class="st">"age"</span>).is_between(<span class="nb">25</span>, <span class="nb">35</span>))
+
+<span class="cm"># Null filtering</span>
+df.filter(pl.col(<span class="st">"score"</span>).is_not_null())
+
+<span class="cm"># Head / tail / sample</span>
+df.head(<span class="nb">5</span>)
+df.tail(<span class="nb">5</span>)
+df.sample(<span class="nb">3</span>)</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Indexing &amp; Slicing</h3>
+                <div class="comparison">
+                    <div class="comparison-col pandas">
+                        <div class="comparison-col-header">Pandas</div>
+                        <pre><code><span class="cm"># Label-based indexing</span>
+df.loc[<span class="nb">0</span>, <span class="st">"name"</span>]           <span class="cm"># single cell</span>
+df.loc[<span class="nb">0</span>:<span class="nb">2</span>, [<span class="st">"name"</span>, <span class="st">"age"</span>]] <span class="cm"># slice</span>
+
+<span class="cm"># Position-based indexing</span>
+df.iloc[<span class="nb">0</span>]                  <span class="cm"># first row</span>
+df.iloc[<span class="nb">0</span>:<span class="nb">5</span>, <span class="nb">1</span>:<span class="nb">3</span>]          <span class="cm"># row/col slice</span>
+
+<span class="cm"># Setting values</span>
+df.loc[<span class="nb">0</span>, <span class="st">"age"</span>] = <span class="nb">31</span>
+
+<span class="cm"># Conditional setting</span>
+df.loc[df[<span class="st">"age"</span>] > <span class="nb">30</span>, <span class="st">"senior"</span>] = <span class="kw">True</span></code></pre>
+                    </div>
+                    <div class="comparison-col polars">
+                        <div class="comparison-col-header">Polars</div>
+                        <pre><code><span class="cm"># No label-based index; use row/item</span>
+df.row(<span class="nb">0</span>)                    <span class="cm"># tuple</span>
+df.item(<span class="nb">0</span>, <span class="st">"name"</span>)           <span class="cm"># single cell</span>
+
+<span class="cm"># Slicing</span>
+df.slice(<span class="nb">0</span>, <span class="nb">5</span>)               <span class="cm"># offset, length</span>
+df[<span class="nb">0</span>:<span class="nb">5</span>]                      <span class="cm"># Python slice syntax</span>
+
+<span class="cm"># Polars is immutable — use with_columns</span>
+df = df.with_columns(
+    pl.when(pl.col(<span class="st">"age"</span>) > <span class="nb">30</span>)
+      .then(pl.lit(<span class="kw">True</span>))
+      .otherwise(pl.lit(<span class="kw">False</span>))
+      .alias(<span class="st">"senior"</span>)
+)
+
+<span class="cm"># Gather specific rows</span>
+df.gather([<span class="nb">0</span>, <span class="nb">3</span>, <span class="nb">7</span>])</code></pre>
+                    </div>
+                </div>
+
+                <div class="alert alert-warning">
+                    <strong>No Index in Polars:</strong> Polars deliberately omits a row index. This simplifies the API, avoids alignment bugs, and enables better parallelization. If you need an identifier column, use <code>df.with_row_index("idx")</code>.
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             06. GROUPBY & AGGREGATION
+             ============================================================ -->
+
+        <section id="groupby" class="section">
+            <div class="section-header">
+                <span class="section-number">06</span>
+                <h2 class="section-title">GroupBy &amp; Aggregation</h2>
+            </div>
+            <p class="section-description">Split-apply-combine patterns. Both libraries support grouping with multiple aggregation functions, but the syntax differs significantly.</p>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Basic GroupBy</h3>
+                <div class="comparison">
+                    <div class="comparison-col pandas">
+                        <div class="comparison-col-header">Pandas</div>
+                        <pre><code><span class="cm"># Single aggregation</span>
+df.groupby(<span class="st">"dept"</span>)[<span class="st">"salary"</span>].mean()
+
+<span class="cm"># Multiple aggregations</span>
+df.groupby(<span class="st">"dept"</span>).agg({
+    <span class="st">"salary"</span>: [<span class="st">"mean"</span>, <span class="st">"max"</span>],
+    <span class="st">"age"</span>: <span class="st">"count"</span>
+})
+
+<span class="cm"># Named aggregations (recommended)</span>
+df.groupby(<span class="st">"dept"</span>).agg(
+    avg_salary=(<span class="st">"salary"</span>, <span class="st">"mean"</span>),
+    max_salary=(<span class="st">"salary"</span>, <span class="st">"max"</span>),
+    headcount=(<span class="st">"age"</span>, <span class="st">"count"</span>)
+)
+
+<span class="cm"># Group by multiple columns</span>
+df.groupby([<span class="st">"dept"</span>, <span class="st">"level"</span>]).mean()</code></pre>
+                    </div>
+                    <div class="comparison-col polars">
+                        <div class="comparison-col-header">Polars</div>
+                        <pre><code><span class="cm"># Single aggregation</span>
+df.group_by(<span class="st">"dept"</span>).agg(
+    pl.col(<span class="st">"salary"</span>).mean()
+)
+
+<span class="cm"># Multiple aggregations</span>
+df.group_by(<span class="st">"dept"</span>).agg(
+    pl.col(<span class="st">"salary"</span>).mean().alias(<span class="st">"avg_salary"</span>),
+    pl.col(<span class="st">"salary"</span>).max().alias(<span class="st">"max_salary"</span>),
+    pl.col(<span class="st">"age"</span>).count().alias(<span class="st">"headcount"</span>),
+)
+
+<span class="cm"># Expressions are composable</span>
+df.group_by(<span class="st">"dept"</span>).agg(
+    (pl.col(<span class="st">"salary"</span>).max() - pl.col(<span class="st">"salary"</span>).min())
+      .alias(<span class="st">"salary_range"</span>)
+)
+
+<span class="cm"># Group by multiple columns</span>
+df.group_by(<span class="st">"dept"</span>, <span class="st">"level"</span>).agg(
+    pl.all().mean()
+)</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Advanced Aggregations</h3>
+                <div class="comparison">
+                    <div class="comparison-col pandas">
+                        <div class="comparison-col-header">Pandas</div>
+                        <pre><code><span class="cm"># Transform (broadcast back to original shape)</span>
+df[<span class="st">"z_score"</span>] = df.groupby(<span class="st">"dept"</span>)[<span class="st">"salary"</span>] \
+    .transform(<span class="kw">lambda</span> x: (x - x.mean()) / x.std())
+
+<span class="cm"># Filter groups</span>
+df.groupby(<span class="st">"dept"</span>).filter(
+    <span class="kw">lambda</span> g: g[<span class="st">"salary"</span>].mean() > <span class="nb">50000</span>
+)
+
+<span class="cm"># Apply custom function</span>
+df.groupby(<span class="st">"dept"</span>).apply(
+    <span class="kw">lambda</span> g: g.nlargest(<span class="nb">3</span>, <span class="st">"salary"</span>)
+)
+
+<span class="cm"># Pivot table</span>
+pd.pivot_table(df,
+    values=<span class="st">"salary"</span>,
+    index=<span class="st">"dept"</span>,
+    columns=<span class="st">"level"</span>,
+    aggfunc=<span class="st">"mean"</span>
+)</code></pre>
+                    </div>
+                    <div class="comparison-col polars">
+                        <div class="comparison-col-header">Polars</div>
+                        <pre><code><span class="cm"># Over expressions (like SQL window funcs)</span>
+df = df.with_columns(
+    ((pl.col(<span class="st">"salary"</span>) - pl.col(<span class="st">"salary"</span>).mean().over(<span class="st">"dept"</span>))
+     / pl.col(<span class="st">"salary"</span>).std().over(<span class="st">"dept"</span>))
+    .alias(<span class="st">"z_score"</span>)
+)
+
+<span class="cm"># Filter groups</span>
+df.filter(
+    pl.col(<span class="st">"salary"</span>).mean().over(<span class="st">"dept"</span>) > <span class="nb">50000</span>
+)
+
+<span class="cm"># Top N per group</span>
+df.sort(<span class="st">"salary"</span>, descending=<span class="kw">True</span>) \
+  .group_by(<span class="st">"dept"</span>).head(<span class="nb">3</span>)
+
+<span class="cm"># Pivot</span>
+df.pivot(
+    on=<span class="st">"level"</span>,
+    index=<span class="st">"dept"</span>,
+    values=<span class="st">"salary"</span>,
+    aggregate_function=<span class="st">"mean"</span>
+)</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Common Aggregation Functions</h3>
+                <div class="df-table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Function</th>
+                                <th>Pandas</th>
+                                <th>Polars</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>Count</td><td><code>.count()</code></td><td><code>.count()</code></td></tr>
+                            <tr><td>Sum</td><td><code>.sum()</code></td><td><code>.sum()</code></td></tr>
+                            <tr><td>Mean</td><td><code>.mean()</code></td><td><code>.mean()</code></td></tr>
+                            <tr><td>Median</td><td><code>.median()</code></td><td><code>.median()</code></td></tr>
+                            <tr><td>Std Dev</td><td><code>.std()</code></td><td><code>.std()</code></td></tr>
+                            <tr><td>Min / Max</td><td><code>.min()</code> / <code>.max()</code></td><td><code>.min()</code> / <code>.max()</code></td></tr>
+                            <tr><td>First / Last</td><td><code>.first()</code> / <code>.last()</code></td><td><code>.first()</code> / <code>.last()</code></td></tr>
+                            <tr><td>N unique</td><td><code>.nunique()</code></td><td><code>.n_unique()</code></td></tr>
+                            <tr><td>Quantile</td><td><code>.quantile(0.75)</code></td><td><code>.quantile(0.75)</code></td></tr>
+                            <tr><td>Value counts</td><td><code>.value_counts()</code></td><td><code>.value_counts()</code></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             07. JOINS & MERGES
+             ============================================================ -->
+
+        <section id="joins" class="section">
+            <div class="section-header">
+                <span class="section-number">07</span>
+                <h2 class="section-title">Joins &amp; Merges</h2>
+            </div>
+            <p class="section-description">Combining DataFrames. Pandas uses merge/join/concat; Polars uses join/concat with more explicit join types.</p>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Basic Joins</h3>
+                <div class="comparison">
+                    <div class="comparison-col pandas">
+                        <div class="comparison-col-header">Pandas</div>
+                        <pre><code><span class="cm"># Inner join</span>
+result = pd.merge(orders, customers,
+    on=<span class="st">"customer_id"</span>,
+    how=<span class="st">"inner"</span>
+)
+
+<span class="cm"># Left join</span>
+result = pd.merge(orders, customers,
+    on=<span class="st">"customer_id"</span>,
+    how=<span class="st">"left"</span>
+)
+
+<span class="cm"># Join on different column names</span>
+result = pd.merge(orders, customers,
+    left_on=<span class="st">"cust_id"</span>,
+    right_on=<span class="st">"id"</span>
+)
+
+<span class="cm"># Multi-key join</span>
+result = pd.merge(df1, df2,
+    on=[<span class="st">"year"</span>, <span class="st">"month"</span>]
+)</code></pre>
+                    </div>
+                    <div class="comparison-col polars">
+                        <div class="comparison-col-header">Polars</div>
+                        <pre><code><span class="cm"># Inner join</span>
+result = orders.join(customers,
+    on=<span class="st">"customer_id"</span>,
+    how=<span class="st">"inner"</span>
+)
+
+<span class="cm"># Left join</span>
+result = orders.join(customers,
+    on=<span class="st">"customer_id"</span>,
+    how=<span class="st">"left"</span>
+)
+
+<span class="cm"># Join on different column names</span>
+result = orders.join(customers,
+    left_on=<span class="st">"cust_id"</span>,
+    right_on=<span class="st">"id"</span>
+)
+
+<span class="cm"># Multi-key join</span>
+result = df1.join(df2,
+    on=[<span class="st">"year"</span>, <span class="st">"month"</span>]
+)</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Join Types</h3>
+                <div class="df-table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Join Type</th>
+                                <th>Pandas <code>how=</code></th>
+                                <th>Polars <code>how=</code></th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Inner</td>
+                                <td><code>"inner"</code></td>
+                                <td><code>"inner"</code></td>
+                                <td>Only matching rows</td>
+                            </tr>
+                            <tr>
+                                <td>Left</td>
+                                <td><code>"left"</code></td>
+                                <td><code>"left"</code></td>
+                                <td>All left rows + matching right</td>
+                            </tr>
+                            <tr>
+                                <td>Right</td>
+                                <td><code>"right"</code></td>
+                                <td><code>"right"</code> (v1.x: supported)</td>
+                                <td>All right rows + matching left</td>
+                            </tr>
+                            <tr>
+                                <td>Full outer</td>
+                                <td><code>"outer"</code></td>
+                                <td><code>"full"</code></td>
+                                <td>All rows from both sides</td>
+                            </tr>
+                            <tr>
+                                <td>Cross</td>
+                                <td><code>"cross"</code></td>
+                                <td><code>"cross"</code></td>
+                                <td>Cartesian product</td>
+                            </tr>
+                            <tr>
+                                <td>Semi</td>
+                                <td>N/A (use <code>isin</code>)</td>
+                                <td><code>"semi"</code></td>
+                                <td>Left rows where key exists in right</td>
+                            </tr>
+                            <tr>
+                                <td>Anti</td>
+                                <td>N/A (use <code>~isin</code>)</td>
+                                <td><code>"anti"</code></td>
+                                <td>Left rows where key NOT in right</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Concatenation</h3>
+                <div class="comparison">
+                    <div class="comparison-col pandas">
+                        <div class="comparison-col-header">Pandas</div>
+                        <pre><code><span class="cm"># Vertical stack (union)</span>
+result = pd.concat([df1, df2, df3])
+
+<span class="cm"># Horizontal (side by side)</span>
+result = pd.concat([df1, df2], axis=<span class="nb">1</span>)
+
+<span class="cm"># Reset index after concat</span>
+result = pd.concat([df1, df2],
+    ignore_index=<span class="kw">True</span>
+)</code></pre>
+                    </div>
+                    <div class="comparison-col polars">
+                        <div class="comparison-col-header">Polars</div>
+                        <pre><code><span class="cm"># Vertical stack (union)</span>
+result = pl.concat([df1, df2, df3])
+
+<span class="cm"># Horizontal (side by side)</span>
+result = pl.concat([df1, df2], how=<span class="st">"horizontal"</span>)
+
+<span class="cm"># Diagonal (union with different schemas)</span>
+result = pl.concat([df1, df2],
+    how=<span class="st">"diagonal"</span>
+)</code></pre>
+                    </div>
+                </div>
+
+                <div class="alert alert-info">
+                    <strong>Polars semi/anti joins</strong> are first-class operations &mdash; no workarounds needed. A semi join keeps left rows where the key exists in the right table (without duplicating rows), and an anti join keeps left rows where the key does <em>not</em> exist. These are essential for "exists" / "not exists" SQL patterns.
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             08. WINDOW FUNCTIONS
+             ============================================================ -->
+
+        <section id="window" class="section">
+            <div class="section-header">
+                <span class="section-number">08</span>
+                <h2 class="section-title">Window Functions</h2>
+            </div>
+            <p class="section-description">Computing values relative to groups or ordered windows. Polars uses the powerful <code>.over()</code> expression; Pandas uses <code>.transform()</code> and rolling APIs.</p>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Partition-Based Windows</h3>
+                <div class="comparison">
+                    <div class="comparison-col pandas">
+                        <div class="comparison-col-header">Pandas</div>
+                        <pre><code><span class="cm"># Running total per group</span>
+df[<span class="st">"cum_sales"</span>] = df.groupby(<span class="st">"dept"</span>)[<span class="st">"sales"</span>] \
+    .cumsum()
+
+<span class="cm"># Rank within group</span>
+df[<span class="st">"rank"</span>] = df.groupby(<span class="st">"dept"</span>)[<span class="st">"sales"</span>] \
+    .rank(ascending=<span class="kw">False</span>, method=<span class="st">"dense"</span>)
+
+<span class="cm"># Shift (lag/lead)</span>
+df[<span class="st">"prev_sales"</span>] = df.groupby(<span class="st">"dept"</span>)[<span class="st">"sales"</span>] \
+    .shift(<span class="nb">1</span>)
+
+<span class="cm"># Pct change within group</span>
+df[<span class="st">"growth"</span>] = df.groupby(<span class="st">"dept"</span>)[<span class="st">"sales"</span>] \
+    .pct_change()</code></pre>
+                    </div>
+                    <div class="comparison-col polars">
+                        <div class="comparison-col-header">Polars</div>
+                        <pre><code><span class="cm"># Running total per group</span>
+df = df.with_columns(
+    pl.col(<span class="st">"sales"</span>).cum_sum().over(<span class="st">"dept"</span>)
+      .alias(<span class="st">"cum_sales"</span>)
+)
+
+<span class="cm"># Rank within group</span>
+df = df.with_columns(
+    pl.col(<span class="st">"sales"</span>).rank(descending=<span class="kw">True</span>,
+        method=<span class="st">"dense"</span>).over(<span class="st">"dept"</span>)
+      .alias(<span class="st">"rank"</span>)
+)
+
+<span class="cm"># Shift (lag/lead)</span>
+df = df.with_columns(
+    pl.col(<span class="st">"sales"</span>).shift(<span class="nb">1</span>).over(<span class="st">"dept"</span>)
+      .alias(<span class="st">"prev_sales"</span>)
+)
+
+<span class="cm"># Pct change within group</span>
+df = df.with_columns(
+    pl.col(<span class="st">"sales"</span>).pct_change().over(<span class="st">"dept"</span>)
+      .alias(<span class="st">"growth"</span>)
+)</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Rolling Windows</h3>
+                <div class="comparison">
+                    <div class="comparison-col pandas">
+                        <div class="comparison-col-header">Pandas</div>
+                        <pre><code><span class="cm"># Rolling average</span>
+df[<span class="st">"ma7"</span>] = df[<span class="st">"price"</span>].rolling(<span class="nb">7</span>).mean()
+
+<span class="cm"># Rolling std with min_periods</span>
+df[<span class="st">"vol"</span>] = df[<span class="st">"price"</span>].rolling(
+    window=<span class="nb">20</span>, min_periods=<span class="nb">10</span>
+).std()
+
+<span class="cm"># Expanding (cumulative) window</span>
+df[<span class="st">"cum_max"</span>] = df[<span class="st">"price"</span>].expanding().max()
+
+<span class="cm"># EWM (exponential weighted)</span>
+df[<span class="st">"ewm"</span>] = df[<span class="st">"price"</span>].ewm(span=<span class="nb">12</span>).mean()</code></pre>
+                    </div>
+                    <div class="comparison-col polars">
+                        <div class="comparison-col-header">Polars</div>
+                        <pre><code><span class="cm"># Rolling average</span>
+df = df.with_columns(
+    pl.col(<span class="st">"price"</span>).rolling_mean(window_size=<span class="nb">7</span>)
+      .alias(<span class="st">"ma7"</span>)
+)
+
+<span class="cm"># Rolling std with min_periods</span>
+df = df.with_columns(
+    pl.col(<span class="st">"price"</span>).rolling_std(
+        window_size=<span class="nb">20</span>, min_periods=<span class="nb">10</span>
+    ).alias(<span class="st">"vol"</span>)
+)
+
+<span class="cm"># Expanding (cumulative) window</span>
+df = df.with_columns(
+    pl.col(<span class="st">"price"</span>).cum_max().alias(<span class="st">"cum_max"</span>)
+)
+
+<span class="cm"># EWM (exponential weighted)</span>
+df = df.with_columns(
+    pl.col(<span class="st">"price"</span>).ewm_mean(span=<span class="nb">12</span>)
+      .alias(<span class="st">"ewm"</span>)
+)</code></pre>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             09. LAZY EVALUATION (POLARS)
+             ============================================================ -->
+
+        <section id="lazy" class="section">
+            <div class="section-header">
+                <span class="section-number">09</span>
+                <h2 class="section-title">Lazy Evaluation</h2>
+            </div>
+            <p class="section-description">Polars' killer feature: build a query plan, then let the optimizer rewrite and parallelize it before execution. Pandas has no equivalent.</p>
+
+            <div class="subsection">
+                <h3 class="subsection-title">LazyFrame Basics</h3>
+                <div class="notebook-cell">
+                    <div class="cell-header">
+                        <span class="cell-label">In [1]:</span>
+                        <span class="cell-tag cell-tag-polars">Polars Only</span>
+                    </div>
+                    <pre><code><span class="cm"># Create a LazyFrame from eager DataFrame</span>
+lf = df.lazy()
+
+<span class="cm"># Or scan directly (recommended for large files)</span>
+lf = pl.scan_csv(<span class="st">"huge_dataset.csv"</span>)
+lf = pl.scan_parquet(<span class="st">"data/*.parquet"</span>)  <span class="cm"># glob patterns!</span>
+lf = pl.scan_ipc(<span class="st">"data.arrow"</span>)
+
+<span class="cm"># Build a query plan (nothing executes yet)</span>
+result = (
+    lf
+    .filter(pl.col(<span class="st">"country"</span>) == <span class="st">"US"</span>)
+    .group_by(<span class="st">"state"</span>)
+    .agg(
+        pl.col(<span class="st">"revenue"</span>).sum().alias(<span class="st">"total_rev"</span>),
+        pl.col(<span class="st">"customers"</span>).n_unique().alias(<span class="st">"unique_cust"</span>),
+    )
+    .sort(<span class="st">"total_rev"</span>, descending=<span class="kw">True</span>)
+    .head(<span class="nb">10</span>)
+)
+
+<span class="cm"># Execute the plan</span>
+df_result = result.collect()
+
+<span class="cm"># Inspect the optimized plan</span>
+<span class="fn">print</span>(result.explain(optimized=<span class="kw">True</span>))</code></pre>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Query Optimizations</h3>
+                <div class="alert alert-success">
+                    <strong>What the optimizer does automatically:</strong>
+                </div>
+                <div class="command-grid">
+                    <div class="command-card">
+                        <h4>Predicate Pushdown</h4>
+                        <p>Filters are pushed as close to the data source as possible, reducing rows read from disk.</p>
+                        <pre><code><span class="cm"># Filter pushed into scan</span>
+pl.scan_parquet(<span class="st">"data.parquet"</span>)
+  .filter(pl.col(<span class="st">"year"</span>) == <span class="nb">2024</span>)
+  .collect()
+<span class="cm"># Only reads matching row groups</span></code></pre>
+                    </div>
+                    <div class="command-card">
+                        <h4>Projection Pushdown</h4>
+                        <p>Only the columns used downstream are read from the source file.</p>
+                        <pre><code><span class="cm"># Only reads "name" and "score" columns</span>
+pl.scan_csv(<span class="st">"wide_table.csv"</span>)
+  .select(<span class="st">"name"</span>, <span class="st">"score"</span>)
+  .collect()</code></pre>
+                    </div>
+                    <div class="command-card">
+                        <h4>Common Subexpression Elimination</h4>
+                        <p>Duplicate computations are detected and computed once.</p>
+                        <pre><code><span class="cm"># mean(x) computed once, reused</span>
+lf.with_columns(
+    (pl.col(<span class="st">"x"</span>) - pl.col(<span class="st">"x"</span>).mean()).alias(<span class="st">"centered"</span>),
+    (pl.col(<span class="st">"x"</span>) / pl.col(<span class="st">"x"</span>).mean()).alias(<span class="st">"normed"</span>),
+)</code></pre>
+                    </div>
+                    <div class="command-card">
+                        <h4>Slice Pushdown</h4>
+                        <p>Limits are pushed down to avoid processing unnecessary rows.</p>
+                        <pre><code><span class="cm"># Only processes 10 groups total</span>
+lf.group_by(<span class="st">"region"</span>).agg(
+    pl.col(<span class="st">"sales"</span>).sum()
+).sort(<span class="st">"sales"</span>, descending=<span class="kw">True</span>)
+  .head(<span class="nb">10</span>).collect()</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Streaming Mode</h3>
+                <div class="notebook-cell">
+                    <div class="cell-header">
+                        <span class="cell-label">In [2]:</span>
+                        <span class="cell-tag cell-tag-polars">Polars Only</span>
+                    </div>
+                    <pre><code><span class="cm"># Process data larger than memory in streaming chunks</span>
+result = (
+    pl.scan_csv(<span class="st">"100gb_file.csv"</span>)
+    .filter(pl.col(<span class="st">"status"</span>) == <span class="st">"active"</span>)
+    .group_by(<span class="st">"category"</span>)
+    .agg(pl.col(<span class="st">"amount"</span>).sum())
+    .collect(streaming=<span class="kw">True</span>)  <span class="cm"># streaming engine</span>
+)
+
+<span class="cm"># Sink results directly to file (no memory needed)</span>
+(
+    pl.scan_parquet(<span class="st">"input/*.parquet"</span>)
+    .filter(pl.col(<span class="st">"date"</span>) >= <span class="st">"2024-01-01"</span>)
+    .sink_parquet(<span class="st">"output/filtered.parquet"</span>)
+)</code></pre>
+                </div>
+
+                <div class="alert alert-warning">
+                    <strong>Pandas alternative for large files:</strong> Use <code>pd.read_csv("f.csv", chunksize=N)</code> to iterate in chunks, but you must manage concatenation and aggregation manually. There is no query optimizer.
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             10. PERFORMANCE
+             ============================================================ -->
+
+        <section id="performance" class="section">
+            <div class="section-header">
+                <span class="section-number">10</span>
+                <h2 class="section-title">Performance &amp; Memory</h2>
+            </div>
+            <p class="section-description">Benchmark comparisons and memory usage patterns. Polars is consistently faster due to its Rust engine, multi-threading, and Arrow memory model.</p>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Benchmark Comparison</h3>
+                <p style="font-size: var(--text-sm); color: var(--text-muted); margin-bottom: var(--space-4);">Relative execution time (lower = faster). Based on typical 10M-row CSV workload on 8-core machine.</p>
+
+                <div class="perf-bar-wrap">
+                    <h4 style="font-family: var(--font-mono); font-size: var(--text-sm); color: var(--text-primary); margin-bottom: var(--space-4);">Read CSV (10M rows, 15 columns)</h4>
+                    <div class="perf-bar">
+                        <span class="perf-bar-label">Pandas</span>
+                        <div class="perf-bar-track">
+                            <div class="perf-bar-fill pandas-bar" style="width: 100%;">12.4s</div>
+                        </div>
+                    </div>
+                    <div class="perf-bar">
+                        <span class="perf-bar-label">Polars</span>
+                        <div class="perf-bar-track">
+                            <div class="perf-bar-fill polars-bar" style="width: 22%;">2.7s</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="perf-bar-wrap">
+                    <h4 style="font-family: var(--font-mono); font-size: var(--text-sm); color: var(--text-primary); margin-bottom: var(--space-4);">GroupBy Aggregation (5 aggs on 3 groups)</h4>
+                    <div class="perf-bar">
+                        <span class="perf-bar-label">Pandas</span>
+                        <div class="perf-bar-track">
+                            <div class="perf-bar-fill pandas-bar" style="width: 100%;">3.2s</div>
+                        </div>
+                    </div>
+                    <div class="perf-bar">
+                        <span class="perf-bar-label">Polars</span>
+                        <div class="perf-bar-track">
+                            <div class="perf-bar-fill polars-bar" style="width: 12%;">0.38s</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="perf-bar-wrap">
+                    <h4 style="font-family: var(--font-mono); font-size: var(--text-sm); color: var(--text-primary); margin-bottom: var(--space-4);">Join (two 5M-row tables, inner)</h4>
+                    <div class="perf-bar">
+                        <span class="perf-bar-label">Pandas</span>
+                        <div class="perf-bar-track">
+                            <div class="perf-bar-fill pandas-bar" style="width: 100%;">4.8s</div>
+                        </div>
+                    </div>
+                    <div class="perf-bar">
+                        <span class="perf-bar-label">Polars</span>
+                        <div class="perf-bar-track">
+                            <div class="perf-bar-fill polars-bar" style="width: 18%;">0.86s</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="perf-bar-wrap">
+                    <h4 style="font-family: var(--font-mono); font-size: var(--text-sm); color: var(--text-primary); margin-bottom: var(--space-4);">Sort (10M rows, 2 columns)</h4>
+                    <div class="perf-bar">
+                        <span class="perf-bar-label">Pandas</span>
+                        <div class="perf-bar-track">
+                            <div class="perf-bar-fill pandas-bar" style="width: 100%;">5.1s</div>
+                        </div>
+                    </div>
+                    <div class="perf-bar">
+                        <span class="perf-bar-label">Polars</span>
+                        <div class="perf-bar-track">
+                            <div class="perf-bar-fill polars-bar" style="width: 20%;">1.0s</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="perf-bar-wrap">
+                    <h4 style="font-family: var(--font-mono); font-size: var(--text-sm); color: var(--text-primary); margin-bottom: var(--space-4);">Filter + Select (10M rows)</h4>
+                    <div class="perf-bar">
+                        <span class="perf-bar-label">Pandas</span>
+                        <div class="perf-bar-track">
+                            <div class="perf-bar-fill pandas-bar" style="width: 100%;">1.8s</div>
+                        </div>
+                    </div>
+                    <div class="perf-bar">
+                        <span class="perf-bar-label">Polars</span>
+                        <div class="perf-bar-track">
+                            <div class="perf-bar-fill polars-bar" style="width: 9%;">0.16s</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Why Polars Is Faster</h3>
+                <div class="command-grid">
+                    <div class="command-card">
+                        <h4>Rust Core Engine</h4>
+                        <p>Written in Rust, compiled to native code. No Python GIL overhead for data operations. The Python API is a thin wrapper over the Rust engine.</p>
+                    </div>
+                    <div class="command-card">
+                        <h4>Multi-threaded Execution</h4>
+                        <p>Automatically parallelizes across all available CPU cores. GroupBy, joins, and aggregations run in parallel without user configuration.</p>
+                    </div>
+                    <div class="command-card">
+                        <h4>Apache Arrow Memory</h4>
+                        <p>Uses Arrow columnar format natively. Cache-friendly memory layout, zero-copy interop with other Arrow-based tools, and efficient null handling.</p>
+                    </div>
+                    <div class="command-card">
+                        <h4>Query Optimizer</h4>
+                        <p>Lazy mode rewrites your query plan: eliminates redundant operations, pushes predicates/projections, and fuses operations for minimal passes over data.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Memory Usage</h3>
+                <div class="df-table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Aspect</th>
+                                <th>Pandas</th>
+                                <th>Polars</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>String storage</td>
+                                <td>Python objects (high overhead)</td>
+                                <td class="val-polars">Arrow strings (contiguous, compact)</td>
+                            </tr>
+                            <tr>
+                                <td>Null handling</td>
+                                <td>NaN sentinel (wastes float64 space)</td>
+                                <td class="val-polars">Arrow null bitmask (1 bit per value)</td>
+                            </tr>
+                            <tr>
+                                <td>Integer nullability</td>
+                                <td>Upcasts to float64 for NaN</td>
+                                <td class="val-polars">Native nullable integers</td>
+                            </tr>
+                            <tr>
+                                <td>Copy-on-write</td>
+                                <td>CoW in Pandas 2.x (opt-in)</td>
+                                <td class="val-polars">Immutable by design</td>
+                            </tr>
+                            <tr>
+                                <td>Peak memory</td>
+                                <td>Often 5-10x dataset size</td>
+                                <td class="val-polars">Usually 2-3x dataset size</td>
+                            </tr>
+                            <tr>
+                                <td>Larger-than-RAM</td>
+                                <td>Manual chunking only</td>
+                                <td class="val-polars">Streaming engine + sink</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="notebook-cell">
+                    <div class="cell-header">
+                        <span class="cell-label">Tip:</span>
+                        <span class="cell-tag cell-tag-both">Both</span>
+                    </div>
+                    <pre><code><span class="cm"># Pandas: check memory usage</span>
+df.info(memory_usage=<span class="st">"deep"</span>)
+df.memory_usage(deep=<span class="kw">True</span>).sum() / <span class="nb">1e6</span>  <span class="cm"># MB</span>
+
+<span class="cm"># Polars: check memory usage</span>
+df.estimated_size(<span class="st">"mb"</span>)
+
+<span class="cm"># Pandas: downcast types to save memory</span>
+df[<span class="st">"id"</span>] = pd.to_numeric(df[<span class="st">"id"</span>], downcast=<span class="st">"integer"</span>)
+df[<span class="st">"name"</span>] = df[<span class="st">"name"</span>].astype(<span class="st">"category"</span>)
+
+<span class="cm"># Polars: cast to smaller types</span>
+df = df.with_columns(
+    pl.col(<span class="st">"id"</span>).cast(pl.Int32),
+    pl.col(<span class="st">"name"</span>).cast(pl.Categorical)
+)</code></pre>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             11. WHEN TO USE WHICH
+             ============================================================ -->
+
+        <section id="choosing" class="section">
+            <div class="section-header">
+                <span class="section-number">11</span>
+                <h2 class="section-title">When to Use Which</h2>
+            </div>
+            <p class="section-description">Both libraries are excellent. The right choice depends on your dataset size, team familiarity, ecosystem needs, and performance requirements.</p>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Choose Pandas When</h3>
+                <div class="command-grid">
+                    <div class="command-card">
+                        <h4>Mature Ecosystem Needed</h4>
+                        <p>Your workflow depends on libraries that expect Pandas DataFrames: scikit-learn, matplotlib, seaborn, statsmodels, Prophet, etc. Most ML and visualization libraries assume Pandas.</p>
+                    </div>
+                    <div class="command-card">
+                        <h4>Small-Medium Data</h4>
+                        <p>Working with datasets under ~1-5 GB that fit comfortably in memory. The performance difference with Polars may not matter at this scale, and Pandas is more familiar.</p>
+                    </div>
+                    <div class="command-card">
+                        <h4>Team Familiarity</h4>
+                        <p>Your team already knows Pandas well. Decades of Stack Overflow answers, tutorials, and institutional knowledge. The switching cost may not be justified.</p>
+                    </div>
+                    <div class="command-card">
+                        <h4>Interactive Exploration</h4>
+                        <p>Jupyter notebook exploratory analysis where mutation (in-place modification) and the index are convenient. Quick prototyping, plotting, and ad-hoc analysis.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Choose Polars When</h3>
+                <div class="command-grid">
+                    <div class="command-card">
+                        <h4>Performance Matters</h4>
+                        <p>Working with large datasets (1GB+), production ETL pipelines, or any scenario where wall-clock time matters. Polars is typically 5-20x faster than Pandas.</p>
+                    </div>
+                    <div class="command-card">
+                        <h4>Larger Than Memory</h4>
+                        <p>Data doesn't fit in RAM. Polars' lazy evaluation with streaming and sink operations can process arbitrarily large datasets with bounded memory.</p>
+                    </div>
+                    <div class="command-card">
+                        <h4>Data Pipelines &amp; ETL</h4>
+                        <p>Building production data pipelines where correctness and performance matter. Strict typing, immutability, and the query optimizer catch bugs early and optimize automatically.</p>
+                    </div>
+                    <div class="command-card">
+                        <h4>Modern Stack</h4>
+                        <p>Starting a new project with no legacy constraints. Polars' expression-based API is more consistent and composable than Pandas' mixed bag of methods.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Decision Matrix</h3>
+                <div class="df-table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Scenario</th>
+                                <th>Recommendation</th>
+                                <th>Why</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>EDA in Jupyter</td>
+                                <td><span class="badge badge-pandas">Pandas</span></td>
+                                <td>Better plotting integration, mutation convenience</td>
+                            </tr>
+                            <tr>
+                                <td>ETL pipeline &gt; 1GB</td>
+                                <td><span class="badge badge-polars">Polars</span></td>
+                                <td>Lazy eval, streaming, multi-threaded</td>
+                            </tr>
+                            <tr>
+                                <td>ML feature engineering</td>
+                                <td><span class="badge badge-both">Either</span></td>
+                                <td>Polars for speed, Pandas for sklearn compat</td>
+                            </tr>
+                            <tr>
+                                <td>Real-time data processing</td>
+                                <td><span class="badge badge-polars">Polars</span></td>
+                                <td>Lower latency, no GIL contention</td>
+                            </tr>
+                            <tr>
+                                <td>Legacy codebase</td>
+                                <td><span class="badge badge-pandas">Pandas</span></td>
+                                <td>Migration cost; gradual Polars adoption possible</td>
+                            </tr>
+                            <tr>
+                                <td>Time-series analysis</td>
+                                <td><span class="badge badge-both">Either</span></td>
+                                <td>Both have rolling/window; Pandas has more ts-specific tools</td>
+                            </tr>
+                            <tr>
+                                <td>Parquet data lake</td>
+                                <td><span class="badge badge-polars">Polars</span></td>
+                                <td>scan_parquet with predicate pushdown is unbeatable</td>
+                            </tr>
+                            <tr>
+                                <td>New green-field project</td>
+                                <td><span class="badge badge-polars">Polars</span></td>
+                                <td>Better API design, faster, growing ecosystem</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Using Both Together</h3>
+                <div class="notebook-cell">
+                    <div class="cell-header">
+                        <span class="cell-label">In [3]:</span>
+                        <span class="cell-tag cell-tag-both">Hybrid Workflow</span>
+                    </div>
+                    <pre><code><span class="kw">import</span> pandas <span class="kw">as</span> pd
+<span class="kw">import</span> polars <span class="kw">as</span> pl
+
+<span class="cm"># 1. Use Polars for heavy ETL</span>
+clean_data = (
+    pl.scan_parquet(<span class="st">"raw/*.parquet"</span>)
+    .filter(pl.col(<span class="st">"valid"</span>) == <span class="kw">True</span>)
+    .group_by(<span class="st">"category"</span>)
+    .agg(
+        pl.col(<span class="st">"revenue"</span>).sum(),
+        pl.col(<span class="st">"orders"</span>).count(),
+    )
+    .sort(<span class="st">"revenue"</span>, descending=<span class="kw">True</span>)
+    .collect()
+)
+
+<span class="cm"># 2. Convert to Pandas for ML / visualization</span>
+df_pd = clean_data.to_pandas()
+
+<span class="cm"># 3. Use with scikit-learn</span>
+<span class="kw">from</span> sklearn.preprocessing <span class="kw">import</span> StandardScaler
+X = StandardScaler().fit_transform(df_pd[[<span class="st">"revenue"</span>, <span class="st">"orders"</span>]])
+
+<span class="cm"># 4. Plot with matplotlib/seaborn</span>
+<span class="kw">import</span> matplotlib.pyplot <span class="kw">as</span> plt
+df_pd.plot.bar(x=<span class="st">"category"</span>, y=<span class="st">"revenue"</span>)
+plt.show()</code></pre>
+                </div>
+
+                <div class="alert alert-info">
+                    <strong>Zero-copy conversion:</strong> With Pandas 2.x using <code>ArrowDtype</code> backends, converting between Polars and Pandas can be zero-copy (no data duplication). Use <code>df_polars.to_pandas(use_pyarrow_extension_array=True)</code> to preserve Arrow memory layout in Pandas.
+                </div>
+            </div>
+        </section>
+
+    </div>
+
+    <footer class="site-footer">
+        <a href="index.html">&larr; Back to Tech Guides</a>
+        <div class="footer-meta">Pandas / Polars Reference &middot; Notebook Chart Aesthetic</div>
+    </footer>
+
+    <script defer src="../prompt-viewer.js"></script>
+</body>
+</html>

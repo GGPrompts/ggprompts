@@ -1,0 +1,2752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Playwright &amp; Cypress — Tech Guide</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* ================================================================
+           TEST RUNNER DESIGN SYSTEM — PLAYWRIGHT & CYPRESS TECH GUIDE
+           Green pass / red fail / terminal output aesthetic
+           Paired with: QA Test Runner (custom)
+        ================================================================ */
+
+        :root {
+            /* TEST STATUS PALETTE */
+            --pass: #22c55e;
+            --pass-dim: #16a34a;
+            --pass-glow: rgba(34, 197, 94, 0.15);
+            --pass-bg: rgba(34, 197, 94, 0.06);
+            --fail: #ef4444;
+            --fail-dim: #dc2626;
+            --fail-glow: rgba(239, 68, 68, 0.15);
+            --fail-bg: rgba(239, 68, 68, 0.06);
+            --skip: #f59e0b;
+            --skip-dim: #d97706;
+            --skip-glow: rgba(245, 158, 11, 0.15);
+            --pending: #8b5cf6;
+            --pending-glow: rgba(139, 92, 246, 0.15);
+
+            /* PLAYWRIGHT BRAND */
+            --pw-green: #2dd4bf;
+            --pw-accent: #45ba4b;
+
+            /* CYPRESS BRAND */
+            --cy-teal: #69d3a7;
+            --cy-dark: #1b1e2e;
+
+            /* BACKGROUNDS */
+            --bg-void: #0b0e14;
+            --bg-primary: #0f1219;
+            --bg-secondary: #151921;
+            --bg-elevated: #1a1f2a;
+            --bg-surface: #1e2433;
+            --bg-terminal: #0a0d12;
+            --bg-code: #111620;
+
+            /* TEXT */
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --text-faint: #475569;
+            --text-code: #e2e8f0;
+
+            /* BORDERS */
+            --border-dim: rgba(148, 163, 184, 0.08);
+            --border-subtle: rgba(148, 163, 184, 0.12);
+            --border-active: var(--pass);
+
+            /* TYPOGRAPHY */
+            --font-display: 'Space Grotesk', sans-serif;
+            --font-body: 'Inter', -apple-system, sans-serif;
+            --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+            /* SPACING */
+            --space-xs: 4px;
+            --space-sm: 8px;
+            --space-md: 16px;
+            --space-lg: 24px;
+            --space-xl: 32px;
+            --space-2xl: 48px;
+            --space-3xl: 64px;
+
+            /* TRANSITIONS */
+            --transition-fast: 0.15s ease;
+            --transition-base: 0.25s ease;
+        }
+
+        /* --- RESET --- */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { font-size: 16px; scroll-behavior: smooth; scroll-padding-top: 56px; }
+
+        body {
+            font-family: var(--font-body);
+            font-size: 1rem;
+            line-height: 1.7;
+            color: var(--text-secondary);
+            background-color: var(--bg-void);
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* Subtle scan lines */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 9999;
+            background-image: repeating-linear-gradient(
+                0deg,
+                transparent, transparent 2px,
+                rgba(34, 197, 94, 0.008) 2px,
+                rgba(34, 197, 94, 0.008) 3px
+            );
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        a { color: var(--pw-green); text-decoration: none; transition: color var(--transition-fast); }
+        a:hover { color: var(--pass); }
+
+        /* --- BACK LINK --- */
+        .back-link {
+            display: inline-block;
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: var(--text-muted);
+            text-decoration: none;
+            padding: 20px 0 0;
+            transition: color var(--transition-fast);
+        }
+        .back-link:hover { color: var(--pass); }
+
+        /* --- HEADER --- */
+        header {
+            text-align: center;
+            padding: 40px 0 32px;
+            border-bottom: 2px solid var(--pass-dim);
+            position: relative;
+            margin-bottom: 0;
+        }
+        header::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0; right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--pass), transparent);
+            filter: blur(4px);
+        }
+
+        .header-status {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            color: var(--pass);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .header-status::before {
+            content: '';
+            display: inline-block;
+            width: 8px; height: 8px;
+            background: var(--pass);
+            border-radius: 50%;
+            box-shadow: 0 0 8px var(--pass-glow);
+            animation: pulse-dot 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; box-shadow: 0 0 8px var(--pass-glow); }
+            50% { opacity: 0.6; box-shadow: 0 0 16px var(--pass-glow); }
+        }
+
+        h1 {
+            font-family: var(--font-display);
+            font-size: clamp(2rem, 6vw, 3.2rem);
+            font-weight: 700;
+            letter-spacing: -0.03em;
+            line-height: 1.1;
+            color: var(--text-primary);
+            margin-bottom: 12px;
+        }
+        h1 .vs {
+            color: var(--text-muted);
+            font-weight: 400;
+            font-size: 0.6em;
+            vertical-align: middle;
+            margin: 0 4px;
+        }
+
+        .tagline {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+        }
+
+        .header-meta {
+            font-family: var(--font-mono);
+            font-size: 0.65rem;
+            color: var(--text-faint);
+            letter-spacing: 0.05em;
+        }
+        .header-meta span { margin: 0 8px; }
+
+        /* --- JUMP NAV --- */
+        .jump-nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            display: flex;
+            gap: 2px;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            white-space: nowrap;
+            background: var(--bg-primary);
+            border-bottom: 1px solid var(--border-dim);
+            padding: 8px 0;
+            scrollbar-width: none;
+        }
+        .jump-nav::-webkit-scrollbar { display: none; }
+        .jump-nav a {
+            font-family: var(--font-mono);
+            font-size: 0.65rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-muted);
+            text-decoration: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            transition: all var(--transition-fast);
+            flex-shrink: 0;
+        }
+        .jump-nav a:hover {
+            color: var(--pass);
+            background: var(--pass-bg);
+        }
+
+        /* --- SECTIONS --- */
+        .section {
+            padding: 48px 0 32px;
+            border-bottom: 1px solid var(--border-dim);
+        }
+        .section:last-of-type { border-bottom: none; }
+
+        .section-header {
+            display: flex;
+            align-items: baseline;
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+
+        .section-number {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: var(--pass-dim);
+            letter-spacing: 0.05em;
+            flex-shrink: 0;
+            position: relative;
+            padding-right: 16px;
+        }
+        .section-number::after {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: 50%;
+            width: 1px;
+            height: 20px;
+            transform: translateY(-50%);
+            background: var(--border-subtle);
+        }
+
+        .section-title {
+            font-family: var(--font-display);
+            font-size: 1.6rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            color: var(--text-primary);
+        }
+
+        .section-description {
+            font-size: 0.92rem;
+            color: var(--text-muted);
+            margin-bottom: 28px;
+            max-width: 700px;
+        }
+
+        /* --- SUBSECTIONS --- */
+        .subsection {
+            margin-bottom: 36px;
+        }
+
+        .subsection-title {
+            font-family: var(--font-display);
+            font-size: 1.15rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border-dim);
+        }
+
+        /* --- CODE BLOCKS --- */
+        pre {
+            background: var(--bg-terminal);
+            border: 1px solid var(--border-dim);
+            border-radius: 6px;
+            padding: 20px;
+            overflow-x: auto;
+            margin-bottom: 20px;
+            position: relative;
+        }
+        pre::before {
+            content: attr(data-label);
+            position: absolute;
+            top: 0; right: 0;
+            font-family: var(--font-mono);
+            font-size: 0.6rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            padding: 4px 10px;
+            border-radius: 0 6px 0 6px;
+        }
+        pre[data-label="playwright"]::before {
+            color: var(--pw-green);
+            background: rgba(45, 212, 191, 0.1);
+            border-bottom: 1px solid rgba(45, 212, 191, 0.2);
+            border-left: 1px solid rgba(45, 212, 191, 0.2);
+        }
+        pre[data-label="cypress"]::before {
+            color: var(--cy-teal);
+            background: rgba(105, 211, 167, 0.1);
+            border-bottom: 1px solid rgba(105, 211, 167, 0.2);
+            border-left: 1px solid rgba(105, 211, 167, 0.2);
+        }
+        pre[data-label="terminal"]::before {
+            color: var(--text-muted);
+            background: rgba(100, 116, 139, 0.1);
+            border-bottom: 1px solid rgba(100, 116, 139, 0.2);
+            border-left: 1px solid rgba(100, 116, 139, 0.2);
+        }
+        pre[data-label="yaml"]::before {
+            color: var(--skip);
+            background: rgba(245, 158, 11, 0.1);
+            border-bottom: 1px solid rgba(245, 158, 11, 0.2);
+            border-left: 1px solid rgba(245, 158, 11, 0.2);
+        }
+
+        code {
+            font-family: var(--font-mono);
+            font-size: 0.82rem;
+            line-height: 1.65;
+            color: var(--text-code);
+        }
+
+        :not(pre) > code {
+            background: var(--bg-elevated);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.85em;
+            color: var(--pw-green);
+        }
+
+        /* --- COMPARISON GRID --- */
+        .compare-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .compare-col {
+            min-width: 0;
+        }
+
+        .compare-label {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            padding: 8px 12px;
+            margin-bottom: 8px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .compare-label-pw {
+            color: var(--pw-green);
+            background: rgba(45, 212, 191, 0.08);
+            border: 1px solid rgba(45, 212, 191, 0.15);
+        }
+        .compare-label-cy {
+            color: var(--cy-teal);
+            background: rgba(105, 211, 167, 0.08);
+            border: 1px solid rgba(105, 211, 167, 0.15);
+        }
+
+        .compare-col pre {
+            margin-bottom: 0;
+        }
+
+        /* --- TABLES --- */
+        .table-wrap {
+            overflow-x: auto;
+            margin-bottom: 24px;
+            border-radius: 6px;
+            border: 1px solid var(--border-dim);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.88rem;
+        }
+
+        th {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+            text-align: left;
+            padding: 12px 16px;
+            background: var(--bg-elevated);
+            border-bottom: 2px solid var(--border-subtle);
+            white-space: nowrap;
+        }
+
+        td {
+            padding: 10px 16px;
+            border-bottom: 1px solid var(--border-dim);
+            color: var(--text-secondary);
+            vertical-align: top;
+        }
+
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: rgba(34, 197, 94, 0.02); }
+
+        td code {
+            font-size: 0.8rem;
+        }
+
+        /* --- TEST OUTPUT BLOCK --- */
+        .test-output {
+            background: var(--bg-terminal);
+            border: 1px solid var(--border-dim);
+            border-radius: 6px;
+            padding: 20px;
+            margin-bottom: 20px;
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            line-height: 1.8;
+        }
+        .test-output .pass-line { color: var(--pass); }
+        .test-output .fail-line { color: var(--fail); }
+        .test-output .skip-line { color: var(--skip); }
+        .test-output .dim { color: var(--text-faint); }
+        .test-output .summary {
+            border-top: 1px solid var(--border-dim);
+            margin-top: 12px;
+            padding-top: 12px;
+            color: var(--text-muted);
+        }
+
+        /* --- ALERT BOXES --- */
+        .alert {
+            padding: 16px 20px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 0.88rem;
+            line-height: 1.6;
+            position: relative;
+            padding-left: 48px;
+        }
+        .alert::before {
+            position: absolute;
+            left: 16px;
+            top: 16px;
+            font-size: 1.1rem;
+        }
+
+        .alert-pass {
+            background: var(--pass-bg);
+            border: 1px solid rgba(34, 197, 94, 0.2);
+            color: var(--pass);
+        }
+        .alert-pass::before { content: '\2713'; color: var(--pass); }
+
+        .alert-fail {
+            background: var(--fail-bg);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            color: var(--fail);
+        }
+        .alert-fail::before { content: '\2717'; color: var(--fail); }
+
+        .alert-info {
+            background: rgba(45, 212, 191, 0.06);
+            border: 1px solid rgba(45, 212, 191, 0.15);
+            color: var(--text-secondary);
+        }
+        .alert-info::before { content: '\2139'; color: var(--pw-green); }
+
+        .alert-warning {
+            background: rgba(245, 158, 11, 0.06);
+            border: 1px solid rgba(245, 158, 11, 0.15);
+            color: var(--text-secondary);
+        }
+        .alert-warning::before { content: '\26A0'; color: var(--skip); }
+
+        .alert strong { color: var(--text-primary); }
+
+        /* --- BADGES --- */
+        .badge {
+            display: inline-block;
+            font-family: var(--font-mono);
+            font-size: 0.6rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            padding: 3px 8px;
+            border-radius: 3px;
+            vertical-align: middle;
+        }
+        .badge-pw {
+            color: var(--pw-green);
+            background: rgba(45, 212, 191, 0.12);
+            border: 1px solid rgba(45, 212, 191, 0.2);
+        }
+        .badge-cy {
+            color: var(--cy-teal);
+            background: rgba(105, 211, 167, 0.12);
+            border: 1px solid rgba(105, 211, 167, 0.2);
+        }
+        .badge-both {
+            color: var(--text-muted);
+            background: rgba(148, 163, 184, 0.08);
+            border: 1px solid rgba(148, 163, 184, 0.15);
+        }
+
+        /* --- FEATURE CARDS --- */
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .feature-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-dim);
+            border-radius: 6px;
+            padding: 20px;
+            transition: border-color var(--transition-fast);
+        }
+        .feature-card:hover {
+            border-color: var(--border-subtle);
+        }
+
+        .feature-card h4 {
+            font-family: var(--font-display);
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .feature-card p {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        .feature-icon {
+            font-size: 1rem;
+        }
+
+        /* --- PARAGRAPH & LISTS --- */
+        .section-content p {
+            margin-bottom: 16px;
+            font-size: 0.92rem;
+        }
+
+        .section-content ul, .section-content ol {
+            margin-bottom: 16px;
+            padding-left: 24px;
+        }
+
+        .section-content li {
+            margin-bottom: 6px;
+            font-size: 0.9rem;
+        }
+
+        .section-content li::marker {
+            color: var(--pass-dim);
+        }
+
+        /* --- FOOTER --- */
+        .site-footer {
+            text-align: center;
+            padding: 32px 0 48px;
+            border-top: 1px solid var(--border-dim);
+            margin-top: 32px;
+        }
+        .site-footer a {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: var(--text-muted);
+            text-decoration: none;
+        }
+        .site-footer a:hover { color: var(--pass); }
+
+        /* --- RESPONSIVE --- */
+        @media (max-width: 768px) {
+            html { font-size: 15px; }
+            .container { padding: 0 16px; }
+            .compare-grid { grid-template-columns: 1fr; }
+            .feature-grid { grid-template-columns: 1fr; }
+            .section-header { flex-direction: column; gap: 8px; }
+            h1 { font-size: 2rem; }
+            pre { padding: 14px; font-size: 0.75rem; }
+            .jump-nav { padding: 6px 0; }
+            .jump-nav a { padding: 5px 10px; font-size: 0.6rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="index.html" class="back-link">&larr; Tech Guides</a>
+
+        <header>
+            <div class="header-status">Test Suite Ready</div>
+            <h1>Playwright <span class="vs">&amp;</span> Cypress</h1>
+            <p class="tagline">End-to-end testing frameworks compared side-by-side</p>
+            <p class="header-meta">11 sections <span>&middot;</span> Selectors, Assertions, CI, Debugging <span>&middot;</span> 2026</p>
+        </header>
+
+        <!-- Sticky Jump Nav -->
+        <nav class="jump-nav">
+            <a href="#quickref">Quick Ref</a>
+            <a href="#install">Install</a>
+            <a href="#selectors">Selectors</a>
+            <a href="#assertions">Assertions</a>
+            <a href="#page-objects">Page Objects</a>
+            <a href="#api-testing">API Testing</a>
+            <a href="#network">Network</a>
+            <a href="#visual">Visual</a>
+            <a href="#components">Components</a>
+            <a href="#ci">CI/CD</a>
+            <a href="#debugging">Debug</a>
+        </nav>
+
+        <!-- ============================================================
+             SECTION 01 — QUICK REFERENCE
+        ============================================================ -->
+        <section id="quickref" class="section">
+            <div class="section-header">
+                <span class="section-number">01</span>
+                <h2 class="section-title">Quick Reference</h2>
+            </div>
+            <p class="section-description">At-a-glance comparison of architecture, capabilities, and tradeoffs between the two dominant E2E testing frameworks.</p>
+
+            <div class="section-content">
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Feature</th>
+                                <th>Playwright</th>
+                                <th>Cypress</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Maintainer</strong></td>
+                                <td>Microsoft</td>
+                                <td>Cypress.io (acquired by Atmosera)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Architecture</strong></td>
+                                <td>CDP / BiDi protocol (out-of-process)</td>
+                                <td>Runs inside the browser (in-process)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Languages</strong></td>
+                                <td>TypeScript, JavaScript, Python, Java, C#</td>
+                                <td>JavaScript / TypeScript only</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Browsers</strong></td>
+                                <td>Chromium, Firefox, WebKit (Safari)</td>
+                                <td>Chrome, Edge, Firefox, Electron</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Parallelism</strong></td>
+                                <td>Built-in workers (free)</td>
+                                <td>Cypress Cloud (paid) or third-party</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Auto-wait</strong></td>
+                                <td>Yes (actionability checks)</td>
+                                <td>Yes (automatic retry-ability)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Multi-tab / Multi-origin</strong></td>
+                                <td>Full support</td>
+                                <td>cy.origin() for multi-origin; no multi-tab</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Network Interception</strong></td>
+                                <td>route() API</td>
+                                <td>cy.intercept()</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Test Runner UI</strong></td>
+                                <td>HTML report, Trace Viewer</td>
+                                <td>Interactive runner with time-travel</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Component Testing</strong></td>
+                                <td>Experimental (via @playwright/experimental-ct-*)</td>
+                                <td>Built-in (React, Vue, Angular, Svelte)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>API Testing</strong></td>
+                                <td>request context (built-in)</td>
+                                <td>cy.request() (limited to same-origin by default)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Mobile Emulation</strong></td>
+                                <td>Devices, geolocation, permissions</td>
+                                <td>Viewport only (no real device emulation)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>License</strong></td>
+                                <td>Apache 2.0</td>
+                                <td>MIT</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="test-output">
+                    <div class="dim">$ npx playwright test</div>
+                    <div class="pass-line">&nbsp;&nbsp;&#10003; login.spec.ts &mdash; should authenticate with valid credentials (1.2s)</div>
+                    <div class="pass-line">&nbsp;&nbsp;&#10003; login.spec.ts &mdash; should show error for invalid password (0.8s)</div>
+                    <div class="pass-line">&nbsp;&nbsp;&#10003; dashboard.spec.ts &mdash; should display user profile (2.1s)</div>
+                    <div class="fail-line">&nbsp;&nbsp;&#10007; dashboard.spec.ts &mdash; should load analytics chart (3.4s)</div>
+                    <div class="skip-line">&nbsp;&nbsp;- settings.spec.ts &mdash; should toggle dark mode (skipped)</div>
+                    <div class="summary">
+                        <span class="pass-line">3 passed</span> &middot;
+                        <span class="fail-line">1 failed</span> &middot;
+                        <span class="skip-line">1 skipped</span> &middot;
+                        5 total (7.5s)
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             SECTION 02 — INSTALLATION & SETUP
+        ============================================================ -->
+        <section id="install" class="section">
+            <div class="section-header">
+                <span class="section-number">02</span>
+                <h2 class="section-title">Installation &amp; Setup</h2>
+            </div>
+            <p class="section-description">Get from zero to first test in under two minutes with either framework.</p>
+
+            <div class="section-content">
+                <div class="subsection">
+                    <h3 class="subsection-title">Project Initialization</h3>
+                    <div class="compare-grid">
+                        <div class="compare-col">
+                            <div class="compare-label compare-label-pw">Playwright</div>
+                            <pre data-label="terminal"><code># Initialize with wizard
+npm init playwright@latest
+
+# Or manual install
+npm install -D @playwright/test
+npx playwright install
+
+# Project structure created:
+# playwright.config.ts
+# tests/
+#   example.spec.ts
+# tests-examples/</code></pre>
+                        </div>
+                        <div class="compare-col">
+                            <div class="compare-label compare-label-cy">Cypress</div>
+                            <pre data-label="terminal"><code># Install Cypress
+npm install -D cypress
+
+# Open interactive launcher
+npx cypress open
+
+# Project structure created:
+# cypress.config.ts
+# cypress/
+#   e2e/
+#   fixtures/
+#   support/</code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Configuration</h3>
+                    <div class="compare-grid">
+                        <div class="compare-col">
+                            <div class="compare-label compare-label-pw">Playwright</div>
+                            <pre data-label="playwright"><code>// playwright.config.ts
+import { defineConfig, devices } from
+  '@playwright/test';
+
+export default defineConfig({
+  testDir: './tests',
+  fullyParallel: true,
+  retries: process.env.CI ? 2 : 0,
+  workers: process.env.CI ? 1 : undefined,
+  reporter: 'html',
+  use: {
+    baseURL: 'http://localhost:3000',
+    trace: 'on-first-retry',
+    screenshot: 'only-on-failure',
+  },
+  projects: [
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'firefox',
+      use: { ...devices['Desktop Firefox'] },
+    },
+    {
+      name: 'webkit',
+      use: { ...devices['Desktop Safari'] },
+    },
+    {
+      name: 'mobile',
+      use: { ...devices['iPhone 14'] },
+    },
+  ],
+  webServer: {
+    command: 'npm run dev',
+    url: 'http://localhost:3000',
+    reuseExistingServer: !process.env.CI,
+  },
+});</code></pre>
+                        </div>
+                        <div class="compare-col">
+                            <div class="compare-label compare-label-cy">Cypress</div>
+                            <pre data-label="cypress"><code>// cypress.config.ts
+import { defineConfig } from 'cypress';
+
+export default defineConfig({
+  e2e: {
+    baseUrl: 'http://localhost:3000',
+    viewportWidth: 1280,
+    viewportHeight: 720,
+    retries: {
+      runMode: 2,
+      openMode: 0,
+    },
+    video: true,
+    screenshotOnRunFailure: true,
+    defaultCommandTimeout: 10000,
+    setupNodeEvents(on, config) {
+      // Register plugins here
+    },
+    specPattern:
+      'cypress/e2e/**/*.cy.{js,ts}',
+  },
+  component: {
+    devServer: {
+      framework: 'react',
+      bundler: 'vite',
+    },
+  },
+});</code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">First Test</h3>
+                    <div class="compare-grid">
+                        <div class="compare-col">
+                            <div class="compare-label compare-label-pw">Playwright</div>
+                            <pre data-label="playwright"><code>// tests/home.spec.ts
+import { test, expect } from
+  '@playwright/test';
+
+test('homepage has title', async ({ page }) => {
+  await page.goto('/');
+
+  await expect(page)
+    .toHaveTitle(/My App/);
+
+  await expect(
+    page.getByRole('heading', { name: 'Welcome' })
+  ).toBeVisible();
+});</code></pre>
+                        </div>
+                        <div class="compare-col">
+                            <div class="compare-label compare-label-cy">Cypress</div>
+                            <pre data-label="cypress"><code>// cypress/e2e/home.cy.ts
+describe('Homepage', () => {
+  it('has title', () => {
+    cy.visit('/');
+
+    cy.title()
+      .should('match', /My App/);
+
+    cy.get('h1')
+      .contains('Welcome')
+      .should('be.visible');
+  });
+});</code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Running Tests</h3>
+                    <div class="compare-grid">
+                        <div class="compare-col">
+                            <div class="compare-label compare-label-pw">Playwright</div>
+                            <pre data-label="terminal"><code># Run all tests
+npx playwright test
+
+# Run specific file
+npx playwright test home.spec.ts
+
+# Run in headed mode
+npx playwright test --headed
+
+# Run specific browser
+npx playwright test --project=firefox
+
+# Run with UI mode (interactive)
+npx playwright test --ui
+
+# Debug a single test
+npx playwright test --debug home.spec.ts
+
+# Show HTML report
+npx playwright show-report</code></pre>
+                        </div>
+                        <div class="compare-col">
+                            <div class="compare-label compare-label-cy">Cypress</div>
+                            <pre data-label="terminal"><code># Open interactive runner
+npx cypress open
+
+# Run headless (CI mode)
+npx cypress run
+
+# Run specific spec
+npx cypress run --spec "cypress/e2e/home.cy.ts"
+
+# Run specific browser
+npx cypress run --browser firefox
+
+# Run with headed browser
+npx cypress run --headed
+
+# Run component tests
+npx cypress run --component
+
+# Record to Cypress Cloud
+npx cypress run --record --key &lt;key&gt;</code></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             SECTION 03 — SELECTORS
+        ============================================================ -->
+        <section id="selectors" class="section">
+            <div class="section-header">
+                <span class="section-number">03</span>
+                <h2 class="section-title">Selectors &amp; Locators</h2>
+            </div>
+            <p class="section-description">How each framework finds elements. Playwright encourages user-facing locators; Cypress uses CSS selectors with chaining.</p>
+
+            <div class="section-content">
+                <div class="subsection">
+                    <h3 class="subsection-title">Core Selector Strategies</h3>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Strategy</th>
+                                    <th>Playwright</th>
+                                    <th>Cypress</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>By role</strong></td>
+                                    <td><code>page.getByRole('button', { name: 'Submit' })</code></td>
+                                    <td><code>cy.contains('button', 'Submit')</code></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>By text</strong></td>
+                                    <td><code>page.getByText('Hello world')</code></td>
+                                    <td><code>cy.contains('Hello world')</code></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>By label</strong></td>
+                                    <td><code>page.getByLabel('Email')</code></td>
+                                    <td><code>cy.get('label').contains('Email').find('input')</code></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>By placeholder</strong></td>
+                                    <td><code>page.getByPlaceholder('Search...')</code></td>
+                                    <td><code>cy.get('[placeholder="Search..."]')</code></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>By test ID</strong></td>
+                                    <td><code>page.getByTestId('nav-menu')</code></td>
+                                    <td><code>cy.get('[data-testid="nav-menu"]')</code></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>CSS selector</strong></td>
+                                    <td><code>page.locator('.btn-primary')</code></td>
+                                    <td><code>cy.get('.btn-primary')</code></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>XPath</strong></td>
+                                    <td><code>page.locator('xpath=//div[@id="app"]')</code></td>
+                                    <td><code>cy.xpath('//div[@id="app"]')</code> (plugin)</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Nth match</strong></td>
+                                    <td><code>page.getByRole('listitem').nth(2)</code></td>
+                                    <td><code>cy.get('li').eq(2)</code></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Filter / chain</strong></td>
+                                    <td><code>locator.filter({ hasText: 'Buy' })</code></td>
+                                    <td><code>cy.get('.card').filter(':contains("Buy")')</code></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Advanced Locator Patterns</h3>
+                    <div class="compare-grid">
+                        <div class="compare-col">
+                            <div class="compare-label compare-label-pw">Playwright</div>
+                            <pre data-label="playwright"><code>// Chained locators
+const row = page
+  .getByRole('row')
+  .filter({ hasText: 'John' });
+await row
+  .getByRole('button', { name: 'Edit' })
+  .click();
+
+// Locator within frame
+const frame = page.frameLocator('#checkout');
+await frame.getByLabel('Card number').fill('4242...');
+
+// Shadow DOM — automatic piercing
+await page.locator('my-component')
+  .getByText('Inner content').click();
+
+// Multiple elements
+const items = page.getByRole('listitem');
+await expect(items).toHaveCount(5);
+const texts = await items.allTextContents();
+
+// Waiting built-in to locators
+// (auto-waits up to 30s by default)
+await page.getByRole('alert').waitFor();
+await page.getByText('Saved!').waitFor({
+  state: 'visible',
+  timeout: 5000,
+});</code></pre>
+                        </div>
+                        <div class="compare-col">
+                            <div class="compare-label compare-label-cy">Cypress</div>
+                            <pre data-label="cypress"><code>// Chained commands
+cy.get('tr')
+  .contains('John')
+  .parent('tr')
+  .find('button')
+  .contains('Edit')
+  .click();
+
+// Iframe content (plugin required)
+cy.iframe('#checkout')
+  .find('[name="cardNumber"]')
+  .type('4242...');
+
+// Shadow DOM
+cy.get('my-component')
+  .shadow()
+  .find('.inner-content')
+  .click();
+
+// Multiple elements
+cy.get('li')
+  .should('have.length', 5)
+  .each(($el) => {
+    cy.wrap($el)
+      .should('be.visible');
+  });
+
+// Explicit waiting
+cy.get('[role="alert"]', { timeout: 10000 })
+  .should('exist');
+cy.contains('Saved!', { timeout: 5000 })
+  .should('be.visible');</code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="alert alert-pass">
+                    <strong>Best Practice:</strong> Both frameworks recommend selecting elements by accessible roles, labels, and text content rather than CSS classes or IDs. This creates more resilient tests that mirror how users actually interact with your application.
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             SECTION 04 — ASSERTIONS
+        ============================================================ -->
+        <section id="assertions" class="section">
+            <div class="section-header">
+                <span class="section-number">04</span>
+                <h2 class="section-title">Assertions</h2>
+            </div>
+            <p class="section-description">Playwright uses expect() with auto-retrying web-first assertions. Cypress uses chainable .should() with built-in retry.</p>
+
+            <div class="section-content">
+                <div class="subsection">
+                    <h3 class="subsection-title">Common Assertions</h3>
+                    <div class="compare-grid">
+                        <div class="compare-col">
+                            <div class="compare-label compare-label-pw">Playwright</div>
+                            <pre data-label="playwright"><code>// Visibility
+await expect(locator).toBeVisible();
+await expect(locator).toBeHidden();
+
+// Text content
+await expect(locator).toHaveText('Hello');
+await expect(locator).toContainText('Hell');
+
+// Input values
+await expect(locator).toHaveValue('test@mail.com');
+await expect(locator).toBeChecked();
+await expect(locator).toBeDisabled();
+await expect(locator).toBeEditable();
+
+// Attributes & CSS
+await expect(locator).toHaveAttribute('href', '/about');
+await expect(locator).toHaveClass(/active/);
+await expect(locator).toHaveCSS('color', 'rgb(0, 128, 0)');
+
+// Count
+await expect(locator).toHaveCount(3);
+
+// Page-level
+await expect(page).toHaveTitle(/Dashboard/);
+await expect(page).toHaveURL(/\/dashboard/);
+
+// Negation
+await expect(locator).not.toBeVisible();
+
+// Soft assertions (don't stop test)
+await expect.soft(locator).toHaveText('A');
+await expect.soft(locator).toHaveText('B');</code></pre>
+                        </div>
+                        <div class="compare-col">
+                            <div class="compare-label compare-label-cy">Cypress</div>
+                            <pre data-label="cypress"><code>// Visibility
+cy.get(sel).should('be.visible');
+cy.get(sel).should('not.be.visible');
+
+// Text content
+cy.get(sel).should('have.text', 'Hello');
+cy.get(sel).should('contain.text', 'Hell');
+
+// Input values
+cy.get(sel).should('have.value', 'test@mail.com');
+cy.get(sel).should('be.checked');
+cy.get(sel).should('be.disabled');
+cy.get(sel).should('not.be.disabled');
+
+// Attributes & CSS
+cy.get(sel).should('have.attr', 'href', '/about');
+cy.get(sel).should('have.class', 'active');
+cy.get(sel).should('have.css', 'color',
+  'rgb(0, 128, 0)');
+
+// Count
+cy.get(sel).should('have.length', 3);
+
+// Page-level
+cy.title().should('match', /Dashboard/);
+cy.url().should('include', '/dashboard');
+
+// Negation
+cy.get(sel).should('not.exist');
+
+// Chained assertions
+cy.get(sel)
+  .should('be.visible')
+  .and('contain', 'Hello')
+  .and('have.class', 'active');</code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Custom Assertions &amp; Retry Logic</h3>
+                    <div class="compare-grid">
+                        <div class="compare-col">
+                            <div class="compare-label compare-label-pw">Playwright</div>
+                            <pre data-label="playwright"><code>// Polling assertion (custom condition)
+await expect(async () => {
+  const resp = await page.request.get('/api/status');
+  expect(resp.status()).toBe(200);
+  const body = await resp.json();
+  expect(body.ready).toBe(true);
+}).toPass({
+  intervals: [1000, 2000, 5000],
+  timeout: 30000,
+});
+
+// Custom matcher via expect.extend
+import { expect as baseExpect } from '@playwright/test';
+
+export const expect = baseExpect.extend({
+  async toHaveToastMessage(page, expected) {
+    const toast = page.locator('.toast');
+    await toast.waitFor();
+    const text = await toast.textContent();
+    return {
+      pass: text?.includes(expected) ?? false,
+      message: () => `Expected toast "${expected}"`,
+    };
+  },
+});</code></pre>
+                        </div>
+                        <div class="compare-col">
+                            <div class="compare-label compare-label-cy">Cypress</div>
+                            <pre data-label="cypress"><code>// Custom retry with should callback
+cy.get('.status')
+  .should(($el) => {
+    const text = $el.text();
+    expect(text).to.match(/ready|complete/i);
+  });
+
+// Retry-able API polling
+function waitForReady() {
+  cy.request('/api/status').then((resp) => {
+    if (resp.body.ready !== true) {
+      cy.wait(1000);
+      waitForReady(); // recursive retry
+    }
+  });
+}
+
+// Custom Chai assertion
+Cypress.Commands.add('shouldHaveToast',
+  (message) => {
+    cy.get('.toast', { timeout: 10000 })
+      .should('be.visible')
+      .and('contain', message);
+  }
+);
+
+// Custom command usage
+cy.shouldHaveToast('Settings saved');</code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="alert alert-info">
+                    <strong>Auto-retry difference:</strong> Playwright's <code>expect()</code> web assertions auto-retry until timeout. Cypress <code>.should()</code> retries the entire command chain. Both eliminate the need for manual <code>sleep()</code> or <code>wait()</code> calls in most scenarios.
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             SECTION 05 — PAGE OBJECTS
+        ============================================================ -->
+        <section id="page-objects" class="section">
+            <div class="section-header">
+                <span class="section-number">05</span>
+                <h2 class="section-title">Page Object Model</h2>
+            </div>
+            <p class="section-description">Encapsulate page interactions into reusable classes or custom commands for maintainable, DRY test suites.</p>
+
+            <div class="section-content">
+                <div class="subsection">
+                    <h3 class="subsection-title">Page Object Pattern</h3>
+                    <div class="compare-grid">
+                        <div class="compare-col">
+                            <div class="compare-label compare-label-pw">Playwright</div>
+                            <pre data-label="playwright"><code>// pages/login.page.ts
+import { type Page, type Locator } from
+  '@playwright/test';
+
+export class LoginPage {
+  readonly page: Page;
+  readonly emailInput: Locator;
+  readonly passwordInput: Locator;
+  readonly submitBtn: Locator;
+  readonly errorMessage: Locator;
+
+  constructor(page: Page) {
+    this.page = page;
+    this.emailInput = page.getByLabel('Email');
+    this.passwordInput = page.getByLabel('Password');
+    this.submitBtn = page.getByRole('button',
+      { name: 'Sign in' });
+    this.errorMessage = page.getByRole('alert');
+  }
+
+  async goto() {
+    await this.page.goto('/login');
+  }
+
+  async login(email: string, password: string) {
+    await this.emailInput.fill(email);
+    await this.passwordInput.fill(password);
+    await this.submitBtn.click();
+  }
+}</code></pre>
+                        </div>
+                        <div class="compare-col">
+                            <div class="compare-label compare-label-cy">Cypress</div>
+                            <pre data-label="cypress"><code>// cypress/pages/login.page.ts
+export class LoginPage {
+  get emailInput() {
+    return cy.get('[data-testid="email"]');
+  }
+
+  get passwordInput() {
+    return cy.get('[data-testid="password"]');
+  }
+
+  get submitBtn() {
+    return cy.contains('button', 'Sign in');
+  }
+
+  get errorMessage() {
+    return cy.get('[role="alert"]');
+  }
+
+  goto() {
+    cy.visit('/login');
+  }
+
+  login(email: string, password: string) {
+    this.emailInput.type(email);
+    this.passwordInput.type(password);
+    this.submitBtn.click();
+  }
+}</code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Using Page Objects in Tests</h3>
+                    <div class="compare-grid">
+                        <div class="compare-col">
+                            <div class="compare-label compare-label-pw">Playwright</div>
+                            <pre data-label="playwright"><code>// tests/login.spec.ts
+import { test, expect } from '@playwright/test';
+import { LoginPage } from '../pages/login.page';
+
+test.describe('Login', () => {
+  let loginPage: LoginPage;
+
+  test.beforeEach(async ({ page }) => {
+    loginPage = new LoginPage(page);
+    await loginPage.goto();
+  });
+
+  test('successful login', async ({ page }) => {
+    await loginPage.login(
+      'user@test.com',
+      'secret123'
+    );
+    await expect(page).toHaveURL(/dashboard/);
+  });
+
+  test('shows error for bad creds',
+    async () => {
+    await loginPage.login('bad@test.com', 'wrong');
+    await expect(loginPage.errorMessage)
+      .toContainText('Invalid credentials');
+  });
+});</code></pre>
+                        </div>
+                        <div class="compare-col">
+                            <div class="compare-label compare-label-cy">Cypress</div>
+                            <pre data-label="cypress"><code>// cypress/e2e/login.cy.ts
+import { LoginPage } from '../pages/login.page';
+
+describe('Login', () => {
+  const loginPage = new LoginPage();
+
+  beforeEach(() => {
+    loginPage.goto();
+  });
+
+  it('successful login', () => {
+    loginPage.login(
+      'user@test.com',
+      'secret123'
+    );
+    cy.url().should('include', '/dashboard');
+  });
+
+  it('shows error for bad creds', () => {
+    loginPage.login('bad@test.com', 'wrong');
+    loginPage.errorMessage
+      .should('contain', 'Invalid credentials');
+  });
+});
+
+// Alternative: Custom Commands (Cypress idiom)
+// cypress/support/commands.ts
+Cypress.Commands.add('login',
+  (email, password) => {
+  cy.visit('/login');
+  cy.get('[data-testid="email"]').type(email);
+  cy.get('[data-testid="password"]')
+    .type(password);
+  cy.contains('Sign in').click();
+});</code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Fixtures &amp; Test Data</h3>
+                    <div class="compare-grid">
+                        <div class="compare-col">
+                            <div class="compare-label compare-label-pw">Playwright</div>
+                            <pre data-label="playwright"><code>// fixtures/test-data.ts
+import { test as base } from '@playwright/test';
+import { LoginPage } from '../pages/login.page';
+import { DashboardPage } from
+  '../pages/dashboard.page';
+
+// Extend base test with page fixtures
+type Fixtures = {
+  loginPage: LoginPage;
+  dashboardPage: DashboardPage;
+  authenticatedPage: DashboardPage;
+};
+
+export const test = base.extend&lt;Fixtures&gt;({
+  loginPage: async ({ page }, use) => {
+    await use(new LoginPage(page));
+  },
+  dashboardPage: async ({ page }, use) => {
+    await use(new DashboardPage(page));
+  },
+  authenticatedPage: async ({ page }, use) => {
+    // Setup: login via API
+    const ctx = page.context();
+    await ctx.request.post('/api/login', {
+      data: { email: 'test@test.com',
+              password: 'secret' }
+    });
+    const dashboard = new DashboardPage(page);
+    await dashboard.goto();
+    await use(dashboard);
+  },
+});
+
+export { expect } from '@playwright/test';</code></pre>
+                        </div>
+                        <div class="compare-col">
+                            <div class="compare-label compare-label-cy">Cypress</div>
+                            <pre data-label="cypress"><code>// cypress/fixtures/users.json
+{
+  "admin": {
+    "email": "admin@test.com",
+    "password": "admin123"
+  },
+  "user": {
+    "email": "user@test.com",
+    "password": "user123"
+  }
+}
+
+// Usage in test
+describe('Dashboard', () => {
+  beforeEach(() => {
+    cy.fixture('users').then((users) => {
+      cy.login(users.admin.email,
+               users.admin.password);
+    });
+  });
+
+  it('shows admin panel', () => {
+    cy.get('[data-testid="admin-panel"]')
+      .should('be.visible');
+  });
+});
+
+// Or use cy.fixture() shorthand
+beforeEach(function () {
+  cy.fixture('users').as('users');
+});
+
+it('uses aliased fixture', function () {
+  cy.login(
+    this.users.admin.email,
+    this.users.admin.password
+  );
+});</code></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             SECTION 06 — API TESTING
+        ============================================================ -->
+        <section id="api-testing" class="section">
+            <div class="section-header">
+                <span class="section-number">06</span>
+                <h2 class="section-title">API Testing</h2>
+            </div>
+            <p class="section-description">Test REST APIs directly without a browser. Playwright's request context supports full HTTP; Cypress uses cy.request().</p>
+
+            <div class="section-content">
+                <div class="subsection">
+                    <h3 class="subsection-title">Basic API Requests</h3>
+                    <div class="compare-grid">
+                        <div class="compare-col">
+                            <div class="compare-label compare-label-pw">Playwright</div>
+                            <pre data-label="playwright"><code>// API testing — no browser needed
+import { test, expect } from '@playwright/test';
+
+test('GET /api/users', async ({ request }) => {
+  const response = await request.get('/api/users');
+
+  expect(response.ok()).toBeTruthy();
+  expect(response.status()).toBe(200);
+
+  const users = await response.json();
+  expect(users).toHaveLength(10);
+  expect(users[0]).toHaveProperty('email');
+});
+
+test('POST /api/users', async ({ request }) => {
+  const response = await request.post('/api/users', {
+    data: {
+      name: 'Jane Doe',
+      email: 'jane@test.com',
+    },
+    headers: {
+      Authorization: 'Bearer token123',
+    },
+  });
+
+  expect(response.status()).toBe(201);
+  const user = await response.json();
+  expect(user.name).toBe('Jane Doe');
+});
+
+test('full CRUD lifecycle', async ({ request }) => {
+  // Create
+  const create = await request.post('/api/items', {
+    data: { title: 'Test Item' },
+  });
+  const { id } = await create.json();
+
+  // Read
+  const get = await request.get(`/api/items/${id}`);
+  expect(get.ok()).toBeTruthy();
+
+  // Update
+  const put = await request.put(`/api/items/${id}`, {
+    data: { title: 'Updated Item' },
+  });
+  expect(put.ok()).toBeTruthy();
+
+  // Delete
+  const del = await request.delete(`/api/items/${id}`);
+  expect(del.status()).toBe(204);
+});</code></pre>
+                        </div>
+                        <div class="compare-col">
+                            <div class="compare-label compare-label-cy">Cypress</div>
+                            <pre data-label="cypress"><code>// API testing with cy.request()
+describe('Users API', () => {
+  it('GET /api/users', () => {
+    cy.request('GET', '/api/users')
+      .then((response) => {
+        expect(response.status).to.eq(200);
+        expect(response.body).to.have.length(10);
+        expect(response.body[0])
+          .to.have.property('email');
+      });
+  });
+
+  it('POST /api/users', () => {
+    cy.request({
+      method: 'POST',
+      url: '/api/users',
+      body: {
+        name: 'Jane Doe',
+        email: 'jane@test.com',
+      },
+      headers: {
+        Authorization: 'Bearer token123',
+      },
+    }).then((response) => {
+      expect(response.status).to.eq(201);
+      expect(response.body.name)
+        .to.eq('Jane Doe');
+    });
+  });
+
+  it('full CRUD lifecycle', () => {
+    // Create
+    cy.request('POST', '/api/items', {
+      title: 'Test Item',
+    }).then((resp) => {
+      const id = resp.body.id;
+
+      // Read
+      cy.request(`/api/items/${id}`)
+        .its('status').should('eq', 200);
+
+      // Update
+      cy.request('PUT', `/api/items/${id}`, {
+        title: 'Updated Item',
+      }).its('status').should('eq', 200);
+
+      // Delete
+      cy.request('DELETE', `/api/items/${id}`)
+        .its('status').should('eq', 204);
+    });
+  });
+});</code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">API Auth &amp; Session Reuse</h3>
+                    <div class="compare-grid">
+                        <div class="compare-col">
+                            <div class="compare-label compare-label-pw">Playwright</div>
+                            <pre data-label="playwright"><code>// global-setup.ts — save auth state
+import { chromium } from '@playwright/test';
+
+async function globalSetup() {
+  const browser = await chromium.launch();
+  const page = await browser.newPage();
+  await page.goto('/login');
+  await page.getByLabel('Email')
+    .fill('admin@test.com');
+  await page.getByLabel('Password')
+    .fill('secret');
+  await page.getByRole('button',
+    { name: 'Sign in' }).click();
+  await page.waitForURL('/dashboard');
+
+  // Save auth cookies/localStorage
+  await page.context().storageState({
+    path: '.auth/admin.json',
+  });
+  await browser.close();
+}
+export default globalSetup;
+
+// playwright.config.ts
+export default defineConfig({
+  globalSetup: require.resolve('./global-setup'),
+  projects: [{
+    name: 'authenticated',
+    use: {
+      storageState: '.auth/admin.json',
+    },
+  }],
+});</code></pre>
+                        </div>
+                        <div class="compare-col">
+                            <div class="compare-label compare-label-cy">Cypress</div>
+                            <pre data-label="cypress"><code>// cypress/support/commands.ts
+Cypress.Commands.add('loginByApi',
+  (email, password) => {
+  cy.session([email, password], () => {
+    cy.request({
+      method: 'POST',
+      url: '/api/auth/login',
+      body: { email, password },
+    }).then(({ body }) => {
+      window.localStorage.setItem(
+        'authToken',
+        body.token
+      );
+    });
+  });
+});
+
+// Use in tests — session is cached
+describe('Dashboard', () => {
+  beforeEach(() => {
+    cy.loginByApi(
+      'admin@test.com',
+      'secret'
+    );
+    cy.visit('/dashboard');
+  });
+
+  it('shows admin content', () => {
+    cy.get('[data-testid="admin-panel"]')
+      .should('exist');
+  });
+});
+
+// cy.session() caches across specs
+// in the same run, avoiding redundant logins</code></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             SECTION 07 — NETWORK INTERCEPTION
+        ============================================================ -->
+        <section id="network" class="section">
+            <div class="section-header">
+                <span class="section-number">07</span>
+                <h2 class="section-title">Network Interception</h2>
+            </div>
+            <p class="section-description">Mock, modify, and monitor network requests. Essential for isolating frontend tests from flaky backends.</p>
+
+            <div class="section-content">
+                <div class="subsection">
+                    <h3 class="subsection-title">Mocking API Responses</h3>
+                    <div class="compare-grid">
+                        <div class="compare-col">
+                            <div class="compare-label compare-label-pw">Playwright</div>
+                            <pre data-label="playwright"><code>// Mock a GET endpoint
+await page.route('**/api/users', (route) => {
+  route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify([
+      { id: 1, name: 'Alice' },
+      { id: 2, name: 'Bob' },
+    ]),
+  });
+});
+
+// Mock with file
+await page.route('**/api/config', (route) => {
+  route.fulfill({
+    path: './mocks/config.json',
+  });
+});
+
+// Modify real response
+await page.route('**/api/users', async (route) => {
+  const response = await route.fetch();
+  const json = await response.json();
+  // Add a test user to real data
+  json.push({ id: 99, name: 'Test User' });
+  await route.fulfill({
+    response,
+    body: JSON.stringify(json),
+  });
+});
+
+// Abort specific requests
+await page.route('**/*.{png,jpg}', (route) => {
+  route.abort();
+});
+
+// Wait for specific request
+const reqPromise = page.waitForRequest(
+  '**/api/submit'
+);
+await page.getByRole('button',
+  { name: 'Submit' }).click();
+const request = await reqPromise;
+expect(request.method()).toBe('POST');</code></pre>
+                        </div>
+                        <div class="compare-col">
+                            <div class="compare-label compare-label-cy">Cypress</div>
+                            <pre data-label="cypress"><code>// Mock a GET endpoint
+cy.intercept('GET', '/api/users', {
+  statusCode: 200,
+  body: [
+    { id: 1, name: 'Alice' },
+    { id: 2, name: 'Bob' },
+  ],
+}).as('getUsers');
+
+// Mock with fixture file
+cy.intercept('GET', '/api/config', {
+  fixture: 'config.json',
+}).as('getConfig');
+
+// Modify real response
+cy.intercept('GET', '/api/users', (req) => {
+  req.continue((res) => {
+    res.body.push(
+      { id: 99, name: 'Test User' }
+    );
+  });
+}).as('getUsers');
+
+// Force network error
+cy.intercept('POST', '/api/submit', {
+  forceNetworkError: true,
+}).as('submitError');
+
+// Wait for aliased request
+cy.get('button').contains('Submit').click();
+cy.wait('@submitError');
+
+// Assert on request body
+cy.intercept('POST', '/api/submit').as('submit');
+cy.get('form').submit();
+cy.wait('@submit').then((interception) => {
+  expect(interception.request.body)
+    .to.have.property('name', 'Alice');
+  expect(interception.response.statusCode)
+    .to.eq(201);
+});</code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Advanced Network Patterns</h3>
+                    <div class="compare-grid">
+                        <div class="compare-col">
+                            <div class="compare-label compare-label-pw">Playwright</div>
+                            <pre data-label="playwright"><code>// Record and replay (HAR)
+// Record
+await page.routeFromHAR('./recordings/api.har', {
+  url: '**/api/**',
+  update: true,
+});
+await page.goto('/');
+// ... perform actions
+await page.close(); // saves HAR
+
+// Replay from HAR
+await page.routeFromHAR('./recordings/api.har', {
+  url: '**/api/**',
+  update: false, // replay mode
+});
+
+// Simulate slow network
+await page.route('**/api/**', async (route) => {
+  await new Promise(r => setTimeout(r, 3000));
+  await route.continue();
+});
+
+// WebSocket interception
+page.on('websocket', (ws) => {
+  ws.on('framereceived', (event) => {
+    console.log('WS received:', event.payload);
+  });
+  ws.on('framesent', (event) => {
+    console.log('WS sent:', event.payload);
+  });
+});</code></pre>
+                        </div>
+                        <div class="compare-col">
+                            <div class="compare-label compare-label-cy">Cypress</div>
+                            <pre data-label="cypress"><code>// Simulate delay
+cy.intercept('GET', '/api/data', (req) => {
+  req.on('response', (res) => {
+    res.setDelay(3000);
+  });
+}).as('slowData');
+
+// Simulate throttled/flaky network
+cy.intercept('GET', '/api/data', (req) => {
+  req.on('response', (res) => {
+    res.setThrottle(1000); // 1kb/s
+  });
+});
+
+// Dynamic response based on request
+cy.intercept('GET', '/api/search*', (req) => {
+  const query = new URL(req.url)
+    .searchParams.get('q');
+  req.reply({
+    results: query === 'empty'
+      ? []
+      : [{ id: 1, title: `Result: ${query}` }],
+  });
+});
+
+// Spy without modifying
+cy.intercept('GET', '/api/analytics').as('track');
+cy.visit('/');
+cy.wait('@track')
+  .its('request.url')
+  .should('include', 'page=home');
+
+// Count number of requests
+let apiCalls = 0;
+cy.intercept('/api/**', () => { apiCalls++; });
+// ... test actions
+cy.then(() => {
+  expect(apiCalls).to.be.greaterThan(0);
+});</code></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             SECTION 08 — VISUAL TESTING
+        ============================================================ -->
+        <section id="visual" class="section">
+            <div class="section-header">
+                <span class="section-number">08</span>
+                <h2 class="section-title">Visual Testing</h2>
+            </div>
+            <p class="section-description">Catch visual regressions with screenshot comparisons. Playwright has built-in support; Cypress requires plugins.</p>
+
+            <div class="section-content">
+                <div class="subsection">
+                    <h3 class="subsection-title">Screenshot Comparison</h3>
+                    <div class="compare-grid">
+                        <div class="compare-col">
+                            <div class="compare-label compare-label-pw">Playwright</div>
+                            <pre data-label="playwright"><code>// Full page screenshot comparison
+await expect(page).toHaveScreenshot(
+  'homepage.png'
+);
+
+// Element-level screenshot
+await expect(
+  page.getByTestId('hero-section')
+).toHaveScreenshot('hero.png');
+
+// With options
+await expect(page).toHaveScreenshot(
+  'dashboard.png',
+  {
+    maxDiffPixels: 100,
+    maxDiffPixelRatio: 0.01,
+    threshold: 0.2,
+    animations: 'disabled',
+    mask: [
+      page.locator('.timestamp'),
+      page.locator('.ad-banner'),
+    ],
+  }
+);
+
+// Update snapshots (first run or reset)
+// npx playwright test --update-snapshots
+
+// Full-page screenshot (scrolls entire page)
+await expect(page).toHaveScreenshot({
+  fullPage: true,
+});
+
+// Screenshots are stored per-project:
+// tests/home.spec.ts-snapshots/
+//   homepage-chromium-linux.png
+//   homepage-firefox-linux.png
+//   homepage-webkit-linux.png</code></pre>
+                        </div>
+                        <div class="compare-col">
+                            <div class="compare-label compare-label-cy">Cypress</div>
+                            <pre data-label="cypress"><code>// Using cypress-image-snapshot plugin
+
+// cypress/support/e2e.ts
+import { addMatchImageSnapshotCommand }
+  from '@simonsmith/cypress-image-snapshot/command';
+addMatchImageSnapshotCommand();
+
+// Full page snapshot
+cy.matchImageSnapshot('homepage');
+
+// Element snapshot
+cy.get('[data-testid="hero-section"]')
+  .matchImageSnapshot('hero');
+
+// With options
+cy.matchImageSnapshot('dashboard', {
+  failureThreshold: 0.01,
+  failureThresholdType: 'percent',
+  customDiffConfig: { threshold: 0.2 },
+  blackout: [
+    '.timestamp',
+    '.ad-banner',
+  ],
+});
+
+// Update snapshots
+// npx cypress run --env updateSnapshots=true
+
+// Alternative: Percy (cloud-based)
+// npm install @percy/cypress
+cy.percySnapshot('Homepage');
+cy.percySnapshot('Dashboard', {
+  widths: [375, 768, 1280],
+});
+
+// Alternative: Applitools Eyes
+// npm install @applitools/eyes-cypress
+cy.eyesOpen({ appName: 'My App' });
+cy.eyesCheckWindow('Homepage');
+cy.eyesClose();</code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="alert alert-warning">
+                    <strong>Screenshot gotchas:</strong> Visual tests are sensitive to OS, font rendering, and browser version. Playwright stores platform-specific baselines (e.g., <code>chromium-linux.png</code>). Always run screenshot updates in CI for consistent baselines across the team.
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             SECTION 09 — COMPONENT TESTING
+        ============================================================ -->
+        <section id="components" class="section">
+            <div class="section-header">
+                <span class="section-number">09</span>
+                <h2 class="section-title">Component Testing</h2>
+            </div>
+            <p class="section-description">Mount and test individual UI components in isolation without a full application server.</p>
+
+            <div class="section-content">
+                <div class="subsection">
+                    <h3 class="subsection-title">React Component Testing</h3>
+                    <div class="compare-grid">
+                        <div class="compare-col">
+                            <div class="compare-label compare-label-pw">Playwright</div>
+                            <pre data-label="playwright"><code>// Experimental component testing
+// npm install @playwright/experimental-ct-react
+
+// Button.spec.tsx
+import { test, expect } from
+  '@playwright/experimental-ct-react';
+import { Button } from './Button';
+
+test('renders with label', async ({ mount }) => {
+  const component = await mount(
+    &lt;Button label="Click me" /&gt;
+  );
+  await expect(component)
+    .toContainText('Click me');
+});
+
+test('fires onClick', async ({ mount }) => {
+  let clicked = false;
+  const component = await mount(
+    &lt;Button
+      label="Submit"
+      onClick={() => { clicked = true; }}
+    /&gt;
+  );
+  await component.click();
+  expect(clicked).toBeTruthy();
+});
+
+test('disabled state', async ({ mount }) => {
+  const component = await mount(
+    &lt;Button label="Save" disabled /&gt;
+  );
+  await expect(component).toBeDisabled();
+  await expect(component)
+    .toHaveCSS('opacity', '0.5');
+});</code></pre>
+                        </div>
+                        <div class="compare-col">
+                            <div class="compare-label compare-label-cy">Cypress</div>
+                            <pre data-label="cypress"><code>// Built-in component testing
+// cypress.config.ts → component.devServer
+
+// Button.cy.tsx
+import Button from './Button';
+
+describe('Button', () => {
+  it('renders with label', () => {
+    cy.mount(&lt;Button label="Click me" /&gt;);
+    cy.contains('Click me')
+      .should('be.visible');
+  });
+
+  it('fires onClick', () => {
+    const onClick = cy.stub().as('click');
+    cy.mount(
+      &lt;Button
+        label="Submit"
+        onClick={onClick}
+      /&gt;
+    );
+    cy.contains('Submit').click();
+    cy.get('@click')
+      .should('have.been.calledOnce');
+  });
+
+  it('disabled state', () => {
+    cy.mount(
+      &lt;Button label="Save" disabled /&gt;
+    );
+    cy.get('button')
+      .should('be.disabled')
+      .and('have.css', 'opacity', '0.5');
+  });
+});
+
+// Supported frameworks:
+// React, Vue, Angular, Svelte
+// Each has its own mount adapter</code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Component Test Configuration</h3>
+                    <div class="compare-grid">
+                        <div class="compare-col">
+                            <div class="compare-label compare-label-pw">Playwright</div>
+                            <pre data-label="playwright"><code>// playwright-ct.config.ts
+import { defineConfig } from
+  '@playwright/experimental-ct-react';
+
+export default defineConfig({
+  testDir: './src',
+  testMatch: '**/*.spec.tsx',
+  use: {
+    ctPort: 3100,
+    ctViteConfig: {
+      // Vite config overrides
+      resolve: {
+        alias: { '@': './src' },
+      },
+    },
+  },
+});
+
+// Run component tests
+// npx playwright test -c playwright-ct.config.ts</code></pre>
+                        </div>
+                        <div class="compare-col">
+                            <div class="compare-label compare-label-cy">Cypress</div>
+                            <pre data-label="cypress"><code>// cypress.config.ts
+import { defineConfig } from 'cypress';
+
+export default defineConfig({
+  component: {
+    devServer: {
+      framework: 'react',     // or vue, angular
+      bundler: 'vite',        // or webpack
+    },
+    specPattern: 'src/**/*.cy.{ts,tsx}',
+    supportFile: 'cypress/support/component.ts',
+    indexHtmlFile:
+      'cypress/support/component-index.html',
+  },
+});
+
+// cypress/support/component.ts
+import { mount } from 'cypress/react18';
+Cypress.Commands.add('mount', mount);
+
+// Run component tests
+// npx cypress run --component</code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="alert alert-info">
+                    <strong>Cypress leads here:</strong> Cypress component testing is production-ready and supports React, Vue, Angular, and Svelte out of the box. Playwright's component testing is still experimental but uses real browsers (not jsdom), giving higher-fidelity results.
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             SECTION 10 — CI/CD INTEGRATION
+        ============================================================ -->
+        <section id="ci" class="section">
+            <div class="section-header">
+                <span class="section-number">10</span>
+                <h2 class="section-title">CI/CD &amp; Parallel Execution</h2>
+            </div>
+            <p class="section-description">Run tests in GitHub Actions with parallelism, artifacts, and optimized caching.</p>
+
+            <div class="section-content">
+                <div class="subsection">
+                    <h3 class="subsection-title">GitHub Actions Workflow</h3>
+                    <div class="compare-grid">
+                        <div class="compare-col">
+                            <div class="compare-label compare-label-pw">Playwright</div>
+                            <pre data-label="yaml"><code># .github/workflows/playwright.yml
+name: Playwright Tests
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Install browsers
+        run: npx playwright install
+          --with-deps
+
+      - name: Run tests
+        run: npx playwright test
+
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 30</code></pre>
+                        </div>
+                        <div class="compare-col">
+                            <div class="compare-label compare-label-cy">Cypress</div>
+                            <pre data-label="yaml"><code># .github/workflows/cypress.yml
+name: Cypress Tests
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Cypress run
+        uses: cypress-io/github-action@v6
+        with:
+          build: npm run build
+          start: npm run preview
+          wait-on: http://localhost:4173
+
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: cypress-screenshots
+          path: cypress/screenshots/
+          retention-days: 7</code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Parallel Execution</h3>
+                    <div class="compare-grid">
+                        <div class="compare-col">
+                            <div class="compare-label compare-label-pw">Playwright</div>
+                            <pre data-label="playwright"><code>// playwright.config.ts
+export default defineConfig({
+  // Runs test files in parallel
+  fullyParallel: true,
+
+  // Number of parallel workers
+  // Defaults to 1/2 of CPU cores
+  workers: process.env.CI ? 4 : undefined,
+
+  // Shard across CI machines
+  // npx playwright test --shard=1/4
+  // npx playwright test --shard=2/4
+  // npx playwright test --shard=3/4
+  // npx playwright test --shard=4/4
+});
+
+// GitHub Actions matrix sharding
+// jobs:
+//   test:
+//     strategy:
+//       matrix:
+//         shard: [1/4, 2/4, 3/4, 4/4]
+//     steps:
+//       - run: npx playwright test
+//               --shard=${{ matrix.shard }}
+
+// Merge sharded reports
+// npx playwright merge-reports
+//   --reporter html ./all-blob-reports</code></pre>
+                        </div>
+                        <div class="compare-col">
+                            <div class="compare-label compare-label-cy">Cypress</div>
+                            <pre data-label="cypress"><code>// Option 1: Cypress Cloud (paid)
+// npx cypress run --record
+//   --parallel --key &lt;record-key&gt;
+// Automatically balances specs across
+// multiple CI machines
+
+// Option 2: sorry-cypress (OSS)
+// Self-hosted parallelization director
+// CYPRESS_API_URL=https://your-sorry-cypress
+// npx cypress run --record --key any
+//   --parallel
+
+// Option 3: Manual sharding
+// Split spec files across CI jobs
+// jobs:
+//   test:
+//     strategy:
+//       matrix:
+//         spec: [
+//           "cypress/e2e/auth/**",
+//           "cypress/e2e/dashboard/**",
+//           "cypress/e2e/settings/**",
+//         ]
+//     steps:
+//       - run: npx cypress run
+//               --spec "${{ matrix.spec }}"
+
+// Option 4: cypress-split plugin
+// npm install cypress-split
+// npx cypress run
+//   --env split=true,splitIndex=0,splitTotal=3</code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Docker Support</h3>
+                    <div class="compare-grid">
+                        <div class="compare-col">
+                            <div class="compare-label compare-label-pw">Playwright</div>
+                            <pre data-label="terminal"><code># Official Docker image
+FROM mcr.microsoft.com/playwright:v1.50.0
+
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+
+RUN npx playwright test
+
+# Pre-built images with all browsers:
+# mcr.microsoft.com/playwright:v1.50.0-noble
+# mcr.microsoft.com/playwright:v1.50.0-jammy</code></pre>
+                        </div>
+                        <div class="compare-col">
+                            <div class="compare-label compare-label-cy">Cypress</div>
+                            <pre data-label="terminal"><code># Official Docker images
+FROM cypress/included:13.17.0
+
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+
+RUN cypress run
+
+# Image variants:
+# cypress/base     — Node + deps (no browser)
+# cypress/browsers — Node + Chrome + Firefox
+# cypress/included — Node + Cypress + browsers</code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="alert alert-pass">
+                    <strong>Playwright advantage:</strong> Built-in free parallelism with <code>--shard</code> and <code>fullyParallel</code> makes scaling straightforward. Cypress parallelism requires either their paid Cloud service or a third-party solution.
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             SECTION 11 — DEBUGGING
+        ============================================================ -->
+        <section id="debugging" class="section">
+            <div class="section-header">
+                <span class="section-number">11</span>
+                <h2 class="section-title">Debugging</h2>
+            </div>
+            <p class="section-description">Both frameworks provide powerful debugging tools. Playwright offers Trace Viewer and Codegen; Cypress offers time-travel and interactive runner.</p>
+
+            <div class="section-content">
+                <div class="subsection">
+                    <h3 class="subsection-title">Interactive Debugging</h3>
+                    <div class="compare-grid">
+                        <div class="compare-col">
+                            <div class="compare-label compare-label-pw">Playwright</div>
+                            <pre data-label="playwright"><code>// Pause execution and inspect
+await page.pause();
+// Opens Playwright Inspector:
+//   - Step over each action
+//   - Pick locators visually
+//   - See live element highlighting
+
+// Debug mode (auto-pauses)
+// PWDEBUG=1 npx playwright test
+
+// Slow down execution
+// npx playwright test --headed
+//   --slow-mo=500
+
+// Generate test code by recording
+// npx playwright codegen localhost:3000
+// (Records your actions as test code)
+
+// Trace Viewer — post-mortem debugging
+// playwright.config.ts:
+// use: { trace: 'on' }
+//
+// npx playwright show-trace
+//   test-results/trace.zip
+//
+// Trace includes:
+//   - DOM snapshots at each step
+//   - Network requests timeline
+//   - Console logs
+//   - Action log with timing
+
+// VS Code Extension
+// Install "Playwright Test for VS Code"
+// - Run/debug from editor gutter
+// - Pick locators from live browser
+// - View trace inline</code></pre>
+                        </div>
+                        <div class="compare-col">
+                            <div class="compare-label compare-label-cy">Cypress</div>
+                            <pre data-label="cypress"><code>// Interactive Test Runner
+// npx cypress open
+// Features:
+//   - Time-travel: click any step to see
+//     DOM snapshot at that point
+//   - Before/after state toggling
+//   - Selector playground
+//   - Console output per command
+
+// Pause execution
+cy.pause();
+// Pauses at this point in the runner
+// Resume with "Play" button
+
+// Debug command
+cy.get('.item').debug();
+// Logs subject to console for inspection
+
+// Slow down commands
+// cypress.config.ts:
+// defaultCommandTimeout: 30000
+
+// Console debugging
+cy.get('.item').then(($el) => {
+  console.log('Element:', $el);
+  debugger; // Chrome DevTools breakpoint
+});
+
+// cy.log() for runner output
+cy.log('Checking user state...');
+cy.get('.user').should('exist');
+
+// Videos (enabled by default in run mode)
+// cypress.config.ts: video: true
+// Saved to cypress/videos/
+
+// Screenshots on failure
+// Automatic in run mode
+// Manual: cy.screenshot('my-screenshot');</code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Debugging Toolkit Comparison</h3>
+                    <div class="feature-grid">
+                        <div class="feature-card">
+                            <h4><span class="feature-icon" style="color:var(--pw-green)">&#9654;</span> Trace Viewer <span class="badge badge-pw">PW</span></h4>
+                            <p>Post-mortem analysis with DOM snapshots at every step, network timeline, console logs, and action playback. Open traces from CI artifacts without re-running tests.</p>
+                        </div>
+                        <div class="feature-card">
+                            <h4><span class="feature-icon" style="color:var(--cy-teal)">&#9654;</span> Time Travel <span class="badge badge-cy">CY</span></h4>
+                            <p>Click any command in the test runner to see the DOM at that exact moment. Toggle between before/after states. Inspect elements directly with browser DevTools.</p>
+                        </div>
+                        <div class="feature-card">
+                            <h4><span class="feature-icon" style="color:var(--pw-green)">&#9654;</span> Codegen <span class="badge badge-pw">PW</span></h4>
+                            <p>Record user interactions and generate test code automatically. Supports all browsers and outputs TypeScript/JavaScript/Python/Java/C#.</p>
+                        </div>
+                        <div class="feature-card">
+                            <h4><span class="feature-icon" style="color:var(--cy-teal)">&#9654;</span> Cypress Studio <span class="badge badge-cy">CY</span></h4>
+                            <p>Record new commands directly in the test runner and insert them into existing tests. Experimental feature for quick test authoring.</p>
+                        </div>
+                        <div class="feature-card">
+                            <h4><span class="feature-icon" style="color:var(--pw-green)">&#9654;</span> UI Mode <span class="badge badge-pw">PW</span></h4>
+                            <p>Interactive watch mode with live test execution, DOM exploration, and locator picking. The closest Playwright equivalent to Cypress's interactive runner.</p>
+                        </div>
+                        <div class="feature-card">
+                            <h4><span class="feature-icon" style="color:var(--cy-teal)">&#9654;</span> Selector Playground <span class="badge badge-cy">CY</span></h4>
+                            <p>Built into the test runner. Hover over elements to see selectors. Copy commands directly. Validates uniqueness of CSS selectors in real time.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Common Debugging Scenarios</h3>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Problem</th>
+                                    <th>Playwright</th>
+                                    <th>Cypress</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>Flaky test</strong></td>
+                                    <td><code>npx playwright test --repeat-each=10</code></td>
+                                    <td><code>Cypress._.times(10, () => { it(...) })</code></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Element not found</strong></td>
+                                    <td>Trace Viewer shows DOM at failure point</td>
+                                    <td>Time-travel to the failing command</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Wrong element clicked</strong></td>
+                                    <td><code>await page.pause()</code> + Inspector highlighting</td>
+                                    <td><code>cy.pause()</code> + Selector Playground</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Network issue</strong></td>
+                                    <td>Trace Viewer network tab (HAR-like)</td>
+                                    <td>Network requests in test runner sidebar</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Timeout</strong></td>
+                                    <td><code>test.setTimeout(60000)</code> per test</td>
+                                    <td><code>{ timeout: 60000 }</code> per command</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>CI-only failure</strong></td>
+                                    <td>Download trace artifact, open locally</td>
+                                    <td>Download video + screenshots from CI</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Test Hooks &amp; Lifecycle</h3>
+                    <div class="compare-grid">
+                        <div class="compare-col">
+                            <div class="compare-label compare-label-pw">Playwright</div>
+                            <pre data-label="playwright"><code>import { test, expect } from '@playwright/test';
+
+// Runs once before all tests in file
+test.beforeAll(async () => {
+  // seed database, start services
+});
+
+// Runs before each test
+test.beforeEach(async ({ page }) => {
+  await page.goto('/');
+});
+
+// Runs after each test
+test.afterEach(async ({ page }, testInfo) => {
+  if (testInfo.status !== 'passed') {
+    await page.screenshot({
+      path: `failures/${testInfo.title}.png`,
+    });
+  }
+});
+
+// Runs once after all tests in file
+test.afterAll(async () => {
+  // cleanup
+});
+
+// Test annotations
+test('feature @smoke', async ({ page }) => {});
+test.skip('not ready yet', async () => {});
+test.fixme('known bug #123', async () => {});
+test.slow(); // triples the timeout
+
+// Conditional skip
+test('windows only', async ({ page }) => {
+  test.skip(
+    process.platform !== 'win32',
+    'Windows only'
+  );
+});</code></pre>
+                        </div>
+                        <div class="compare-col">
+                            <div class="compare-label compare-label-cy">Cypress</div>
+                            <pre data-label="cypress"><code>describe('Feature', () => {
+  // Runs once before all tests
+  before(() => {
+    // seed database, start services
+  });
+
+  // Runs before each test
+  beforeEach(() => {
+    cy.visit('/');
+  });
+
+  // Runs after each test
+  afterEach(function () {
+    if (this.currentTest?.state === 'failed') {
+      // Cypress auto-screenshots on failure
+      // in run mode
+    }
+  });
+
+  // Runs once after all tests
+  after(() => {
+    // cleanup
+  });
+
+  // Skip test
+  it.skip('not ready yet', () => {});
+
+  // Only run this test
+  it.only('focus this test', () => {});
+
+  // Conditional skip
+  it('desktop only', function () {
+    if (Cypress.config('viewportWidth') < 768) {
+      this.skip();
+    }
+    // ... desktop-only assertions
+  });
+
+  // Tags (via grep plugin)
+  // npm install @cypress/grep
+  it('smoke test', { tags: '@smoke' }, () => {
+    // npx cypress run --env grepTags=@smoke
+  });
+});</code></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             DECISION GUIDE
+        ============================================================ -->
+        <section class="section" style="border-bottom: none;">
+            <div class="section-header">
+                <span class="section-number" style="color: var(--pending);">++</span>
+                <h2 class="section-title">Which Framework Should You Choose?</h2>
+            </div>
+
+            <div class="section-content">
+                <div class="feature-grid">
+                    <div class="feature-card" style="border-left: 3px solid var(--pw-green);">
+                        <h4>Choose Playwright if...</h4>
+                        <ul style="margin-top: 8px;">
+                            <li>You need multi-browser (WebKit/Safari) testing</li>
+                            <li>You test across multiple languages (Python, Java, C#)</li>
+                            <li>You need multi-tab or multi-origin support</li>
+                            <li>Free parallelism and sharding matter</li>
+                            <li>You want API testing built-in</li>
+                            <li>Mobile device emulation is important</li>
+                            <li>You prefer async/await over chaining</li>
+                        </ul>
+                    </div>
+                    <div class="feature-card" style="border-left: 3px solid var(--cy-teal);">
+                        <h4>Choose Cypress if...</h4>
+                        <ul style="margin-top: 8px;">
+                            <li>Developer experience is your top priority</li>
+                            <li>You want the best interactive debugging UI</li>
+                            <li>You need production-ready component testing</li>
+                            <li>Your team is JavaScript/TypeScript only</li>
+                            <li>You value extensive plugin ecosystem</li>
+                            <li>Time-travel debugging is important to you</li>
+                            <li>You prefer chainable assertion syntax</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="test-output">
+                    <div class="dim">Decision Matrix</div>
+                    <div class="dim">==============</div>
+                    <div class="pass-line">&nbsp;&nbsp;Cross-browser coverage&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Playwright &gt; Cypress</div>
+                    <div class="pass-line">&nbsp;&nbsp;Multi-language support&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Playwright &gt; Cypress</div>
+                    <div class="skip-line">&nbsp;&nbsp;Interactive debugging&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Cypress &gt; Playwright</div>
+                    <div class="skip-line">&nbsp;&nbsp;Component testing&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Cypress &gt; Playwright</div>
+                    <div class="pass-line">&nbsp;&nbsp;Free parallelism&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Playwright &gt; Cypress</div>
+                    <div class="skip-line">&nbsp;&nbsp;Plugin ecosystem&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Cypress &gt; Playwright</div>
+                    <div class="pass-line">&nbsp;&nbsp;Multi-tab / multi-origin&nbsp;&nbsp;&nbsp; Playwright &gt; Cypress</div>
+                    <div class="dim">&nbsp;&nbsp;API testing&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Playwright &#8776; Cypress</div>
+                    <div class="dim">&nbsp;&nbsp;CI/CD integration&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Playwright &#8776; Cypress</div>
+                    <div class="summary">
+                        Both are excellent. The trend since 2023 has been toward Playwright for new projects, while Cypress remains strong for teams already invested in its ecosystem.
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <footer class="site-footer">
+            <a href="index.html">Back to Tech Guides</a>
+        </footer>
+    </div>
+<script defer src="../prompt-viewer.js"></script>
+</body>
+</html>
