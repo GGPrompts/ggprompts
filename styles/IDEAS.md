@@ -48,12 +48,12 @@ Suggested themes/styles not yet in the collection. Organized by category.
 - [x] Cassette Futurism — Alien/2001-era analog sci-fi, CRT screens, chunky switches
 - [x] Dieselpunk — 1930s-40s industrial futurism, riveted steel, propeller-age machinery
 - [x] Cozy Game UI — Stardew Valley / Animal Crossing warmth, soft pixels, pastel palette
-- [ ] Cassette Vaporwave
-- [ ] Cottagecore Dark (Goblincore x Dark Academia)
-- [ ] Ice / Frost
-- [ ] Terracotta Warriors
-- [ ] Paper Marbling (Ebru)
-- [ ] Soviet Arcade
+- [x] Cassette Vaporwave
+- [x] Cottagecore Dark (Goblincore x Dark Academia)
+- [x] Ice / Frost
+- [x] Terracotta Warriors
+- [x] Paper Marbling (Ebru)
+- [x] Soviet Arcade
 
 ## Typography-Focused
 - [x] Blackletter/Fraktur — gothic calligraphy, medieval manuscript, heavy strokes
