@@ -171,6 +171,7 @@ Every style has a unique aesthetic. Some are paired with tech guides and stories
 | low-poly | | |
 | mac-os-classic | | |
 | macrame | | |
+| mad-scientist-lab | | |
 | manga | | |
 | manuscript-illumination | | |
 | marble-gold | Engineering Excellence | |
