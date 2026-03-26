@@ -1,0 +1,1775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tailscale Architecture Map — Architecture Guide</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* === Typography === */
+            --font-display: 'Orbitron', sans-serif;
+            --font-body: 'Rajdhani', sans-serif;
+            --font-mono: 'Share Tech Mono', monospace;
+
+            /* === Spacing === */
+            --space-xs: 4px;
+            --space-sm: 8px;
+            --space-md: 16px;
+            --space-lg: 24px;
+            --space-xl: 32px;
+            --space-2xl: 48px;
+            --space-3xl: 64px;
+
+            /* === Tailscale Mesh Palette === */
+            --ts-blue: #4a82c8;
+            --ts-blue-bright: #6ba3ef;
+            --ts-blue-dim: rgba(74, 130, 200, 0.15);
+            --ts-indigo: #3b5bdb;
+            --ts-cyan: #22b8cf;
+            --ts-cyan-dim: rgba(34, 184, 207, 0.15);
+
+            /* === Core Palette === */
+            --void: #080c14;
+            --void-light: #0c1220;
+            --panel: #101828;
+            --panel-light: #162032;
+            --panel-lighter: #1e2c44;
+
+            /* === Mapped Vars === */
+            --bg-base: var(--void);
+            --bg-elevated: #0c1220;
+            --bg-card: var(--panel-light);
+            --bg-card-hover: var(--panel-lighter);
+            --bg-muted: #060a10;
+
+            /* === Text === */
+            --text-primary: #c0cce0;
+            --text-bright: #e4ecf8;
+            --text-secondary: #8a9ab8;
+            --text-tertiary: #506080;
+            --text-link: #6ba3ef;
+            --text-link-hover: #8ec0ff;
+
+            /* === Domain Colors === */
+            --domain-control: #6ba3ef;
+            --domain-data: #22b8cf;
+            --domain-nat: #f0a040;
+            --domain-relay: #e06090;
+            --domain-auth: #c080e0;
+            --domain-service: #40c080;
+            --domain-client: #e06363;
+            --domain-oss: #60c0c0;
+
+            /* === Accents === */
+            --accent-blue: #6ba3ef;
+            --accent-cyan: #22b8cf;
+            --accent-amber: #f0a040;
+            --accent-pink: #e06090;
+            --accent-purple: #c080e0;
+            --accent-green: #40c080;
+            --accent-red: #e06363;
+            --accent-teal: #60c0c0;
+
+            /* === Borders === */
+            --border-subtle: rgba(74, 130, 200, 0.1);
+            --border-default: rgba(74, 130, 200, 0.2);
+            --border-strong: rgba(74, 130, 200, 0.35);
+
+            /* === Radius === */
+            --radius-sm: 2px;
+            --radius-md: 4px;
+            --radius: 6px;
+            --radius-lg: 10px;
+
+            /* === Shadows === */
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5);
+            --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.6);
+            --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.7);
+
+            /* === Transitions === */
+            --transition-fast: 0.15s ease;
+            --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* === Reset === */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { font-size: 17px; scroll-behavior: smooth; scroll-padding-top: 52px; }
+
+        body {
+            font-family: var(--font-body);
+            font-size: 1rem;
+            line-height: 1.6;
+            color: var(--text-primary);
+            background: var(--bg-base);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* === Mesh Network Background === */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            background:
+                radial-gradient(circle 1px at 15% 20%, rgba(74, 130, 200, 0.15) 0%, transparent 100%),
+                radial-gradient(circle 1px at 85% 15%, rgba(34, 184, 207, 0.12) 0%, transparent 100%),
+                radial-gradient(circle 1px at 45% 80%, rgba(74, 130, 200, 0.1) 0%, transparent 100%),
+                radial-gradient(circle 1px at 70% 60%, rgba(34, 184, 207, 0.08) 0%, transparent 100%),
+                radial-gradient(circle 1px at 25% 55%, rgba(74, 130, 200, 0.06) 0%, transparent 100%);
+            pointer-events: none;
+        }
+
+        /* Mesh grid lines */
+        body::after {
+            content: '';
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            background:
+                repeating-linear-gradient(0deg, transparent, transparent 59px, rgba(74, 130, 200, 0.03) 59px, rgba(74, 130, 200, 0.03) 60px),
+                repeating-linear-gradient(90deg, transparent, transparent 59px, rgba(74, 130, 200, 0.03) 59px, rgba(74, 130, 200, 0.03) 60px);
+            pointer-events: none;
+        }
+
+        /* === Back Link === */
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-sm);
+            padding: var(--space-md) var(--space-xl);
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.85rem;
+            letter-spacing: 0.02em;
+            transition: color var(--transition-fast);
+            position: relative;
+            z-index: 1;
+        }
+        .back-link::before { content: '\2190'; }
+        .back-link:hover { color: var(--text-link); }
+
+        /* === Hero === */
+        .hero {
+            background: linear-gradient(135deg, var(--void) 0%, #0a1428 30%, #0e1e3c 60%, var(--panel) 100%);
+            padding: var(--space-3xl) var(--space-xl) var(--space-2xl);
+            border-bottom: 1px solid var(--border-default);
+            position: relative;
+            overflow: hidden;
+            z-index: 1;
+        }
+        .hero::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 600px 400px at 20% 50%, rgba(74, 130, 200, 0.08), transparent),
+                radial-gradient(ellipse 500px 300px at 80% 30%, rgba(34, 184, 207, 0.06), transparent);
+            pointer-events: none;
+        }
+        /* Animated mesh dots in hero */
+        .hero::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image:
+                radial-gradient(circle 2px at 10% 30%, rgba(74, 130, 200, 0.3), transparent 3px),
+                radial-gradient(circle 2px at 30% 70%, rgba(34, 184, 207, 0.25), transparent 3px),
+                radial-gradient(circle 2px at 50% 20%, rgba(74, 130, 200, 0.2), transparent 3px),
+                radial-gradient(circle 2px at 70% 50%, rgba(34, 184, 207, 0.3), transparent 3px),
+                radial-gradient(circle 2px at 90% 40%, rgba(74, 130, 200, 0.25), transparent 3px),
+                radial-gradient(circle 2px at 20% 50%, rgba(34, 184, 207, 0.15), transparent 3px),
+                radial-gradient(circle 2px at 60% 80%, rgba(74, 130, 200, 0.2), transparent 3px),
+                radial-gradient(circle 2px at 80% 10%, rgba(34, 184, 207, 0.2), transparent 3px);
+            pointer-events: none;
+            animation: meshFloat 20s ease-in-out infinite alternate;
+        }
+        @keyframes meshFloat {
+            0% { opacity: 0.5; }
+            50% { opacity: 1; }
+            100% { opacity: 0.6; }
+        }
+        .hero-inner {
+            max-width: 1120px;
+            margin: 0 auto;
+            position: relative;
+        }
+        .hero h1 {
+            font-family: var(--font-display);
+            font-size: 2.4rem;
+            font-weight: 700;
+            line-height: 1.15;
+            margin-bottom: var(--space-md);
+            background: linear-gradient(135deg, var(--text-bright) 0%, var(--ts-blue-bright) 50%, var(--ts-cyan) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .hero .tagline {
+            font-size: 1.15rem;
+            color: var(--text-secondary);
+            max-width: 720px;
+            line-height: 1.5;
+        }
+        .hero .meta {
+            margin-top: var(--space-lg);
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-md);
+        }
+        .meta-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-xs);
+            padding: var(--space-xs) var(--space-sm);
+            background: rgba(74, 130, 200, 0.08);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-sm);
+            font-size: 0.78rem;
+            font-family: var(--font-mono);
+            color: var(--text-secondary);
+            letter-spacing: 0.02em;
+        }
+        .meta-badge .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        /* === Sticky Jump Nav === */
+        .jump-nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: var(--bg-muted);
+            border-bottom: 1px solid var(--border-default);
+        }
+        .jump-nav-inner {
+            max-width: 1120px;
+            margin: 0 auto;
+            padding: 0 var(--space-md);
+            display: flex;
+            gap: 0;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            white-space: nowrap;
+            scrollbar-width: thin;
+            scrollbar-color: var(--border-default) transparent;
+        }
+        .jump-nav-inner::-webkit-scrollbar { height: 4px; }
+        .jump-nav-inner::-webkit-scrollbar-track { background: transparent; }
+        .jump-nav-inner::-webkit-scrollbar-thumb { background: var(--border-default); border-radius: 2px; }
+        .jump-nav a {
+            display: inline-block;
+            padding: var(--space-sm) var(--space-md);
+            color: var(--text-tertiary);
+            text-decoration: none;
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+            border-bottom: 2px solid transparent;
+            transition: all var(--transition-fast);
+        }
+        .jump-nav a:hover {
+            color: var(--ts-blue-bright);
+            border-bottom-color: var(--ts-blue-bright);
+        }
+
+        /* === Container === */
+        .container {
+            max-width: 1120px;
+            margin: 0 auto;
+            padding: var(--space-2xl) var(--space-xl);
+            position: relative;
+            z-index: 1;
+        }
+
+        /* === Section === */
+        .section {
+            margin-bottom: var(--space-3xl);
+            scroll-margin-top: 52px;
+        }
+        .section-header {
+            display: flex;
+            align-items: baseline;
+            gap: var(--space-md);
+            margin-bottom: var(--space-xl);
+            padding-bottom: var(--space-md);
+            border-bottom: 1px solid var(--border-default);
+        }
+        .section-number {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--ts-blue-bright);
+            font-weight: 500;
+        }
+        .section-title {
+            font-family: var(--font-display);
+            font-size: 1.6rem;
+            font-weight: 700;
+        }
+        .section-description {
+            color: var(--text-secondary);
+            margin-bottom: var(--space-xl);
+            max-width: 720px;
+            line-height: 1.65;
+        }
+
+        /* === Subsection === */
+        .subsection { margin-bottom: var(--space-xl); }
+        .subsection-title {
+            font-family: var(--font-display);
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: var(--space-md);
+            color: var(--text-bright);
+        }
+        .subsection p {
+            color: var(--text-secondary);
+            margin-bottom: var(--space-md);
+            line-height: 1.65;
+        }
+
+        /* === Interactive Architecture Canvas === */
+        .arch-canvas {
+            position: relative;
+            width: 100%;
+            min-height: 680px;
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            margin: var(--space-lg) 0;
+        }
+        .arch-canvas svg {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+        }
+        .arch-canvas svg line, .arch-canvas svg path {
+            pointer-events: none;
+        }
+
+        .arch-node {
+            position: absolute;
+            padding: var(--space-md) var(--space-lg);
+            background: var(--bg-card);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius);
+            cursor: pointer;
+            transition: all var(--transition);
+            z-index: 2;
+            min-width: 120px;
+            text-align: center;
+        }
+        .arch-node:hover {
+            transform: translateY(-3px) scale(1.04);
+            box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+            z-index: 10;
+        }
+        .arch-node.active {
+            border-color: var(--ts-blue-bright);
+            box-shadow: 0 0 20px rgba(107, 163, 239, 0.25);
+            z-index: 10;
+        }
+        .arch-node .node-icon {
+            font-size: 1.6rem;
+            margin-bottom: var(--space-xs);
+            display: block;
+        }
+        .arch-node .node-label {
+            font-family: var(--font-display);
+            font-size: 0.78rem;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            color: var(--text-bright);
+        }
+        .arch-node .node-sub {
+            font-family: var(--font-mono);
+            font-size: 0.65rem;
+            color: var(--text-tertiary);
+            margin-top: 2px;
+        }
+
+        /* Node domain colors */
+        .arch-node[data-domain="control"] { border-left: 3px solid var(--domain-control); }
+        .arch-node[data-domain="control"]:hover,
+        .arch-node[data-domain="control"].active { border-color: var(--domain-control); }
+        .arch-node[data-domain="data"] { border-left: 3px solid var(--domain-data); }
+        .arch-node[data-domain="data"]:hover,
+        .arch-node[data-domain="data"].active { border-color: var(--domain-data); }
+        .arch-node[data-domain="nat"] { border-left: 3px solid var(--domain-nat); }
+        .arch-node[data-domain="nat"]:hover,
+        .arch-node[data-domain="nat"].active { border-color: var(--domain-nat); }
+        .arch-node[data-domain="relay"] { border-left: 3px solid var(--domain-relay); }
+        .arch-node[data-domain="relay"]:hover,
+        .arch-node[data-domain="relay"].active { border-color: var(--domain-relay); }
+        .arch-node[data-domain="auth"] { border-left: 3px solid var(--domain-auth); }
+        .arch-node[data-domain="auth"]:hover,
+        .arch-node[data-domain="auth"].active { border-color: var(--domain-auth); }
+        .arch-node[data-domain="service"] { border-left: 3px solid var(--domain-service); }
+        .arch-node[data-domain="service"]:hover,
+        .arch-node[data-domain="service"].active { border-color: var(--domain-service); }
+        .arch-node[data-domain="client"] { border-left: 3px solid var(--domain-client); }
+        .arch-node[data-domain="client"]:hover,
+        .arch-node[data-domain="client"].active { border-color: var(--domain-client); }
+        .arch-node[data-domain="oss"] { border-left: 3px solid var(--domain-oss); }
+        .arch-node[data-domain="oss"]:hover,
+        .arch-node[data-domain="oss"].active { border-color: var(--domain-oss); }
+
+        /* Detail panel */
+        .detail-panel {
+            position: fixed;
+            top: 0;
+            right: -420px;
+            width: 400px;
+            height: 100vh;
+            background: var(--panel);
+            border-left: 1px solid var(--border-default);
+            z-index: 200;
+            transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow-y: auto;
+            padding: var(--space-xl);
+            box-shadow: -8px 0 30px rgba(0,0,0,0.5);
+        }
+        .detail-panel.open { right: 0; }
+        .detail-panel .close-btn {
+            position: absolute;
+            top: var(--space-md);
+            right: var(--space-md);
+            background: var(--bg-card);
+            border: 1px solid var(--border-default);
+            color: var(--text-secondary);
+            width: 32px;
+            height: 32px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all var(--transition-fast);
+        }
+        .detail-panel .close-btn:hover {
+            color: var(--accent-red);
+            border-color: var(--accent-red);
+        }
+        .detail-panel h3 {
+            font-family: var(--font-display);
+            font-size: 1.2rem;
+            font-weight: 700;
+            margin-bottom: var(--space-sm);
+            padding-right: var(--space-xl);
+        }
+        .detail-panel .detail-domain {
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-bottom: var(--space-lg);
+            padding: 2px var(--space-sm);
+            border-radius: var(--radius-sm);
+            display: inline-block;
+        }
+        .detail-panel .detail-desc {
+            color: var(--text-secondary);
+            line-height: 1.65;
+            margin-bottom: var(--space-lg);
+            font-size: 0.92rem;
+        }
+        .detail-panel .detail-tech {
+            margin-bottom: var(--space-lg);
+        }
+        .detail-panel .detail-tech h4 {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-tertiary);
+            margin-bottom: var(--space-sm);
+        }
+        .detail-panel .tech-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-xs);
+        }
+        .detail-panel .tech-tag {
+            padding: 2px 10px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-sm);
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            color: var(--text-secondary);
+        }
+        .detail-panel .detail-connections h4 {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-tertiary);
+            margin-bottom: var(--space-sm);
+        }
+        .detail-panel .conn-list {
+            list-style: none;
+        }
+        .detail-panel .conn-list li {
+            padding: var(--space-xs) 0;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        .detail-panel .conn-list li::before {
+            content: '\2192 ';
+            color: var(--ts-blue-bright);
+        }
+        .detail-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.4);
+            z-index: 199;
+            display: none;
+            cursor: pointer;
+        }
+        .detail-overlay.open { display: block; }
+
+        /* === Domain Badges === */
+        .component-badge {
+            display: inline-block;
+            padding: 2px var(--space-sm);
+            border-radius: var(--radius-sm);
+            font-size: 0.72rem;
+            font-weight: 600;
+            font-family: var(--font-mono);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .badge-control { background: rgba(107, 163, 239, 0.15); color: var(--domain-control); border: 1px solid rgba(107, 163, 239, 0.3); }
+        .badge-data { background: rgba(34, 184, 207, 0.15); color: var(--domain-data); border: 1px solid rgba(34, 184, 207, 0.3); }
+        .badge-nat { background: rgba(240, 160, 64, 0.15); color: var(--domain-nat); border: 1px solid rgba(240, 160, 64, 0.3); }
+        .badge-relay { background: rgba(224, 96, 144, 0.15); color: var(--domain-relay); border: 1px solid rgba(224, 96, 144, 0.3); }
+        .badge-auth { background: rgba(192, 128, 224, 0.15); color: var(--domain-auth); border: 1px solid rgba(192, 128, 224, 0.3); }
+        .badge-service { background: rgba(64, 192, 128, 0.15); color: var(--domain-service); border: 1px solid rgba(64, 192, 128, 0.3); }
+        .badge-client { background: rgba(224, 99, 99, 0.15); color: var(--domain-client); border: 1px solid rgba(224, 99, 99, 0.3); }
+        .badge-oss { background: rgba(96, 192, 192, 0.15); color: var(--domain-oss); border: 1px solid rgba(96, 192, 192, 0.3); }
+
+        /* === Info Cards === */
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: var(--space-lg);
+            margin: var(--space-lg) 0;
+        }
+        .info-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius);
+            padding: var(--space-lg);
+            transition: all var(--transition);
+        }
+        .info-card:hover {
+            border-color: var(--border-strong);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+        .info-card h4 {
+            font-family: var(--font-display);
+            font-size: 0.95rem;
+            font-weight: 600;
+            margin-bottom: var(--space-sm);
+            color: var(--ts-blue-bright);
+        }
+        .info-card p {
+            font-size: 0.88rem;
+            color: var(--text-secondary);
+            line-height: 1.55;
+        }
+        .info-card .card-meta {
+            margin-top: var(--space-md);
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+        }
+
+        /* === Stat Row === */
+        .stat-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: var(--space-lg);
+            margin: var(--space-xl) 0;
+        }
+        .stat-item {
+            text-align: center;
+            padding: var(--space-lg);
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius);
+        }
+        .stat-value {
+            font-family: var(--font-display);
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--ts-blue-bright);
+        }
+        .stat-label {
+            font-size: 0.78rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-top: var(--space-xs);
+        }
+
+        /* === Tables === */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.88rem;
+            margin: var(--space-lg) 0;
+        }
+        .data-table th {
+            text-align: left;
+            padding: var(--space-sm) var(--space-md);
+            background: var(--bg-card);
+            border-bottom: 2px solid var(--border-strong);
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-tertiary);
+            font-weight: 500;
+        }
+        .data-table td {
+            padding: var(--space-sm) var(--space-md);
+            border-bottom: 1px solid var(--border-subtle);
+            vertical-align: top;
+        }
+        .data-table tr:hover td { background: var(--bg-card-hover); }
+
+        /* === Callout === */
+        .callout {
+            background: var(--bg-card);
+            border-left: 3px solid var(--ts-blue-bright);
+            border-radius: 0 var(--radius) var(--radius) 0;
+            padding: var(--space-lg);
+            margin: var(--space-lg) 0;
+        }
+        .callout.callout-cyan { border-left-color: var(--accent-cyan); }
+        .callout.callout-amber { border-left-color: var(--accent-amber); }
+        .callout.callout-green { border-left-color: var(--accent-green); }
+        .callout.callout-teal { border-left-color: var(--accent-teal); }
+        .callout .callout-title {
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--ts-blue-bright);
+            margin-bottom: var(--space-sm);
+            font-weight: 500;
+        }
+        .callout.callout-cyan .callout-title { color: var(--accent-cyan); }
+        .callout.callout-amber .callout-title { color: var(--accent-amber); }
+        .callout.callout-green .callout-title { color: var(--accent-green); }
+        .callout.callout-teal .callout-title { color: var(--accent-teal); }
+        .callout p {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            line-height: 1.55;
+        }
+
+        /* === Diagram Container === */
+        .diagram-container {
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-lg);
+            padding: var(--space-xl);
+            margin: var(--space-lg) 0;
+            overflow-x: auto;
+            position: relative;
+        }
+        .diagram-label {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: var(--space-md);
+        }
+
+        /* === Flow Diagram (CSS-only) === */
+        .flow-diagram {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--space-md);
+            flex-wrap: wrap;
+            padding: var(--space-lg) 0;
+        }
+        .flow-box {
+            padding: var(--space-sm) var(--space-md);
+            background: var(--bg-card);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius);
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            color: var(--text-primary);
+            text-align: center;
+            min-width: 100px;
+        }
+        .flow-arrow {
+            color: var(--ts-blue-bright);
+            font-size: 1.2rem;
+        }
+
+        /* === Legend === */
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-md);
+            margin: var(--space-lg) 0;
+            padding: var(--space-md);
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius);
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: var(--space-xs);
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+        }
+        .legend-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        /* === Animated Mesh Canvas === */
+        #meshCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* === Footer === */
+        .site-footer {
+            border-top: 1px solid var(--border-default);
+            padding: var(--space-xl);
+            text-align: center;
+            color: var(--text-tertiary);
+            font-size: 0.82rem;
+            position: relative;
+            z-index: 1;
+        }
+        .site-footer a { color: var(--text-link); text-decoration: none; }
+
+        /* === Responsive === */
+        @media (max-width: 768px) {
+            html { font-size: 16px; }
+            .hero h1 { font-size: 1.8rem; }
+            .hero { padding: var(--space-2xl) var(--space-md) var(--space-xl); }
+            .section-title { font-size: 1.3rem; }
+            .card-grid { grid-template-columns: 1fr; }
+            .stat-row { grid-template-columns: repeat(2, 1fr); }
+            .container { padding: var(--space-xl) var(--space-md); }
+            .arch-canvas { min-height: 520px; }
+            .arch-node { padding: var(--space-sm) var(--space-md); min-width: 90px; }
+            .arch-node .node-label { font-size: 0.68rem; }
+            .arch-node .node-sub { font-size: 0.58rem; }
+            .arch-node .node-icon { font-size: 1.2rem; }
+            .detail-panel { width: 100%; right: -110%; }
+            .flow-diagram { flex-direction: column; }
+            .flow-arrow { transform: rotate(90deg); }
+            .diagram-container { padding: var(--space-md); margin-left: calc(-1 * var(--space-md)); margin-right: calc(-1 * var(--space-md)); border-radius: 0; border-left: 0; border-right: 0; }
+        }
+    </style>
+</head>
+<body>
+    <a href="../index.html" class="back-link">Architecture Maps</a>
+
+    <!-- Hero -->
+    <header class="hero">
+        <div class="hero-inner">
+            <h1>Tailscale Internals</h1>
+            <p class="tagline">Interactive architecture map of Tailscale &mdash; the zero-config mesh VPN built on WireGuard. Covering the coordination server, DERP relays, NAT traversal, MagicDNS, ACL policies, Taildrop, subnet routers, exit nodes, Funnel/Serve, SSH, key management, and Headscale.</p>
+            <div class="meta">
+                <span class="meta-badge"><span class="dot" style="background:var(--accent-blue)"></span> Founded 2019</span>
+                <span class="meta-badge">WireGuard Protocol</span>
+                <span class="meta-badge">Go / TypeScript</span>
+                <span class="meta-badge"><span class="dot" style="background:var(--accent-green)"></span> Open-Source Client (BSD-3)</span>
+                <span class="meta-badge">Mesh VPN (Peer-to-Peer)</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Jump Nav -->
+    <nav class="jump-nav">
+        <div class="jump-nav-inner">
+            <a href="#overview">Overview</a>
+            <a href="#wireguard">WireGuard</a>
+            <a href="#control">Control Plane</a>
+            <a href="#nat">NAT Traversal</a>
+            <a href="#derp">DERP Relays</a>
+            <a href="#dns">MagicDNS</a>
+            <a href="#acl">ACLs</a>
+            <a href="#services">Services</a>
+            <a href="#keys">Key Management</a>
+            <a href="#headscale">Headscale</a>
+        </div>
+    </nav>
+
+    <div class="container">
+
+        <!-- ============ SECTION 1: OVERVIEW ============ -->
+        <section class="section" id="overview">
+            <div class="section-header">
+                <span class="section-number">01</span>
+                <h2 class="section-title">System Overview</h2>
+            </div>
+            <p class="section-description">Tailscale creates a flat, encrypted mesh network (a "tailnet") connecting all your devices. Unlike traditional VPNs that route all traffic through a central gateway, Tailscale establishes direct peer-to-peer WireGuard tunnels between devices. The coordination server handles authentication and key exchange, but never touches your data traffic.</p>
+
+            <div class="stat-row">
+                <div class="stat-item">
+                    <div class="stat-value">P2P</div>
+                    <div class="stat-label">Direct Mesh Tunnels</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">100ms</div>
+                    <div class="stat-label">Typical Setup Time</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">100.x.y.z</div>
+                    <div class="stat-label">CGNAT Address Space</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">~20</div>
+                    <div class="stat-label">Global DERP Regions</div>
+                </div>
+            </div>
+
+            <!-- Interactive Architecture Diagram -->
+            <div class="diagram-label">Interactive Architecture Diagram &mdash; Click nodes for details</div>
+            <div class="arch-canvas" id="archCanvas">
+                <canvas id="meshCanvas"></canvas>
+                <svg id="archSvg"></svg>
+                <!-- Nodes will be created by JS -->
+            </div>
+
+            <div class="legend">
+                <div class="legend-item"><div class="legend-dot" style="background:var(--domain-control)"></div> Control Plane</div>
+                <div class="legend-item"><div class="legend-dot" style="background:var(--domain-data)"></div> Data Plane</div>
+                <div class="legend-item"><div class="legend-dot" style="background:var(--domain-nat)"></div> NAT Traversal</div>
+                <div class="legend-item"><div class="legend-dot" style="background:var(--domain-relay)"></div> DERP Relay</div>
+                <div class="legend-item"><div class="legend-dot" style="background:var(--domain-auth)"></div> Auth / Keys</div>
+                <div class="legend-item"><div class="legend-dot" style="background:var(--domain-service)"></div> Services</div>
+                <div class="legend-item"><div class="legend-dot" style="background:var(--domain-client)"></div> Client</div>
+                <div class="legend-item"><div class="legend-dot" style="background:var(--domain-oss)"></div> Open Source Alt</div>
+            </div>
+        </section>
+
+        <!-- ============ SECTION 2: WIREGUARD ============ -->
+        <section class="section" id="wireguard">
+            <div class="section-header">
+                <span class="section-number">02</span>
+                <h2 class="section-title">WireGuard Protocol</h2>
+            </div>
+            <p class="section-description">WireGuard is the cryptographic foundation of Tailscale. It's a modern VPN protocol with only ~4,000 lines of kernel code (vs. OpenVPN's ~100K). Tailscale wraps WireGuard in a userspace implementation (wireguard-go) and manages all the key distribution and endpoint discovery that WireGuard itself doesn't handle.</p>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>Noise Protocol Framework</h4>
+                    <p>WireGuard uses the Noise_IKpsk2 handshake pattern &mdash; combining Curve25519 key exchange, ChaCha20-Poly1305 encryption, and BLAKE2s hashing. The handshake completes in a single round trip (1-RTT), establishing a session in milliseconds.</p>
+                    <div class="card-meta"><span class="component-badge badge-data">Data Plane</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Cryptokey Routing</h4>
+                    <p>Each WireGuard peer has a public key and a list of allowed IP ranges. This "cryptokey routing table" maps IP destinations to peer public keys, ensuring packets are always encrypted for the correct recipient. Tailscale auto-configures these tables.</p>
+                    <div class="card-meta"><span class="component-badge badge-data">Data Plane</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>wireguard-go</h4>
+                    <p>Tailscale uses a userspace WireGuard implementation written in Go instead of the kernel module. This allows cross-platform operation (macOS, Windows, iOS, Android) and lets Tailscale control tunnel management, NAT traversal, and key rotation from a single process.</p>
+                    <div class="card-meta"><span class="component-badge badge-data">Data Plane</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Zero Overhead Design</h4>
+                    <p>WireGuard adds minimal overhead: 32-byte header per packet, no session negotiation state for silent peers, and near-native throughput. Idle peers consume zero bandwidth &mdash; no keepalive traffic unless explicitly configured. The protocol is "silent" by default.</p>
+                    <div class="card-meta"><span class="component-badge badge-data">Data Plane</span></div>
+                </div>
+            </div>
+
+            <div class="callout callout-cyan">
+                <div class="callout-title">Why Userspace?</div>
+                <p>Running WireGuard in userspace (wireguard-go) rather than as a kernel module costs some throughput (~2-3 Gbps vs. kernel's ~10+ Gbps) but gains enormous flexibility. Tailscale can intercept packets for MagicDNS, manage NAT traversal, hot-swap endpoints, and rotate keys &mdash; all without kernel module loading or root privileges on some platforms.</p>
+            </div>
+        </section>
+
+        <!-- ============ SECTION 3: CONTROL PLANE ============ -->
+        <section class="section" id="control">
+            <div class="section-header">
+                <span class="section-number">03</span>
+                <h2 class="section-title">Coordination Server (Control Plane)</h2>
+            </div>
+            <p class="section-description">The coordination server is Tailscale's central brain. It authenticates devices, distributes public keys, pushes network maps, and enforces ACL policies. Critically, it never sees your actual traffic &mdash; the data plane is entirely peer-to-peer.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Control Plane Message Flow</div>
+                <div class="flow-diagram">
+                    <div class="flow-box" style="border-color: var(--domain-client)">Device Client<br><small>tailscaled</small></div>
+                    <div class="flow-arrow">&rarr;</div>
+                    <div class="flow-box" style="border-color: var(--domain-auth)">Auth (SSO/OIDC)<br><small>IdP Login</small></div>
+                    <div class="flow-arrow">&rarr;</div>
+                    <div class="flow-box" style="border-color: var(--domain-control)">Coord Server<br><small>Key Exchange</small></div>
+                    <div class="flow-arrow">&rarr;</div>
+                    <div class="flow-box" style="border-color: var(--domain-control)">Network Map<br><small>Peer Endpoints</small></div>
+                    <div class="flow-arrow">&rarr;</div>
+                    <div class="flow-box" style="border-color: var(--domain-data)">Direct P2P<br><small>WireGuard Tunnel</small></div>
+                </div>
+            </div>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>Network Map (NetMap)</h4>
+                    <p>The coordination server sends each client a "network map" &mdash; a JSON/protobuf document listing every peer in the tailnet, their public keys, advertised IPs, DERP home regions, and capabilities. The client uses this to configure its local WireGuard interface.</p>
+                    <div class="card-meta"><span class="component-badge badge-control">Control Plane</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Long-Poll Updates</h4>
+                    <p>Clients maintain a persistent HTTPS connection to the coordination server via long-polling (MapRequest). When the network topology changes &mdash; a device joins, leaves, or changes IP &mdash; an incremental map update is pushed to all affected peers within seconds.</p>
+                    <div class="card-meta"><span class="component-badge badge-control">Control Plane</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Identity Provider Integration</h4>
+                    <p>Authentication delegates to existing identity providers: Google Workspace, Microsoft Entra ID, Okta, GitHub, or any OIDC provider. Tailscale never stores passwords &mdash; it trusts the IdP's assertion. Device identity is then bound to a node key.</p>
+                    <div class="card-meta"><span class="component-badge badge-auth">Auth</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Tailnet</h4>
+                    <p>A "tailnet" is the private mesh network belonging to one organization or personal account. All devices in a tailnet share the 100.x.y.z CGNAT address space. Each device gets a stable Tailscale IP that doesn't change even if its physical network changes.</p>
+                    <div class="card-meta"><span class="component-badge badge-control">Control Plane</span></div>
+                </div>
+            </div>
+
+            <div class="callout">
+                <div class="callout-title">Control Plane Separation</div>
+                <p>This is the key architectural insight: the coordination server handles <strong>who</strong> can talk to <strong>whom</strong> (authentication, authorization, key distribution), but <strong>never touches the data</strong>. Even if Tailscale's servers were compromised, an attacker would only get public keys and endpoint metadata &mdash; they could not decrypt traffic, because the WireGuard private keys never leave the device.</p>
+            </div>
+        </section>
+
+        <!-- ============ SECTION 4: NAT TRAVERSAL ============ -->
+        <section class="section" id="nat">
+            <div class="section-header">
+                <span class="section-number">04</span>
+                <h2 class="section-title">NAT Traversal</h2>
+            </div>
+            <p class="section-description">The hardest problem in peer-to-peer networking is getting through NATs and firewalls. Tailscale implements a sophisticated NAT traversal stack combining STUN, ICE-like candidate discovery, birthday paradox UDP hole punching, and hard NAT probing &mdash; achieving direct connections ~94% of the time.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">NAT Traversal Decision Tree</div>
+                <div class="flow-diagram">
+                    <div class="flow-box" style="border-color: var(--domain-nat)">Discover NAT Type<br><small>STUN Probing</small></div>
+                    <div class="flow-arrow">&rarr;</div>
+                    <div class="flow-box" style="border-color: var(--domain-nat)">Exchange Candidates<br><small>via Coord Server</small></div>
+                    <div class="flow-arrow">&rarr;</div>
+                    <div class="flow-box" style="border-color: var(--domain-nat)">UDP Hole Punch<br><small>Both Peers Punch</small></div>
+                    <div class="flow-arrow">&rarr;</div>
+                    <div class="flow-box" style="border-color: var(--domain-data)">Direct Path<br><small>or DERP Fallback</small></div>
+                </div>
+            </div>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>STUN (Session Traversal)</h4>
+                    <p>Tailscale runs STUN servers in every DERP region. When a client starts, it sends STUN binding requests to discover its public IP and port mapping. This reveals the NAT type (endpoint-independent, address-dependent, or port-dependent) and whether UDP is available at all.</p>
+                    <div class="card-meta"><span class="component-badge badge-nat">NAT Traversal</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>UDP Hole Punching</h4>
+                    <p>Both peers simultaneously send UDP packets to each other's discovered endpoints. For endpoint-independent NATs, this works immediately. For harder NATs, Tailscale uses the "birthday paradox" technique &mdash; probing many port candidates to find one that both NATs will accept.</p>
+                    <div class="card-meta"><span class="component-badge badge-nat">NAT Traversal</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Hard NAT Detection</h4>
+                    <p>Some NATs assign random ports per destination ("hard NATs"). Tailscale detects this via multiple STUN servers and applies aggressive probing techniques. For double-hard-NAT (both peers behind hard NATs), DERP relay is the fallback, but this is rare (~6% of connections).</p>
+                    <div class="card-meta"><span class="component-badge badge-nat">NAT Traversal</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Endpoint Discovery</h4>
+                    <p>Each device discovers all its potential endpoints: local LAN addresses, public STUN-mapped addresses, and DERP relay addresses. These candidates are reported to the coordination server and shared with peers via the network map, enabling multi-path connectivity.</p>
+                    <div class="card-meta"><span class="component-badge badge-nat">NAT Traversal</span></div>
+                </div>
+            </div>
+
+            <div class="callout callout-amber">
+                <div class="callout-title">94% Direct Connection Rate</div>
+                <p>Tailscale reports that ~94% of peer connections establish direct UDP paths without relaying. This is achieved through aggressive NAT traversal techniques and the observation that most real-world NATs are endpoint-independent (easy NATs). When direct paths fail, DERP ensures 100% connectivity.</p>
+            </div>
+        </section>
+
+        <!-- ============ SECTION 5: DERP RELAYS ============ -->
+        <section class="section" id="derp">
+            <div class="section-header">
+                <span class="section-number">05</span>
+                <h2 class="section-title">DERP Relay Servers</h2>
+            </div>
+            <p class="section-description">DERP (Designated Encrypted Relay for Packets) is Tailscale's fallback relay system. When direct peer-to-peer connections fail due to restrictive NATs or firewalls blocking UDP, DERP relays traffic over HTTPS &mdash; which works everywhere, even on corporate networks that only allow port 443.</p>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>HTTPS-Based Relay</h4>
+                    <p>DERP uses a custom protocol tunneled over HTTP/HTTPS connections. This ensures it works through the most restrictive firewalls and web proxies. Packets remain WireGuard-encrypted end-to-end; DERP only sees opaque encrypted blobs.</p>
+                    <div class="card-meta"><span class="component-badge badge-relay">DERP Relay</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Global Relay Network</h4>
+                    <p>Tailscale operates ~20 DERP regions worldwide (US, EU, Asia, Oceania, South America). Each device has a "home DERP" region (the closest one). Peers always know how to reach each other via their home DERP, providing a guaranteed fallback path.</p>
+                    <div class="card-meta"><span class="component-badge badge-relay">DERP Relay</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Encrypted Relay</h4>
+                    <p>DERP cannot read your traffic. Packets are WireGuard-encrypted before reaching DERP, and only the destination peer has the private key to decrypt them. DERP is a dumb packet forwarder &mdash; it routes based on node public keys, not IP addresses.</p>
+                    <div class="card-meta"><span class="component-badge badge-relay">DERP Relay</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Custom DERP Servers</h4>
+                    <p>Organizations can run their own DERP relay servers for lower latency or data sovereignty. The DERP server code is open-source (part of the Tailscale client repo). Custom DERP servers are configured via the admin console and distributed to clients via the network map.</p>
+                    <div class="card-meta"><span class="component-badge badge-relay">DERP Relay</span></div>
+                </div>
+            </div>
+
+            <div class="callout callout-cyan">
+                <div class="callout-title">DERP as Connectivity Guarantee</div>
+                <p>DERP is not just a fallback &mdash; it's the <strong>initial</strong> communication path. When two peers first connect, they immediately relay through DERP while NAT traversal happens in the background. This means connections start working in milliseconds, then seamlessly upgrade to direct paths once hole punching succeeds.</p>
+            </div>
+        </section>
+
+        <!-- ============ SECTION 6: MAGICDNS ============ -->
+        <section class="section" id="dns">
+            <div class="section-header">
+                <span class="section-number">06</span>
+                <h2 class="section-title">MagicDNS</h2>
+            </div>
+            <p class="section-description">MagicDNS automatically assigns DNS names to every device in your tailnet. Instead of remembering 100.x.y.z addresses, you reach machines by name: <code>laptop.tail1234.ts.net</code>. The DNS resolver runs locally in the Tailscale client, intercepting DNS queries for tailnet names.</p>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>Local DNS Resolver</h4>
+                    <p>The Tailscale client (tailscaled) runs a local DNS proxy. It intercepts queries for <code>*.ts.net</code> domains and resolves them to Tailscale IPs from the network map. Non-tailnet queries are forwarded to configured upstream resolvers (or the default OS resolver).</p>
+                    <div class="card-meta"><span class="component-badge badge-service">Service</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Automatic Naming</h4>
+                    <p>Devices are named using their OS hostname, sanitized and uniquified: <code>mylaptop.tail1234.ts.net</code>. The tailnet domain (<code>tail1234.ts.net</code>) is unique per account. Short names (just <code>mylaptop</code>) also work within the same tailnet.</p>
+                    <div class="card-meta"><span class="component-badge badge-service">Service</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Split DNS</h4>
+                    <p>Split DNS routes specific domains to designated nameservers. For example, <code>*.corp.example.com</code> queries can be sent to the corporate DNS server (reachable through a subnet router), while everything else uses public DNS. Configured in the admin console.</p>
+                    <div class="card-meta"><span class="component-badge badge-service">Service</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>HTTPS Certificates</h4>
+                    <p>Tailscale can provision Let's Encrypt certificates for your <code>*.ts.net</code> hostnames via the <code>tailscale cert</code> command. This enables HTTPS on internal services without managing a CA &mdash; the coordination server handles the ACME DNS-01 challenge automatically.</p>
+                    <div class="card-meta"><span class="component-badge badge-service">Service</span></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============ SECTION 7: ACL POLICIES ============ -->
+        <section class="section" id="acl">
+            <div class="section-header">
+                <span class="section-number">07</span>
+                <h2 class="section-title">ACL Policies</h2>
+            </div>
+            <p class="section-description">Tailscale's access control system is a centralized, declarative JSON policy (HuJSON with comments and trailing commas). ACLs define which users and devices can reach which services. They are enforced at the network layer &mdash; packets that violate ACLs are never delivered.</p>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>HuJSON Policy File</h4>
+                    <p>ACLs are written in HuJSON (human JSON) &mdash; JSON with comments and trailing commas. Policies define ACL rules, groups, tag owners, auto-approvers for routes, and SSH policies. The file is version-controlled in the admin console with a test/preview workflow.</p>
+                    <div class="card-meta"><span class="component-badge badge-auth">Auth</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Tags (Device Roles)</h4>
+                    <p>Tags (<code>tag:server</code>, <code>tag:prod</code>) label devices by role rather than owner. Tagged devices are owned by the tag, not a user &mdash; enabling server-to-server policies independent of who provisioned the machine. Tag owners are defined in ACLs.</p>
+                    <div class="card-meta"><span class="component-badge badge-auth">Auth</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Groups and Autogroups</h4>
+                    <p>Groups bundle users (<code>group:engineering</code>) for cleaner policies. Autogroups are built-in: <code>autogroup:member</code> (all human users), <code>autogroup:admin</code> (admins), <code>autogroup:owner</code> (device owners). ACL rules reference these groups in source/destination fields.</p>
+                    <div class="card-meta"><span class="component-badge badge-auth">Auth</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Network-Layer Enforcement</h4>
+                    <p>ACLs are distributed to every client via the network map. Each device enforces ACLs locally by configuring its WireGuard allowed-IPs. Denied traffic never gets a WireGuard peer entry, so it's silently dropped at the network layer &mdash; not at the application layer.</p>
+                    <div class="card-meta"><span class="component-badge badge-auth">Auth</span></div>
+                </div>
+            </div>
+
+            <div class="callout callout-green">
+                <div class="callout-title">Default Deny Model</div>
+                <p>Tailscale ACLs follow a default-deny model: if no rule explicitly allows a connection, it's blocked. This is the opposite of traditional VPNs that give full LAN access once connected. New devices join the tailnet with zero access until ACL rules grant specific permissions.</p>
+            </div>
+        </section>
+
+        <!-- ============ SECTION 8: SERVICES ============ -->
+        <section class="section" id="services">
+            <div class="section-header">
+                <span class="section-number">08</span>
+                <h2 class="section-title">Services &amp; Features</h2>
+            </div>
+            <p class="section-description">Beyond the core mesh VPN, Tailscale provides a suite of networking services that solve common infrastructure problems: file sharing, subnet routing, public ingress, SSH, and exit nodes.</p>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>Taildrop (File Sharing)</h4>
+                    <p>Taildrop sends files directly between devices over the encrypted mesh. No cloud upload &mdash; files travel peer-to-peer via WireGuard tunnels. Works across platforms (macOS, Windows, Linux, iOS, Android). Large files transfer at full link speed since it's a direct connection.</p>
+                    <div class="card-meta"><span class="component-badge badge-service">Service</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Subnet Routers</h4>
+                    <p>A subnet router advertises a physical network's CIDR range (e.g., 192.168.1.0/24) to the tailnet. Other Tailscale clients can then reach devices on that subnet without installing Tailscale on each one &mdash; the subnet router acts as a gateway, forwarding packets bidirectionally.</p>
+                    <div class="card-meta"><span class="component-badge badge-service">Service</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Exit Nodes</h4>
+                    <p>Any Tailscale device can be an exit node &mdash; routing all of another device's internet traffic through it. This is a full VPN mode: useful for accessing region-locked content or securing traffic on untrusted WiFi. Traffic exits to the internet from the exit node's location.</p>
+                    <div class="card-meta"><span class="component-badge badge-service">Service</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Tailscale Funnel</h4>
+                    <p>Funnel exposes a local service to the public internet via a <code>*.ts.net</code> URL. Traffic enters Tailscale's edge, gets routed to your device's WireGuard tunnel, and arrives at the local port. No port forwarding, no static IP needed. Funnel provisions a public DNS name and TLS certificate automatically.</p>
+                    <div class="card-meta"><span class="component-badge badge-service">Service</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Tailscale Serve</h4>
+                    <p>Serve is Funnel's private counterpart: it exposes local services to your tailnet (not the public internet). It acts as a reverse proxy, accepting HTTPS on port 443 and forwarding to a local port. Supports proxying to local HTTP, HTTPS, TCP, or serving static files and file system paths.</p>
+                    <div class="card-meta"><span class="component-badge badge-service">Service</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Tailscale SSH</h4>
+                    <p>Tailscale SSH replaces traditional SSH key management. The Tailscale client acts as an SSH server, authenticating users via their Tailscale identity (no SSH keys needed). Access is controlled by ACL SSH rules. Supports session recording and check mode (requiring periodic re-authentication).</p>
+                    <div class="card-meta"><span class="component-badge badge-service">Service</span></div>
+                </div>
+            </div>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Funnel Ingress Flow</div>
+                <div class="flow-diagram">
+                    <div class="flow-box" style="border-color: var(--domain-nat)">Public Internet<br><small>HTTPS Request</small></div>
+                    <div class="flow-arrow">&rarr;</div>
+                    <div class="flow-box" style="border-color: var(--domain-control)">Tailscale Edge<br><small>TLS Termination</small></div>
+                    <div class="flow-arrow">&rarr;</div>
+                    <div class="flow-box" style="border-color: var(--domain-data)">WireGuard Tunnel<br><small>Encrypted</small></div>
+                    <div class="flow-arrow">&rarr;</div>
+                    <div class="flow-box" style="border-color: var(--domain-client)">Your Device<br><small>localhost:port</small></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============ SECTION 9: KEY MANAGEMENT ============ -->
+        <section class="section" id="keys">
+            <div class="section-header">
+                <span class="section-number">09</span>
+                <h2 class="section-title">Key Management</h2>
+            </div>
+            <p class="section-description">Tailscale uses multiple key types to separate concerns: machine identity, node authorization, session encryption, and control plane trust. Understanding the key hierarchy is essential to understanding how Tailscale's security model works.</p>
+
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Key Type</th>
+                        <th>Purpose</th>
+                        <th>Lifetime</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>Machine Key</code></td>
+                        <td>Identifies the physical machine to the coordination server. Generated on first run, stored on disk. Used to encrypt control plane traffic.</td>
+                        <td>Permanent (per device)</td>
+                    </tr>
+                    <tr>
+                        <td><code>Node Key</code></td>
+                        <td>The WireGuard public key for this device. Rotated periodically. This is what appears in the network map and is used by peers for encryption.</td>
+                        <td>Rotated (key expiry)</td>
+                    </tr>
+                    <tr>
+                        <td><code>Session Key</code></td>
+                        <td>Ephemeral symmetric keys derived during each WireGuard handshake. Perfect forward secrecy: compromising a node key doesn't reveal past sessions.</td>
+                        <td>~2 minutes per handshake</td>
+                    </tr>
+                    <tr>
+                        <td><code>Auth Key</code></td>
+                        <td>Pre-authentication keys for automated device enrollment. Used by CI/CD, Docker containers, and Kubernetes operators to join the tailnet without interactive login.</td>
+                        <td>Configurable (single-use or reusable)</td>
+                    </tr>
+                    <tr>
+                        <td><code>API Key</code></td>
+                        <td>Personal or OAuth API tokens for the Tailscale management API. Used to programmatically manage devices, ACLs, DNS, and routes.</td>
+                        <td>Configurable expiry</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>Key Expiry &amp; Rotation</h4>
+                    <p>Node keys have configurable expiry (default: 180 days). When a key expires, the device must re-authenticate with the coordination server. This ensures compromised devices don't retain access indefinitely. Admins can disable key expiry for servers.</p>
+                    <div class="card-meta"><span class="component-badge badge-auth">Auth</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Control Plane Encryption</h4>
+                    <p>Communication between the client and coordination server is encrypted twice: once at the TLS transport layer, and again using the machine key via the Noise protocol (NaCl box). This "double encryption" protects against TLS MITM and ensures only the device can read control messages.</p>
+                    <div class="card-meta"><span class="component-badge badge-auth">Auth</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Forward Secrecy</h4>
+                    <p>WireGuard provides perfect forward secrecy through ephemeral Diffie-Hellman exchanges during each handshake (every ~2 minutes for active peers). Past traffic cannot be decrypted even if the node's long-term private key is later compromised.</p>
+                    <div class="card-meta"><span class="component-badge badge-data">Data Plane</span></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============ SECTION 10: HEADSCALE ============ -->
+        <section class="section" id="headscale">
+            <div class="section-header">
+                <span class="section-number">10</span>
+                <h2 class="section-title">Headscale &mdash; Open Source Alternative</h2>
+            </div>
+            <p class="section-description">Headscale is an open-source, self-hosted implementation of the Tailscale coordination server. It allows you to run your own control plane while using the official Tailscale clients. Everything stays on your infrastructure &mdash; no dependency on Tailscale's SaaS.</p>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>Self-Hosted Control Plane</h4>
+                    <p>Headscale reimplements the coordination server API in Go. It handles device registration, key distribution, network map generation, and node management. Runs as a single binary with SQLite or PostgreSQL storage. Supports the same client protocol as Tailscale's servers.</p>
+                    <div class="card-meta"><span class="component-badge badge-oss">Open Source</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Compatible Clients</h4>
+                    <p>Headscale works with official Tailscale clients &mdash; you just point them at your Headscale server's URL instead of Tailscale's. This is possible because the client is open-source (BSD-3). All core features work: NAT traversal, DERP, MagicDNS, subnet routes.</p>
+                    <div class="card-meta"><span class="component-badge badge-oss">Open Source</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Feature Differences</h4>
+                    <p>Headscale covers core functionality (mesh networking, ACLs, DNS, subnet routing) but lacks some Tailscale SaaS features: Funnel, admin console UI (community web UIs exist), SSO integration (uses OIDC or pre-auth keys), and automatic DERP map updates.</p>
+                    <div class="card-meta"><span class="component-badge badge-oss">Open Source</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Data Sovereignty</h4>
+                    <p>The primary motivation for Headscale is full control over the control plane metadata: device keys, network topology, ACL policies, and DNS configuration never leave your infrastructure. Ideal for airgapped environments, regulated industries, and privacy-conscious deployments.</p>
+                    <div class="card-meta"><span class="component-badge badge-oss">Open Source</span></div>
+                </div>
+            </div>
+
+            <div class="callout callout-teal">
+                <div class="callout-title">Community Ecosystem</div>
+                <p>Headscale has a growing ecosystem: <strong>headscale-ui</strong> (community web admin), <strong>headscale-admin</strong> (another web UI), integration guides for Docker, NixOS, and Kubernetes. The project is not affiliated with Tailscale Inc. but benefits from the open-source client protocol being well-documented.</p>
+            </div>
+        </section>
+
+    </div>
+
+    <!-- Detail Panel (slide-in) -->
+    <div class="detail-overlay" id="detailOverlay"></div>
+    <div class="detail-panel" id="detailPanel">
+        <button class="close-btn" id="detailClose">&times;</button>
+        <h3 id="detailTitle"></h3>
+        <div class="detail-domain" id="detailDomain"></div>
+        <p class="detail-desc" id="detailDesc"></p>
+        <div class="detail-tech">
+            <h4>Technologies</h4>
+            <div class="tech-tags" id="detailTech"></div>
+        </div>
+        <div class="detail-connections">
+            <h4>Key Connections</h4>
+            <ul class="conn-list" id="detailConns"></ul>
+        </div>
+    </div>
+
+    <footer class="site-footer">
+        <a href="../index.html">Architecture Maps</a> &middot; Tailscale
+    </footer>
+
+    <script>
+    (function() {
+        // =============== ANIMATED MESH BACKGROUND ===============
+        const meshCanvas = document.getElementById('meshCanvas');
+        const meshCtx = meshCanvas.getContext('2d');
+        const archCanvasEl = document.getElementById('archCanvas');
+
+        const meshDots = [];
+        const MESH_DOT_COUNT = 35;
+        const MESH_CONNECTION_DIST = 150;
+
+        function initMesh() {
+            meshCanvas.width = archCanvasEl.offsetWidth;
+            meshCanvas.height = archCanvasEl.offsetHeight;
+            meshDots.length = 0;
+            for (let i = 0; i < MESH_DOT_COUNT; i++) {
+                meshDots.push({
+                    x: Math.random() * meshCanvas.width,
+                    y: Math.random() * meshCanvas.height,
+                    vx: (Math.random() - 0.5) * 0.4,
+                    vy: (Math.random() - 0.5) * 0.4,
+                    r: 1.5 + Math.random() * 1.5
+                });
+            }
+        }
+
+        function animateMesh() {
+            meshCtx.clearRect(0, 0, meshCanvas.width, meshCanvas.height);
+
+            // Update positions
+            meshDots.forEach(d => {
+                d.x += d.vx;
+                d.y += d.vy;
+                if (d.x < 0 || d.x > meshCanvas.width) d.vx *= -1;
+                if (d.y < 0 || d.y > meshCanvas.height) d.vy *= -1;
+            });
+
+            // Draw connections
+            for (let i = 0; i < meshDots.length; i++) {
+                for (let j = i + 1; j < meshDots.length; j++) {
+                    const dx = meshDots[i].x - meshDots[j].x;
+                    const dy = meshDots[i].y - meshDots[j].y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < MESH_CONNECTION_DIST) {
+                        const alpha = (1 - dist / MESH_CONNECTION_DIST) * 0.15;
+                        meshCtx.beginPath();
+                        meshCtx.moveTo(meshDots[i].x, meshDots[i].y);
+                        meshCtx.lineTo(meshDots[j].x, meshDots[j].y);
+                        meshCtx.strokeStyle = `rgba(107, 163, 239, ${alpha})`;
+                        meshCtx.lineWidth = 0.8;
+                        meshCtx.stroke();
+                    }
+                }
+            }
+
+            // Draw dots
+            meshDots.forEach(d => {
+                meshCtx.beginPath();
+                meshCtx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
+                meshCtx.fillStyle = 'rgba(107, 163, 239, 0.3)';
+                meshCtx.fill();
+            });
+
+            requestAnimationFrame(animateMesh);
+        }
+
+        initMesh();
+        animateMesh();
+
+        // =============== ARCHITECTURE NODES ===============
+        const nodes = [
+            {
+                id: 'client',
+                label: 'Tailscale Client',
+                sub: 'tailscaled daemon',
+                icon: '\uD83D\uDCBB',
+                domain: 'client',
+                x: 12, y: 15,
+                desc: 'The Tailscale daemon (tailscaled) runs on every device. It manages the WireGuard tunnel (via wireguard-go in userspace), discovers NAT endpoints, maintains the connection to the coordination server, runs the local MagicDNS resolver, and handles Taildrop file transfers. Available for Linux, macOS, Windows, iOS, Android, and more.',
+                tech: ['Go', 'wireguard-go', 'tailscaled', 'Cross-Platform'],
+                connections: ['Maintains persistent HTTPS to coordination server', 'Establishes WireGuard tunnels to peers', 'Runs local DNS resolver for MagicDNS', 'Handles NAT traversal and DERP fallback']
+            },
+            {
+                id: 'coordination',
+                label: 'Coord Server',
+                sub: 'Control Plane',
+                icon: '\uD83C\uDFDB',
+                domain: 'control',
+                x: 50, y: 12,
+                desc: 'The coordination server (control.tailscale.com) is the central authority for key exchange, authentication, ACL distribution, and network map generation. It authenticates devices via IdP integration, distributes public keys and endpoint information, and pushes ACL policy updates. It never sees or handles actual data traffic.',
+                tech: ['Go', 'HTTPS', 'Protobuf/JSON', 'Long-Poll'],
+                connections: ['Authenticates devices via SSO/OIDC identity providers', 'Distributes network maps with peer keys and endpoints', 'Pushes ACL policy updates to all clients', 'Manages DERP region assignments']
+            },
+            {
+                id: 'wireguard',
+                label: 'WireGuard',
+                sub: 'Encrypted Tunnel',
+                icon: '\uD83D\uDD10',
+                domain: 'data',
+                x: 12, y: 50,
+                desc: 'WireGuard is the encryption layer for all data plane traffic. Tailscale uses wireguard-go (userspace implementation) with the Noise_IKpsk2 protocol (Curve25519, ChaCha20-Poly1305, BLAKE2s). Each peer pair establishes a separate WireGuard session with ephemeral keys for forward secrecy.',
+                tech: ['wireguard-go', 'Noise Protocol', 'Curve25519', 'ChaCha20-Poly1305'],
+                connections: ['Encrypts all peer-to-peer traffic', 'Session keys renegotiated every ~2 minutes', 'Cryptokey routing maps IPs to public keys', 'Managed by tailscaled userspace daemon']
+            },
+            {
+                id: 'derp',
+                label: 'DERP Relay',
+                sub: '~20 Global Regions',
+                icon: '\uD83C\uDF10',
+                domain: 'relay',
+                x: 50, y: 50,
+                desc: 'DERP (Designated Encrypted Relay for Packets) servers provide a guaranteed fallback when direct peer-to-peer UDP connections fail. Traffic is relayed over HTTPS (works through any firewall). Each device has a "home DERP" region. DERP cannot decrypt traffic — it forwards opaque WireGuard-encrypted packets.',
+                tech: ['Go', 'HTTPS Relay', 'STUN co-located', 'Open Source'],
+                connections: ['Fallback relay when direct UDP fails', 'Initial relay path while NAT traversal runs', 'Co-locates STUN server for NAT discovery', 'Routes packets by node public key']
+            },
+            {
+                id: 'nat',
+                label: 'NAT Traversal',
+                sub: 'STUN / Hole Punching',
+                icon: '\uD83D\uDD73',
+                domain: 'nat',
+                x: 30, y: 35,
+                desc: 'Tailscale\'s NAT traversal engine discovers the device\'s public endpoint via STUN, detects NAT type (easy/hard), and coordinates UDP hole punching with peers. Achieves ~94% direct connection rate. For double-hard-NAT scenarios, falls back to DERP relay. Uses birthday paradox technique for hard NATs.',
+                tech: ['STUN', 'UDP Hole Punch', 'ICE-like Probing', 'Birthday Attack'],
+                connections: ['Discovers public endpoint via STUN servers', 'Exchanges candidates through coordination server', 'Punches UDP holes for direct peer paths', 'Falls back to DERP for unreachable peers']
+            },
+            {
+                id: 'magicdns',
+                label: 'MagicDNS',
+                sub: '*.ts.net',
+                icon: '\uD83C\uDFF7',
+                domain: 'service',
+                x: 88, y: 15,
+                desc: 'MagicDNS provides automatic DNS naming for every device in the tailnet. Runs as a local resolver in tailscaled, intercepting queries for *.ts.net and resolving them to Tailscale IPs. Supports split DNS for routing specific domains to corporate nameservers via subnet routers. Can provision Let\'s Encrypt TLS certificates.',
+                tech: ['Local DNS Proxy', 'Split DNS', 'ACME/Let\'s Encrypt', 'ts.net Domain'],
+                connections: ['Resolves tailnet hostnames to 100.x.y.z IPs', 'Forwards non-tailnet queries to upstream DNS', 'Split DNS routes corp domains to internal resolvers', 'Provisions TLS certificates for ts.net names']
+            },
+            {
+                id: 'acl',
+                label: 'ACL Engine',
+                sub: 'Policy Enforcement',
+                icon: '\uD83D\uDEE1',
+                domain: 'auth',
+                x: 72, y: 35,
+                desc: 'The ACL engine enforces access control policies defined in HuJSON. Policies define which users/groups/tags can access which services on which ports. ACLs are compiled into WireGuard allowed-IP configurations on each client, enforcing rules at the network layer. Supports groups, tags, autogroups, and SSH policies.',
+                tech: ['HuJSON', 'Tags', 'Groups', 'Network-Layer Enforcement'],
+                connections: ['Distributed to clients via network map updates', 'Compiled into WireGuard allowed-IPs locally', 'References identity provider groups', 'Controls SSH access and session recording']
+            },
+            {
+                id: 'subnet',
+                label: 'Subnet Router',
+                sub: 'LAN Gateway',
+                icon: '\uD83D\uDD00',
+                domain: 'service',
+                x: 88, y: 50,
+                desc: 'A subnet router advertises physical network CIDR ranges (e.g., 192.168.1.0/24, 10.0.0.0/8) to the tailnet. Other tailnet devices can reach those subnets through the router without installing Tailscale on each LAN device. Supports 4-in-6 and site-to-site configurations. Approved via ACL auto-approvers.',
+                tech: ['IP Forwarding', 'CIDR Advertisement', 'Auto-Approvers', 'Site-to-Site'],
+                connections: ['Advertises local network routes to the tailnet', 'Forwards traffic between tailnet and local LAN', 'Enables access to non-Tailscale devices', 'Approved via ACL auto-approver rules']
+            },
+            {
+                id: 'funnel',
+                label: 'Funnel / Serve',
+                sub: 'Public Ingress',
+                icon: '\uD83C\uDF0D',
+                domain: 'service',
+                x: 88, y: 80,
+                desc: 'Funnel exposes local services to the public internet via a *.ts.net URL with automatic TLS. Serve does the same but only within the tailnet. Both act as reverse proxies from port 443 to local ports. Funnel traffic enters via Tailscale\'s edge servers and is routed through the WireGuard tunnel to the target device.',
+                tech: ['Reverse Proxy', 'TLS Termination', 'Public DNS', 'Edge Routing'],
+                connections: ['Funnel: public internet to local service via edge', 'Serve: tailnet-only reverse proxy', 'Auto-provisions TLS certificates', 'Routes through WireGuard tunnel to localhost']
+            },
+            {
+                id: 'ssh',
+                label: 'Tailscale SSH',
+                sub: 'Identity-Based SSH',
+                icon: '\uD83D\uDD11',
+                domain: 'auth',
+                x: 72, y: 70,
+                desc: 'Tailscale SSH replaces traditional SSH key management with identity-based access. The tailscaled daemon acts as an SSH server, authenticating users by their Tailscale identity (backed by the IdP). Access is controlled by ACL SSH rules. Supports session recording, check mode (periodic re-auth), and standard SSH features.',
+                tech: ['Go SSH Server', 'Identity Auth', 'Session Recording', 'ACL SSH Rules'],
+                connections: ['Authenticates via Tailscale identity (no SSH keys)', 'Access controlled by ACL SSH rules', 'Session recording for audit compliance', 'Check mode requires periodic re-authentication']
+            },
+            {
+                id: 'exitnode',
+                label: 'Exit Node',
+                sub: 'Full VPN Mode',
+                icon: '\uD83D\uDEAA',
+                domain: 'service',
+                x: 30, y: 75,
+                desc: 'Any Tailscale device can become an exit node, routing another device\'s entire internet traffic through it. This provides traditional VPN functionality: the traffic appears to originate from the exit node\'s IP. Useful for securing traffic on untrusted networks or accessing region-locked services. Approved via ACL auto-approvers.',
+                tech: ['Default Route', '0.0.0.0/0 Routing', 'Auto-Approvers', 'Multi-Exit'],
+                connections: ['Routes all internet traffic through exit device', 'Approved by admin via ACL auto-approver', 'Can be any tailnet device (not just servers)', 'Multiple exit nodes can be offered in a tailnet']
+            },
+            {
+                id: 'taildrop',
+                label: 'Taildrop',
+                sub: 'File Transfer',
+                icon: '\uD83D\uDCC1',
+                domain: 'service',
+                x: 12, y: 80,
+                desc: 'Taildrop enables direct peer-to-peer file sharing over the encrypted WireGuard mesh. No cloud storage involved — files transfer directly between devices at full link speed. Works across all platforms. Files are sent via an HTTP API on the local tailscaled daemon and received by the peer\'s daemon.',
+                tech: ['HTTP API', 'P2P Transfer', 'Cross-Platform', 'Direct WireGuard'],
+                connections: ['Sends files directly over WireGuard tunnels', 'No cloud intermediary — pure P2P', 'HTTP API between local tailscaled daemons', 'Works on all supported platforms']
+            },
+            {
+                id: 'headscale',
+                label: 'Headscale',
+                sub: 'Self-Hosted Control',
+                icon: '\u2699',
+                domain: 'oss',
+                x: 50, y: 85,
+                desc: 'Headscale is a community-built, open-source reimplementation of the Tailscale coordination server (written in Go). It allows self-hosting the entire control plane while using official Tailscale clients. Supports SQLite/PostgreSQL, OIDC auth, ACLs, DNS, and subnet routing. Ideal for data sovereignty and airgapped environments.',
+                tech: ['Go', 'SQLite / PostgreSQL', 'OIDC', 'BSD-3 License'],
+                connections: ['Drop-in replacement for Tailscale coordination server', 'Works with official open-source Tailscale clients', 'Self-hosted control plane for data sovereignty', 'Community web UIs available (headscale-ui, headscale-admin)']
+            },
+            {
+                id: 'idp',
+                label: 'Identity Provider',
+                sub: 'SSO / OIDC',
+                icon: '\uD83D\uDC64',
+                domain: 'auth',
+                x: 72, y: 8,
+                desc: 'Tailscale delegates authentication to external identity providers: Google Workspace, Microsoft Entra ID, Okta, OneLogin, GitHub, or any generic OIDC provider. Tailscale never stores passwords. Device identity is established when a user authenticates through the IdP and authorizes the device to join the tailnet.',
+                tech: ['OIDC', 'SAML', 'OAuth 2.0', 'MFA via IdP'],
+                connections: ['Authenticates users at device enrollment', 'Provides identity for ACL group membership', 'MFA enforcement handled by IdP', 'Periodic re-auth for key renewal']
+            }
+        ];
+
+        const edges = [
+            { from: 'client', to: 'coordination', label: 'MapRequest', animated: true },
+            { from: 'client', to: 'wireguard', label: 'Manages', animated: false },
+            { from: 'client', to: 'nat', label: 'Discovers', animated: true },
+            { from: 'nat', to: 'derp', label: 'STUN + Fallback', animated: true },
+            { from: 'coordination', to: 'acl', label: 'Policy', animated: false },
+            { from: 'coordination', to: 'magicdns', label: 'DNS Config', animated: false },
+            { from: 'coordination', to: 'idp', label: 'Auth Delegation', animated: true },
+            { from: 'wireguard', to: 'derp', label: 'Relay (fallback)', animated: true },
+            { from: 'wireguard', to: 'exitnode', label: 'Full Route', animated: false },
+            { from: 'wireguard', to: 'taildrop', label: 'File Transfer', animated: false },
+            { from: 'subnet', to: 'coordination', label: 'Advertise Routes', animated: false },
+            { from: 'acl', to: 'ssh', label: 'SSH Rules', animated: false },
+            { from: 'funnel', to: 'coordination', label: 'Edge Config', animated: false },
+            { from: 'headscale', to: 'client', label: 'Alt Control', animated: true },
+            { from: 'client', to: 'magicdns', label: 'DNS Queries', animated: false },
+            { from: 'acl', to: 'client', label: 'Allowed-IPs', animated: false }
+        ];
+
+        // =============== RENDER NODES ===============
+        const canvas = document.getElementById('archCanvas');
+        const svg = document.getElementById('archSvg');
+        const nodeElements = {};
+
+        function renderNodes() {
+            nodes.forEach(n => {
+                const el = document.createElement('div');
+                el.className = 'arch-node';
+                el.setAttribute('data-domain', n.domain);
+                el.setAttribute('data-id', n.id);
+                el.innerHTML = `
+                    <span class="node-icon">${n.icon}</span>
+                    <span class="node-label">${n.label}</span>
+                    <span class="node-sub">${n.sub}</span>
+                `;
+                el.style.left = `${n.x}%`;
+                el.style.top = `${n.y}%`;
+                el.style.transform = 'translate(-50%, -50%)';
+                el.addEventListener('click', () => openDetail(n));
+                canvas.appendChild(el);
+                nodeElements[n.id] = el;
+            });
+        }
+
+        // =============== RENDER EDGES (SVG) ===============
+        function getNodeCenter(id) {
+            const el = nodeElements[id];
+            if (!el) return { x: 0, y: 0 };
+            const cr = el.getBoundingClientRect();
+            const pr = canvas.getBoundingClientRect();
+            return {
+                x: cr.left + cr.width / 2 - pr.left,
+                y: cr.top + cr.height / 2 - pr.top
+            };
+        }
+
+        function renderEdges() {
+            svg.innerHTML = '';
+            svg.setAttribute('width', canvas.offsetWidth);
+            svg.setAttribute('height', canvas.offsetHeight);
+
+            // Define arrow marker
+            const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+            const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+            marker.setAttribute('id', 'arrowhead');
+            marker.setAttribute('markerWidth', '8');
+            marker.setAttribute('markerHeight', '6');
+            marker.setAttribute('refX', '8');
+            marker.setAttribute('refY', '3');
+            marker.setAttribute('orient', 'auto');
+            const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+            polygon.setAttribute('points', '0 0, 8 3, 0 6');
+            polygon.setAttribute('fill', 'rgba(107, 163, 239, 0.5)');
+            marker.appendChild(polygon);
+            defs.appendChild(marker);
+            svg.appendChild(defs);
+
+            edges.forEach(e => {
+                const from = getNodeCenter(e.from);
+                const to = getNodeCenter(e.to);
+
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', from.x);
+                line.setAttribute('y1', from.y);
+                line.setAttribute('x2', to.x);
+                line.setAttribute('y2', to.y);
+                line.setAttribute('stroke', 'rgba(107, 163, 239, 0.2)');
+                line.setAttribute('stroke-width', '1.5');
+                line.setAttribute('marker-end', 'url(#arrowhead)');
+
+                if (e.animated) {
+                    line.setAttribute('stroke-dasharray', '6 4');
+                    line.innerHTML = `<animate attributeName="stroke-dashoffset" from="0" to="-20" dur="1.5s" repeatCount="indefinite"/>`;
+                }
+
+                svg.appendChild(line);
+
+                // Edge label
+                const mx = (from.x + to.x) / 2;
+                const my = (from.y + to.y) / 2;
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('x', mx);
+                text.setAttribute('y', my - 6);
+                text.setAttribute('text-anchor', 'middle');
+                text.setAttribute('fill', 'rgba(138, 154, 184, 0.6)');
+                text.setAttribute('font-size', '10');
+                text.setAttribute('font-family', "'Share Tech Mono', monospace");
+                text.textContent = e.label;
+                svg.appendChild(text);
+            });
+        }
+
+        // =============== DETAIL PANEL ===============
+        const detailPanel = document.getElementById('detailPanel');
+        const detailOverlay = document.getElementById('detailOverlay');
+        const detailTitle = document.getElementById('detailTitle');
+        const detailDomain = document.getElementById('detailDomain');
+        const detailDesc = document.getElementById('detailDesc');
+        const detailTech = document.getElementById('detailTech');
+        const detailConns = document.getElementById('detailConns');
+
+        const domainColors = {
+            control: 'var(--domain-control)', data: 'var(--domain-data)', nat: 'var(--domain-nat)',
+            relay: 'var(--domain-relay)', auth: 'var(--domain-auth)', service: 'var(--domain-service)',
+            client: 'var(--domain-client)', oss: 'var(--domain-oss)'
+        };
+        const domainNames = {
+            control: 'Control Plane', data: 'Data Plane', nat: 'NAT Traversal',
+            relay: 'DERP Relay', auth: 'Auth / Keys', service: 'Service',
+            client: 'Client', oss: 'Open Source Alt'
+        };
+
+        function openDetail(node) {
+            document.querySelectorAll('.arch-node').forEach(n => n.classList.remove('active'));
+            const el = nodeElements[node.id];
+            if (el) el.classList.add('active');
+
+            detailTitle.textContent = node.label;
+            detailDomain.textContent = domainNames[node.domain] || node.domain;
+            detailDomain.style.background = `${domainColors[node.domain]}20`;
+            detailDomain.style.color = domainColors[node.domain];
+            detailDomain.style.border = `1px solid ${domainColors[node.domain]}50`;
+            detailDesc.textContent = node.desc;
+
+            detailTech.innerHTML = node.tech.map(t => `<span class="tech-tag">${t}</span>`).join('');
+            detailConns.innerHTML = node.connections.map(c => `<li>${c}</li>`).join('');
+
+            detailPanel.classList.add('open');
+            detailOverlay.classList.add('open');
+        }
+
+        function closeDetail() {
+            detailPanel.classList.remove('open');
+            detailOverlay.classList.remove('open');
+            document.querySelectorAll('.arch-node').forEach(n => n.classList.remove('active'));
+        }
+
+        document.getElementById('detailClose').addEventListener('click', closeDetail);
+        detailOverlay.addEventListener('click', closeDetail);
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDetail(); });
+
+        // =============== INIT ===============
+        renderNodes();
+
+        // Debounced resize handler
+        let resizeTimer;
+        function handleResize() {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => {
+                renderEdges();
+                initMesh();
+            }, 100);
+        }
+
+        // Initial edge render after layout settles
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                renderEdges();
+            });
+        });
+
+        window.addEventListener('resize', handleResize);
+
+        // Highlight connected edges on node hover
+        document.querySelectorAll('.arch-node').forEach(nodeEl => {
+            nodeEl.addEventListener('mouseenter', () => {
+                const id = nodeEl.getAttribute('data-id');
+                const connectedIds = new Set();
+                edges.forEach(e => {
+                    if (e.from === id) connectedIds.add(e.to);
+                    if (e.to === id) connectedIds.add(e.from);
+                });
+                document.querySelectorAll('.arch-node').forEach(n => {
+                    const nid = n.getAttribute('data-id');
+                    if (nid !== id && !connectedIds.has(nid)) {
+                        n.style.opacity = '0.3';
+                    }
+                });
+                // Highlight connected edges
+                const lines = svg.querySelectorAll('line');
+                const labels = svg.querySelectorAll('text');
+                edges.forEach((e, i) => {
+                    if (e.from === id || e.to === id) {
+                        if (lines[i]) {
+                            lines[i].setAttribute('stroke', 'rgba(107, 163, 239, 0.6)');
+                            lines[i].setAttribute('stroke-width', '2.5');
+                        }
+                        if (labels[i]) {
+                            labels[i].setAttribute('fill', 'rgba(107, 163, 239, 0.9)');
+                        }
+                    } else {
+                        if (lines[i]) {
+                            lines[i].setAttribute('stroke', 'rgba(107, 163, 239, 0.08)');
+                        }
+                        if (labels[i]) {
+                            labels[i].setAttribute('fill', 'rgba(138, 154, 184, 0.2)');
+                        }
+                    }
+                });
+            });
+            nodeEl.addEventListener('mouseleave', () => {
+                document.querySelectorAll('.arch-node').forEach(n => {
+                    n.style.opacity = '1';
+                });
+                const lines = svg.querySelectorAll('line');
+                const labels = svg.querySelectorAll('text');
+                edges.forEach((e, i) => {
+                    if (lines[i]) {
+                        lines[i].setAttribute('stroke', 'rgba(107, 163, 239, 0.2)');
+                        lines[i].setAttribute('stroke-width', '1.5');
+                    }
+                    if (labels[i]) {
+                        labels[i].setAttribute('fill', 'rgba(138, 154, 184, 0.6)');
+                    }
+                });
+            });
+        });
+    })();
+    </script>
+<script defer src="../../prompt-viewer.js"></script>
+</body>
+</html>
