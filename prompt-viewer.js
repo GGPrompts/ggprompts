@@ -197,8 +197,14 @@
       btns.appendChild(gh);
     }
 
-    // Prompt button — only if a prompt mapping exists
+    // Prompt button — check exact match first, then section-level skill fallback
     var promptPath = manifest[path] || null;
+    if (!promptPath && manifest._sections) {
+      var sections = manifest._sections;
+      for (var prefix in sections) {
+        if (path.startsWith(prefix)) { promptPath = sections[prefix]; break; }
+      }
+    }
     if (promptPath) {
       var pb = document.createElement('button');
       pb.className = 'ggp-btn';
@@ -210,6 +216,9 @@
 
     // Don't render anything if no buttons to show
     if (!btns.children.length) return;
+
+    // On news pages, bump up to clear the TTS audio fab button
+    if (isNews) wrap.style.bottom = '52px';
 
     wrap.appendChild(dot);
     wrap.appendChild(btns);
