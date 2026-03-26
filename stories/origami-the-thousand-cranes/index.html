@@ -1,0 +1,1828 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Thousand Cranes &mdash; An Origami Interactive Story</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@300;400;500;600&family=Inter:wght@300;400;500;600&family=Zen+Kaku+Gothic+New:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --font-serif: 'Noto Serif JP', 'Hiragino Mincho ProN', serif;
+            --font-sans: 'Inter', 'Zen Kaku Gothic New', sans-serif;
+
+            --paper-white: #faf9f6;
+            --paper-cream: #f5f0e8;
+            --paper-warm: #efe9dd;
+            --fold-shadow: #d8d0c4;
+            --fold-line: #c9bfb0;
+            --crease-dark: #b3a898;
+            --text-primary: #2c2420;
+            --text-secondary: #4a433c;
+            --text-muted: #7a7168;
+            --ink-black: #1a1614;
+            --japanese-red: #c23b22;
+            --japanese-red-light: #d94f3a;
+            --japanese-red-muted: rgba(194, 59, 34, 0.12);
+            --peace-gold: #c4a35a;
+            --peace-gold-light: #ddc07a;
+            --bamboo-green: #6b7f5e;
+            --sky-blue: #7a9cba;
+            --sadako-pink: #d4a0a0;
+
+            --shadow-fold: 0 2px 8px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04);
+            --shadow-lifted: 0 8px 24px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.04);
+
+            --transition-fold: 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            --transition-base: 0.3s ease;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html { font-size: 16px; scroll-behavior: smooth; }
+
+        body {
+            font-family: var(--font-serif);
+            font-size: 1rem;
+            line-height: 1.8;
+            color: var(--text-primary);
+            background: var(--paper-white);
+            -webkit-font-smoothing: antialiased;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Paper texture overlay */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+            opacity: 0.035;
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        /* Fold line accents */
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 50%;
+            width: 1px;
+            height: 100%;
+            background: linear-gradient(180deg,
+                transparent 0%,
+                var(--fold-line) 15%,
+                var(--fold-line) 85%,
+                transparent 100%
+            );
+            opacity: 0.25;
+            pointer-events: none;
+            z-index: 999;
+        }
+
+        h1, h2, h3, h4 {
+            font-family: var(--font-serif);
+            font-weight: 400;
+            line-height: 1.3;
+            letter-spacing: 0.02em;
+        }
+
+        p { margin-bottom: 1rem; max-width: 60ch; }
+
+        .lead {
+            font-size: 1.1rem;
+            line-height: 1.9;
+            color: var(--text-secondary);
+            font-weight: 300;
+        }
+
+        .small { font-size: 0.875rem; }
+        .text-center { text-align: center; }
+
+        /* =========================================
+           ORIGAMI CRANE SVG (CSS-only)
+        ========================================= */
+        .crane-icon {
+            display: inline-block;
+            width: 32px;
+            height: 32px;
+            position: relative;
+        }
+
+        .crane-icon::before {
+            content: '\9DB4';
+            font-size: 1.5rem;
+            color: var(--japanese-red);
+            opacity: 0.8;
+        }
+
+        /* =========================================
+           LAYOUT
+        ========================================= */
+        .game-container {
+            max-width: 780px;
+            margin: 0 auto;
+            padding: 2rem;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            z-index: 1;
+        }
+
+        @media (max-width: 768px) {
+            .game-container { padding: 1.25rem; }
+        }
+
+        /* =========================================
+           PAPER CARD COMPONENT
+        ========================================= */
+        .paper-card {
+            background: var(--paper-cream);
+            padding: 1.5rem 1.75rem;
+            margin: 1.25rem 0;
+            position: relative;
+            box-shadow: var(--shadow-fold);
+            border: none;
+        }
+
+        /* Fold line at top */
+        .paper-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 8%; right: 8%;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--fold-shadow), transparent);
+        }
+
+        /* Corner fold */
+        .paper-card::after {
+            content: '';
+            position: absolute;
+            top: 0; right: 0;
+            width: 24px; height: 24px;
+            background: linear-gradient(225deg, var(--paper-white) 50%, var(--fold-shadow) 50%, var(--paper-warm) 52%);
+        }
+
+        .paper-card h3 {
+            font-size: 1.1rem;
+            font-weight: 500;
+            margin-bottom: 0.75rem;
+            color: var(--text-primary);
+        }
+
+        .paper-card p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+
+        .paper-card.red-accent {
+            border-left: 3px solid var(--japanese-red);
+        }
+
+        .paper-card.red-accent::before {
+            background: linear-gradient(90deg, var(--japanese-red-muted), transparent);
+        }
+
+        /* =========================================
+           FOLD REVEAL (interactive element)
+        ========================================= */
+        .fold-reveal {
+            background: var(--paper-warm);
+            padding: 1rem 1.25rem;
+            margin: 1rem 0;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            transition: var(--transition-fold);
+            box-shadow: var(--shadow-fold);
+        }
+
+        .fold-reveal::before {
+            content: '[ unfold to read ]';
+            font-family: var(--font-sans);
+            font-size: 0.7rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            transition: opacity 0.3s;
+        }
+
+        .fold-reveal .fold-content {
+            opacity: 0;
+            max-height: 0;
+            overflow: hidden;
+            transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .fold-reveal.unfolded::before {
+            opacity: 0;
+        }
+
+        .fold-reveal.unfolded .fold-content {
+            opacity: 1;
+            max-height: 600px;
+        }
+
+        .fold-reveal:hover {
+            box-shadow: var(--shadow-lifted);
+        }
+
+        /* Diagonal fold line */
+        .fold-reveal::after {
+            content: '';
+            position: absolute;
+            bottom: 0; right: 0;
+            width: 40px; height: 40px;
+            background: linear-gradient(225deg, var(--paper-white) 48%, var(--fold-line) 49%, var(--fold-line) 51%, var(--paper-warm) 52%);
+            transition: var(--transition-fold);
+        }
+
+        .fold-reveal.unfolded::after {
+            width: 0; height: 0;
+        }
+
+        /* =========================================
+           CRANE COUNTER
+        ========================================= */
+        .crane-counter {
+            position: fixed;
+            top: 1.5rem;
+            right: 1.5rem;
+            display: none;
+            align-items: center;
+            gap: 0.5rem;
+            background: var(--paper-cream);
+            padding: 0.5rem 1rem;
+            box-shadow: var(--shadow-fold);
+            z-index: 100;
+            font-family: var(--font-sans);
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            transition: var(--transition-base);
+        }
+
+        .crane-counter.active { display: flex; }
+
+        .crane-counter .crane-count {
+            font-weight: 600;
+            color: var(--japanese-red);
+            font-size: 1rem;
+            min-width: 2ch;
+            text-align: right;
+        }
+
+        .crane-counter .crane-label {
+            letter-spacing: 0.05em;
+        }
+
+        .crane-counter .crane-goal {
+            color: var(--text-muted);
+            font-size: 0.7rem;
+        }
+
+        .crane-counter.pulse {
+            animation: crane-pulse 0.6s ease;
+        }
+
+        @keyframes crane-pulse {
+            0% { transform: scale(1); }
+            30% { transform: scale(1.08); box-shadow: var(--shadow-lifted); }
+            100% { transform: scale(1); }
+        }
+
+        /* =========================================
+           QUOTE BLOCK
+        ========================================= */
+        .quote-block {
+            margin: 1.5rem 0;
+            padding: 1.25rem 1.5rem;
+            position: relative;
+            background: var(--paper-cream);
+        }
+
+        .quote-block::before {
+            content: '';
+            position: absolute;
+            left: 0; top: 0; bottom: 0;
+            width: 2px;
+            background: var(--japanese-red);
+            opacity: 0.6;
+        }
+
+        .quote-text {
+            font-style: italic;
+            font-size: 1.05rem;
+            line-height: 1.7;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+        }
+
+        .quote-source {
+            font-family: var(--font-sans);
+            font-size: 0.75rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+        }
+
+        /* =========================================
+           FOLD ANIMATION (CSS origami fold)
+        ========================================= */
+        .fold-animation {
+            width: 120px;
+            height: 120px;
+            margin: 1.5rem auto;
+            perspective: 600px;
+            position: relative;
+        }
+
+        .fold-paper {
+            width: 100%;
+            height: 100%;
+            background: var(--paper-cream);
+            border: 1px solid var(--fold-line);
+            position: relative;
+            transform-style: preserve-3d;
+            animation: paper-fold 4s ease-in-out infinite;
+        }
+
+        .fold-paper::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: linear-gradient(135deg, transparent 49%, var(--fold-shadow) 49.5%, var(--fold-shadow) 50.5%, transparent 51%);
+            animation: crease-appear 4s ease-in-out infinite;
+        }
+
+        @keyframes paper-fold {
+            0%, 100% { transform: rotateY(0deg); }
+            25% { transform: rotateY(-15deg) rotateX(5deg); }
+            50% { transform: rotateY(0deg) rotateX(-10deg); }
+            75% { transform: rotateY(10deg) rotateX(5deg); }
+        }
+
+        @keyframes crease-appear {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 0.8; }
+        }
+
+        /* =========================================
+           TITLE SCREEN
+        ========================================= */
+        .title-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 90vh;
+            text-align: center;
+            position: relative;
+        }
+
+        /* Decorative folded corners on title */
+        .title-screen::before {
+            content: '';
+            position: absolute;
+            top: 2rem; left: 2rem;
+            width: 60px; height: 60px;
+            background: linear-gradient(135deg, var(--paper-white) 48%, var(--fold-shadow) 49%, var(--fold-shadow) 51%, var(--paper-cream) 52%);
+            opacity: 0.6;
+        }
+
+        .title-screen::after {
+            content: '';
+            position: absolute;
+            bottom: 2rem; right: 2rem;
+            width: 60px; height: 60px;
+            background: linear-gradient(315deg, var(--paper-white) 48%, var(--fold-shadow) 49%, var(--fold-shadow) 51%, var(--paper-cream) 52%);
+            opacity: 0.6;
+        }
+
+        .title-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.2rem 0.75rem;
+            font-family: var(--font-sans);
+            font-size: 0.65rem;
+            font-weight: 500;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            background: var(--paper-warm);
+            color: var(--text-muted);
+            margin-bottom: 2rem;
+        }
+
+        .title-screen h1 {
+            font-size: clamp(2.5rem, 7vw, 4.5rem);
+            font-weight: 300;
+            letter-spacing: 0.06em;
+            margin-bottom: 0.5rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        .title-jp {
+            font-family: var(--font-serif);
+            font-size: 1.3rem;
+            letter-spacing: 0.25em;
+            color: var(--text-muted);
+            margin-bottom: 0.75rem;
+        }
+
+        .title-subtitle {
+            font-family: var(--font-sans);
+            font-size: 0.95rem;
+            color: var(--text-muted);
+            font-weight: 300;
+            max-width: 420px;
+            line-height: 1.7;
+            margin-bottom: 2.5rem;
+        }
+
+        .back-to-stories {
+            font-family: var(--font-sans);
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-decoration: none;
+            letter-spacing: 0.05em;
+            transition: color 0.2s;
+            margin-bottom: 2rem;
+        }
+
+        .back-to-stories::before { content: '\2190  '; }
+        .back-to-stories:hover { color: var(--japanese-red); }
+
+        .start-btn {
+            font-family: var(--font-sans);
+            font-size: 0.85rem;
+            font-weight: 500;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            background: var(--ink-black);
+            color: var(--paper-white);
+            border: none;
+            padding: 0.9rem 2.5rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .start-btn:hover {
+            background: var(--japanese-red);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lifted);
+        }
+
+        /* Tiny crane decorations around start button */
+        .start-btn::before {
+            content: '\25C6';
+            position: absolute;
+            left: -2rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--fold-line);
+            font-size: 0.6rem;
+        }
+
+        .start-btn::after {
+            content: '\25C6';
+            position: absolute;
+            right: -2rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--fold-line);
+            font-size: 0.6rem;
+        }
+
+        /* =========================================
+           SCENE WRAPPER
+        ========================================= */
+        .scene-wrapper {
+            display: none;
+            flex-direction: column;
+            min-height: 100vh;
+            padding-bottom: 4rem;
+        }
+
+        .scene-wrapper.active { display: flex; }
+
+        .scene-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem 0;
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid var(--fold-line);
+        }
+
+        .scene-era {
+            font-family: var(--font-sans);
+            font-size: 0.7rem;
+            font-weight: 500;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+        }
+
+        .scene-progress {
+            font-family: var(--font-sans);
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            letter-spacing: 0.05em;
+        }
+
+        /* =========================================
+           SCENE CONTENT
+        ========================================= */
+        .scene-content {
+            animation: scene-enter 0.6s ease;
+        }
+
+        @keyframes scene-enter {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .scene-content h2 {
+            font-size: 1.75rem;
+            font-weight: 400;
+            margin-bottom: 1.25rem;
+            letter-spacing: 0.03em;
+        }
+
+        .header-label {
+            font-family: var(--font-sans);
+            font-size: 0.7rem;
+            font-weight: 500;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--japanese-red);
+            margin-bottom: 0.5rem;
+        }
+
+        /* =========================================
+           CHOICES
+        ========================================= */
+        .choices {
+            margin-top: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .choice-btn {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            width: 100%;
+            padding: 1rem 1.25rem;
+            font-family: var(--font-sans);
+            font-size: 0.9rem;
+            font-weight: 400;
+            color: var(--text-primary);
+            background: var(--paper-cream);
+            border: 1px solid var(--fold-line);
+            cursor: pointer;
+            text-align: left;
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .choice-btn:hover {
+            background: var(--paper-warm);
+            border-color: var(--japanese-red);
+            transform: translateX(4px);
+            box-shadow: var(--shadow-fold);
+        }
+
+        .choice-btn:hover .choice-key {
+            background: var(--japanese-red);
+            color: var(--paper-white);
+        }
+
+        .choice-key {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            background: var(--fold-shadow);
+            color: var(--text-secondary);
+            flex-shrink: 0;
+            transition: all 0.2s;
+        }
+
+        /* =========================================
+           TRANSITION OVERLAY
+        ========================================= */
+        .transition-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: var(--paper-white);
+            z-index: 500;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.5s;
+        }
+
+        .transition-overlay.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        /* Fold pattern in transition */
+        .transition-overlay::before {
+            content: '';
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 80px; height: 80px;
+            transform: translate(-50%, -50%) rotate(45deg);
+            border: 2px solid var(--fold-line);
+            animation: fold-spin 1.5s ease-in-out infinite;
+        }
+
+        @keyframes fold-spin {
+            0% { transform: translate(-50%, -50%) rotate(45deg) scale(0.8); opacity: 0.3; }
+            50% { transform: translate(-50%, -50%) rotate(225deg) scale(1.2); opacity: 0.6; }
+            100% { transform: translate(-50%, -50%) rotate(405deg) scale(0.8); opacity: 0.3; }
+        }
+
+        /* =========================================
+           FACT TRACKER
+        ========================================= */
+        .fact-tracker {
+            position: fixed;
+            bottom: 1.5rem;
+            left: 1.5rem;
+            z-index: 100;
+            display: none;
+        }
+
+        .fact-toggle {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.5rem 0.85rem;
+            font-family: var(--font-sans);
+            font-size: 0.75rem;
+            background: var(--paper-cream);
+            border: 1px solid var(--fold-line);
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+            letter-spacing: 0.05em;
+        }
+
+        .fact-toggle:hover {
+            background: var(--paper-warm);
+            border-color: var(--crease-dark);
+        }
+
+        .fact-panel {
+            position: absolute;
+            bottom: calc(100% + 0.5rem);
+            left: 0;
+            width: 320px;
+            max-height: 400px;
+            overflow-y: auto;
+            background: var(--paper-cream);
+            border: 1px solid var(--fold-line);
+            padding: 1rem;
+            box-shadow: var(--shadow-lifted);
+            opacity: 0;
+            transform: translateY(8px);
+            pointer-events: none;
+            transition: all 0.3s;
+        }
+
+        .fact-panel.open {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: all;
+        }
+
+        .fact-panel h4 {
+            font-family: var(--font-sans);
+            font-size: 0.7rem;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 0.75rem;
+        }
+
+        .fact-item {
+            padding: 0.6rem 0;
+            border-bottom: 1px solid var(--fold-shadow);
+            font-size: 0.85rem;
+            line-height: 1.5;
+            color: var(--text-secondary);
+        }
+
+        .fact-item:last-child { border-bottom: none; }
+
+        .no-facts {
+            color: var(--text-muted);
+            font-style: italic;
+            font-size: 0.85rem;
+        }
+
+        /* =========================================
+           SCENE-SPECIFIC COMPONENTS
+        ========================================= */
+
+        /* Historical date stamp */
+        .date-stamp {
+            font-family: var(--font-sans);
+            font-size: 0.75rem;
+            font-weight: 500;
+            letter-spacing: 0.1em;
+            color: var(--japanese-red);
+            padding: 0.3rem 0.6rem;
+            background: var(--japanese-red-muted);
+            display: inline-block;
+            margin-bottom: 1rem;
+        }
+
+        /* Peace symbol / memorial marker */
+        .memorial-marker {
+            text-align: center;
+            padding: 2rem 1rem;
+            margin: 1.5rem 0;
+            background: linear-gradient(180deg, var(--paper-cream), var(--paper-warm));
+            position: relative;
+        }
+
+        .memorial-marker::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 20%; right: 20%;
+            height: 1px;
+            background: var(--japanese-red);
+            opacity: 0.3;
+        }
+
+        .memorial-marker .symbol {
+            font-size: 3rem;
+            margin-bottom: 0.75rem;
+            display: block;
+        }
+
+        .memorial-marker .caption {
+            font-family: var(--font-sans);
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            letter-spacing: 0.05em;
+        }
+
+        /* Crane fold step */
+        .fold-step {
+            display: flex;
+            gap: 1rem;
+            align-items: flex-start;
+            margin: 1rem 0;
+            padding: 0.75rem;
+            background: var(--paper-cream);
+            border-left: 2px solid var(--fold-line);
+        }
+
+        .fold-step .step-num {
+            font-family: var(--font-sans);
+            font-weight: 600;
+            font-size: 0.8rem;
+            color: var(--japanese-red);
+            min-width: 1.5rem;
+        }
+
+        .fold-step .step-text {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        /* Origami math box */
+        .math-box {
+            background: var(--paper-warm);
+            padding: 1.25rem;
+            margin: 1.25rem 0;
+            font-family: var(--font-sans);
+            font-size: 0.9rem;
+            position: relative;
+        }
+
+        .math-box::before {
+            content: '\25B3';
+            position: absolute;
+            top: 0.5rem; right: 0.75rem;
+            color: var(--fold-line);
+            font-size: 1rem;
+        }
+
+        .math-box strong {
+            color: var(--japanese-red);
+        }
+
+        /* Miura fold pattern (CSS grid) */
+        .miura-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 2px;
+            width: 180px;
+            margin: 1.5rem auto;
+        }
+
+        .miura-cell {
+            aspect-ratio: 1;
+            background: var(--paper-cream);
+            border: 1px solid var(--fold-line);
+            transform: skewX(-5deg);
+            transition: all 0.3s;
+        }
+
+        .miura-cell:nth-child(even) {
+            transform: skewX(5deg);
+            background: var(--paper-warm);
+        }
+
+        .miura-grid:hover .miura-cell {
+            transform: skewX(0deg) scale(0.85);
+        }
+
+        /* Ending styles */
+        .scene-ending {
+            text-align: center;
+            padding: 2rem 0;
+        }
+
+        .ending-label {
+            font-family: var(--font-sans);
+            font-size: 0.65rem;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+        }
+
+        .ending-title {
+            font-size: 2rem;
+            font-weight: 300;
+            letter-spacing: 0.05em;
+            margin-bottom: 2rem;
+        }
+
+        .the-end {
+            font-family: var(--font-sans);
+            font-size: 0.75rem;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-top: 3rem;
+        }
+
+        .the-end-jp {
+            font-size: 1.1rem;
+            color: var(--fold-line);
+            margin-top: 0.5rem;
+            letter-spacing: 0.2em;
+        }
+
+        /* Divider */
+        .divider {
+            width: 60px;
+            height: 1px;
+            background: var(--fold-line);
+            margin: 2rem auto;
+        }
+
+        /* Crane tally visual */
+        .crane-tally {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            justify-content: center;
+            margin: 1.5rem 0;
+        }
+
+        .crane-tally .tally-crane {
+            font-size: 0.9rem;
+            opacity: 0;
+            animation: crane-appear 0.3s ease forwards;
+            color: var(--japanese-red);
+        }
+
+        @keyframes crane-appear {
+            from { opacity: 0; transform: translateY(6px) rotate(-10deg); }
+            to { opacity: 0.7; transform: translateY(0) rotate(0deg); }
+        }
+
+        /* Game controls */
+        .game-controls {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 0.5rem;
+        }
+
+        .restart-btn {
+            font-family: var(--font-sans);
+            font-size: 0.7rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            background: none;
+            border: 1px solid var(--fold-line);
+            padding: 0.3rem 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .restart-btn:hover {
+            border-color: var(--japanese-red);
+            color: var(--japanese-red);
+        }
+
+        /* =========================================
+           RESPONSIVE
+        ========================================= */
+        @media (max-width: 768px) {
+            body::after { display: none; }
+
+            .title-screen::before,
+            .title-screen::after { display: none; }
+
+            .crane-counter {
+                top: 0.75rem;
+                right: 0.75rem;
+                padding: 0.35rem 0.6rem;
+                font-size: 0.7rem;
+            }
+
+            .fact-panel { width: 280px; }
+
+            .fold-animation { width: 80px; height: 80px; }
+
+            .miura-grid { width: 140px; }
+
+            .paper-card { padding: 1.25rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <!-- Title Screen -->
+        <div class="title-screen" id="titleScreen">
+            <a href="../index.html" class="back-to-stories">Stories</a>
+
+            <div class="title-badge">Interactive Story</div>
+
+            <h1>The Thousand Cranes</h1>
+            <div class="title-jp">&#21315;&#32701;&#40372; &mdash; Senbazuru</div>
+            <p class="title-subtitle">Fold a paper crane. Then fold another. The ancient art of origami, a girl's wish for peace, and the mathematics hidden inside every crease.</p>
+
+            <div class="fold-animation">
+                <div class="fold-paper"></div>
+            </div>
+
+            <button class="start-btn" id="startBtn">Begin Folding</button>
+        </div>
+
+        <!-- Scene Wrapper -->
+        <div class="scene-wrapper" id="sceneWrapper">
+            <div class="scene-header">
+                <span class="scene-era" id="sceneEra"></span>
+                <div class="game-controls">
+                    <button class="restart-btn" id="restartBtn">Start Over</button>
+                </div>
+            </div>
+            <div id="sceneContent"></div>
+        </div>
+    </div>
+
+    <!-- Crane Counter -->
+    <div class="crane-counter" id="craneCounter">
+        <span class="crane-count" id="craneCount">0</span>
+        <span class="crane-label">cranes</span>
+        <span class="crane-goal">/ 1000</span>
+    </div>
+
+    <!-- Fact Tracker -->
+    <div class="fact-tracker" id="factTracker">
+        <button class="fact-toggle" id="factToggle">
+            <span id="factCount">0</span> facts collected
+        </button>
+        <div class="fact-panel" id="factPanel">
+            <h4>Historical Facts</h4>
+            <div id="factList">
+                <p class="no-facts">The paper awaits...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Transition overlay -->
+    <div class="transition-overlay" id="transition"></div>
+
+    <script>
+    // ================================================================
+    //  STORY DATA — The Thousand Cranes
+    // ================================================================
+    const STORY = {
+        // --- SCENE 1: Origins of Paper Folding ---
+        origins: {
+            era: 'Ancient Origins',
+            content: `
+                <p class="header-label">The First Fold</p>
+                <h2>Paper Comes East</h2>
+
+                <p class="lead">It begins with paper itself. In 105 CE, Cai Lun, a Chinese court official, perfected the art of papermaking from bark, hemp, and rags. Within centuries, Buddhist monks carried this knowledge to Japan.</p>
+
+                <div class="paper-card">
+                    <h3>Washi &mdash; The Soul of Japanese Paper</h3>
+                    <p>By the 6th century, Japan had developed <em>washi</em> &mdash; handmade paper from the inner bark of the gampi tree, the mitsumata shrub, or the paper mulberry. Stronger and more flexible than Chinese paper, washi could be folded without tearing. The Japanese word for paper folding, <strong>origami</strong>, joins <em>ori</em> (folding) and <em>kami</em> (paper, also meaning "god" or "spirit").</p>
+                </div>
+
+                <div class="fold-reveal" onclick="this.classList.toggle('unfolded')">
+                    <div class="fold-content">
+                        <p>The earliest known reference to paper folding in Japan dates to 1680, in a poem by Ihara Saikaku that mentions butterfly forms made from folded paper. But the tradition is likely far older &mdash; Shinto shrines used folded paper strips called <em>shide</em> as ritual offerings for centuries before anyone wrote it down.</p>
+                    </div>
+                </div>
+
+                <p>Paper was precious. To fold it &mdash; to transform a flat sheet into a three-dimensional form without cutting or gluing &mdash; was an act of reverence. The earliest origami were ceremonial: <em>noshi</em> (folded paper wrappers for gifts), butterflies adorning sake bottles at weddings, and geometric patterns marking sacred objects.</p>
+
+                <p>But one form would come to matter above all others.</p>
+            `,
+            fact: 'The word "origami" combines the Japanese words ori (folding) and kami (paper), with kami also meaning "god" or "spirit" in Shinto.',
+            choices: [
+                { text: 'Learn about the crane symbol', next: 'crane_symbol' },
+                { text: 'Explore ceremonial origami', next: 'ceremonial' }
+            ]
+        },
+
+        // --- SCENE 2A: The Crane Symbol ---
+        crane_symbol: {
+            era: 'The Sacred Crane',
+            content: `
+                <p class="header-label">Tsuru &mdash; The Crane</p>
+                <h2>A Thousand Years on Wings</h2>
+
+                <p class="lead">In Japanese mythology, the crane &mdash; <em>tsuru</em> &mdash; is said to live for a thousand years. It is a creature of the heavens, a symbol of longevity, fidelity, and good fortune.</p>
+
+                <div class="paper-card red-accent">
+                    <h3>Senbazuru &mdash; The Thousand Cranes</h3>
+                    <p>An ancient legend promises that anyone who folds one thousand paper cranes will be granted a wish by the gods. The word <em>senbazuru</em> combines <em>sen</em> (thousand) and <em>bazuru</em> (cranes). Traditionally, the cranes are strung together on 25 strings of 40 cranes each, then presented as a gift.</p>
+                </div>
+
+                <p>The crane appears across Japanese art &mdash; on kimonos, ceramics, screens, and scrolls. In Hokusai's woodblock prints, cranes soar over snowy landscapes. In Noh theater, the crane dance (<em>Tsuru no Mai</em>) embodies grace and spiritual transcendence.</p>
+
+                <div class="fold-reveal" onclick="this.classList.toggle('unfolded')">
+                    <div class="fold-content">
+                        <p>The oldest known written instructions for folding a paper crane appeared in 1797 in <em>Hiden Senbazuru Orikata</em> ("The Secret of One Thousand Cranes Origami") by an anonymous author. This book &mdash; one of the first origami instruction manuals in the world &mdash; showed not individual cranes but connected cranes cut and folded from a single sheet of paper, producing chains of interlocking birds.</p>
+                    </div>
+                </div>
+
+                <p>For centuries, senbazuru were folded for weddings, for the sick, for new babies. A string of a thousand cranes was patience made visible &mdash; each bird a small prayer, each fold an act of devotion.</p>
+
+                <p>But in 1945, the paper crane would take on a meaning no one could have imagined.</p>
+            `,
+            fact: 'The 1797 book Hiden Senbazuru Orikata is one of the world\'s first origami manuals, showing connected cranes cut and folded from a single sheet.',
+            choices: [
+                { text: 'Continue to Hiroshima', next: 'hiroshima' },
+                { text: 'Learn about ceremonial origami first', next: 'ceremonial' }
+            ]
+        },
+
+        // --- SCENE 2B: Ceremonial Origami ---
+        ceremonial: {
+            era: 'Sacred Paper',
+            content: `
+                <p class="header-label">Kami no Michi</p>
+                <h2>Paper as Prayer</h2>
+
+                <p class="lead">Long before origami was art or hobby, it was ritual. In Shinto, the indigenous religion of Japan, paper holds spiritual power.</p>
+
+                <div class="fold-step">
+                    <span class="step-num">I</span>
+                    <span class="step-text"><strong>Shide</strong> &mdash; Zigzag paper streamers hung from shimenawa (sacred ropes) at shrine entrances. Each fold marks a boundary between the sacred and profane.</span>
+                </div>
+                <div class="fold-step">
+                    <span class="step-num">II</span>
+                    <span class="step-text"><strong>Noshi</strong> &mdash; Hexagonal paper folds wrapping dried abalone, attached to gifts. Still echoed today in the printed noshi design on Japanese gift envelopes.</span>
+                </div>
+                <div class="fold-step">
+                    <span class="step-num">III</span>
+                    <span class="step-text"><strong>Mecho &amp; Ocho</strong> &mdash; Male and female butterfly forms adorning sake bottles at Shinto wedding ceremonies. The pair represents the union of two families.</span>
+                </div>
+
+                <div class="paper-card">
+                    <h3>The Rule of No Cuts</h3>
+                    <p>Pure origami uses only folds &mdash; no scissors, no glue. This constraint reflects a deeper principle: transformation through discipline, not destruction. You do not remove material to create form. You reveal the form that was always hidden inside the flat sheet.</p>
+                </div>
+
+                <p>By the Edo period (1603&ndash;1868), origami had spread from the aristocracy to common people. Paper became cheaper, and recreational folding flourished alongside ceremonial forms. Children learned cranes, boats, and helmets. Adults folded intricate models as parlor entertainment.</p>
+
+                <p>But it was a single child who would transform the paper crane from folk tradition into a global symbol.</p>
+            `,
+            fact: 'In Shinto weddings, paired butterfly origami (mecho and ocho) adorn sake bottles, representing the union of two families.',
+            choices: [
+                { text: 'Learn about the crane symbol', next: 'crane_symbol' },
+                { text: 'Continue to Hiroshima', next: 'hiroshima' }
+            ]
+        },
+
+        // --- SCENE 3: Hiroshima (convergence) ---
+        hiroshima: {
+            era: 'August 6, 1945',
+            content: `
+                <p class="header-label">Hiroshima</p>
+                <h2>The Flash</h2>
+
+                <div class="date-stamp">August 6, 1945 &mdash; 8:15 AM</div>
+
+                <p class="lead">The Enola Gay, a B-29 Superfortress, releases a uranium bomb nicknamed "Little Boy" over Hiroshima. The explosion, equivalent to 15,000 tons of TNT, kills approximately 80,000 people instantly. By the end of 1945, the death toll reaches 140,000.</p>
+
+                <div class="memorial-marker">
+                    <span class="symbol">&#9790;</span>
+                    <span class="caption">In memory of all those lost</span>
+                </div>
+
+                <p>Among the survivors &mdash; the <em>hibakusha</em> &mdash; is a two-year-old girl named Sasaki Sadako. She lives 1.7 kilometers from the hypocenter. The blast wave destroys her home, but she is thrown from a window and, miraculously, survives with no apparent injuries.</p>
+
+                <div class="paper-card red-accent">
+                    <h3>The Hibakusha</h3>
+                    <p>The Japanese word <em>hibakusha</em> means "explosion-affected person." Over 250,000 hibakusha survived the bombings of Hiroshima and Nagasaki. Many suffered radiation sickness &mdash; symptoms that could appear years or even decades later. The atomic bomb did not just kill in the moment of detonation. It continued killing for generations.</p>
+                </div>
+
+                <p>For nine years, Sadako lives a normal life. She is athletic, energetic, a fast runner. Her family rebuilds. Hiroshima rebuilds. Japan rebuilds.</p>
+
+                <p>Then, in November 1954, Sadako develops swellings on her neck and behind her ears.</p>
+            `,
+            fact: 'Sadako Sasaki was 2 years old and just 1.7 km from the hypocenter when the atomic bomb fell on Hiroshima on August 6, 1945.',
+            choices: [
+                { text: 'Follow Sadako\'s story', next: 'sadako_diagnosis' }
+            ]
+        },
+
+        // --- SCENE 4: Sadako's Diagnosis ---
+        sadako_diagnosis: {
+            era: 'Sadako\'s Story',
+            content: `
+                <p class="header-label">The Atom Bomb Disease</p>
+                <h2>Room 8, Hiroshima Red Cross Hospital</h2>
+
+                <div class="date-stamp">February 21, 1955</div>
+
+                <p class="lead">Sadako Sasaki, now eleven years old, is diagnosed with leukemia &mdash; what the hibakusha call "the atom bomb disease." She is admitted to Hiroshima Red Cross Hospital.</p>
+
+                <p>Sadako is a runner. She had been training for her school's relay race, noticing that she was getting tired more quickly than before. The diagnosis stuns her family. Nine years after the bomb, the radiation has finally caught up with her.</p>
+
+                <div class="paper-card">
+                    <h3>Leukemia Among the Hibakusha</h3>
+                    <p>Studies by the Atomic Bomb Casualty Commission found that leukemia rates among hibakusha were 5 to 50 times higher than normal, depending on proximity to the blast. The peak incidence came 6&ndash;8 years after exposure. Children exposed under age 10 were especially vulnerable.</p>
+                </div>
+
+                <p>In the hospital, Sadako's best friend, Chizuko Hamamoto, visits and brings a golden paper crane. She reminds Sadako of the ancient legend: fold a thousand cranes, and the gods will grant your wish.</p>
+
+                <div class="quote-block">
+                    <p class="quote-text">"I will write peace on your wings and you will fly all over the world."</p>
+                    <p class="quote-source">Attributed to Sadako Sasaki</p>
+                </div>
+
+                <p>Sadako begins folding. She uses whatever paper she can find &mdash; medicine wrappers, cellophane, gift paper from visitors. She folds cranes so small she needs a needle to shape the creases.</p>
+            `,
+            fact: 'Leukemia rates among Hiroshima survivors were 5 to 50 times higher than normal, with children under 10 at greatest risk.',
+            choices: [
+                { text: 'Watch Sadako fold', next: 'sadako_folding' },
+                { text: 'Learn what the cranes meant to her', next: 'sadako_meaning' }
+            ]
+        },
+
+        // --- SCENE 5A: Sadako Folding ---
+        sadako_folding: {
+            era: 'Sadako\'s Cranes',
+            content: `
+                <p class="header-label">Fold by Fold</p>
+                <h2>The Smallest Cranes</h2>
+
+                <p class="lead">In Room 8 of the Hiroshima Red Cross Hospital, Sadako folds. Day after day, through pain and treatment and exhaustion, her fingers work the paper.</p>
+
+                <div id="foldAlongDemo" class="fold-reveal" onclick="this.classList.toggle('unfolded'); if(this.classList.contains('unfolded')){engine.addCranes(10);}">
+                    <div class="fold-content">
+                        <div class="fold-step"><span class="step-num">1</span><span class="step-text">Start with a square. Fold corner to corner, making a triangle.</span></div>
+                        <div class="fold-step"><span class="step-num">2</span><span class="step-text">Fold triangle in half again. Open and squash-fold into a square.</span></div>
+                        <div class="fold-step"><span class="step-num">3</span><span class="step-text">Petal fold both sides &mdash; fold edges to center, then unfold and lift the top layer up and in.</span></div>
+                        <div class="fold-step"><span class="step-num">4</span><span class="step-text">Flip and repeat. You now have a diamond shape &mdash; the bird base.</span></div>
+                        <div class="fold-step"><span class="step-num">5</span><span class="step-text">Fold the lower flaps upward to form the neck and tail. Reverse-fold the tip of one to create the head.</span></div>
+                        <div class="fold-step"><span class="step-num">6</span><span class="step-text">Pull the wings apart gently. The body inflates. A crane.</span></div>
+                    </div>
+                </div>
+
+                <p>Her cranes are tiny &mdash; some smaller than a fingernail. She uses a needle to make the folds in scraps of paper too small for fingers alone. Her roommates in the hospital ward begin folding with her, and visitors bring paper in every color.</p>
+
+                <div class="paper-card red-accent">
+                    <h3>How Many Did She Fold?</h3>
+                    <p>The popular account says Sadako died before reaching 1,000 cranes, having folded only 644. But according to her family and the Hiroshima Peace Memorial Museum, Sadako actually exceeded 1,000 cranes. Her brother Masahiro Sasaki confirmed she folded over 1,400. The "644 cranes" narrative was popularized by the 1977 novel <em>Sadako and the Thousand Paper Cranes</em> by Eleanor Coerr &mdash; a fictionalized account.</p>
+                </div>
+
+                <p>The question was never really about reaching a number. It was about what each fold meant.</p>
+            `,
+            fact: 'Sadako actually folded over 1,400 cranes, exceeding the 1,000 goal. The "644 cranes" story comes from a fictionalized 1977 novel by Eleanor Coerr.',
+            choices: [
+                { text: 'Continue to Sadako\'s final days', next: 'sadako_end' }
+            ]
+        },
+
+        // --- SCENE 5B: Sadako's Meaning ---
+        sadako_meaning: {
+            era: 'The Wish',
+            content: `
+                <p class="header-label">Beyond the Legend</p>
+                <h2>What Were the Cranes For?</h2>
+
+                <p class="lead">The legend says a thousand cranes will grant a wish. But what was Sadako wishing for?</p>
+
+                <p>The common Western account says she wished to get well. But Japanese sources suggest something more complex. Sadako knew she was dying. Her family's accounts describe a girl who moved beyond hoping for her own recovery toward a broader wish: that no other children would suffer as she had.</p>
+
+                <div class="quote-block">
+                    <p class="quote-text">"This is our cry. This is our prayer. For building peace in the world."</p>
+                    <p class="quote-source">Inscription on the Children's Peace Monument, Hiroshima</p>
+                </div>
+
+                <div class="paper-card">
+                    <h3>The Power of Folding</h3>
+                    <p>There is a meditative quality to repetitive folding. Each crane takes about 2&ndash;3 minutes for a practiced folder. To fold 1,000 cranes takes roughly 40&ndash;50 hours of focused work. The act becomes a form of prayer &mdash; not petitioning a god, but embodying intention through patient, repeated action.</p>
+                </div>
+
+                <p>In the hospital, Sadako was not alone. Other children on the ward were also sick with radiation-related illnesses. They folded together. The cranes became a shared language of hope &mdash; fragile, beautiful, and temporary, like the children themselves.</p>
+
+                <div class="fold-reveal" onclick="this.classList.toggle('unfolded'); if(this.classList.contains('unfolded')){engine.addCranes(5);}">
+                    <div class="fold-content">
+                        <p>Sadako's mother later recalled that toward the end, Sadako would give away her cranes to other sick children in the ward, telling them the legend. She folded not just for herself but for everyone. Each crane she gave away was a small offering &mdash; a wish transferred from one pair of hands to another.</p>
+                    </div>
+                </div>
+
+                <p>On October 25, 1955, after eight months in the hospital, Sadako's story reached its end.</p>
+            `,
+            fact: 'Folding 1,000 cranes takes approximately 40-50 hours of focused work, making senbazuru an act of meditative devotion.',
+            choices: [
+                { text: 'Continue to Sadako\'s final days', next: 'sadako_end' }
+            ]
+        },
+
+        // --- SCENE 6: Sadako's Death (convergence) ---
+        sadako_end: {
+            era: 'October 25, 1955',
+            content: `
+                <p class="header-label">Senbazuru Complete</p>
+                <h2>The Last Crane</h2>
+
+                <div class="date-stamp">October 25, 1955</div>
+
+                <p class="lead">Sadako Sasaki dies at the age of twelve. She has been in the hospital for eight months. Her family is by her side.</p>
+
+                <div class="memorial-marker">
+                    <span class="symbol">&#128330;</span>
+                    <span class="caption">Sadako Sasaki, 1943&ndash;1955</span>
+                </div>
+
+                <p>Her classmates at Noboricho Elementary School are devastated. But their grief becomes action. Led by Sadako's close friend Ichiro Kawamoto, her classmates begin a campaign to build a monument &mdash; not just for Sadako, but for all children who died from the effects of the atomic bomb.</p>
+
+                <div class="paper-card">
+                    <h3>A Children's Campaign</h3>
+                    <p>The students raised funds across Japan and internationally. Over 3,100 schools contributed. Children in nine countries sent money. The campaign collected the equivalent of approximately $100,000 &mdash; enough to commission sculptor Kazuo Kikuchi to design a monument in Hiroshima Peace Memorial Park.</p>
+                </div>
+
+                <p>On May 5, 1958 &mdash; Children's Day in Japan &mdash; the Children's Peace Monument is unveiled. It stands 9 meters tall. At its peak, a bronze girl holds a golden crane above her head.</p>
+
+                <p>The girl is Sadako. The crane is hope.</p>
+
+                <div class="fold-reveal" onclick="this.classList.toggle('unfolded'); if(this.classList.contains('unfolded')){engine.addCranes(20);}">
+                    <div class="fold-content">
+                        <p>Today, approximately 10 million paper cranes are sent to the Children's Peace Monument every year from people around the world. The cranes are displayed in glass cases surrounding the statue, then periodically recycled into notebooks and other paper products &mdash; continuing the cycle of transformation that is at the heart of origami.</p>
+                    </div>
+                </div>
+
+                <p>Sadako's story was not the end of paper folding's journey. It was a turning point &mdash; the moment origami went from art to symbol, from craft to cause. But origami had another transformation ahead: from ancient art to modern science.</p>
+            `,
+            fact: 'The Children\'s Peace Monument in Hiroshima, unveiled on May 5, 1958, receives approximately 10 million paper cranes each year from around the world.',
+            choices: [
+                { text: 'Explore origami as mathematics', next: 'origami_math' },
+                { text: 'Follow the peace crane movement', next: 'peace_movement' }
+            ]
+        },
+
+        // --- SCENE 7A: Origami Mathematics ---
+        origami_math: {
+            era: 'The Mathematics of Folding',
+            content: `
+                <p class="header-label">Geometry in Paper</p>
+                <h2>The Flat-Fold Theorems</h2>
+
+                <p class="lead">Origami is not just art. It is applied mathematics &mdash; a physical demonstration of geometric principles that have taken centuries to formalize.</p>
+
+                <div class="math-box">
+                    <p><strong>Huzita&ndash;Hatori Axioms (1989&ndash;2001)</strong><br>There are exactly 7 fundamental operations possible with a single fold. These axioms are more powerful than compass-and-straightedge constructions &mdash; origami can solve cubic equations and trisect angles, feats impossible with ruler and compass alone.</p>
+                </div>
+
+                <div class="paper-card">
+                    <h3>Kawasaki's Theorem</h3>
+                    <p>At any interior vertex of a flat origami crease pattern, the alternating sum of the angles between creases equals zero. Put simply: if you add up every other angle around a fold junction, the result always equals 180&deg;. This was proven by Toshikazu Kawasaki in 1989 and is fundamental to computational origami design.</p>
+                </div>
+
+                <div class="math-box">
+                    <p><strong>Maekawa's Theorem</strong><br>At any vertex, the number of mountain folds and valley folds always differs by exactly 2. This simple rule constrains every possible flat origami form.</p>
+                </div>
+
+                <div class="fold-reveal" onclick="this.classList.toggle('unfolded'); if(this.classList.contains('unfolded')){engine.addCranes(8);}">
+                    <div class="fold-content">
+                        <p>Robert Lang, a former NASA physicist, left his career to become a full-time origami artist and mathematician. His software <em>TreeMaker</em> uses circle-packing algorithms to compute crease patterns for any stick figure &mdash; enabling designs of extraordinary complexity. His insects have hundreds of legs, antennae, and wings, all folded from a single uncut square.</p>
+                    </div>
+                </div>
+
+                <p>The marriage of mathematics and paper folding opened a door that led somewhere unexpected: outer space.</p>
+            `,
+            fact: 'Origami can solve cubic equations and trisect angles, making it mathematically more powerful than compass-and-straightedge constructions.',
+            choices: [
+                { text: 'Discover the Miura fold and space origami', next: 'miura_fold' },
+                { text: 'Follow the peace crane movement', next: 'peace_movement' }
+            ]
+        },
+
+        // --- SCENE 7B: Peace Crane Movement ---
+        peace_movement: {
+            era: 'The Peace Crane',
+            content: `
+                <p class="header-label">Global Symbol</p>
+                <h2>Cranes Without Borders</h2>
+
+                <p class="lead">After Sadako's death, the paper crane transcended Japanese culture to become one of the world's most recognized symbols of peace.</p>
+
+                <div class="paper-card red-accent">
+                    <h3>August 6 &mdash; Hiroshima Peace Memorial Ceremony</h3>
+                    <p>Every year on the anniversary of the bombing, tens of thousands gather in Hiroshima Peace Memorial Park. Paper cranes from around the world drape the Children's Peace Monument. At 8:15 AM &mdash; the exact moment of detonation &mdash; a bell rings and the city observes a minute of silence.</p>
+                </div>
+
+                <p>The crane has become a ritual response to tragedy. After the September 11 attacks, Japanese schoolchildren sent thousands of paper cranes to New York. After the 2011 Tohoku earthquake and tsunami, cranes arrived in Japan from 40 countries. After the Christchurch mosque shootings in 2019, origami cranes appeared at memorials across New Zealand.</p>
+
+                <div class="fold-reveal" onclick="this.classList.toggle('unfolded'); if(this.classList.contains('unfolded')){engine.addCranes(15);}">
+                    <div class="fold-content">
+                        <p>In 1999, Sadako was named one of the most influential children of the 20th century. Her story has been translated into dozens of languages. The paper crane has appeared on postage stamps in over 30 countries. In 2020, during the COVID-19 pandemic, people worldwide folded cranes and placed them in windows &mdash; a silent message of solidarity, echoing Sadako's hospital cranes across 65 years.</p>
+                    </div>
+                </div>
+
+                <div class="quote-block">
+                    <p class="quote-text">"I think of the children who are born in countries at war. I think of the children who are sick. I fold another crane."</p>
+                    <p class="quote-source">Visitor's note, Hiroshima Peace Memorial Museum</p>
+                </div>
+
+                <p>But Sadako's cranes also inspired a different kind of transformation &mdash; one that would send origami into the future.</p>
+            `,
+            fact: 'After the September 11 attacks, Japanese schoolchildren sent thousands of paper cranes to New York as a gesture of solidarity and peace.',
+            choices: [
+                { text: 'Discover origami engineering', next: 'miura_fold' },
+                { text: 'Explore origami mathematics', next: 'origami_math' }
+            ]
+        },
+
+        // --- SCENE 8: Miura Fold & Space (convergence) ---
+        miura_fold: {
+            era: 'Origami Engineering',
+            content: `
+                <p class="header-label">From Paper to Space</p>
+                <h2>The Miura Fold</h2>
+
+                <p class="lead">In 1970, Japanese astrophysicist Koryo Miura invented a folding pattern that would change engineering. The Miura-ori allows a large flat sheet to be collapsed into a compact shape and deployed with a single pull.</p>
+
+                <div class="miura-grid">
+                    <div class="miura-cell"></div><div class="miura-cell"></div><div class="miura-cell"></div><div class="miura-cell"></div><div class="miura-cell"></div><div class="miura-cell"></div>
+                    <div class="miura-cell"></div><div class="miura-cell"></div><div class="miura-cell"></div><div class="miura-cell"></div><div class="miura-cell"></div><div class="miura-cell"></div>
+                    <div class="miura-cell"></div><div class="miura-cell"></div><div class="miura-cell"></div><div class="miura-cell"></div><div class="miura-cell"></div><div class="miura-cell"></div>
+                    <div class="miura-cell"></div><div class="miura-cell"></div><div class="miura-cell"></div><div class="miura-cell"></div><div class="miura-cell"></div><div class="miura-cell"></div>
+                </div>
+                <p class="small text-center" style="color: var(--text-muted); margin-bottom: 1.5rem;">Hover to see the Miura-ori unfold</p>
+
+                <div class="paper-card">
+                    <h3>Space Solar Arrays</h3>
+                    <p>In 1995, JAXA (the Japan Aerospace Exploration Agency) launched the Space Flyer Unit, which carried a solar panel array that deployed using Miura-ori. The array folded down to the size of a briefcase but expanded to 6 square meters in orbit &mdash; all with a single mechanical action, no motors, no hinges, no risk of jamming.</p>
+                </div>
+
+                <div class="fold-reveal" onclick="this.classList.toggle('unfolded'); if(this.classList.contains('unfolded')){engine.addCranes(12);}">
+                    <div class="fold-content">
+                        <p>NASA's Jet Propulsion Laboratory now employs Robert Lang (the origami mathematician) as a consultant. His folding designs have been used for deployable space telescopes &mdash; the "Eyeglass" telescope concept uses origami patterns to fold a 100-meter lens into a 3-meter rocket fairing. The James Webb Space Telescope's sunshield uses origami-inspired folding to pack five tennis-court-sized layers into a rocket nose cone.</p>
+                    </div>
+                </div>
+
+                <div class="math-box">
+                    <p><strong>Rigid origami</strong> is the study of fold patterns where the paper panels remain flat and only the creases bend. This is essential for engineering &mdash; you can't bend a solar panel or a steel beam, but you can fold along pre-designed creases. The Miura fold is the most famous example of rigid origami.</p>
+                </div>
+
+                <p>From medicine wrappers in a hospital room to solar arrays in orbit. From a child's prayer to an engineer's blueprint. The paper crane's journey is not yet over.</p>
+            `,
+            fact: 'The Miura fold, invented by astrophysicist Koryo Miura in 1970, was used by JAXA in 1995 to deploy a solar panel array in space from briefcase-size to 6 square meters.',
+            choices: [
+                { text: 'See origami in modern medicine and engineering', next: 'modern_applications' },
+                { text: 'Return to the cranes', next: 'final_cranes' }
+            ]
+        },
+
+        // --- SCENE 9: Modern Applications ---
+        modern_applications: {
+            era: 'Origami Everywhere',
+            content: `
+                <p class="header-label">Folding the Future</p>
+                <h2>Beyond Paper</h2>
+
+                <p class="lead">In the 21st century, origami principles have escaped the paper entirely. Engineers, doctors, and architects now use fold patterns in materials from Kevlar to living cells.</p>
+
+                <div class="paper-card">
+                    <h3>Medical Origami</h3>
+                    <p>Researchers at Brigham and Women's Hospital (Harvard) have developed origami-inspired drug delivery devices &mdash; tiny capsules that unfold inside the body to release medication over time. Origami stents fold small enough to travel through blood vessels, then expand at the blockage site. At MIT, a tiny origami robot can be swallowed as a pill and unfolds in the stomach to patch wounds or remove swallowed objects.</p>
+                </div>
+
+                <div class="paper-card red-accent">
+                    <h3>Origami Architecture</h3>
+                    <p>Emergency shelters designed with origami principles can be flat-packed for transport and deployed in minutes. The Yoshizawa-Randlett system (the universal origami notation developed by Akira Yoshizawa in the 1950s) is now used by architects to design foldable structures from metal, plastic, and composite materials.</p>
+                </div>
+
+                <div class="fold-reveal" onclick="this.classList.toggle('unfolded'); if(this.classList.contains('unfolded')){engine.addCranes(10);}">
+                    <div class="fold-content">
+                        <p>In 2014, researchers at Harvard's Wyss Institute created self-folding robots using shape-memory polymers. Inspired by origami, these flat sheets fold themselves into 3D forms when heated &mdash; walking robots that assemble without human hands. The field is called "computational origami" and sits at the intersection of mathematics, materials science, and robotics.</p>
+                    </div>
+                </div>
+
+                <div class="math-box">
+                    <p><strong>Akira Yoshizawa</strong> (1911&ndash;2005) is considered the grandmaster of modern origami. He created over 50,000 original designs and developed the wet-folding technique &mdash; slightly dampening the paper to create soft, sculptural curves instead of hard geometric creases. He elevated origami from craft to fine art.</p>
+                </div>
+
+                <p>From sacred ritual to children's game to peace symbol to engineering discipline &mdash; origami's transformation mirrors the transformation it performs on paper. The flat sheet contains all possibilities. The fold reveals one.</p>
+            `,
+            fact: 'Akira Yoshizawa (1911-2005) created over 50,000 original origami designs and developed the wet-folding technique for sculptural curves.',
+            choices: [
+                { text: 'Make the final cranes', next: 'final_cranes' }
+            ]
+        },
+
+        // --- SCENE 10: Final Cranes ---
+        final_cranes: {
+            era: 'Senbazuru',
+            content: `
+                <p class="header-label">The Thousand Cranes</p>
+                <h2>Your Turn to Fold</h2>
+
+                <p class="lead">You have followed the paper crane from ancient shrine to hospital room, from children's campaign to outer space. Now the question the legend always asks: what is your wish?</p>
+
+                <div class="crane-tally" id="craneTally"></div>
+
+                <div class="paper-card">
+                    <h3>The Tradition Today</h3>
+                    <p>Senbazuru are still folded across Japan for weddings (wishing the couple a thousand years of happiness), for the sick (wishing recovery), for new babies (wishing long life), and for peace. They hang in hospitals, schools, temples, and the Peace Park in Hiroshima. Each one is an act of faith in the power of patient, repeated devotion.</p>
+                </div>
+
+                <p>A paper crane is a simple thing. A square of paper, a sequence of folds, a form that emerges from flatness. It takes two minutes. It weighs almost nothing. It cannot fly.</p>
+
+                <p>But a thousand of them, strung together by the same pair of hands &mdash; that is something else entirely. That is a wish given weight. A prayer made visible. A transformation of the simplest material into the most complex meaning.</p>
+
+                <div class="quote-block">
+                    <p class="quote-text">"I will write peace on your wings and you will fly all over the world."</p>
+                    <p class="quote-source">Sadako Sasaki</p>
+                </div>
+
+                <p>What will you carry with you from this story?</p>
+            `,
+            fact: 'Senbazuru are still folded today for weddings, illness, births, and peace, each set traditionally strung on 25 strings of 40 cranes.',
+            choices: [
+                { text: 'Carry the memory of Sadako', next: 'ending_memory' },
+                { text: 'Carry the mathematics of folding', next: 'ending_science' },
+                { text: 'Carry the wish for peace', next: 'ending_peace' }
+            ]
+        },
+
+        // --- ENDING A: Memory ---
+        ending_memory: {
+            era: 'Sadako\'s Legacy',
+            content: `
+                <div class="scene-ending">
+                    <div class="ending-label">The Story Unfolds</div>
+                    <div class="ending-title">A Crane for Remembrance</div>
+
+                    <div style="max-width: 550px; margin: 0 auto; text-align: left;">
+                        <p class="lead">You choose to remember. Not just Sadako, but all the children &mdash; the ones who folded cranes in hospital rooms, the ones who raised money for a monument, the ones who send paper birds to Hiroshima every year.</p>
+
+                        <div class="memorial-marker">
+                            <span class="symbol">&#128330;</span>
+                            <span class="caption">For the children of Hiroshima and Nagasaki</span>
+                        </div>
+
+                        <p>In 2012, Masahiro Sasaki &mdash; Sadako's older brother &mdash; donated one of Sadako's original cranes to the 9/11 Tribute Museum in New York. It is barely an inch wide, folded from red and yellow medicine paper. It sits in a glass case, impossibly small, impossibly powerful.</p>
+
+                        <p>"I want people to see this crane," Masahiro said, "and understand that behind every statistic there was a child. Behind every number, a name."</p>
+
+                        <p>Sadako's crane in New York. Ten million cranes in Hiroshima. Your own hands, folding.</p>
+
+                        <p>The chain continues.</p>
+
+                        <div class="divider"></div>
+
+                        <p class="small text-center" style="color: var(--text-muted);">A single sheet of paper.<br>A single pair of hands.<br>A single wish, folded a thousand times.</p>
+                    </div>
+
+                    <div class="the-end">The End</div>
+                    <div class="the-end-jp">&#32066; &mdash; Owari</div>
+                </div>
+            `,
+            fact: 'In 2012, Sadako\'s brother Masahiro donated one of her original tiny cranes to the 9/11 Tribute Museum in New York City.',
+            choices: [
+                { text: 'Fold again from the beginning', next: '_restart' }
+            ]
+        },
+
+        // --- ENDING B: Science ---
+        ending_science: {
+            era: 'The Future Unfolds',
+            content: `
+                <div class="scene-ending">
+                    <div class="ending-label">The Story Unfolds</div>
+                    <div class="ending-title">A Fold in Spacetime</div>
+
+                    <div style="max-width: 550px; margin: 0 auto; text-align: left;">
+                        <p class="lead">You choose the mathematics. The geometry hidden in every crease. The Huzita&ndash;Hatori axioms. The Miura fold orbiting Earth. The origami robots assembling themselves.</p>
+
+                        <div class="math-box">
+                            <p>A single uncut square of paper can be folded into any shape with straight edges &mdash; any polygon, any polyhedron, any approximation of a curve. This is the <strong>universality result</strong> proven by Erik Demaine and Joseph O'Rourke in 2007. All form is latent in flatness.</p>
+                        </div>
+
+                        <p>From Cai Lun's bark-and-hemp paper in 105 CE to shape-memory polymer robots in 2014. From Sadako's medicine-wrapper cranes to deployable space telescopes. The fold is the oldest technology and the newest.</p>
+
+                        <p>Every engineer who designs a collapsible heart stent is folding paper. Every architect who designs an emergency shelter is folding paper. Every astronaut whose solar array deploys in orbit is watching paper unfold.</p>
+
+                        <p>The crease pattern was always there. We are still learning to read it.</p>
+
+                        <div class="divider"></div>
+
+                        <p class="small text-center" style="color: var(--text-muted);">The universe is a flat sheet.<br>Physics is the fold.</p>
+                    </div>
+
+                    <div class="the-end">The End</div>
+                    <div class="the-end-jp">&#32066; &mdash; Owari</div>
+                </div>
+            `,
+            fact: 'Erik Demaine and Joseph O\'Rourke proved in 2007 that any straight-edged shape can be folded from a single uncut square of paper.',
+            choices: [
+                { text: 'Fold again from the beginning', next: '_restart' }
+            ]
+        },
+
+        // --- ENDING C: Peace ---
+        ending_peace: {
+            era: 'Senbazuru',
+            content: `
+                <div class="scene-ending">
+                    <div class="ending-label">The Story Unfolds</div>
+                    <div class="ending-title">A Wish on Paper Wings</div>
+
+                    <div style="max-width: 550px; margin: 0 auto; text-align: left;">
+                        <p class="lead">You choose peace. The wish Sadako folded into every crane. The wish that ten million paper birds carry to Hiroshima each year. The wish that needs no translation.</p>
+
+                        <div class="quote-block">
+                            <p class="quote-text">"This is our cry. This is our prayer. For building peace in the world."</p>
+                            <p class="quote-source">Inscription, Children's Peace Monument, Hiroshima</p>
+                        </div>
+
+                        <p>A paper crane cannot stop a bomb. It cannot cure leukemia. It cannot undo August 6, 1945. Everyone who folds one knows this.</p>
+
+                        <p>They fold anyway.</p>
+
+                        <p>Because the act of folding is itself the point. Two minutes of attention. Two minutes of care. Two minutes in which your hands are busy making something beautiful instead of something destructive. Multiply that by a thousand. Multiply it by the millions of cranes sent to Hiroshima. Multiply it by every child in every country who has heard Sadako's story and reached for a piece of paper.</p>
+
+                        <p>Peace is not a destination. It is a practice. It is something you fold, one crane at a time, knowing you will never finish, folding anyway.</p>
+
+                        <div class="divider"></div>
+
+                        <p class="small text-center" style="color: var(--text-muted);">Fold.<br>Again.<br>Again.<br>Until the world is covered in cranes.</p>
+                    </div>
+
+                    <div class="the-end">The End</div>
+                    <div class="the-end-jp">&#32066; &mdash; Owari</div>
+                </div>
+            `,
+            fact: 'The inscription on the Children\'s Peace Monument reads: "This is our cry. This is our prayer. For building peace in the world."',
+            choices: [
+                { text: 'Fold again from the beginning', next: '_restart' }
+            ]
+        }
+    };
+
+    // ================================================================
+    //  STORY ENGINE
+    // ================================================================
+    const engine = {
+        currentScene: null,
+        history: [],
+        facts: [],
+        factsPanelOpen: false,
+        craneCount: 0,
+
+        init() {
+            document.getElementById('startBtn').addEventListener('click', () => this.start());
+            document.getElementById('restartBtn').addEventListener('click', () => this.restart());
+            document.getElementById('factToggle').addEventListener('click', () => this.toggleFacts());
+
+            // Keyboard support: 1-9 for choices
+            document.addEventListener('keydown', (e) => {
+                if (e.key >= '1' && e.key <= '9') {
+                    const idx = parseInt(e.key) - 1;
+                    const btns = document.querySelectorAll('.choice-btn');
+                    if (btns[idx]) btns[idx].click();
+                }
+            });
+        },
+
+        start() {
+            document.getElementById('titleScreen').style.display = 'none';
+            document.getElementById('sceneWrapper').classList.add('active');
+            document.getElementById('factTracker').style.display = 'block';
+            document.getElementById('craneCounter').classList.add('active');
+            this.goTo('origins');
+        },
+
+        restart() {
+            this.currentScene = null;
+            this.history = [];
+            this.facts = [];
+            this.craneCount = 0;
+            this.factsPanelOpen = false;
+            document.getElementById('factPanel').classList.remove('open');
+            document.getElementById('sceneWrapper').classList.remove('active');
+            document.getElementById('titleScreen').style.display = 'flex';
+            document.getElementById('factTracker').style.display = 'none';
+            document.getElementById('craneCounter').classList.remove('active');
+            this.updateFactUI();
+            this.updateCraneCounter();
+            window.scrollTo(0, 0);
+        },
+
+        goTo(sceneId) {
+            if (sceneId === '_restart') {
+                this.restart();
+                return;
+            }
+
+            const scene = STORY[sceneId];
+            if (!scene) return;
+
+            // Add cranes for each scene visited
+            this.addCranes(this.getSceneCranes(sceneId));
+
+            // Transition effect
+            if (this.currentScene) {
+                const overlay = document.getElementById('transition');
+                overlay.classList.add('active');
+                setTimeout(() => {
+                    this.renderScene(sceneId, scene);
+                    window.scrollTo({ top: 0, behavior: 'auto' });
+                }, 500);
+                setTimeout(() => {
+                    overlay.classList.remove('active');
+                }, 1200);
+            } else {
+                this.renderScene(sceneId, scene);
+            }
+
+            if (this.currentScene) {
+                this.history.push(this.currentScene);
+            }
+            this.currentScene = sceneId;
+        },
+
+        getSceneCranes(sceneId) {
+            const craneCounts = {
+                origins: 25,
+                crane_symbol: 50,
+                ceremonial: 40,
+                hiroshima: 100,
+                sadako_diagnosis: 80,
+                sadako_folding: 100,
+                sadako_meaning: 75,
+                sadako_end: 150,
+                origami_math: 60,
+                peace_movement: 80,
+                miura_fold: 50,
+                modern_applications: 40,
+                final_cranes: 100,
+                ending_memory: 50,
+                ending_science: 50,
+                ending_peace: 50
+            };
+            return craneCounts[sceneId] || 25;
+        },
+
+        addCranes(count) {
+            this.craneCount = Math.min(1000, this.craneCount + count);
+            this.updateCraneCounter();
+
+            // Animate the crane tally if visible
+            const tally = document.getElementById('craneTally');
+            if (tally) {
+                this.renderCraneTally(tally);
+            }
+        },
+
+        updateCraneCounter() {
+            const el = document.getElementById('craneCount');
+            if (el) {
+                el.textContent = this.craneCount;
+            }
+
+            const counter = document.getElementById('craneCounter');
+            if (counter) {
+                counter.classList.remove('pulse');
+                void counter.offsetWidth; // force reflow
+                counter.classList.add('pulse');
+            }
+        },
+
+        renderCraneTally(container) {
+            const displayCount = Math.min(30, Math.ceil(this.craneCount / 35));
+            let html = '';
+            for (let i = 0; i < displayCount; i++) {
+                html += `<span class="tally-crane" style="animation-delay: ${i * 0.05}s">\u25C6</span>`;
+            }
+            container.innerHTML = html;
+        },
+
+        renderScene(sceneId, scene) {
+            const eraLabel = document.getElementById('sceneEra');
+            eraLabel.textContent = scene.era || '';
+
+            const container = document.getElementById('sceneContent');
+            const gameControls = document.querySelector('.game-controls');
+            if (gameControls) gameControls.style.display = sceneId.startsWith('ending') ? 'none' : '';
+
+            let html = '<div class="scene-content">';
+            html += scene.content;
+
+            // Add fact
+            if (scene.fact) {
+                this.addFact(scene.fact);
+            }
+
+            // Choices
+            if (scene.choices && scene.choices.length > 0) {
+                html += '<div class="choices">';
+                scene.choices.forEach((choice, i) => {
+                    html += `<button class="choice-btn" onclick="engine.goTo('${choice.next}')">`;
+                    html += `<span class="choice-key">${i + 1}</span>`;
+                    html += `${choice.text}`;
+                    html += `</button>`;
+                });
+                html += '</div>';
+            }
+
+            html += '</div>';
+            container.innerHTML = html;
+
+            // Render crane tally if on final_cranes scene
+            if (sceneId === 'final_cranes') {
+                const tally = document.getElementById('craneTally');
+                if (tally) this.renderCraneTally(tally);
+            }
+
+            this.updateFactUI();
+        },
+
+        addFact(fact) {
+            if (!this.facts.includes(fact)) {
+                this.facts.push(fact);
+            }
+        },
+
+        updateFactUI() {
+            const count = this.facts.length;
+            document.getElementById('factCount').textContent = count;
+
+            const list = document.getElementById('factList');
+            if (count === 0) {
+                list.innerHTML = '<p class="no-facts">The paper awaits...</p>';
+            } else {
+                list.innerHTML = this.facts.map(f => `<div class="fact-item">${f}</div>`).join('');
+            }
+        },
+
+        toggleFacts() {
+            this.factsPanelOpen = !this.factsPanelOpen;
+            document.getElementById('factPanel').classList.toggle('open', this.factsPanelOpen);
+        }
+    };
+
+    // Boot
+    engine.init();
+    </script>
+<script defer src="../../prompt-viewer.js"></script>
+</body>
+</html>
