@@ -1,0 +1,2269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebAssembly — Tech Guide</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* ============================================
+           HEX DUMP DESIGN SYSTEM
+           WebAssembly Tech Guide
+           Binary / Low-Level / Memory Mapped
+           ============================================ */
+
+        :root {
+            /* VOID — the address space */
+            --hex-void: #0a0a0f;
+            --hex-surface: #0f0f18;
+            --hex-elevated: #161625;
+            --hex-raised: #1c1c30;
+            --hex-bright: #24243a;
+
+            /* WASM BRAND — purple/violet core */
+            --wasm-purple: #654ff0;
+            --wasm-purple-dim: #4a3ab0;
+            --wasm-purple-glow: rgba(101, 79, 240, 0.15);
+            --wasm-violet: #8b7aff;
+            --wasm-gradient: linear-gradient(135deg, #654ff0, #8b7aff);
+
+            /* HEX DUMP — the green of memory */
+            --hex-green: #39ff85;
+            --hex-green-dim: #1fa855;
+            --hex-green-muted: #2b8a52;
+            --hex-green-glow: rgba(57, 255, 133, 0.08);
+            --hex-green-bright: #5cffaa;
+
+            /* BYTE MARKERS */
+            --byte-cyan: #00d4ff;
+            --byte-amber: #ffb836;
+            --byte-red: #ff4466;
+            --byte-orange: #ff8844;
+            --byte-teal: #36d6c4;
+
+            /* TEXT LAYERS */
+            --text-primary: #e0e4f0;
+            --text-secondary: rgba(224, 228, 240, 0.68);
+            --text-muted: rgba(224, 228, 240, 0.38);
+            --text-faint: rgba(224, 228, 240, 0.18);
+            --text-address: #556688;
+
+            /* TYPOGRAPHY */
+            --font-display: 'Space Grotesk', -apple-system, sans-serif;
+            --font-body: 'Space Grotesk', -apple-system, sans-serif;
+            --font-mono: 'IBM Plex Mono', 'Consolas', monospace;
+
+            /* SPACING */
+            --space-xs: 4px;
+            --space-sm: 8px;
+            --space-md: 16px;
+            --space-lg: 24px;
+            --space-xl: 32px;
+            --space-2xl: 48px;
+            --space-3xl: 64px;
+
+            /* BORDERS */
+            --border-dim: rgba(101, 79, 240, 0.12);
+            --border-active: rgba(57, 255, 133, 0.25);
+            --rule: #1a1a2e;
+
+            /* RADIUS */
+            --radius-sm: 4px;
+            --radius-md: 8px;
+            --radius-lg: 12px;
+
+            /* SHADOWS */
+            --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.5);
+            --shadow-glow: 0 0 30px rgba(101, 79, 240, 0.08);
+
+            /* TRANSITIONS */
+            --transition-fast: 0.15s ease;
+            --transition-base: 0.25s ease;
+        }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { font-size: 16px; scroll-behavior: smooth; scroll-padding-top: 52px; }
+
+        body {
+            font-family: var(--font-body);
+            font-size: 1rem;
+            line-height: 1.75;
+            color: var(--text-secondary);
+            background-color: var(--hex-void);
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* === HEX RAIN BACKGROUND === */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 0;
+            background-image:
+                repeating-linear-gradient(
+                    0deg,
+                    transparent,
+                    transparent 24px,
+                    rgba(101, 79, 240, 0.015) 24px,
+                    rgba(101, 79, 240, 0.015) 25px
+                ),
+                repeating-linear-gradient(
+                    90deg,
+                    transparent,
+                    transparent 120px,
+                    rgba(57, 255, 133, 0.008) 120px,
+                    rgba(57, 255, 133, 0.008) 121px
+                );
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 0 var(--space-lg);
+            position: relative;
+            z-index: 1;
+        }
+
+        /* === BACK LINK === */
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: var(--text-muted);
+            text-decoration: none;
+            padding: var(--space-lg) 0 0;
+            transition: color var(--transition-fast);
+        }
+        .back-link:hover { color: var(--hex-green); }
+        .back-link::before { content: '\2190'; font-size: 0.8rem; }
+
+        /* === HEADER === */
+        header {
+            padding: var(--space-3xl) 0 var(--space-2xl);
+            border-bottom: 1px solid var(--border-dim);
+            margin-bottom: var(--space-2xl);
+            position: relative;
+        }
+
+        header::after {
+            content: '00000000  00 61 73 6D  01 00 00 00  .asm....';
+            position: absolute;
+            bottom: var(--space-md);
+            right: 0;
+            font-family: var(--font-mono);
+            font-size: 0.65rem;
+            color: var(--text-faint);
+            letter-spacing: 0.05em;
+        }
+
+        .header-offset {
+            font-family: var(--font-mono);
+            font-size: 0.6rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            color: var(--wasm-purple);
+            margin-bottom: var(--space-sm);
+        }
+
+        header h1 {
+            font-family: var(--font-display);
+            font-size: clamp(2.5rem, 7vw, 3.8rem);
+            font-weight: 700;
+            letter-spacing: -0.03em;
+            line-height: 1.05;
+            color: var(--text-primary);
+            margin-bottom: var(--space-md);
+        }
+        header h1 .wasm-accent { color: var(--wasm-purple); }
+
+        .tagline {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            font-weight: 400;
+            color: var(--text-muted);
+            line-height: 1.6;
+            max-width: 600px;
+        }
+
+        .header-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-sm);
+            margin-top: var(--space-lg);
+        }
+
+        .header-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-family: var(--font-mono);
+            font-size: 0.65rem;
+            font-weight: 500;
+            letter-spacing: 0.05em;
+            padding: 4px 10px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border-dim);
+            background: var(--hex-surface);
+            color: var(--text-muted);
+        }
+        .header-badge .dot {
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .dot-purple { background: var(--wasm-purple); }
+        .dot-green { background: var(--hex-green); }
+        .dot-cyan { background: var(--byte-cyan); }
+
+        /* === STICKY JUMP NAV === */
+        .jump-nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            display: flex;
+            gap: 2px;
+            padding: var(--space-sm) 0;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            white-space: nowrap;
+            background: var(--hex-void);
+            border-bottom: 1px solid var(--border-dim);
+            scrollbar-width: none;
+        }
+        .jump-nav::-webkit-scrollbar { display: none; }
+
+        .jump-nav a {
+            font-family: var(--font-mono);
+            font-size: 0.62rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+            text-decoration: none;
+            padding: 6px 12px;
+            border-radius: var(--radius-sm);
+            border: 1px solid transparent;
+            transition: all var(--transition-fast);
+            flex-shrink: 0;
+        }
+        .jump-nav a:hover {
+            color: var(--hex-green);
+            background: var(--hex-green-glow);
+            border-color: var(--border-active);
+        }
+
+        /* === SECTIONS === */
+        .section {
+            padding: var(--space-3xl) 0;
+            border-bottom: 1px solid var(--rule);
+        }
+        .section:last-of-type { border-bottom: none; }
+
+        .section-header {
+            display: flex;
+            align-items: baseline;
+            gap: var(--space-md);
+            margin-bottom: var(--space-xl);
+        }
+
+        .section-number {
+            font-family: var(--font-mono);
+            font-size: 0.65rem;
+            font-weight: 600;
+            color: var(--wasm-purple);
+            letter-spacing: 0.1em;
+            flex-shrink: 0;
+        }
+
+        .section-title {
+            font-family: var(--font-display);
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            letter-spacing: -0.02em;
+        }
+
+        .section-description {
+            font-size: 0.92rem;
+            color: var(--text-muted);
+            margin-bottom: var(--space-xl);
+            max-width: 700px;
+            line-height: 1.7;
+        }
+
+        /* === SUBSECTIONS === */
+        .subsection {
+            margin-bottom: var(--space-2xl);
+        }
+
+        .subsection-title {
+            font-family: var(--font-display);
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: var(--space-md);
+            padding-bottom: var(--space-sm);
+            border-bottom: 1px solid var(--rule);
+        }
+
+        .subsection-title .addr {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            font-weight: 500;
+            color: var(--text-address);
+            margin-right: var(--space-sm);
+        }
+
+        /* === CODE BLOCKS === */
+        pre {
+            background: var(--hex-surface);
+            border: 1px solid var(--border-dim);
+            border-left: 3px solid var(--wasm-purple);
+            border-radius: var(--radius-md);
+            padding: var(--space-lg);
+            overflow-x: auto;
+            margin-bottom: var(--space-lg);
+            position: relative;
+        }
+
+        pre::before {
+            content: attr(data-label);
+            position: absolute;
+            top: 0; right: 0;
+            font-family: var(--font-mono);
+            font-size: 0.55rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: var(--text-faint);
+            padding: 4px 10px;
+            background: var(--hex-elevated);
+            border-bottom-left-radius: var(--radius-sm);
+            border-top-right-radius: var(--radius-md);
+        }
+
+        pre code {
+            font-family: var(--font-mono);
+            font-size: 0.82rem;
+            line-height: 1.7;
+            color: var(--hex-green);
+            tab-size: 4;
+        }
+
+        /* Inline code */
+        :not(pre) > code {
+            font-family: var(--font-mono);
+            font-size: 0.85em;
+            color: var(--wasm-violet);
+            background: var(--wasm-purple-glow);
+            padding: 2px 7px;
+            border-radius: 3px;
+            border: 1px solid var(--border-dim);
+        }
+
+        /* === COMMAND GRID === */
+        .command-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: var(--space-md);
+            margin-bottom: var(--space-lg);
+        }
+
+        .command-card {
+            background: var(--hex-surface);
+            border: 1px solid var(--border-dim);
+            border-radius: var(--radius-md);
+            padding: var(--space-lg);
+            transition: all var(--transition-base);
+        }
+        .command-card:hover {
+            border-color: var(--wasm-purple-dim);
+            box-shadow: var(--shadow-glow);
+            transform: translateY(-2px);
+        }
+
+        .command-card-label {
+            font-family: var(--font-mono);
+            font-size: 0.6rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: var(--wasm-purple);
+            margin-bottom: var(--space-sm);
+        }
+
+        .command-card-title {
+            font-family: var(--font-display);
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: var(--space-sm);
+        }
+
+        .command-card p {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            line-height: 1.6;
+            margin-bottom: var(--space-sm);
+        }
+
+        .command-card code {
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            color: var(--hex-green);
+        }
+
+        /* === TABLES === */
+        .table-wrapper {
+            overflow-x: auto;
+            margin-bottom: var(--space-lg);
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-dim);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+
+        thead {
+            background: var(--hex-elevated);
+        }
+
+        th {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--wasm-purple);
+            text-align: left;
+            padding: var(--space-md) var(--space-lg);
+            border-bottom: 1px solid var(--border-dim);
+        }
+
+        td {
+            padding: var(--space-md) var(--space-lg);
+            border-bottom: 1px solid var(--rule);
+            color: var(--text-secondary);
+            vertical-align: top;
+        }
+
+        tr:last-child td { border-bottom: none; }
+
+        tr:hover td { background: rgba(101, 79, 240, 0.03); }
+
+        td code {
+            font-size: 0.8rem;
+        }
+
+        /* === ALERTS === */
+        .alert {
+            border-radius: var(--radius-md);
+            padding: var(--space-lg);
+            margin-bottom: var(--space-lg);
+            border: 1px solid;
+            font-size: 0.88rem;
+        }
+
+        .alert-title {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            margin-bottom: var(--space-sm);
+        }
+
+        .alert-info {
+            background: rgba(0, 212, 255, 0.04);
+            border-color: rgba(0, 212, 255, 0.2);
+        }
+        .alert-info .alert-title { color: var(--byte-cyan); }
+
+        .alert-warning {
+            background: rgba(255, 184, 54, 0.04);
+            border-color: rgba(255, 184, 54, 0.2);
+        }
+        .alert-warning .alert-title { color: var(--byte-amber); }
+
+        .alert-danger {
+            background: rgba(255, 68, 102, 0.04);
+            border-color: rgba(255, 68, 102, 0.2);
+        }
+        .alert-danger .alert-title { color: var(--byte-red); }
+
+        .alert-success {
+            background: var(--hex-green-glow);
+            border-color: var(--border-active);
+        }
+        .alert-success .alert-title { color: var(--hex-green); }
+
+        /* === BADGES === */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            font-family: var(--font-mono);
+            font-size: 0.62rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            padding: 3px 8px;
+            border-radius: 3px;
+            border: 1px solid;
+        }
+
+        .badge-wasm { color: var(--wasm-purple); background: var(--wasm-purple-glow); border-color: rgba(101, 79, 240, 0.25); }
+        .badge-green { color: var(--hex-green); background: var(--hex-green-glow); border-color: var(--border-active); }
+        .badge-cyan { color: var(--byte-cyan); background: rgba(0, 212, 255, 0.08); border-color: rgba(0, 212, 255, 0.2); }
+        .badge-amber { color: var(--byte-amber); background: rgba(255, 184, 54, 0.08); border-color: rgba(255, 184, 54, 0.2); }
+        .badge-red { color: var(--byte-red); background: rgba(255, 68, 102, 0.08); border-color: rgba(255, 68, 102, 0.2); }
+
+        /* === HEX DUMP DECORATION === */
+        .hex-line {
+            font-family: var(--font-mono);
+            font-size: 0.68rem;
+            color: var(--text-faint);
+            letter-spacing: 0.04em;
+            padding: var(--space-sm) 0;
+            user-select: none;
+        }
+        .hex-line .addr { color: var(--text-address); }
+        .hex-line .bytes { color: var(--text-faint); }
+        .hex-line .ascii { color: rgba(101, 79, 240, 0.3); }
+
+        /* === LANGUAGE CARDS === */
+        .lang-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: var(--space-md);
+            margin-bottom: var(--space-lg);
+        }
+
+        .lang-card {
+            background: var(--hex-surface);
+            border: 1px solid var(--border-dim);
+            border-radius: var(--radius-md);
+            padding: var(--space-lg);
+            transition: all var(--transition-base);
+        }
+        .lang-card:hover {
+            border-color: var(--wasm-purple-dim);
+            box-shadow: var(--shadow-glow);
+        }
+
+        .lang-card-name {
+            font-family: var(--font-display);
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: var(--space-xs);
+        }
+
+        .lang-card-toolchain {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            color: var(--hex-green-dim);
+            margin-bottom: var(--space-sm);
+        }
+
+        .lang-card p {
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            line-height: 1.6;
+        }
+
+        /* === ARCHITECTURE DIAGRAM === */
+        .arch-diagram {
+            background: var(--hex-surface);
+            border: 1px solid var(--border-dim);
+            border-radius: var(--radius-md);
+            padding: var(--space-xl);
+            margin-bottom: var(--space-lg);
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            line-height: 1.4;
+            color: var(--text-secondary);
+            overflow-x: auto;
+            white-space: pre;
+        }
+        .arch-diagram .layer-label { color: var(--wasm-violet); font-weight: 600; }
+        .arch-diagram .box-border { color: var(--text-address); }
+        .arch-diagram .arrow { color: var(--hex-green-dim); }
+        .arch-diagram .highlight { color: var(--hex-green); }
+
+        /* === PARAGRAPHS & LISTS === */
+        .section-content p {
+            margin-bottom: var(--space-md);
+            font-size: 0.92rem;
+            line-height: 1.75;
+        }
+
+        .section-content ul, .section-content ol {
+            margin-bottom: var(--space-lg);
+            padding-left: var(--space-xl);
+        }
+
+        .section-content li {
+            margin-bottom: var(--space-sm);
+            font-size: 0.9rem;
+            line-height: 1.65;
+        }
+
+        .section-content li::marker {
+            color: var(--wasm-purple);
+        }
+
+        /* === FLOW DIAGRAM === */
+        .flow-steps {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-md);
+            margin-bottom: var(--space-lg);
+            align-items: center;
+        }
+
+        .flow-step {
+            background: var(--hex-surface);
+            border: 1px solid var(--border-dim);
+            border-radius: var(--radius-md);
+            padding: var(--space-md) var(--space-lg);
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            color: var(--text-primary);
+            text-align: center;
+        }
+
+        .flow-arrow {
+            font-family: var(--font-mono);
+            color: var(--hex-green-dim);
+            font-size: 1.2rem;
+        }
+
+        /* === FOOTER === */
+        .site-footer {
+            text-align: center;
+            padding: var(--space-2xl) 0;
+            border-top: 1px solid var(--rule);
+            margin-top: var(--space-xl);
+        }
+
+        .site-footer a {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: var(--text-muted);
+            text-decoration: none;
+            transition: color var(--transition-fast);
+        }
+        .site-footer a:hover { color: var(--hex-green); }
+
+        .footer-hex {
+            font-family: var(--font-mono);
+            font-size: 0.6rem;
+            color: var(--text-faint);
+            margin-top: var(--space-sm);
+            letter-spacing: 0.06em;
+        }
+
+        /* === RESPONSIVE === */
+        @media (max-width: 768px) {
+            html { font-size: 15px; }
+            .container { padding: 0 var(--space-md); }
+            header h1 { font-size: 2.2rem; }
+            header::after { display: none; }
+            .section-header { flex-direction: column; gap: var(--space-xs); }
+            .command-grid { grid-template-columns: 1fr; }
+            .lang-grid { grid-template-columns: 1fr; }
+            .flow-steps { flex-direction: column; }
+            .flow-arrow { transform: rotate(90deg); }
+            pre { padding: var(--space-md); }
+            pre code { font-size: 0.75rem; }
+            .arch-diagram { font-size: 0.6rem; padding: var(--space-md); }
+            table { font-size: 0.78rem; }
+            th, td { padding: var(--space-sm) var(--space-md); }
+        }
+
+        @media (max-width: 480px) {
+            header h1 { font-size: 1.8rem; }
+            .header-badges { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="index.html" class="back-link">Tech Guides</a>
+
+        <header>
+            <div class="header-offset">0x00000000 &mdash; Module Header</div>
+            <h1>Web<span class="wasm-accent">Assembly</span></h1>
+            <p class="tagline">The portable binary instruction format for a stack-based virtual machine. Compile once, run everywhere &mdash; at near-native speed, in every browser and beyond.</p>
+            <div class="header-badges">
+                <span class="header-badge"><span class="dot dot-purple"></span> Binary Format</span>
+                <span class="header-badge"><span class="dot dot-green"></span> Stack Machine</span>
+                <span class="header-badge"><span class="dot dot-cyan"></span> W3C Standard</span>
+            </div>
+        </header>
+
+        <!-- Sticky Jump Nav -->
+        <nav class="jump-nav">
+            <a href="#cheatsheet">Cheat Sheet</a>
+            <a href="#concepts">Core Concepts</a>
+            <a href="#text-format">WAT Format</a>
+            <a href="#browser-api">Browser API</a>
+            <a href="#toolchains">Toolchains</a>
+            <a href="#languages">Languages</a>
+            <a href="#wasi">WASI</a>
+            <a href="#performance">Performance</a>
+            <a href="#use-cases">Use Cases</a>
+            <a href="#component-model">Components</a>
+            <a href="#threads">Threads</a>
+            <a href="#debugging">Debugging</a>
+        </nav>
+
+        <!-- ==================== SECTION 01 ==================== -->
+        <section id="cheatsheet" class="section">
+            <div class="section-header">
+                <span class="section-number">01</span>
+                <h2 class="section-title">Quick Reference</h2>
+            </div>
+            <p class="section-description">The essential commands, magic bytes, and API calls every WASM developer needs at their fingertips.</p>
+
+            <div class="section-content">
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0x00</span> The Magic Bytes</h3>
+                    <pre data-label="hex dump"><code>00000000  00 61 73 6D  01 00 00 00    ; \0asm followed by version 1
+                                               ; Every valid .wasm file starts here</code></pre>
+                    <p>A WebAssembly binary module always begins with the 4-byte magic number <code>\0asm</code> (hex <code>00 61 73 6D</code>) followed by a 4-byte version field. The current version is <code>1</code>.</p>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0x08</span> Essential CLI Commands</h3>
+                    <div class="command-grid">
+                        <div class="command-card">
+                            <div class="command-card-label">Compile C/C++</div>
+                            <div class="command-card-title">Emscripten</div>
+                            <p>Compile C/C++ to WASM with Emscripten</p>
+                            <code>emcc hello.c -o hello.wasm</code>
+                        </div>
+                        <div class="command-card">
+                            <div class="command-card-label">Compile Rust</div>
+                            <div class="command-card-title">wasm-pack</div>
+                            <p>Build Rust to WASM with npm bindings</p>
+                            <code>wasm-pack build --target web</code>
+                        </div>
+                        <div class="command-card">
+                            <div class="command-card-label">Inspect</div>
+                            <div class="command-card-title">wasm-objdump</div>
+                            <p>Dump sections, imports, exports</p>
+                            <code>wasm-objdump -x module.wasm</code>
+                        </div>
+                        <div class="command-card">
+                            <div class="command-card-label">Text Format</div>
+                            <div class="command-card-title">wasm2wat</div>
+                            <p>Decompile binary to readable WAT</p>
+                            <code>wasm2wat module.wasm -o module.wat</code>
+                        </div>
+                        <div class="command-card">
+                            <div class="command-card-label">Binary Format</div>
+                            <div class="command-card-title">wat2wasm</div>
+                            <p>Assemble WAT text to .wasm binary</p>
+                            <code>wat2wasm module.wat -o module.wasm</code>
+                        </div>
+                        <div class="command-card">
+                            <div class="command-card-label">Optimize</div>
+                            <div class="command-card-title">wasm-opt</div>
+                            <p>Binaryen optimizer &mdash; shrink &amp; speed up</p>
+                            <code>wasm-opt -O3 input.wasm -o output.wasm</code>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0x10</span> Minimal Browser Usage</h3>
+                    <pre data-label="javascript"><code>// Fetch, compile, and instantiate a WASM module
+const response = await fetch('module.wasm');
+const bytes = await response.arrayBuffer();
+const { instance } = await WebAssembly.instantiate(bytes, importObject);
+
+// Call an exported function
+const result = instance.exports.add(40, 2);
+console.log(result); // 42
+
+// Streaming compilation (preferred — starts compiling while downloading)
+const { instance: inst } = await WebAssembly.instantiateStreaming(
+    fetch('module.wasm'),
+    importObject
+);</code></pre>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0x18</span> File Extensions</h3>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Extension</th>
+                                    <th>Format</th>
+                                    <th>Purpose</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><code>.wasm</code></td>
+                                    <td>Binary</td>
+                                    <td>Compiled WebAssembly module (the runtime artifact)</td>
+                                </tr>
+                                <tr>
+                                    <td><code>.wat</code></td>
+                                    <td>Text</td>
+                                    <td>Human-readable WebAssembly Text Format</td>
+                                </tr>
+                                <tr>
+                                    <td><code>.wast</code></td>
+                                    <td>Text</td>
+                                    <td>Extended text format for tests (assertions, modules)</td>
+                                </tr>
+                                <tr>
+                                    <td><code>.wit</code></td>
+                                    <td>Text</td>
+                                    <td>WebAssembly Interface Types (Component Model IDL)</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== SECTION 02 ==================== -->
+        <section id="concepts" class="section">
+            <div class="section-header">
+                <span class="section-number">02</span>
+                <h2 class="section-title">Core Concepts</h2>
+            </div>
+            <p class="section-description">WebAssembly is a binary instruction format for a stack-based virtual machine. Understanding the execution model, module structure, and type system is foundational.</p>
+
+            <div class="section-content">
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0x20</span> What Is WebAssembly?</h3>
+                    <p>WebAssembly (WASM) is a low-level, portable bytecode format designed as a compilation target for high-level languages. It runs in a sandboxed virtual machine with near-native performance and is supported by all major browsers, plus server-side runtimes like Wasmtime, Wasmer, and WasmEdge.</p>
+
+                    <div class="alert alert-info">
+                        <div class="alert-title">Key Insight</div>
+                        <p>WASM is <strong>not</strong> a replacement for JavaScript. It is a complement. JavaScript handles DOM manipulation and high-level orchestration; WASM handles computationally intensive work like codecs, physics, cryptography, and image processing.</p>
+                    </div>
+
+                    <p>Four design goals drive every decision in the spec:</p>
+                    <ul>
+                        <li><strong>Fast</strong> &mdash; Near-native execution speed via ahead-of-time or just-in-time compilation</li>
+                        <li><strong>Safe</strong> &mdash; Memory-safe sandboxed execution; no access to host resources without explicit imports</li>
+                        <li><strong>Portable</strong> &mdash; Hardware-independent binary format that runs on any platform with a conforming runtime</li>
+                        <li><strong>Compact</strong> &mdash; Dense binary encoding designed for fast decoding and small file sizes</li>
+                    </ul>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0x28</span> The Stack Machine</h3>
+                    <p>WASM uses a stack-based execution model. Instructions push values onto and pop values from an implicit operand stack. There are no general-purpose registers &mdash; the stack <em>is</em> the register file.</p>
+
+                    <pre data-label="wat"><code>;; Add two i32 values: (2 + 3)
+i32.const 2    ;; stack: [2]
+i32.const 3    ;; stack: [2, 3]
+i32.add        ;; pops both, pushes result: [5]</code></pre>
+
+                    <p>In addition to the operand stack, functions have <strong>local variables</strong> (indexed slots for parameters and temporaries) and modules have <strong>global variables</strong> (shared mutable or immutable values).</p>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0x30</span> Value Types</h3>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Type</th>
+                                    <th>Size</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><code>i32</code></td>
+                                    <td>32-bit</td>
+                                    <td>Integer (used for booleans, pointers, and int arithmetic)</td>
+                                </tr>
+                                <tr>
+                                    <td><code>i64</code></td>
+                                    <td>64-bit</td>
+                                    <td>Long integer</td>
+                                </tr>
+                                <tr>
+                                    <td><code>f32</code></td>
+                                    <td>32-bit</td>
+                                    <td>IEEE 754 single-precision float</td>
+                                </tr>
+                                <tr>
+                                    <td><code>f64</code></td>
+                                    <td>64-bit</td>
+                                    <td>IEEE 754 double-precision float</td>
+                                </tr>
+                                <tr>
+                                    <td><code>v128</code></td>
+                                    <td>128-bit</td>
+                                    <td>SIMD vector (4xi32, 2xf64, 16xi8, etc.)</td>
+                                </tr>
+                                <tr>
+                                    <td><code>funcref</code></td>
+                                    <td>ref</td>
+                                    <td>Reference to a function (for indirect calls via tables)</td>
+                                </tr>
+                                <tr>
+                                    <td><code>externref</code></td>
+                                    <td>ref</td>
+                                    <td>Opaque host reference (e.g., a JS object)</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0x38</span> Module Structure</h3>
+                    <p>A WASM binary module is organized into numbered sections. Each section is optional and appears at most once, in a fixed order:</p>
+
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Section</th>
+                                    <th>Contents</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr><td><code>0</code></td><td>Custom</td><td>Name section, debug info, metadata (repeatable)</td></tr>
+                                <tr><td><code>1</code></td><td>Type</td><td>Function signatures (parameter &amp; return types)</td></tr>
+                                <tr><td><code>2</code></td><td>Import</td><td>Functions, tables, memories, globals from host</td></tr>
+                                <tr><td><code>3</code></td><td>Function</td><td>Function index &rarr; type index mapping</td></tr>
+                                <tr><td><code>4</code></td><td>Table</td><td>Tables of references (for indirect calls)</td></tr>
+                                <tr><td><code>5</code></td><td>Memory</td><td>Linear memory declarations (initial/max pages)</td></tr>
+                                <tr><td><code>6</code></td><td>Global</td><td>Global variables with mutability &amp; init expressions</td></tr>
+                                <tr><td><code>7</code></td><td>Export</td><td>Functions, tables, memories, globals exposed to host</td></tr>
+                                <tr><td><code>8</code></td><td>Start</td><td>Index of function to call on instantiation</td></tr>
+                                <tr><td><code>9</code></td><td>Element</td><td>Segments to initialize table entries</td></tr>
+                                <tr><td><code>10</code></td><td>Code</td><td>Function bodies (locals + instructions)</td></tr>
+                                <tr><td><code>11</code></td><td>Data</td><td>Segments to initialize linear memory</td></tr>
+                                <tr><td><code>12</code></td><td>Data Count</td><td>Number of data segments (for single-pass validation)</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0x40</span> Linear Memory</h3>
+                    <p>WASM modules access a contiguous, byte-addressable array of bytes called <strong>linear memory</strong>. Memory is measured in 64 KiB <strong>pages</strong> and can grow at runtime via <code>memory.grow</code>.</p>
+
+                    <pre data-label="wat"><code>;; Declare 1 page (64 KiB) of memory, max 256 pages (16 MiB)
+(memory 1 256)
+
+;; Store the i32 value 42 at byte offset 0
+i32.const 0      ;; address
+i32.const 42     ;; value
+i32.store        ;; store 4 bytes at address 0
+
+;; Load 4 bytes from address 0
+i32.const 0      ;; address
+i32.load         ;; pushes 42 onto stack</code></pre>
+
+                    <div class="alert alert-warning">
+                        <div class="alert-title">Bounds Safety</div>
+                        <p>All memory accesses are bounds-checked by the runtime. An out-of-bounds load or store traps immediately &mdash; there is no undefined behavior, no buffer overflow. This is a core security guarantee of the WASM sandbox.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== SECTION 03 ==================== -->
+        <section id="text-format" class="section">
+            <div class="section-header">
+                <span class="section-number">03</span>
+                <h2 class="section-title">WAT &mdash; Text Format</h2>
+            </div>
+            <p class="section-description">The WebAssembly Text Format (WAT) is a human-readable S-expression syntax that corresponds 1:1 with the binary format. Essential for learning, debugging, and small hand-written modules.</p>
+
+            <div class="section-content">
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0x48</span> Hello, WAT</h3>
+                    <pre data-label="wat"><code>(module
+  ;; Import console.log from JavaScript
+  (import "console" "log" (func $log (param i32)))
+
+  ;; Define a function that adds two numbers
+  (func $add (export "add") (param $a i32) (param $b i32) (result i32)
+    local.get $a
+    local.get $b
+    i32.add
+  )
+
+  ;; Define a function that adds and logs
+  (func (export "addAndLog") (param i32 i32)
+    local.get 0
+    local.get 1
+    call $add
+    call $log
+  )
+)</code></pre>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0x50</span> Control Flow</h3>
+                    <p>WASM uses structured control flow &mdash; no arbitrary <code>goto</code>. All branches target labeled blocks, and the type checker ensures the stack is balanced at every join point.</p>
+
+                    <pre data-label="wat"><code>;; If/else (returns i32)
+(func $max (param $a i32) (param $b i32) (result i32)
+  (if (result i32) (i32.gt_s (local.get $a) (local.get $b))
+    (then (local.get $a))
+    (else (local.get $b))
+  )
+)
+
+;; Loop: sum 1 to N
+(func $sum (param $n i32) (result i32)
+  (local $i i32)
+  (local $acc i32)
+  (local.set $i (i32.const 1))
+  (block $break
+    (loop $continue
+      ;; acc += i
+      (local.set $acc (i32.add (local.get $acc) (local.get $i)))
+      ;; i += 1
+      (local.set $i (i32.add (local.get $i) (i32.const 1)))
+      ;; if i &lt;= n, continue
+      (br_if $continue (i32.le_s (local.get $i) (local.get $n)))
+    )
+  )
+  local.get $acc
+)
+
+;; Switch via br_table
+(block $default
+  (block $case2
+    (block $case1
+      (block $case0
+        (br_table $case0 $case1 $case2 $default (local.get $selector))
+      ) ;; case 0
+      (return (i32.const 100))
+    ) ;; case 1
+    (return (i32.const 200))
+  ) ;; case 2
+  (return (i32.const 300))
+) ;; default
+(i32.const -1)</code></pre>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0x58</span> Tables &amp; Indirect Calls</h3>
+                    <p><strong>Tables</strong> store references (usually <code>funcref</code>) and enable indirect/dynamic dispatch &mdash; the WASM equivalent of function pointers or vtables.</p>
+
+                    <pre data-label="wat"><code>(module
+  (type $callback (func (param i32) (result i32)))
+
+  (func $double (param i32) (result i32)
+    (i32.mul (local.get 0) (i32.const 2)))
+
+  (func $square (param i32) (result i32)
+    (i32.mul (local.get 0) (local.get 0)))
+
+  ;; Table with 2 function references
+  (table 2 funcref)
+  (elem (i32.const 0) $double $square)
+
+  ;; Call function at table index
+  (func (export "apply") (param $idx i32) (param $val i32) (result i32)
+    (call_indirect (type $callback) (local.get $val) (local.get $idx))
+  )
+)</code></pre>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== SECTION 04 ==================== -->
+        <section id="browser-api" class="section">
+            <div class="section-header">
+                <span class="section-number">04</span>
+                <h2 class="section-title">Browser API</h2>
+            </div>
+            <p class="section-description">The JavaScript WebAssembly API for compiling, instantiating, and interacting with WASM modules in the browser.</p>
+
+            <div class="section-content">
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0x60</span> Compilation &amp; Instantiation</h3>
+                    <pre data-label="javascript"><code>// === Method 1: Streaming (recommended) ===
+// Compiles while downloading — best for large modules
+const { module, instance } = await WebAssembly.instantiateStreaming(
+    fetch('module.wasm'),
+    importObject                // { env: { memory, ... }, js: { log, ... } }
+);
+
+// === Method 2: Two-step ===
+const bytes = await fetch('module.wasm').then(r => r.arrayBuffer());
+const module = await WebAssembly.compile(bytes);
+const instance = await WebAssembly.instantiate(module, importObject);
+
+// === Method 3: Synchronous (small modules only, &lt;4 KB) ===
+const module = new WebAssembly.Module(bytes);
+const instance = new WebAssembly.Instance(module, importObject);
+
+// === Caching compiled modules in IndexedDB ===
+// WebAssembly.Module is structured-cloneable
+const db = await openDB('wasm-cache');
+await db.put('modules', module, 'my-module');
+const cached = await db.get('modules', 'my-module');
+const inst2 = await WebAssembly.instantiate(cached, importObject);</code></pre>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0x68</span> WebAssembly.Memory</h3>
+                    <p>Create and share linear memory between JavaScript and WASM. Memory is a resizable <code>ArrayBuffer</code> accessible from both sides.</p>
+
+                    <pre data-label="javascript"><code>// Create shared memory: 1 page initial (64 KiB), 10 pages max
+const memory = new WebAssembly.Memory({ initial: 1, maximum: 10 });
+
+// Pass to WASM via imports
+const importObject = {
+    env: { memory }
+};
+
+// Read/write from JavaScript
+const view = new Uint8Array(memory.buffer);
+view[0] = 0x48;    // 'H'
+view[1] = 0x69;    // 'i'
+
+// Grow memory by 2 pages (returns old page count)
+const oldPages = memory.grow(2);
+// IMPORTANT: .buffer reference changes after grow!
+const newView = new Uint8Array(memory.buffer);
+
+// Read a string that WASM wrote to memory
+function readString(ptr, len) {
+    const bytes = new Uint8Array(memory.buffer, ptr, len);
+    return new TextDecoder().decode(bytes);
+}</code></pre>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0x70</span> WebAssembly.Table</h3>
+                    <pre data-label="javascript"><code>// Create a table of function references
+const table = new WebAssembly.Table({
+    element: 'anyfunc',
+    initial: 2,
+    maximum: 10
+});
+
+// After instantiation, the table contains exported functions
+// Get a function reference from the table
+const fn = table.get(0);
+console.log(fn(42));   // Call it like a normal JS function
+
+// Set a table entry from JavaScript
+table.set(1, instance.exports.myFunc);
+
+// Grow the table
+table.grow(3);</code></pre>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0x78</span> WebAssembly.Global</h3>
+                    <pre data-label="javascript"><code>// Create a mutable global (shared between JS and WASM)
+const counter = new WebAssembly.Global(
+    { value: 'i32', mutable: true },
+    0   // initial value
+);
+
+const importObject = {
+    env: { counter }
+};
+
+// Read and write from JavaScript
+console.log(counter.value);   // 0
+counter.value = 100;
+
+// WASM can also read/write via global.get/global.set</code></pre>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0x80</span> Import Object Pattern</h3>
+                    <pre data-label="javascript"><code>// A complete import object showing all import kinds
+const importObject = {
+    // Environment namespace
+    env: {
+        memory: new WebAssembly.Memory({ initial: 256 }),
+        table: new WebAssembly.Table({ element: 'anyfunc', initial: 0 }),
+        __stack_pointer: new WebAssembly.Global({ value: 'i32', mutable: true }, 0),
+        abort: (msg, file, line, col) => { throw new Error('abort'); },
+    },
+    // Custom JS functions callable from WASM
+    js: {
+        log: (value) => console.log('WASM says:', value),
+        now: () => Date.now(),
+        random: () => Math.random(),
+    },
+    // WASI preview1 (if using WASI in browser)
+    wasi_snapshot_preview1: {
+        fd_write: (fd, iovs, iovsLen, nwritten) => { /* ... */ },
+        proc_exit: (code) => { /* ... */ },
+    }
+};</code></pre>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== SECTION 05 ==================== -->
+        <section id="toolchains" class="section">
+            <div class="section-header">
+                <span class="section-number">05</span>
+                <h2 class="section-title">Toolchains</h2>
+            </div>
+            <p class="section-description">The compilers, optimizers, and build tools that transform high-level code into production WASM binaries.</p>
+
+            <div class="section-content">
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0x88</span> Emscripten (C/C++)</h3>
+                    <p>The original WASM toolchain. Emscripten compiles C/C++ via LLVM to WASM, providing a POSIX-like environment with filesystem emulation, SDL/OpenGL bindings, and automatic JS glue code.</p>
+
+                    <pre data-label="shell"><code># Install via emsdk
+git clone https://github.com/emscripten-core/emsdk.git
+cd emsdk && ./emsdk install latest && ./emsdk activate latest
+source ./emsdk_env.sh
+
+# Compile C to WASM + JS glue
+emcc hello.c -o hello.html                    # Full page with shell
+emcc hello.c -o hello.js                      # JS glue + .wasm
+emcc hello.c -o hello.wasm -s STANDALONE_WASM # Standalone (no JS glue)
+
+# Optimization levels
+emcc -O0 app.c -o app.js      # No optimization (debug)
+emcc -O2 app.c -o app.js      # Production
+emcc -O3 app.c -o app.js      # Aggressive (may increase size)
+emcc -Oz app.c -o app.js      # Optimize for size
+
+# Key flags
+emcc app.c -o app.js \
+    -s WASM=1 \                # Emit WASM (default)
+    -s EXPORTED_FUNCTIONS="['_main','_add']" \
+    -s EXPORTED_RUNTIME_METHODS="['ccall','cwrap']" \
+    -s ALLOW_MEMORY_GROWTH=1 \ # Dynamic memory growth
+    -s INITIAL_MEMORY=16777216  # 16 MB initial heap</code></pre>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0x90</span> wasm-pack &amp; wasm-bindgen (Rust)</h3>
+                    <p><code>wasm-pack</code> is the Rust-to-WASM build tool. It wraps <code>cargo</code>, runs <code>wasm-bindgen</code> for JS interop, and generates npm-ready packages.</p>
+
+                    <pre data-label="shell"><code># Install
+cargo install wasm-pack
+rustup target add wasm32-unknown-unknown
+
+# Build for different targets
+wasm-pack build --target web        # ES modules (native browser)
+wasm-pack build --target bundler    # For webpack/vite/rollup
+wasm-pack build --target nodejs     # Node.js CommonJS
+wasm-pack build --target no-modules # Global script tag
+
+# The generated pkg/ contains:
+#   package.json, *.js, *.wasm, *.d.ts</code></pre>
+
+                    <pre data-label="rust"><code>use wasm_bindgen::prelude::*;
+
+// Export a function to JavaScript
+#[wasm_bindgen]
+pub fn greet(name: &amp;str) -> String {
+    format!("Hello, {}!", name)
+}
+
+// Import a JavaScript function
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(js_namespace = console)]
+    fn log(s: &amp;str);
+}
+
+// Work with DOM
+#[wasm_bindgen]
+pub fn set_title(title: &amp;str) {
+    let window = web_sys::window().unwrap();
+    let document = window.document().unwrap();
+    document.set_title(title);
+}
+
+// Use web_sys for full Web API bindings
+// Cargo.toml: web-sys = { version = "0.3", features = ["Document", "Window"] }</code></pre>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0x98</span> WABT &mdash; WebAssembly Binary Toolkit</h3>
+                    <p>Low-level tools for working directly with the binary and text formats. Essential for debugging, inspection, and education.</p>
+
+                    <div class="command-grid">
+                        <div class="command-card">
+                            <div class="command-card-label">Decompile</div>
+                            <div class="command-card-title">wasm2wat</div>
+                            <p>Binary &rarr; text format</p>
+                            <code>wasm2wat app.wasm -o app.wat</code>
+                        </div>
+                        <div class="command-card">
+                            <div class="command-card-label">Assemble</div>
+                            <div class="command-card-title">wat2wasm</div>
+                            <p>Text format &rarr; binary</p>
+                            <code>wat2wasm app.wat -o app.wasm</code>
+                        </div>
+                        <div class="command-card">
+                            <div class="command-card-label">Inspect</div>
+                            <div class="command-card-title">wasm-objdump</div>
+                            <p>Section headers, imports, exports</p>
+                            <code>wasm-objdump -dhx app.wasm</code>
+                        </div>
+                        <div class="command-card">
+                            <div class="command-card-label">Validate</div>
+                            <div class="command-card-title">wasm-validate</div>
+                            <p>Check module validity</p>
+                            <code>wasm-validate app.wasm</code>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0xA0</span> Binaryen Optimizer</h3>
+                    <p>Binaryen is the WASM-specific optimizer used by Emscripten and other toolchains. Its <code>wasm-opt</code> tool can significantly reduce binary size and improve performance.</p>
+
+                    <pre data-label="shell"><code># Optimization passes
+wasm-opt -O1 input.wasm -o output.wasm     # Basic optimizations
+wasm-opt -O2 input.wasm -o output.wasm     # Standard (good default)
+wasm-opt -O3 input.wasm -o output.wasm     # Aggressive speed
+wasm-opt -Oz input.wasm -o output.wasm     # Optimize for size
+wasm-opt -O4 input.wasm -o output.wasm     # O3 + more flattening
+
+# Specific passes
+wasm-opt --strip-debug input.wasm -o out.wasm    # Remove debug info
+wasm-opt --strip-producers input.wasm -o out.wasm # Remove producer data
+wasm-opt --vacuum input.wasm -o out.wasm          # Remove dead code
+
+# Typical savings: 10-30% smaller, 5-15% faster</code></pre>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== SECTION 06 ==================== -->
+        <section id="languages" class="section">
+            <div class="section-header">
+                <span class="section-number">06</span>
+                <h2 class="section-title">Languages &rarr; WASM</h2>
+            </div>
+            <p class="section-description">The languages, toolchains, and trade-offs for compiling to WebAssembly. Not all languages are created equal as WASM targets.</p>
+
+            <div class="section-content">
+                <div class="lang-grid">
+                    <div class="lang-card">
+                        <div class="lang-card-name">Rust</div>
+                        <div class="lang-card-toolchain">wasm-pack + wasm-bindgen</div>
+                        <p>Best-in-class WASM support. No runtime overhead, tiny binaries, <code>wasm-bindgen</code> provides seamless JS interop. The ecosystem leader.</p>
+                    </div>
+                    <div class="lang-card">
+                        <div class="lang-card-name">C / C++</div>
+                        <div class="lang-card-toolchain">Emscripten / clang --target=wasm32</div>
+                        <p>The original WASM compilation path. Emscripten provides libc, SDL, OpenGL emulation. Mature but generates larger glue code.</p>
+                    </div>
+                    <div class="lang-card">
+                        <div class="lang-card-name">Go</div>
+                        <div class="lang-card-toolchain">GOOS=js GOARCH=wasm</div>
+                        <p>Built-in WASM target since Go 1.11. Includes the Go runtime &amp; GC, so binaries are large (~2+ MB minimum). TinyGo produces much smaller output.</p>
+                    </div>
+                    <div class="lang-card">
+                        <div class="lang-card-name">AssemblyScript</div>
+                        <div class="lang-card-toolchain">asc (AssemblyScript compiler)</div>
+                        <p>TypeScript-like syntax compiling directly to WASM. Small binaries, no GC needed. Ideal for TypeScript developers wanting WASM performance.</p>
+                    </div>
+                    <div class="lang-card">
+                        <div class="lang-card-name">Zig</div>
+                        <div class="lang-card-toolchain">zig build -Dtarget=wasm32-freestanding</div>
+                        <p>First-class WASM target with no hidden allocations. Excellent for tiny, zero-dependency WASM modules. No runtime overhead.</p>
+                    </div>
+                    <div class="lang-card">
+                        <div class="lang-card-name">Kotlin</div>
+                        <div class="lang-card-toolchain">Kotlin/Wasm (experimental)</div>
+                        <p>JetBrains' Kotlin/Wasm target leverages WASM GC proposal. Currently experimental; requires WASM GC-enabled browsers.</p>
+                    </div>
+                    <div class="lang-card">
+                        <div class="lang-card-name">Swift</div>
+                        <div class="lang-card-toolchain">SwiftWasm</div>
+                        <p>Community-maintained fork of Swift targeting WASM. Supports Foundation, async/await. Growing ecosystem for server-side WASM.</p>
+                    </div>
+                    <div class="lang-card">
+                        <div class="lang-card-name">C#</div>
+                        <div class="lang-card-toolchain">Blazor WebAssembly / NativeAOT</div>
+                        <p>Blazor runs .NET in the browser via WASM. Full .NET runtime ships with the app. NativeAOT WASM (experimental) skips the runtime.</p>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0xA8</span> Language Comparison</h3>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Language</th>
+                                    <th>Min Binary</th>
+                                    <th>GC Required</th>
+                                    <th>JS Interop</th>
+                                    <th>Maturity</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Rust</td>
+                                    <td>~200 B</td>
+                                    <td>No</td>
+                                    <td>Excellent (wasm-bindgen)</td>
+                                    <td><span class="badge badge-green">Production</span></td>
+                                </tr>
+                                <tr>
+                                    <td>C/C++</td>
+                                    <td>~1 KB</td>
+                                    <td>No</td>
+                                    <td>Good (Embind / ccall)</td>
+                                    <td><span class="badge badge-green">Production</span></td>
+                                </tr>
+                                <tr>
+                                    <td>Go</td>
+                                    <td>~2 MB</td>
+                                    <td>Yes (bundled)</td>
+                                    <td>Basic (syscall/js)</td>
+                                    <td><span class="badge badge-green">Production</span></td>
+                                </tr>
+                                <tr>
+                                    <td>TinyGo</td>
+                                    <td>~10 KB</td>
+                                    <td>Yes (minimal)</td>
+                                    <td>Good</td>
+                                    <td><span class="badge badge-cyan">Stable</span></td>
+                                </tr>
+                                <tr>
+                                    <td>AssemblyScript</td>
+                                    <td>~300 B</td>
+                                    <td>Optional</td>
+                                    <td>Good (loader)</td>
+                                    <td><span class="badge badge-cyan">Stable</span></td>
+                                </tr>
+                                <tr>
+                                    <td>Zig</td>
+                                    <td>~200 B</td>
+                                    <td>No</td>
+                                    <td>Manual</td>
+                                    <td><span class="badge badge-amber">Maturing</span></td>
+                                </tr>
+                                <tr>
+                                    <td>Kotlin/Wasm</td>
+                                    <td>~500 KB</td>
+                                    <td>Yes (WASM GC)</td>
+                                    <td>Good</td>
+                                    <td><span class="badge badge-red">Experimental</span></td>
+                                </tr>
+                                <tr>
+                                    <td>C# (Blazor)</td>
+                                    <td>~2 MB</td>
+                                    <td>Yes (bundled)</td>
+                                    <td>Excellent (JSInterop)</td>
+                                    <td><span class="badge badge-green">Production</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0xB0</span> Go &rarr; WASM Example</h3>
+                    <pre data-label="go"><code>// main.go
+package main
+
+import (
+    "fmt"
+    "syscall/js"
+)
+
+func add(this js.Value, args []js.Value) interface{} {
+    return args[0].Int() + args[1].Int()
+}
+
+func main() {
+    // Register Go function as JavaScript global
+    js.Global().Set("goAdd", js.FuncOf(add))
+    fmt.Println("Go WASM initialized")
+
+    // Block forever (required — Go runtime must stay alive)
+    select {}
+}</code></pre>
+                    <pre data-label="shell"><code># Build
+GOOS=js GOARCH=wasm go build -o main.wasm main.go
+
+# Copy the JS glue (required for Go WASM)
+cp "$(go env GOROOT)/misc/wasm/wasm_exec.js" .
+
+# TinyGo alternative (much smaller binary)
+tinygo build -o main.wasm -target wasm ./main.go</code></pre>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0xB8</span> AssemblyScript Example</h3>
+                    <pre data-label="assemblyscript"><code>// assembly/index.ts — TypeScript-like syntax
+export function fibonacci(n: i32): i32 {
+    if (n &lt;= 1) return n;
+    return fibonacci(n - 1) + fibonacci(n - 2);
+}
+
+// Strings, arrays, and classes work too
+export function reverseString(s: string): string {
+    let result = "";
+    for (let i = s.length - 1; i >= 0; i--) {
+        result += s.charAt(i);
+    }
+    return result;
+}</code></pre>
+                    <pre data-label="shell"><code># Install and build
+npm install -g assemblyscript
+asc assembly/index.ts -o build/module.wasm --optimize</code></pre>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== SECTION 07 ==================== -->
+        <section id="wasi" class="section">
+            <div class="section-header">
+                <span class="section-number">07</span>
+                <h2 class="section-title">WASI</h2>
+            </div>
+            <p class="section-description">The WebAssembly System Interface &mdash; a standardized set of POSIX-like APIs that let WASM modules access filesystems, network sockets, clocks, and environment variables outside the browser.</p>
+
+            <div class="section-content">
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0xC0</span> What Is WASI?</h3>
+                    <p>WASI (WebAssembly System Interface) defines a portable, capability-based interface for WASM modules to interact with the operating system. It enables WASM to run as a general-purpose computing platform, not just a browser technology.</p>
+
+                    <div class="arch-diagram"><span class="layer-label">Your Application Code</span>
+<span class="box-border">         |</span>
+<span class="box-border">         v</span>
+<span class="box-border">+-------------------+</span>
+<span class="box-border">|</span> <span class="highlight">WASM Module</span>        <span class="box-border">|</span>   Portable binary
+<span class="box-border">+-------------------+</span>
+<span class="box-border">         |</span> <span class="arrow">imports WASI functions</span>
+<span class="box-border">         v</span>
+<span class="box-border">+-------------------+</span>
+<span class="box-border">|</span> <span class="highlight">WASI Interface</span>     <span class="box-border">|</span>   Standardized syscall layer
+<span class="box-border">+-------------------+</span>
+<span class="box-border">         |</span> <span class="arrow">capability-based security</span>
+<span class="box-border">         v</span>
+<span class="box-border">+-------------------+</span>
+<span class="box-border">|</span> <span class="highlight">Runtime</span>            <span class="box-border">|</span>   Wasmtime / Wasmer / WasmEdge
+<span class="box-border">+-------------------+</span>
+<span class="box-border">         |</span>
+<span class="box-border">         v</span>
+<span class="layer-label">Host OS (Linux, macOS, Windows)</span></div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0xC8</span> WASI Runtimes</h3>
+                    <div class="command-grid">
+                        <div class="command-card">
+                            <div class="command-card-label">Bytecode Alliance</div>
+                            <div class="command-card-title">Wasmtime</div>
+                            <p>Reference implementation. Cranelift JIT, fast startup, production-grade. Used by Fastly, Shopify.</p>
+                            <code>wasmtime run app.wasm</code>
+                        </div>
+                        <div class="command-card">
+                            <div class="command-card-label">Wasmer Inc.</div>
+                            <div class="command-card-title">Wasmer</div>
+                            <p>Multiple backends (Cranelift, LLVM, Singlepass). Package registry (wapm). Embeddable in many languages.</p>
+                            <code>wasmer run app.wasm</code>
+                        </div>
+                        <div class="command-card">
+                            <div class="command-card-label">CNCF Sandbox</div>
+                            <div class="command-card-title">WasmEdge</div>
+                            <p>Optimized for cloud-native &amp; edge. WASI-NN for AI inference, Kubernetes integration, tiny footprint.</p>
+                            <code>wasmedge app.wasm</code>
+                        </div>
+                        <div class="command-card">
+                            <div class="command-card-label">Mozilla</div>
+                            <div class="command-card-title">wasm-tools</div>
+                            <p>CLI for WASM component model operations: compose, validate, inspect, and wire components.</p>
+                            <code>wasm-tools component new mod.wasm</code>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0xD0</span> Capability-Based Security</h3>
+                    <p>WASI uses a <strong>capability-based security model</strong>. Modules cannot access any resource unless the host explicitly grants a capability at startup. This is fundamentally different from POSIX, where a process inherits ambient authority.</p>
+
+                    <pre data-label="shell"><code># Grant specific directory access
+wasmtime run --dir=/data/input::input --dir=/data/output::output app.wasm
+#                ^^^^^^^^^^^^^^^^^^^^^   ^^^^^^^^^^^^^^^^^^^^^^^^^^
+#                maps host /data/input   maps host /data/output
+#                to guest path "input"   to guest path "output"
+
+# Grant environment variables
+wasmtime run --env API_KEY=secret --env MODE=production app.wasm
+
+# Grant network access (Wasmtime 14+)
+wasmtime run --tcplisten 127.0.0.1:8080 server.wasm
+
+# No flags = fully sandboxed (no FS, no network, no env)</code></pre>
+
+                    <div class="alert alert-success">
+                        <div class="alert-title">Security Model</div>
+                        <p>A WASM module with no granted capabilities is fully sandboxed: it cannot read files, make network requests, access environment variables, or observe the clock. Capabilities must be <em>explicitly</em> passed by the host, making WASI ideal for running untrusted code.</p>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0xD8</span> WASI in Rust</h3>
+                    <pre data-label="rust"><code>// Compile: cargo build --target wasm32-wasip1
+// Run:     wasmtime run --dir=.::. target/wasm32-wasip1/release/app.wasm
+
+use std::fs;
+use std::io::{self, Read, Write};
+
+fn main() -> io::Result&lt;()> {
+    // File I/O works via WASI (if dir capability is granted)
+    let contents = fs::read_to_string("input/data.txt")?;
+    println!("Read {} bytes", contents.len());   // stdout via fd_write
+
+    // Write output
+    fs::write("output/result.txt", contents.to_uppercase())?;
+
+    // Environment variables (if --env is granted)
+    if let Ok(mode) = std::env::var("MODE") {
+        println!("Running in {} mode", mode);
+    }
+
+    // Command-line args work too
+    let args: Vec&lt;String> = std::env::args().collect();
+    println!("Args: {:?}", args);
+
+    Ok(())
+}</code></pre>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== SECTION 08 ==================== -->
+        <section id="performance" class="section">
+            <div class="section-header">
+                <span class="section-number">08</span>
+                <h2 class="section-title">Performance Patterns</h2>
+            </div>
+            <p class="section-description">How to maximize WASM performance: minimize JS-WASM boundary crossings, optimize memory layout, and leverage SIMD.</p>
+
+            <div class="section-content">
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0xE0</span> The JS-WASM Boundary</h3>
+                    <p>Every call between JavaScript and WASM has overhead. The single most important optimization is <strong>minimizing boundary crossings</strong>.</p>
+
+                    <div class="command-grid">
+                        <div class="command-card">
+                            <div class="command-card-label">Anti-pattern</div>
+                            <div class="command-card-title">Per-pixel calls</div>
+                            <p>Calling WASM once per pixel to process an image. Millions of boundary crossings.</p>
+                            <code>for (let i = 0; i &lt; pixels.length; i++) wasm.process(i);</code>
+                        </div>
+                        <div class="command-card">
+                            <div class="command-card-label">Best practice</div>
+                            <div class="command-card-title">Batch in WASM</div>
+                            <p>Copy the buffer to WASM memory, process it in one call, read results back.</p>
+                            <code>wasm.processImage(ptr, width, height);</code>
+                        </div>
+                    </div>
+
+                    <pre data-label="javascript"><code>// Pattern: Bulk data transfer via shared memory
+function processImage(imageData) {
+    const { width, height, data } = imageData;
+
+    // 1. Allocate space in WASM memory
+    const ptr = instance.exports.alloc(data.length);
+
+    // 2. Copy pixels into WASM linear memory (one bulk copy)
+    new Uint8Array(memory.buffer, ptr, data.length).set(data);
+
+    // 3. Process entirely in WASM (no boundary crossings)
+    instance.exports.applyFilter(ptr, width, height);
+
+    // 4. Read results back (one bulk copy)
+    data.set(new Uint8Array(memory.buffer, ptr, data.length));
+
+    // 5. Free WASM memory
+    instance.exports.dealloc(ptr, data.length);
+}</code></pre>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0xE8</span> SIMD (128-bit Vector Operations)</h3>
+                    <p>WASM SIMD provides 128-bit vector operations that process 4x i32, 4x f32, 2x f64, or 16x i8 values in a single instruction. Supported in all modern browsers.</p>
+
+                    <pre data-label="wat"><code>;; Multiply four f32 values simultaneously
+(func $simd_mul (param $a v128) (param $b v128) (result v128)
+    local.get $a
+    local.get $b
+    f32x4.mul
+)
+
+;; Create a vector from four f32 values
+(func $make_vec (result v128)
+    v128.const f32x4 1.0 2.0 3.0 4.0
+)</code></pre>
+
+                    <pre data-label="c"><code>// C with Emscripten SIMD intrinsics
+#include &lt;wasm_simd128.h>
+
+void add_vectors(float* a, float* b, float* result, int n) {
+    for (int i = 0; i &lt; n; i += 4) {
+        v128_t va = wasm_v128_load(&amp;a[i]);
+        v128_t vb = wasm_v128_load(&amp;b[i]);
+        v128_t vr = wasm_f32x4_add(va, vb);
+        wasm_v128_store(&amp;result[i], vr);
+    }
+}
+// Compile: emcc -msimd128 simd.c -o simd.wasm</code></pre>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0xF0</span> Memory Optimization</h3>
+                    <ul>
+                        <li><strong>Pre-allocate</strong> &mdash; Set <code>initial</code> memory pages to avoid frequent <code>memory.grow</code> calls (each grow zeros new pages and may invalidate ArrayBuffer references)</li>
+                        <li><strong>Struct-of-Arrays</strong> &mdash; For SIMD processing, store data in column-major layout (all x values together, then all y values) rather than interleaved structs</li>
+                        <li><strong>Arena allocation</strong> &mdash; Use bump allocators for short-lived data; avoid per-object malloc/free overhead</li>
+                        <li><strong>Stack allocation</strong> &mdash; Prefer stack-allocated locals over heap allocation for temporary buffers</li>
+                        <li><strong>LTO</strong> &mdash; Enable link-time optimization to eliminate dead code across compilation units</li>
+                    </ul>
+
+                    <pre data-label="rust"><code>// Rust: use wee_alloc for smaller binary size
+#[global_allocator]
+static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
+
+// Use #[inline(always)] for hot functions
+#[inline(always)]
+fn hot_path(x: f64) -> f64 {
+    x * x + 2.0 * x + 1.0
+}
+
+// Compile with LTO and size optimization
+// Cargo.toml:
+// [profile.release]
+// lto = true
+// opt-level = 'z'     # Optimize for size
+// strip = true         # Strip debug symbols</code></pre>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0xF8</span> Binary Size Reduction</h3>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Technique</th>
+                                    <th>Savings</th>
+                                    <th>How</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>wasm-opt -Oz</td>
+                                    <td>10-30%</td>
+                                    <td>Binaryen size optimizer</td>
+                                </tr>
+                                <tr>
+                                    <td>LTO (link-time optimization)</td>
+                                    <td>15-40%</td>
+                                    <td>Eliminates dead code across units</td>
+                                </tr>
+                                <tr>
+                                    <td>Strip debug info</td>
+                                    <td>20-50%</td>
+                                    <td><code>wasm-opt --strip-debug</code></td>
+                                </tr>
+                                <tr>
+                                    <td>wee_alloc (Rust)</td>
+                                    <td>~10 KB</td>
+                                    <td>Smaller allocator vs default</td>
+                                </tr>
+                                <tr>
+                                    <td>gzip / brotli</td>
+                                    <td>60-80%</td>
+                                    <td>WASM compresses extremely well</td>
+                                </tr>
+                                <tr>
+                                    <td>Avoid string formatting</td>
+                                    <td>Varies</td>
+                                    <td><code>format!</code> / <code>println!</code> pull in large code</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <div class="alert-title">Compression Tip</div>
+                        <p>WASM binaries compress exceptionally well (70%+ with Brotli) because of their structured, repetitive encoding. Always serve <code>.wasm</code> files with <code>Content-Encoding: br</code> or <code>gzip</code> in production. A 500 KB binary typically compresses to under 150 KB.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== SECTION 09 ==================== -->
+        <section id="use-cases" class="section">
+            <div class="section-header">
+                <span class="section-number">09</span>
+                <h2 class="section-title">Use Cases</h2>
+            </div>
+            <p class="section-description">Where WASM delivers real value: the workloads that justify the complexity of compiling to a new target.</p>
+
+            <div class="section-content">
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0x100</span> Browser Use Cases</h3>
+                    <div class="command-grid">
+                        <div class="command-card">
+                            <div class="command-card-label">Multimedia</div>
+                            <div class="command-card-title">Image &amp; Video Processing</div>
+                            <p>Photoshop-class filters, video encoding/decoding, real-time effects. Squoosh, FFmpeg.wasm, libheif.</p>
+                        </div>
+                        <div class="command-card">
+                            <div class="command-card-label">Interactive</div>
+                            <div class="command-card-title">Game Engines</div>
+                            <p>Unity, Unreal, Godot all export to WASM. Full 3D engines running in a browser tab at 60fps.</p>
+                        </div>
+                        <div class="command-card">
+                            <div class="command-card-label">Security</div>
+                            <div class="command-card-title">Cryptography</div>
+                            <p>Password hashing (Argon2), symmetric encryption, digital signatures. Constant-time operations without JIT interference.</p>
+                        </div>
+                        <div class="command-card">
+                            <div class="command-card-label">Data</div>
+                            <div class="command-card-title">In-Browser Databases</div>
+                            <p>SQLite compiled to WASM (sql.js), DuckDB-WASM for analytical queries on Parquet files, full Postgres via PGlite.</p>
+                        </div>
+                        <div class="command-card">
+                            <div class="command-card-label">Developer Tools</div>
+                            <div class="command-card-title">Language Runtimes</div>
+                            <p>Python (Pyodide), Ruby (ruby.wasm), PHP, Lua &mdash; entire language runtimes compiled to run in the browser.</p>
+                        </div>
+                        <div class="command-card">
+                            <div class="command-card-label">Productivity</div>
+                            <div class="command-card-title">Desktop Apps in Browser</div>
+                            <p>Figma (C++ &rarr; WASM), AutoCAD Web, Google Earth. Complex native apps ported to the browser.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0x108</span> Server &amp; Edge Use Cases</h3>
+                    <div class="command-grid">
+                        <div class="command-card">
+                            <div class="command-card-label">Serverless</div>
+                            <div class="command-card-title">Edge Functions</div>
+                            <p>Cloudflare Workers, Fastly Compute, Fermyon Spin. Sub-millisecond cold start vs seconds for containers.</p>
+                        </div>
+                        <div class="command-card">
+                            <div class="command-card-label">Extensibility</div>
+                            <div class="command-card-title">Plugin Systems</div>
+                            <p>Envoy proxy filters, database UDFs, game mod systems. Run untrusted user code safely in a sandbox.</p>
+                        </div>
+                        <div class="command-card">
+                            <div class="command-card-label">Portable</div>
+                            <div class="command-card-title">Universal Binaries</div>
+                            <p>Write once in any language, run on any OS/arch. No cross-compilation matrix. <code>wasm32</code> is the universal target.</p>
+                        </div>
+                        <div class="command-card">
+                            <div class="command-card-label">IoT / Embedded</div>
+                            <div class="command-card-title">Tiny Runtimes</div>
+                            <p>WASM interpreters (WAMR, wasm3) run on microcontrollers. Update device logic by swapping a .wasm file.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0x110</span> When NOT to Use WASM</h3>
+                    <div class="alert alert-warning">
+                        <div class="alert-title">WASM Is Not Always Faster</div>
+                        <p>JavaScript V8/SpiderMonkey JITs are remarkably good. For typical web app code (DOM manipulation, event handling, string processing, JSON parsing), JS is often <em>faster</em> than WASM because: (1) no boundary-crossing overhead, (2) the JIT has direct access to browser internals, (3) WASM cannot touch the DOM directly.</p>
+                    </div>
+                    <ul>
+                        <li><strong>DOM-heavy apps</strong> &mdash; WASM cannot manipulate the DOM directly; every DOM call bounces through JS</li>
+                        <li><strong>Simple CRUD / REST APIs</strong> &mdash; The overhead of a WASM runtime on the server outweighs the benefits for I/O-bound work</li>
+                        <li><strong>Small scripts</strong> &mdash; The download + compile time of a .wasm binary may exceed the total JS execution time</li>
+                        <li><strong>String-heavy code</strong> &mdash; WASM linear memory uses raw bytes; encoding/decoding strings across the boundary is expensive</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== SECTION 10 ==================== -->
+        <section id="component-model" class="section">
+            <div class="section-header">
+                <span class="section-number">10</span>
+                <h2 class="section-title">Component Model</h2>
+            </div>
+            <p class="section-description">The next evolution of WASM: a higher-level composition layer that lets modules written in different languages interoperate through shared interface types.</p>
+
+            <div class="section-content">
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0x118</span> The Problem Components Solve</h3>
+                    <p>Core WASM modules can only exchange <code>i32</code>, <code>i64</code>, <code>f32</code>, <code>f64</code>, and raw memory bytes. Passing a string, a list, a record, or an enum requires hand-rolled serialization. The <strong>Component Model</strong> solves this with:</p>
+                    <ul>
+                        <li><strong>WIT</strong> (WebAssembly Interface Types) &mdash; an IDL for defining rich interfaces with strings, lists, records, variants, results, and resources</li>
+                        <li><strong>Canonical ABI</strong> &mdash; a standard binary layout for complex types in linear memory</li>
+                        <li><strong>Composition</strong> &mdash; linking components together (e.g., a Rust HTTP handler + a Python ML model) into a single portable unit</li>
+                    </ul>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0x120</span> WIT &mdash; Interface Definition</h3>
+                    <pre data-label="wit"><code>// greeter.wit — defines a component interface
+package example:greeter@1.0.0;
+
+interface greet {
+    // A record (struct) with named fields
+    record greeting {
+        message: string,
+        language: string,
+    }
+
+    // A variant (tagged union)
+    variant greeting-style {
+        formal,
+        casual,
+        custom(string),
+    }
+
+    // Functions
+    greet: func(name: string, style: greeting-style) -> greeting;
+    greet-many: func(names: list&lt;string>) -> list&lt;greeting>;
+}
+
+// The world defines what a component imports and exports
+world greeter-world {
+    import wasi:logging/logging;
+    export greet;
+}</code></pre>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0x128</span> Building Components</h3>
+                    <pre data-label="shell"><code># Install component tooling
+cargo install cargo-component    # Rust component builder
+cargo install wasm-tools         # Component composition tools
+
+# Create a new component project (Rust)
+cargo component new my-greeter
+cd my-greeter
+
+# Build a component (produces .wasm with component metadata)
+cargo component build --release
+
+# Compose two components (wire exports to imports)
+wasm-tools compose handler.wasm --adapt ml-model.wasm -o composed.wasm
+
+# Inspect a component's WIT interface
+wasm-tools component wit composed.wasm</code></pre>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0x130</span> WASI 0.2 + Components</h3>
+                    <p>WASI Preview 2 (WASI 0.2) is built entirely on the Component Model. Instead of POSIX-style flat function imports, WASI 0.2 defines interfaces in WIT:</p>
+                    <ul>
+                        <li><code>wasi:filesystem/types</code> &mdash; file and directory operations</li>
+                        <li><code>wasi:sockets/tcp</code> &mdash; TCP stream sockets</li>
+                        <li><code>wasi:http/incoming-handler</code> &mdash; HTTP request handling</li>
+                        <li><code>wasi:clocks/monotonic-clock</code> &mdash; timing and measurement</li>
+                        <li><code>wasi:random/random</code> &mdash; cryptographic randomness</li>
+                        <li><code>wasi:cli/environment</code> &mdash; environment variables and args</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== SECTION 11 ==================== -->
+        <section id="threads" class="section">
+            <div class="section-header">
+                <span class="section-number">11</span>
+                <h2 class="section-title">Threads &amp; Shared Memory</h2>
+            </div>
+            <p class="section-description">WASM threads enable true parallelism through shared linear memory and atomic operations, mirroring the pthreads model inside the browser.</p>
+
+            <div class="section-content">
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0x138</span> How WASM Threads Work</h3>
+                    <p>WASM threads are built on Web Workers. Multiple workers share the same <code>WebAssembly.Memory</code> (backed by a <code>SharedArrayBuffer</code>), and synchronize via <strong>atomic instructions</strong>.</p>
+
+                    <div class="flow-steps">
+                        <div class="flow-step">Main Thread</div>
+                        <span class="flow-arrow">&rarr;</span>
+                        <div class="flow-step">SharedArrayBuffer</div>
+                        <span class="flow-arrow">&larr;</span>
+                        <div class="flow-step">Web Worker 1</div>
+                    </div>
+                    <div class="flow-steps">
+                        <div class="flow-step">SharedArrayBuffer</div>
+                        <span class="flow-arrow">&larr;</span>
+                        <div class="flow-step">Web Worker 2</div>
+                        <span class="flow-arrow">&larr;</span>
+                        <div class="flow-step">Web Worker N</div>
+                    </div>
+
+                    <pre data-label="javascript"><code>// Create shared memory (required headers: COOP + COEP)
+const memory = new WebAssembly.Memory({
+    initial: 256,
+    maximum: 512,
+    shared: true      // Backed by SharedArrayBuffer
+});
+
+// Main thread: instantiate and spawn workers
+const { instance } = await WebAssembly.instantiateStreaming(
+    fetch('threaded.wasm'),
+    { env: { memory } }
+);
+
+// Spawn worker threads
+for (let i = 0; i &lt; navigator.hardwareConcurrency; i++) {
+    const worker = new Worker('worker.js');
+    worker.postMessage({ memory, wasmBytes });
+}</code></pre>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0x140</span> Required HTTP Headers</h3>
+                    <div class="alert alert-danger">
+                        <div class="alert-title">Cross-Origin Isolation Required</div>
+                        <p><code>SharedArrayBuffer</code> (and therefore WASM threads) requires these HTTP response headers on your page. Without them, the browser will refuse to create shared memory.</p>
+                    </div>
+
+                    <pre data-label="http headers"><code>Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Embedder-Policy: require-corp</code></pre>
+
+                    <pre data-label="nginx"><code># nginx configuration
+add_header Cross-Origin-Opener-Policy same-origin always;
+add_header Cross-Origin-Embedder-Policy require-corp always;</code></pre>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0x148</span> Atomic Operations</h3>
+                    <pre data-label="wat"><code>;; Atomic operations on shared memory
+memory.atomic.wait32    ;; Block until memory location changes (futex)
+memory.atomic.notify    ;; Wake waiting threads
+i32.atomic.load         ;; Atomic load (seq_cst)
+i32.atomic.store        ;; Atomic store
+i32.atomic.rmw.add      ;; Atomic read-modify-write add
+i32.atomic.rmw.cmpxchg  ;; Compare-and-swap
+
+;; Example: atomic increment
+(func $atomic_inc (param $addr i32) (result i32)
+    (i32.atomic.rmw.add (local.get $addr) (i32.const 1))
+)</code></pre>
+
+                    <pre data-label="c"><code>// C with Emscripten pthreads
+#include &lt;pthread.h>
+#include &lt;stdatomic.h>
+
+atomic_int counter = 0;
+
+void* worker(void* arg) {
+    for (int i = 0; i &lt; 1000000; i++) {
+        atomic_fetch_add(&amp;counter, 1);
+    }
+    return NULL;
+}
+
+// Compile: emcc -pthread -sPTHREAD_POOL_SIZE=4 threads.c -o threads.js</code></pre>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== SECTION 12 ==================== -->
+        <section id="debugging" class="section">
+            <div class="section-header">
+                <span class="section-number">12</span>
+                <h2 class="section-title">Debugging &amp; Tooling</h2>
+            </div>
+            <p class="section-description">Debugging WASM at the source level, profiling hot paths, and the developer tool ecosystem.</p>
+
+            <div class="section-content">
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0x150</span> Chrome DevTools DWARF Debugging</h3>
+                    <p>Chrome DevTools supports source-level debugging of WASM via DWARF debug info. You can set breakpoints, inspect variables, and step through C/C++/Rust source code in the browser.</p>
+
+                    <ol>
+                        <li>Install the <strong>C/C++ DevTools Support (DWARF)</strong> Chrome extension</li>
+                        <li>Compile with debug info: <code>emcc -g app.c -o app.js</code> or <code>cargo build --target wasm32-unknown-unknown</code> (debug profile)</li>
+                        <li>Open DevTools &rarr; Sources &rarr; set breakpoints in your C/Rust source files</li>
+                        <li>Inspect local variables, step in/out/over, view call stack</li>
+                    </ol>
+
+                    <pre data-label="shell"><code># Emscripten: full debug info + source maps
+emcc -g4 -gsource-map app.c -o app.js
+
+# Rust: keep debug info in release (for profiling)
+# Cargo.toml
+[profile.release]
+debug = 1    # Line tables only (minimal size impact)</code></pre>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0x158</span> Console Logging from WASM</h3>
+                    <pre data-label="rust"><code>// Rust: use web-sys or console_log crate
+use web_sys::console;
+
+pub fn debug_log(msg: &amp;str) {
+    console::log_1(&amp;msg.into());
+}
+
+// Or use the console_log crate for println!-style macros
+// console_log::init_with_level(log::Level::Debug).unwrap();
+// log::info!("WASM initialized with {} bytes", size);</code></pre>
+
+                    <pre data-label="c"><code>// C: Emscripten provides printf &rarr; console.log
+#include &lt;stdio.h>
+#include &lt;emscripten.h>
+
+// Direct JavaScript call
+EM_JS(void, console_warn, (const char* msg), {
+    console.warn(UTF8ToString(msg));
+});
+
+printf("Debug: value = %d\n", x);  // Goes to console.log
+console_warn("Watch out!");         // Goes to console.warn</code></pre>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0x160</span> Profiling</h3>
+                    <ul>
+                        <li><strong>Chrome Performance tab</strong> &mdash; WASM functions appear in flame charts (with names if Name section is present)</li>
+                        <li><strong>Firefox Profiler</strong> &mdash; Excellent WASM support, shows function names and time-per-function</li>
+                        <li><strong><code>performance.measure()</code></strong> &mdash; Bracket WASM calls with JS performance markers for custom timing</li>
+                        <li><strong><code>console.time()</code></strong> &mdash; Quick benchmarking: <code>console.time('wasm'); f(); console.timeEnd('wasm');</code></li>
+                    </ul>
+
+                    <pre data-label="javascript"><code>// Benchmark a WASM function
+function benchmark(fn, iterations = 1000) {
+    // Warmup (let JIT/AOT settle)
+    for (let i = 0; i &lt; 100; i++) fn();
+
+    const start = performance.now();
+    for (let i = 0; i &lt; iterations; i++) fn();
+    const elapsed = performance.now() - start;
+
+    console.log(`${iterations} iterations in ${elapsed.toFixed(2)}ms`);
+    console.log(`${(elapsed / iterations).toFixed(4)}ms per call`);
+}</code></pre>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0x168</span> Inspection Tools</h3>
+                    <div class="command-grid">
+                        <div class="command-card">
+                            <div class="command-card-label">CLI</div>
+                            <div class="command-card-title">wasm-objdump</div>
+                            <p>Print section info, imports, exports, disassembly.</p>
+                            <code>wasm-objdump -dhx module.wasm</code>
+                        </div>
+                        <div class="command-card">
+                            <div class="command-card-label">CLI</div>
+                            <div class="command-card-title">twiggy</div>
+                            <p>Code size profiler &mdash; find what makes your .wasm large.</p>
+                            <code>twiggy top module.wasm</code>
+                        </div>
+                        <div class="command-card">
+                            <div class="command-card-label">Web</div>
+                            <div class="command-card-title">WebAssembly Code Explorer</div>
+                            <p>Visualize binary structure, section layout, function bodies in the browser.</p>
+                        </div>
+                        <div class="command-card">
+                            <div class="command-card-label">CLI</div>
+                            <div class="command-card-title">wasm-decompile</div>
+                            <p>Decompile to pseudo-C (more readable than WAT for large modules).</p>
+                            <code>wasm-decompile module.wasm -o readable.dcmp</code>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title"><span class="addr">0x170</span> Common Errors &amp; Fixes</h3>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Error</th>
+                                    <th>Cause</th>
+                                    <th>Fix</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><code>CompileError: magic header not detected</code></td>
+                                    <td>Fetched HTML instead of .wasm (404 page)</td>
+                                    <td>Check fetch URL, verify .wasm MIME type</td>
+                                </tr>
+                                <tr>
+                                    <td><code>LinkError: import not found</code></td>
+                                    <td>importObject missing required function</td>
+                                    <td>Check <code>wasm-objdump -j Import</code> for required imports</td>
+                                </tr>
+                                <tr>
+                                    <td><code>RuntimeError: unreachable</code></td>
+                                    <td>WASM hit <code>unreachable</code> instruction (panic/abort)</td>
+                                    <td>Check for Rust panics, C++ exceptions, or assertion failures</td>
+                                </tr>
+                                <tr>
+                                    <td><code>RuntimeError: out of bounds memory</code></td>
+                                    <td>Read/write past memory.buffer.byteLength</td>
+                                    <td>Increase <code>initial</code> pages or enable <code>ALLOW_MEMORY_GROWTH</code></td>
+                                </tr>
+                                <tr>
+                                    <td><code>TypeError: Incorrect response MIME type</code></td>
+                                    <td><code>instantiateStreaming</code> needs <code>application/wasm</code></td>
+                                    <td>Configure server: <code>AddType application/wasm .wasm</code></td>
+                                </tr>
+                                <tr>
+                                    <td>Detached ArrayBuffer</td>
+                                    <td><code>memory.grow()</code> invalidates old buffer reference</td>
+                                    <td>Re-read <code>memory.buffer</code> after every grow call</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Decorative hex line -->
+        <div class="hex-line">
+            <span class="addr">0x0178</span> <span class="bytes">45 4E 44 20 4F 46 20 47 55 49 44 45</span> <span class="ascii">END OF GUIDE</span>
+        </div>
+
+        <footer class="site-footer">
+            <a href="index.html">Back to Tech Guides</a>
+            <div class="footer-hex">00 61 73 6D 01 00 00 00 &mdash; The magic bytes that started it all</div>
+        </footer>
+    </div>
+
+<script defer src="../prompt-viewer.js"></script>
+</body>
+</html>

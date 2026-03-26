@@ -1,0 +1,1289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Proof &mdash; A Chalkboard Interactive Story</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Permanent+Marker&family=Kalam:wght@300;400;700&family=Architects+Daughter&family=Patrick+Hand&display=swap" rel="stylesheet">
+    <style>
+        /* ═══════════════════════════════════════════
+           CHALKBOARD — CSS ADAPTED FROM STYLE GUIDE
+        ═══════════════════════════════════════════ */
+        :root {
+            --board-dark: #1a2a1a;
+            --board-green: #2d4a3e;
+            --board-green-light: #3d5a4e;
+            --board-frame: #5c4033;
+            --board-frame-light: #7a5a43;
+            --board-frame-dark: #3d2a1f;
+
+            --chalk-white: #f5f5f0;
+            --chalk-white-faded: rgba(245, 245, 240, 0.7);
+            --chalk-white-ghost: rgba(245, 245, 240, 0.3);
+            --chalk-yellow: #f7e98e;
+            --chalk-yellow-faded: rgba(247, 233, 142, 0.7);
+            --chalk-pink: #f4a5c0;
+            --chalk-pink-faded: rgba(244, 165, 192, 0.7);
+            --chalk-blue: #87ceeb;
+            --chalk-blue-faded: rgba(135, 206, 235, 0.7);
+            --chalk-orange: #ffb366;
+            --chalk-green: #90ee90;
+
+            --font-display: 'Permanent Marker', cursive;
+            --font-heading: 'Kalam', cursive;
+            --font-body: 'Architects Daughter', cursive;
+            --font-handwritten: 'Patrick Hand', cursive;
+
+            --space-1: 4px;
+            --space-2: 8px;
+            --space-3: 12px;
+            --space-4: 16px;
+            --space-5: 24px;
+            --space-6: 32px;
+            --space-7: 48px;
+            --space-8: 64px;
+
+            --chalk-dust-svg: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.08'/%3E%3C/svg%3E");
+
+            --transition-fast: 0.15s ease-out;
+            --transition-base: 0.25s ease-out;
+            --transition-slow: 0.5s ease-out;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html { font-size: 16px; scroll-behavior: smooth; }
+
+        body {
+            font-family: var(--font-body);
+            font-size: 1.05rem;
+            line-height: 1.7;
+            color: var(--chalk-white);
+            background-color: var(--board-green);
+            background-image:
+                var(--chalk-dust-svg),
+                radial-gradient(ellipse at 30% 20%, var(--board-green-light) 0%, transparent 50%),
+                radial-gradient(ellipse at 70% 80%, var(--board-green-light) 0%, transparent 40%),
+                linear-gradient(180deg, var(--board-dark) 0%, var(--board-green) 5%, var(--board-green) 95%, var(--board-dark) 100%);
+            min-height: 100vh;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Wooden frame border */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            border: 16px solid var(--board-frame);
+            border-image: linear-gradient(135deg, var(--board-frame-light) 0%, var(--board-frame) 25%, var(--board-frame-dark) 50%, var(--board-frame) 75%, var(--board-frame-light) 100%) 1;
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        /* Chalk tray */
+        body::after {
+            content: '';
+            position: fixed;
+            bottom: 0; left: 16px; right: 16px;
+            height: 12px;
+            background: linear-gradient(to bottom, var(--board-frame-dark) 0%, var(--board-frame) 30%, var(--board-frame-light) 100%);
+            z-index: 1001;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        /* ═══════════════════════════════════════════
+           CHALK DUST PARTICLES (canvas overlay)
+        ═══════════════════════════════════════════ */
+        #dustCanvas {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 999;
+            opacity: 0.6;
+        }
+
+        /* ═══════════════════════════════════════════
+           GAME CONTAINER
+        ═══════════════════════════════════════════ */
+        .game-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2.5rem 2rem 4rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        .back-to-stories {
+            display: inline-block;
+            color: var(--chalk-white-ghost);
+            text-decoration: none;
+            font-family: var(--font-body);
+            font-size: 0.9rem;
+            margin-bottom: 2rem;
+            transition: color var(--transition-base);
+        }
+        .back-to-stories:hover { color: var(--chalk-white); }
+        .back-to-stories::before { content: '\2190  '; }
+
+        /* ═══════════════════════════════════════════
+           TITLE SCREEN
+        ═══════════════════════════════════════════ */
+        .title-screen {
+            text-align: center;
+            padding: 6rem 1rem 4rem;
+            animation: fadeChalkIn 1.5s ease-out;
+        }
+
+        @keyframes fadeChalkIn {
+            0% { opacity: 0; filter: blur(2px); }
+            100% { opacity: 1; filter: blur(0); }
+        }
+
+        .title-screen h1 {
+            font-family: var(--font-display);
+            font-size: 3.5rem;
+            color: var(--chalk-white);
+            text-shadow:
+                0 0 10px rgba(245, 245, 240, 0.3),
+                2px 2px 0 rgba(0, 0, 0, 0.3);
+            margin-bottom: 0.5rem;
+            letter-spacing: 2px;
+        }
+
+        .title-subtitle {
+            font-family: var(--font-heading);
+            color: var(--chalk-yellow);
+            font-size: 1.3rem;
+            margin-bottom: 0.5rem;
+            opacity: 0.9;
+        }
+
+        .title-tagline {
+            font-family: var(--font-body);
+            color: var(--chalk-white-faded);
+            font-size: 1rem;
+            margin-bottom: 3rem;
+            max-width: 500px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .title-equation {
+            font-family: var(--font-handwritten);
+            font-size: 2rem;
+            color: var(--chalk-yellow);
+            margin-bottom: 2.5rem;
+            text-shadow: 0 0 8px rgba(247, 233, 142, 0.3);
+            animation: chalkWrite 2s ease-out;
+        }
+
+        @keyframes chalkWrite {
+            0% { clip-path: inset(0 100% 0 0); opacity: 0; }
+            100% { clip-path: inset(0 0 0 0); opacity: 1; }
+        }
+
+        .start-btn {
+            font-family: var(--font-display);
+            font-size: 1.2rem;
+            color: var(--board-green);
+            background: var(--chalk-white);
+            border: none;
+            padding: 0.8rem 2.5rem;
+            cursor: pointer;
+            letter-spacing: 1px;
+            transition: all var(--transition-base);
+            position: relative;
+        }
+
+        .start-btn:hover {
+            background: var(--chalk-yellow);
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(247, 233, 142, 0.4);
+        }
+
+        .start-btn::before,
+        .start-btn::after {
+            content: '';
+            position: absolute;
+            width: 40px; height: 2px;
+            background: var(--chalk-white-faded);
+            top: 50%;
+        }
+        .start-btn::before { left: -50px; }
+        .start-btn::after { right: -50px; }
+
+        /* ═══════════════════════════════════════════
+           SCENE WRAPPER
+        ═══════════════════════════════════════════ */
+        .scene-wrapper {
+            display: none;
+        }
+
+        .scene-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: var(--space-4);
+            margin-bottom: var(--space-5);
+            border-bottom: 2px dashed var(--chalk-white-ghost);
+            font-family: var(--font-heading);
+        }
+
+        .scene-era {
+            font-size: 0.85rem;
+            color: var(--chalk-yellow);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .scene-year {
+            font-size: 1rem;
+            color: var(--chalk-blue);
+            font-weight: 700;
+        }
+
+        .scene-progress {
+            font-size: 0.8rem;
+            color: var(--chalk-white-ghost);
+        }
+
+        /* ═══════════════════════════════════════════
+           SCENE TYPES
+        ═══════════════════════════════════════════ */
+        #sceneContent {
+            animation: sceneEnter 0.6s ease-out;
+        }
+
+        @keyframes sceneEnter {
+            0% { opacity: 0; transform: translateY(10px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+
+        .scene-narration {
+            font-size: 1.05rem;
+            line-height: 1.8;
+        }
+
+        .scene-narration p {
+            margin-bottom: 1.2rem;
+            color: var(--chalk-white-faded);
+        }
+
+        .scene-narration .chalk-highlight {
+            color: var(--chalk-yellow);
+            font-weight: 700;
+        }
+
+        .scene-narration .chalk-blue {
+            color: var(--chalk-blue);
+        }
+
+        .scene-narration .chalk-pink {
+            color: var(--chalk-pink);
+        }
+
+        .scene-narration .chalk-orange {
+            color: var(--chalk-orange);
+        }
+
+        .scene-narration .chalk-green-text {
+            color: var(--chalk-green);
+        }
+
+        .scene-investigation {
+            font-size: 1.05rem;
+            line-height: 1.8;
+        }
+
+        .scene-investigation p {
+            margin-bottom: 1.2rem;
+            color: var(--chalk-white-faded);
+        }
+
+        .scene-confrontation {
+            font-size: 1.05rem;
+            line-height: 1.8;
+        }
+
+        .scene-confrontation p {
+            margin-bottom: 1.2rem;
+            color: var(--chalk-white-faded);
+        }
+
+        .scene-ending {
+            font-size: 1.1rem;
+            line-height: 1.9;
+            text-align: center;
+            padding: 2rem 0;
+        }
+
+        .scene-ending p {
+            margin-bottom: 1.2rem;
+            color: var(--chalk-white-faded);
+        }
+
+        /* ═══════════════════════════════════════════
+           CHALKBOARD EQUATION BLOCKS
+        ═══════════════════════════════════════════ */
+        .chalk-equation {
+            font-family: var(--font-handwritten);
+            font-size: 1.6rem;
+            color: var(--chalk-white);
+            text-align: center;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            border: 1px dashed var(--chalk-white-ghost);
+            position: relative;
+            text-shadow: 0 0 6px rgba(245, 245, 240, 0.2);
+            animation: equationAppear 1.2s ease-out;
+        }
+
+        @keyframes equationAppear {
+            0% { clip-path: inset(0 100% 0 0); opacity: 0; }
+            40% { opacity: 1; }
+            100% { clip-path: inset(0 0 0 0); opacity: 1; }
+        }
+
+        .chalk-equation.yellow {
+            color: var(--chalk-yellow);
+            border-color: var(--chalk-yellow-faded);
+        }
+
+        .chalk-equation.blue {
+            color: var(--chalk-blue);
+            border-color: var(--chalk-blue-faded);
+        }
+
+        .chalk-equation.pink {
+            color: var(--chalk-pink);
+            border-color: var(--chalk-pink-faded);
+        }
+
+        .chalk-equation sup {
+            font-size: 0.7em;
+            vertical-align: super;
+        }
+
+        /* ═══════════════════════════════════════════
+           CHALK DIAGRAM / FIGURE BOXES
+        ═══════════════════════════════════════════ */
+        .chalk-diagram {
+            text-align: center;
+            padding: 1.2rem;
+            margin: 1.5rem 0;
+            border: 2px solid var(--chalk-white-ghost);
+            position: relative;
+            font-family: var(--font-handwritten);
+        }
+
+        .chalk-diagram::before {
+            content: '';
+            position: absolute;
+            top: -1px; left: -1px; right: -1px; bottom: -1px;
+            background: var(--chalk-dust-svg);
+            opacity: 0.15;
+            pointer-events: none;
+        }
+
+        .chalk-diagram .diagram-label {
+            font-size: 0.85rem;
+            color: var(--chalk-white-ghost);
+            margin-top: 0.5rem;
+        }
+
+        /* ═══════════════════════════════════════════
+           ERASED / SMUDGE EFFECT
+        ═══════════════════════════════════════════ */
+        .chalk-erased {
+            position: relative;
+            display: inline;
+            cursor: pointer;
+        }
+
+        .chalk-erased .erased-text {
+            color: var(--chalk-white-ghost);
+            text-decoration: line-through;
+            text-decoration-color: var(--chalk-white-ghost);
+            filter: blur(1px);
+            transition: all 0.4s ease;
+        }
+
+        .chalk-erased .revealed-text {
+            display: none;
+            color: var(--chalk-yellow);
+            font-weight: 700;
+        }
+
+        .chalk-erased.revealed .erased-text {
+            display: none;
+        }
+
+        .chalk-erased.revealed .revealed-text {
+            display: inline;
+            animation: chalkReveal 0.5s ease-out;
+        }
+
+        @keyframes chalkReveal {
+            0% { opacity: 0; filter: blur(3px); }
+            100% { opacity: 1; filter: blur(0); }
+        }
+
+        /* ═══════════════════════════════════════════
+           SPEAKER QUOTE (dialogue)
+        ═══════════════════════════════════════════ */
+        .chalk-quote {
+            padding: 1rem 1.5rem;
+            margin: 1.2rem 0;
+            border-left: 3px solid var(--chalk-yellow);
+            font-style: italic;
+            color: var(--chalk-white);
+        }
+
+        .chalk-quote .speaker {
+            display: block;
+            font-style: normal;
+            font-family: var(--font-heading);
+            font-size: 0.85rem;
+            color: var(--chalk-yellow-faded);
+            margin-top: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* ═══════════════════════════════════════════
+           FACT SIDEBAR
+        ═══════════════════════════════════════════ */
+        .chalk-fact-box {
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--chalk-blue-faded);
+            padding: 1rem 1.2rem;
+            margin: 1.5rem 0;
+            font-size: 0.95rem;
+            color: var(--chalk-blue);
+            position: relative;
+        }
+
+        .chalk-fact-box::before {
+            content: 'FACT';
+            position: absolute;
+            top: -10px; left: 12px;
+            font-family: var(--font-display);
+            font-size: 0.7rem;
+            color: var(--board-green);
+            background: var(--chalk-blue);
+            padding: 0 6px;
+            letter-spacing: 2px;
+        }
+
+        /* ═══════════════════════════════════════════
+           CHOICES
+        ═══════════════════════════════════════════ */
+        .choices {
+            margin-top: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .choice-btn {
+            font-family: var(--font-heading);
+            font-size: 1.05rem;
+            color: var(--chalk-white);
+            background: transparent;
+            border: 2px solid var(--chalk-white-ghost);
+            padding: 0.9rem 1.2rem;
+            cursor: pointer;
+            text-align: left;
+            transition: all var(--transition-base);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .choice-btn::before {
+            content: attr(data-key);
+            display: inline-block;
+            width: 28px; height: 28px;
+            line-height: 28px;
+            text-align: center;
+            background: var(--chalk-white-ghost);
+            color: var(--chalk-white);
+            font-family: var(--font-display);
+            font-size: 0.75rem;
+            margin-right: 0.75rem;
+            flex-shrink: 0;
+        }
+
+        .choice-btn:hover {
+            border-color: var(--chalk-yellow);
+            color: var(--chalk-yellow);
+            background: rgba(247, 233, 142, 0.05);
+            transform: translateX(4px);
+        }
+
+        .choice-btn:hover::before {
+            background: var(--chalk-yellow);
+            color: var(--board-green);
+        }
+
+        /* ═══════════════════════════════════════════
+           CLUE TRACKER (collected theorems)
+        ═══════════════════════════════════════════ */
+        .clue-tracker {
+            margin-top: 2.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px dashed var(--chalk-white-ghost);
+        }
+
+        .clue-tracker h3 {
+            font-family: var(--font-display);
+            font-size: 0.85rem;
+            color: var(--chalk-white-ghost);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-bottom: 0.75rem;
+        }
+
+        .clue-list {
+            list-style: none;
+        }
+
+        .clue-list li {
+            font-family: var(--font-body);
+            font-size: 0.85rem;
+            color: var(--chalk-white-ghost);
+            padding: 0.3rem 0;
+            padding-left: 1.2rem;
+            position: relative;
+        }
+
+        .clue-list li::before {
+            content: '\2713';
+            position: absolute;
+            left: 0;
+            color: var(--chalk-green);
+            font-weight: bold;
+        }
+
+        .clue-list li.new-clue {
+            animation: clueAppear 0.5s ease-out;
+            color: var(--chalk-yellow);
+        }
+
+        @keyframes clueAppear {
+            0% { opacity: 0; transform: translateX(-10px); }
+            100% { opacity: 1; transform: translateX(0); }
+        }
+
+        /* ═══════════════════════════════════════════
+           CHALK LINE DRAWING EFFECTS
+        ═══════════════════════════════════════════ */
+        .chalk-underline {
+            text-decoration: none;
+            background-image: linear-gradient(to right, var(--chalk-yellow) 0%, var(--chalk-yellow) 100%);
+            background-position: 0 1.15em;
+            background-size: 100% 2px;
+            background-repeat: no-repeat;
+        }
+
+        .chalk-box {
+            display: inline-block;
+            border: 2px solid var(--chalk-white-faded);
+            padding: 0.2rem 0.6rem;
+            margin: 0 0.2rem;
+            position: relative;
+        }
+
+        .chalk-strikethrough {
+            text-decoration: line-through;
+            text-decoration-color: var(--chalk-pink);
+            opacity: 0.6;
+        }
+
+        /* ═══════════════════════════════════════════
+           INTERACTIVE ERASABLE ELEMENTS
+        ═══════════════════════════════════════════ */
+        .erasable {
+            position: relative;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .erasable::after {
+            content: '(tap to erase)';
+            display: block;
+            font-size: 0.7rem;
+            color: var(--chalk-white-ghost);
+            text-align: center;
+            margin-top: 0.3rem;
+            font-family: var(--font-body);
+        }
+
+        .erasable.erased {
+            opacity: 0.15;
+            filter: blur(2px);
+            transform: scale(0.98);
+        }
+
+        .erasable.erased::after {
+            content: '(erased)';
+            filter: blur(0);
+            opacity: 1;
+        }
+
+        /* ═══════════════════════════════════════════
+           RESPONSIVE
+        ═══════════════════════════════════════════ */
+        @media (max-width: 768px) {
+            body::before { border-width: 10px; }
+            body::after { left: 10px; right: 10px; height: 8px; }
+
+            .game-container { padding: 1.5rem 1rem 3rem; }
+
+            .title-screen { padding: 3rem 0.5rem 2rem; }
+            .title-screen h1 { font-size: 2.2rem; }
+            .title-equation { font-size: 1.4rem; }
+
+            .start-btn::before,
+            .start-btn::after { display: none; }
+
+            .chalk-equation { font-size: 1.2rem; padding: 1rem; }
+
+            .scene-header { flex-wrap: wrap; gap: 0.5rem; }
+        }
+
+        @media (max-width: 480px) {
+            .title-screen h1 { font-size: 1.8rem; }
+            .title-subtitle { font-size: 1rem; }
+            .chalk-equation { font-size: 1rem; }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="dustCanvas"></canvas>
+
+    <div class="game-container">
+        <!-- Title Screen -->
+        <div class="title-screen" id="titleScreen">
+            <a href="../index.html" class="back-to-stories">Stories</a>
+            <h1>The Proof</h1>
+            <div class="title-subtitle">Fermat's Last Theorem &mdash; 358 Years of Obsession</div>
+            <p class="title-tagline">In 1637, Pierre de Fermat scribbled a tantalizing note in the margin of a book. In 1993, Andrew Wiles emerged from seven years of secret work to attempt the impossible.</p>
+            <div class="title-equation">x<sup>n</sup> + y<sup>n</sup> = z<sup>n</sup> &nbsp; has no solutions for n &gt; 2</div>
+            <button class="start-btn" onclick="engine.start()">Begin the Proof</button>
+        </div>
+
+        <!-- Scene Display -->
+        <div class="scene-wrapper" id="sceneWrapper">
+            <div class="scene-header">
+                <span class="scene-era" id="sceneEra"></span>
+                <span class="scene-year" id="sceneYear"></span>
+                <span class="scene-progress" id="sceneProgress"></span>
+            </div>
+            <div id="sceneContent"></div>
+            <div id="choicesContainer" class="choices"></div>
+            <div class="clue-tracker" id="clueTracker">
+                <h3>Theorems &amp; Facts Collected</h3>
+                <ul class="clue-list" id="clueList"></ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /* ═══════════════════════════════════════════
+           CHALK DUST PARTICLE SYSTEM
+        ═══════════════════════════════════════════ */
+        (function() {
+            const canvas = document.getElementById('dustCanvas');
+            const ctx = canvas.getContext('2d');
+            let particles = [];
+            const PARTICLE_COUNT = 35;
+
+            function resize() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            }
+            resize();
+            window.addEventListener('resize', resize);
+
+            function createParticle() {
+                return {
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    size: Math.random() * 2 + 0.5,
+                    speedX: (Math.random() - 0.5) * 0.3,
+                    speedY: -Math.random() * 0.2 - 0.05,
+                    opacity: Math.random() * 0.4 + 0.1,
+                    life: Math.random() * 200 + 100,
+                    maxLife: 0
+                };
+            }
+
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
+                const p = createParticle();
+                p.maxLife = p.life;
+                particles.push(p);
+            }
+
+            function animate() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                particles.forEach((p, i) => {
+                    p.x += p.speedX;
+                    p.y += p.speedY;
+                    p.life--;
+
+                    const fade = p.life / p.maxLife;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(245, 245, 240, ${p.opacity * fade})`;
+                    ctx.fill();
+
+                    if (p.life <= 0 || p.x < 0 || p.x > canvas.width || p.y < 0) {
+                        const np = createParticle();
+                        np.y = canvas.height + 10;
+                        np.maxLife = np.life;
+                        particles[i] = np;
+                    }
+                });
+                requestAnimationFrame(animate);
+            }
+            animate();
+        })();
+
+        /* ═══════════════════════════════════════════
+           STORY DATA — FERMAT'S LAST THEOREM
+        ═══════════════════════════════════════════ */
+        const STORY = {
+            intro: {
+                year: '1637',
+                era: 'THE MARGIN',
+                content: `<div class="scene-narration">
+                    <p>A leather-bound copy of Diophantus' <span class="chalk-highlight">Arithmetica</span> lies open on a desk in Toulouse, France. The year is 1637. Pierre de Fermat, a lawyer by trade and mathematician by passion, is reading about Pythagorean triples &mdash; whole numbers where <span class="chalk-blue">a&sup2; + b&sup2; = c&sup2;</span>.</p>
+
+                    <div class="chalk-equation">
+                        3&sup2; + 4&sup2; = 5&sup2; &nbsp;&nbsp; &bull; &nbsp;&nbsp; 5&sup2; + 12&sup2; = 13&sup2; &nbsp;&nbsp; &bull; &nbsp;&nbsp; 8&sup2; + 15&sup2; = 17&sup2;
+                    </div>
+
+                    <p>Fermat wonders: what if you raise the power higher? Can you find whole numbers where <span class="chalk-highlight">x&sup3; + y&sup3; = z&sup3;</span>? Or x&#x2074; + y&#x2074; = z&#x2074;? He tries. And tries. Nothing works.</p>
+
+                    <p>Then he picks up his quill and writes in the margin of the book &mdash; the most famous note in the history of mathematics:</p>
+
+                    <div class="chalk-quote">
+                        "I have discovered a truly marvellous proof of this, which this margin is too narrow to contain."
+                        <span class="speaker">&mdash; Pierre de Fermat, 1637</span>
+                    </div>
+
+                    <div class="chalk-fact-box">Fermat claimed that x<sup>n</sup> + y<sup>n</sup> = z<sup>n</sup> has no whole-number solutions when n is greater than 2. This single sentence would haunt mathematicians for 358 years.</div>
+                </div>`,
+                fact: 'Fermat wrote his famous conjecture in the margin of Diophantus\' Arithmetica in 1637, claiming a proof "too large to fit."',
+                choices: [
+                    { text: 'Follow the early attempts to prove it', next: 'early_attempts' },
+                    { text: 'Jump ahead to the 20th century quest', next: 'taniyama_shimura' }
+                ]
+            },
+
+            early_attempts: {
+                year: '1753',
+                era: 'THE LONG STRUGGLE',
+                content: `<div class="scene-narration">
+                    <p>After Fermat's death in 1665, his son published the <span class="chalk-highlight">Arithmetica</span> with all of Fermat's margin notes. Mathematicians raced to prove or disprove the conjecture.</p>
+
+                    <p><span class="chalk-blue">Leonhard Euler</span>, the most prolific mathematician in history, tackled the case n = 3 in 1753. He proved that <span class="chalk-highlight">x&sup3; + y&sup3; = z&sup3;</span> has no whole number solutions &mdash; but his proof had a subtle gap that took 150 years to fix.</p>
+
+                    <div class="chalk-equation yellow">
+                        n = 3 &nbsp; &#x2713; Euler (1753) &nbsp;&nbsp;&bull;&nbsp;&nbsp; n = 5 &nbsp; &#x2713; Dirichlet &amp; Legendre (1825)
+                    </div>
+
+                    <p>By 1825, <span class="chalk-blue">Peter Gustav Lejeune Dirichlet</span> and <span class="chalk-blue">Adrien-Marie Legendre</span> independently proved the case n = 5. In 1839, <span class="chalk-blue">Gabriel Lam&eacute;</span> proved n = 7.</p>
+
+                    <p>But proving it case by case was hopeless. There are <span class="chalk-pink">infinitely many</span> values of n. Someone needed a completely different approach.</p>
+
+                    <div class="chalk-fact-box">Sophie Germain (1776&ndash;1831), one of the few women in mathematics at the time, proved Fermat's theorem for an entire class of prime numbers now called "Sophie Germain primes," advancing the problem further than anyone in her era.</div>
+                </div>`,
+                fact: 'Sophie Germain proved Fermat\'s conjecture for a whole class of primes, working under the pseudonym "Monsieur LeBlanc" because women were barred from universities.',
+                choices: [
+                    { text: 'Learn about Kummer\'s breakthrough with ideal numbers', next: 'kummer' },
+                    { text: 'Skip ahead to the Japanese connection', next: 'taniyama_shimura' }
+                ]
+            },
+
+            kummer: {
+                year: '1847',
+                era: 'IDEAL NUMBERS',
+                content: `<div class="scene-investigation">
+                    <p>In 1847, <span class="chalk-highlight">Gabriel Lam&eacute;</span> announced at the French Academy that he had proven Fermat's Last Theorem completely. The room erupted. Had the 210-year-old mystery finally been solved?</p>
+
+                    <p>Not so fast. <span class="chalk-blue">Joseph Liouville</span> stood up and pointed out that Lam&eacute;'s proof assumed unique factorization works for all number systems &mdash; but it doesn't.</p>
+
+                    <div class="chalk-equation pink">
+                        6 = 2 &times; 3 = (1 + &radic;-5)(1 - &radic;-5)
+                    </div>
+
+                    <p>In some number systems, numbers can be factored in <span class="chalk-pink">multiple different ways</span>. This shattered Lam&eacute;'s approach.</p>
+
+                    <p>Enter <span class="chalk-highlight">Ernst Kummer</span>, a German mathematician who invented <span class="chalk-yellow">"ideal numbers"</span> to rescue factorization. His work proved Fermat's theorem for all <span class="chalk-blue">regular primes</span> &mdash; a huge class of numbers, but still not all of them.</p>
+
+                    <div class="chalk-fact-box">Kummer's work on ideal numbers laid the foundation for algebraic number theory, an entirely new branch of mathematics. The quest to prove Fermat's theorem was creating more mathematics than Fermat could have imagined.</div>
+
+                    <p>By 1857, the problem had resisted every approach. The French Academy offered a gold medal and 3,000 francs for a proof. Decades passed with no winner. Fermat's Last Theorem entered the 20th century undefeated.</p>
+                </div>`,
+                fact: 'Ernst Kummer\'s "ideal numbers" (1847) proved the theorem for all regular primes and founded algebraic number theory as a new field.',
+                choices: [
+                    { text: 'Continue to the Japanese breakthrough of 1955', next: 'taniyama_shimura' }
+                ]
+            },
+
+            taniyama_shimura: {
+                year: '1955',
+                era: 'THE JAPANESE CONNECTION',
+                content: `<div class="scene-narration">
+                    <p>Tokyo, 1955. At an international symposium, two young Japanese mathematicians &mdash; <span class="chalk-highlight">Yutaka Taniyama</span> and <span class="chalk-highlight">Goro Shimura</span> &mdash; propose something that seems completely unrelated to Fermat.</p>
+
+                    <p>They conjecture that every <span class="chalk-blue">elliptic curve</span> (a type of equation shaped like a donut) is secretly connected to a <span class="chalk-pink">modular form</span> (a deeply symmetric mathematical object from a completely different world).</p>
+
+                    <div class="chalk-diagram">
+                        <div style="font-size: 1.4rem; color: var(--chalk-yellow); margin-bottom: 0.5rem;">
+                            Elliptic Curves &nbsp; &#x27F7; &nbsp; Modular Forms
+                        </div>
+                        <div style="font-size: 1rem; color: var(--chalk-blue);">
+                            (algebra &amp; geometry) &nbsp;&nbsp;&nbsp;&nbsp; (analysis &amp; symmetry)
+                        </div>
+                        <div class="diagram-label">The Taniyama&ndash;Shimura Conjecture</div>
+                    </div>
+
+                    <p>Most mathematicians are skeptical. How could two such different mathematical universes be mirrors of each other? Taniyama tragically dies by suicide in 1958 at age 31, but Shimura carries the conjecture forward.</p>
+
+                    <div class="chalk-fact-box">Taniyama and Shimura's conjecture proposed a deep unity between two seemingly unrelated areas of mathematics. When proved, it became one of the most important theorems of the 20th century, far beyond its connection to Fermat.</div>
+                </div>`,
+                fact: 'The Taniyama-Shimura conjecture (1955) proposed that every elliptic curve corresponds to a modular form, linking two distant branches of mathematics.',
+                choices: [
+                    { text: 'See how Fermat connects to elliptic curves', next: 'frey_ribet' },
+                    { text: 'Meet the 10-year-old who dreamed of the proof', next: 'young_wiles' }
+                ]
+            },
+
+            young_wiles: {
+                year: '1963',
+                era: 'A BOY\'S DREAM',
+                content: `<div class="scene-narration">
+                    <p>Cambridge, England, 1963. A ten-year-old boy named <span class="chalk-highlight">Andrew Wiles</span> wanders into the public library. He pulls a book off the shelf &mdash; <em>The Last Problem</em> by Eric Temple Bell &mdash; and reads about Fermat's conjecture.</p>
+
+                    <div class="chalk-quote">
+                        "I knew from that moment that I would never let it go. I had to solve it."
+                        <span class="speaker">&mdash; Andrew Wiles</span>
+                    </div>
+
+                    <p>The problem enchants him because it's so <span class="chalk-yellow">easy to understand</span> &mdash; any schoolchild can grasp x<sup>n</sup> + y<sup>n</sup> = z<sup>n</sup> &mdash; yet the greatest minds in history could not prove it. A ten-year-old's dream begins.</p>
+
+                    <p>Wiles studies mathematics at Oxford, then Cambridge. He becomes an expert in <span class="chalk-blue">elliptic curves</span> &mdash; not because of Fermat, but because they fascinate him. He doesn't yet know this will be the key.</p>
+
+                    <div class="chalk-fact-box">Andrew Wiles was born on April 11, 1953 in Cambridge, England. His father was a professor of theology. By age ten, Wiles had already attempted his own proof of Fermat's theorem using school textbooks.</div>
+                </div>`,
+                fact: 'Andrew Wiles discovered Fermat\'s Last Theorem at age 10 in a library book and spent his career pursuing the mathematics that would eventually solve it.',
+                choices: [
+                    { text: 'See the breakthrough that made the proof possible', next: 'frey_ribet' }
+                ]
+            },
+
+            frey_ribet: {
+                year: '1985&ndash;1986',
+                era: 'THE BRIDGE',
+                content: `<div class="scene-investigation">
+                    <p>In 1985, German mathematician <span class="chalk-highlight">Gerhard Frey</span> has a breathtaking idea. Suppose Fermat is wrong &mdash; suppose there exist numbers where a<sup>n</sup> + b<sup>n</sup> = c<sup>n</sup>. What happens if you build an elliptic curve from those numbers?</p>
+
+                    <div class="chalk-equation yellow">
+                        If &nbsp; a<sup>p</sup> + b<sup>p</sup> = c<sup>p</sup> &nbsp; then &nbsp; y&sup2; = x(x - a<sup>p</sup>)(x + b<sup>p</sup>)
+                    </div>
+
+                    <p>Frey argues that this "Frey curve" would be so <span class="chalk-pink">bizarre and monstrous</span> that it could not possibly be modular &mdash; it would violate Taniyama-Shimura.</p>
+
+                    <p>In 1986, <span class="chalk-blue">Ken Ribet</span> at UC Berkeley proves Frey is right. The logic is devastating:</p>
+
+                    <div class="chalk-diagram">
+                        <div style="font-size: 1rem; color: var(--chalk-white); line-height: 2;">
+                            <span style="color: var(--chalk-yellow);">If</span> Fermat is wrong &rarr; Frey curve exists<br>
+                            <span style="color: var(--chalk-yellow);">If</span> Frey curve exists &rarr; it's not modular<br>
+                            <span style="color: var(--chalk-yellow);">If</span> it's not modular &rarr; Taniyama-Shimura is wrong<br>
+                            <span style="color: var(--chalk-pink);">Therefore:</span> Prove Taniyama-Shimura &rarr; Prove Fermat
+                        </div>
+                        <div class="diagram-label">Ribet's reduction &mdash; connecting the two problems</div>
+                    </div>
+
+                    <p>When Andrew Wiles hears this news over a cup of tea, his heart nearly stops. The childhood dream suddenly has a <span class="chalk-highlight">path</span>.</p>
+
+                    <div class="chalk-fact-box">Ribet's proof reduced Fermat's Last Theorem to proving (a special case of) the Taniyama-Shimura conjecture. This was the breakthrough: Fermat was no longer an isolated puzzle but connected to the deepest structures in modern mathematics.</div>
+                </div>`,
+                fact: 'Ken Ribet proved in 1986 that the Taniyama-Shimura conjecture implies Fermat\'s Last Theorem, giving Wiles a concrete path to the proof.',
+                choices: [
+                    { text: 'Follow Wiles into secret isolation', next: 'secret_work' },
+                    { text: 'Explore the mathematics Wiles would need', next: 'tools_needed' }
+                ]
+            },
+
+            tools_needed: {
+                year: '1986',
+                era: 'THE TOOLKIT',
+                content: `<div class="scene-investigation">
+                    <p>To prove Taniyama-Shimura (even the special case needed for Fermat), Wiles needs to show that every <span class="chalk-blue">semistable elliptic curve</span> is modular. This requires an arsenal of 20th-century mathematics:</p>
+
+                    <div class="chalk-diagram">
+                        <div style="text-align: left; padding: 0.5rem 1rem; line-height: 2.2;">
+                            <span style="color: var(--chalk-yellow);">&#x25CF;</span> Galois representations &mdash; how symmetries act on solutions<br>
+                            <span style="color: var(--chalk-blue);">&#x25CF;</span> Iwasawa theory &mdash; p-adic number systems<br>
+                            <span style="color: var(--chalk-pink);">&#x25CF;</span> Hecke algebras &mdash; operators on modular forms<br>
+                            <span style="color: var(--chalk-orange);">&#x25CF;</span> Deformation theory &mdash; bending mathematical structures<br>
+                            <span style="color: var(--chalk-green);">&#x25CF;</span> Selmer groups &mdash; measuring arithmetic obstructions
+                        </div>
+                        <div class="diagram-label">The mathematical toolkit for the proof</div>
+                    </div>
+
+                    <p>Each of these fields took decades to develop. Wiles would need to master them all &mdash; and then find a way to make them work together in a way no one had imagined.</p>
+
+                    <div class="chalk-quote">
+                        "You enter the first room of the mansion and it's dark. Completely dark. You stumble around, bumping into furniture. Slowly, you learn where each piece is. After six months you find the light switch."
+                        <span class="speaker">&mdash; Andrew Wiles, on mathematical research</span>
+                    </div>
+
+                    <div class="chalk-fact-box">The proof of Fermat's Last Theorem drew on virtually every major development in number theory from the 20th century, requiring Wiles to work at the intersection of at least five different mathematical subfields.</div>
+                </div>`,
+                fact: 'Wiles\' proof required Galois representations, Iwasawa theory, Hecke algebras, deformation theory, and Selmer groups &mdash; tools developed across the entire 20th century.',
+                choices: [
+                    { text: 'Follow Wiles into secret isolation', next: 'secret_work' }
+                ]
+            },
+
+            secret_work: {
+                year: '1986&ndash;1993',
+                era: 'SEVEN YEARS IN THE ATTIC',
+                content: `<div class="scene-narration">
+                    <p>Princeton, New Jersey. Andrew Wiles makes a decision that stuns the few people who know: he will <span class="chalk-highlight">work in complete secrecy</span>.</p>
+
+                    <p>For <span class="chalk-yellow">seven years</span>, he tells no one &mdash; not his colleagues, not his department, not even his wife (until close to the end). He works in his attic study, filling hundreds of pages with calculations.</p>
+
+                    <div class="chalk-quote">
+                        "I realized that anything I said would make it obvious what I was working on. There would be too much interest and too many distractions. I just wanted to think about it my own way."
+                        <span class="speaker">&mdash; Andrew Wiles</span>
+                    </div>
+
+                    <p>To keep up appearances, he slowly releases old unpublished results, letting his colleagues think he is still working on smaller problems. Meanwhile, in the attic, he is assembling the most complex proof in modern mathematics.</p>
+
+                    <p>The strategy: use <span class="chalk-blue">Galois representations</span> to create a "bridge" between elliptic curves and modular forms. He develops a new technique &mdash; patching together local solutions like pieces of a puzzle.</p>
+
+                    <div class="chalk-equation blue">
+                        R &cong; T
+                    </div>
+                    <p style="text-align: center; color: var(--chalk-white-ghost); font-size: 0.9rem; margin-top: -0.5rem;">The ring-theoretic key: showing two mathematical structures are the same</p>
+
+                    <div class="chalk-fact-box">Wiles worked in secret from 1986 to 1993 because he feared that publicity would bring distraction and competition. In mathematics, once you announce an approach, others may race you to the finish.</div>
+                </div>`,
+                fact: 'Wiles worked in total secrecy for 7 years (1986-1993), telling no colleagues, to avoid distraction and competition on his approach to proving Fermat.',
+                choices: [
+                    { text: 'Witness the Cambridge lecture', next: 'cambridge_lecture' },
+                    { text: 'Examine a key obstacle Wiles had to overcome', next: 'the_obstacle' }
+                ]
+            },
+
+            the_obstacle: {
+                year: '1991',
+                era: 'THE WALL',
+                content: `<div class="scene-confrontation">
+                    <p>Five years in. Wiles is deep inside the proof when he hits a wall. His method &mdash; using <span class="chalk-blue">Iwasawa theory</span> to control Selmer groups &mdash; works beautifully in some cases but fails for an important class of elliptic curves.</p>
+
+                    <p>He needs every semistable curve, not just some of them. It's like building a bridge that reaches 90% of the way across a canyon &mdash; <span class="chalk-pink">the last 10% might as well be 100%</span>.</p>
+
+                    <div class="chalk-equation pink">
+                        Iwasawa theory &nbsp; &#x2717; &nbsp; not sufficient alone
+                    </div>
+
+                    <p>For months, Wiles is stuck. He tries one approach after another. Nothing works. He begins to wonder if his entire seven-year strategy is doomed.</p>
+
+                    <p>Then he discovers a paper by <span class="chalk-highlight">Matthias Flach</span>, a young German mathematician, which introduces a new technique using what are called <span class="chalk-yellow">Euler systems</span>. Wiles realizes he can combine Flach's method with his own Iwasawa theory approach.</p>
+
+                    <div class="chalk-quote">
+                        "I was so excited I couldn't concentrate on anything else. I just kept scribbling on every piece of paper I could find."
+                        <span class="speaker">&mdash; Andrew Wiles</span>
+                    </div>
+
+                    <div class="chalk-fact-box">Euler systems, developed from ideas of Victor Kolyvagin and Matthias Flach, provide a way to bound the size of Selmer groups. Wiles combined this technique with his own innovations to bridge the gap in his proof.</div>
+                </div>`,
+                fact: 'Wiles overcame a critical obstacle by combining Iwasawa theory with Euler system techniques from Kolyvagin and Flach to control Selmer groups for all semistable curves.',
+                choices: [
+                    { text: 'Witness the Cambridge lecture', next: 'cambridge_lecture' }
+                ]
+            },
+
+            cambridge_lecture: {
+                year: 'June 23, 1993',
+                era: 'THE ANNOUNCEMENT',
+                content: `<div class="scene-narration">
+                    <p>The Isaac Newton Institute, Cambridge, England. A conference on <span class="chalk-blue">"p-adic Galois Representations"</span> is underway. Andrew Wiles has been invited to give a series of three lectures.</p>
+
+                    <p>By the second lecture, rumors are flying. Wiles is presenting new, extraordinary results. Email spreads across mathematics departments worldwide: <span class="chalk-yellow">"Wiles is proving Fermat."</span></p>
+
+                    <p>On June 23, 1993, the lecture hall is packed. People sit on the floor, stand in the aisles. Television cameras are present &mdash; unheard of at a math talk. Wiles writes on the chalkboard, line after line, building the argument.</p>
+
+                    <div class="chalk-equation yellow">
+                        Every semistable elliptic curve over Q is modular.
+                    </div>
+
+                    <p>He pauses. Looks at the audience.</p>
+
+                    <div class="chalk-quote">
+                        "I think I'll stop here."
+                        <span class="speaker">&mdash; Andrew Wiles, June 23, 1993</span>
+                    </div>
+
+                    <p>The room <span class="chalk-highlight">explodes</span>. Applause, cheers, cameras flashing. Wiles has just announced a proof of Fermat's Last Theorem. The front page of the <em>New York Times</em> carries the story the next day. A 358-year-old mystery appears to be solved.</p>
+
+                    <div class="chalk-fact-box">Wiles' announcement on June 23, 1993 made the front page of the New York Times &mdash; one of the very few times a mathematical result has been front-page news. The 200-page proof was the culmination of 7 years of solitary work.</div>
+                </div>`,
+                fact: 'On June 23, 1993, Wiles announced his proof at Cambridge\'s Newton Institute. It made the front page of the New York Times &mdash; rare for a math result.',
+                choices: [
+                    { text: 'But there was a gap in the proof...', next: 'the_gap' },
+                    { text: 'Celebrate the triumph (skip to the ending)', next: 'ending_triumph' }
+                ]
+            },
+
+            the_gap: {
+                year: 'September 1993',
+                era: 'THE CRACK',
+                content: `<div class="scene-confrontation">
+                    <p>The 200-page manuscript is sent to six referees for verification. Months of line-by-line checking begin. And then &mdash; disaster.</p>
+
+                    <p>Referee <span class="chalk-highlight">Nick Katz</span>, a Princeton colleague, finds a gap in Chapter 3. The Euler system argument that Wiles used to bound the Selmer group has a <span class="chalk-pink">critical flaw</span>. The bound doesn't hold in all the cases Wiles needs.</p>
+
+                    <div class="chalk-equation pink">
+                        <span class="chalk-strikethrough">Euler system bound &#x2192; Selmer group finite</span>
+                    </div>
+                    <p style="text-align: center; color: var(--chalk-pink); font-size: 0.95rem;">The critical step fails</p>
+
+                    <p>At first, Wiles thinks he can fix it quickly. Days turn into weeks. Weeks into months. The mathematical world watches and waits. Rumors spread that the proof is collapsing.</p>
+
+                    <div class="chalk-quote">
+                        "It was the worst moment of my professional life. The proof was wrong, and the whole world knew I'd claimed to solve it."
+                        <span class="speaker">&mdash; Andrew Wiles</span>
+                    </div>
+
+                    <p>By December 1993, Wiles is in anguish. He has tried every technique he knows. Nothing plugs the gap. He considers giving up entirely.</p>
+
+                    <div class="chalk-fact-box">Nick Katz found the gap during peer review in September 1993. The flaw was in a specific Euler system argument needed to bound the Selmer group. For over a year, the proof was considered incomplete.</div>
+                </div>`,
+                fact: 'Referee Nick Katz found a critical gap in September 1993. The Euler system argument failed for certain cases, and Wiles spent 14 agonizing months trying to fix it.',
+                choices: [
+                    { text: 'Give up and publish what you have', next: 'ending_incomplete' },
+                    { text: 'Call in help and keep fighting', next: 'the_fix' }
+                ]
+            },
+
+            the_fix: {
+                year: 'September 19, 1994',
+                era: 'THE EPIPHANY',
+                content: `<div class="scene-narration">
+                    <p>Wiles asks his former student <span class="chalk-highlight">Richard Taylor</span> to come to Princeton and help. Together, they spend months attacking the gap from every angle. Nothing works.</p>
+
+                    <p>On the morning of <span class="chalk-yellow">September 19, 1994</span>, Wiles sits at his desk, staring at the failed Euler system argument one last time before abandoning it forever. He later describes what happened:</p>
+
+                    <div class="chalk-quote">
+                        "Suddenly, totally unexpectedly, I had this incredible revelation. I realized that although the Euler system approach didn't work, the very thing that made it fail was exactly what I needed to make my original Iwasawa theory approach work. It was the most important moment of my working life."
+                        <span class="speaker">&mdash; Andrew Wiles</span>
+                    </div>
+
+                    <p>The <span class="chalk-pink">failure</span> of one method provided exactly the missing piece for the other. Two broken strategies, each useless alone, <span class="chalk-highlight">combined into a complete proof</span>.</p>
+
+                    <div class="chalk-diagram">
+                        <div style="font-size: 1.1rem; color: var(--chalk-white); line-height: 2.2;">
+                            <span style="color: var(--chalk-pink);">&#x2717;</span> Euler systems (fails) &nbsp; + &nbsp; <span style="color: var(--chalk-pink);">&#x2717;</span> Iwasawa theory (fails)<br>
+                            <span style="font-size: 1.5rem; color: var(--chalk-yellow);">&#x2193;</span><br>
+                            <span style="color: var(--chalk-green);">&#x2713;</span> <span style="color: var(--chalk-yellow);">Combined: the failure of one completes the other</span>
+                        </div>
+                        <div class="diagram-label">The September 19 epiphany</div>
+                    </div>
+
+                    <div class="chalk-fact-box">The key insight: the Euler system's failure revealed that a certain Selmer group was already the right size for Iwasawa theory to work. Wiles realized the "obstruction" in one method was the "shortcut" in the other. The corrected proof was published in Annals of Mathematics in 1995.</div>
+                </div>`,
+                fact: 'On September 19, 1994, Wiles realized the failure of the Euler system approach was exactly what made Iwasawa theory work. Two failed methods combined into a complete proof.',
+                choices: [
+                    { text: 'See the proof\'s legacy', next: 'ending_triumph' }
+                ]
+            },
+
+            ending_incomplete: {
+                year: '1994',
+                era: 'AN UNFINISHED SYMPHONY',
+                content: `<div class="scene-ending">
+                    <p>In this timeline, Wiles publishes his partial results. The mathematical community acknowledges the extraordinary progress but the proof of Fermat's Last Theorem remains incomplete.</p>
+
+                    <div class="chalk-equation pink">
+                        x<sup>n</sup> + y<sup>n</sup> &ne; z<sup>n</sup> &nbsp; . . . &nbsp; probably?
+                    </div>
+
+                    <p>But in reality, Wiles <span class="chalk-highlight">never gave up</span>. After 14 months of despair, a flash of insight on September 19, 1994 showed him that two failed approaches could be combined into a perfect proof.</p>
+
+                    <p>The lesson of Fermat's Last Theorem is not just about mathematics &mdash; it's about the <span class="chalk-yellow">persistence of human curiosity</span> across centuries.</p>
+
+                    <div class="chalk-quote">
+                        "The definition of a good mathematical problem is the mathematics it generates, not the problem itself."
+                        <span class="speaker">&mdash; Andrew Wiles</span>
+                    </div>
+
+                    <p style="color: var(--chalk-white-ghost); font-size: 0.9rem; margin-top: 2rem;">Would you like to go back and see how Wiles really fixed the proof?</p>
+                </div>`,
+                fact: 'In reality, Wiles never gave up. His persistence through 14 months of public failure is one of the great stories of intellectual courage in modern science.',
+                choices: [
+                    { text: 'Go back and keep fighting', next: 'the_fix' },
+                    { text: 'Play Again', next: 'intro' },
+                    { text: 'Back to Stories', next: '_exit' }
+                ]
+            },
+
+            ending_triumph: {
+                year: '1995 and beyond',
+                era: 'QED',
+                content: `<div class="scene-ending">
+                    <p>The corrected proof, co-authored with <span class="chalk-highlight">Richard Taylor</span>, is published in the <em>Annals of Mathematics</em> in May 1995. It fills two papers totaling <span class="chalk-yellow">129 pages</span>.</p>
+
+                    <div class="chalk-equation yellow">
+                        x<sup>n</sup> + y<sup>n</sup> &ne; z<sup>n</sup> &nbsp; for all &nbsp; n &gt; 2 &nbsp;&nbsp; &#x220E;
+                    </div>
+
+                    <p>A 358-year-old conjecture, scribbled in a margin, is finally a <span class="chalk-highlight">theorem</span>.</p>
+
+                    <p>In 2016, Andrew Wiles receives the <span class="chalk-blue">Abel Prize</span> &mdash; mathematics' highest honor &mdash; "for his stunning proof of Fermat's Last Theorem by way of the modularity conjecture for semistable elliptic curves, opening a new era in number theory."</p>
+
+                    <p>But the story is bigger than one theorem. The proof of modularity was later extended to <span class="chalk-pink">all</span> elliptic curves by Breuil, Conrad, Diamond, and Taylor in 2001, confirming the full Taniyama-Shimura conjecture.</p>
+
+                    <div class="chalk-fact-box">The ideas in Wiles' proof opened vast new territories in mathematics, including the Langlands program &mdash; a grand unified theory connecting number theory, geometry, and analysis that mathematicians call "the theory of everything" for mathematics.</div>
+
+                    <div class="chalk-quote">
+                        "However impenetrable it seems, if you don't try it, then you can never do it. You have to be prepared to go on a long journey."
+                        <span class="speaker">&mdash; Andrew Wiles</span>
+                    </div>
+
+                    <p style="margin-top: 2rem; font-family: var(--font-heading); color: var(--chalk-yellow); font-size: 1.3rem;">
+                        From a boy in a library to a proof that changed mathematics forever.
+                    </p>
+                </div>`,
+                fact: 'Wiles received the Abel Prize in 2016. His proof opened a new era in number theory and advanced the Langlands program, mathematics\' "grand unified theory."',
+                choices: [
+                    { text: 'Play Again', next: 'intro' },
+                    { text: 'Back to Stories', next: '_exit' }
+                ]
+            }
+        };
+
+        /* ═══════════════════════════════════════════
+           GAME ENGINE
+        ═══════════════════════════════════════════ */
+        const engine = {
+            currentScene: null,
+            history: [],
+            clues: [],
+            totalScenes: Object.keys(STORY).length,
+
+            init() {
+                document.addEventListener('keydown', (e) => {
+                    const key = parseInt(e.key);
+                    if (key >= 1 && key <= 9) {
+                        const btns = document.querySelectorAll('.choice-btn');
+                        if (btns[key - 1]) {
+                            btns[key - 1].click();
+                        }
+                    }
+                });
+
+                // Make erasable elements interactive
+                document.addEventListener('click', (e) => {
+                    const erasable = e.target.closest('.erasable');
+                    if (erasable) {
+                        erasable.classList.toggle('erased');
+                    }
+                    const erased = e.target.closest('.chalk-erased');
+                    if (erased && !erased.classList.contains('revealed')) {
+                        erased.classList.add('revealed');
+                    }
+                });
+            },
+
+            start() {
+                document.getElementById('titleScreen').style.display = 'none';
+                document.getElementById('sceneWrapper').style.display = 'block';
+                this.history = [];
+                this.clues = [];
+                document.getElementById('clueList').innerHTML = '';
+                this.goTo('intro');
+            },
+
+            goTo(id) {
+                if (id === '_exit') {
+                    window.location.href = '../index.html';
+                    return;
+                }
+
+                if (id === 'intro') {
+                    this.history = [];
+                    this.clues = [];
+                    document.getElementById('clueList').innerHTML = '';
+                }
+
+                const scene = STORY[id];
+                if (!scene) {
+                    console.error('Scene not found:', id);
+                    return;
+                }
+
+                this.currentScene = id;
+                this.history.push(id);
+                this.renderScene(scene);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            },
+
+            renderScene(scene) {
+                // Update HUD
+                const eraEl = document.getElementById('sceneEra');
+                const yearEl = document.getElementById('sceneYear');
+                const progressEl = document.getElementById('sceneProgress');
+
+                eraEl.textContent = scene.era || '';
+                yearEl.innerHTML = scene.year || '';
+                progressEl.textContent = `${this.history.length} / ${this.totalScenes} scenes`;
+
+                // Inject content with animation reset
+                const contentEl = document.getElementById('sceneContent');
+                contentEl.style.animation = 'none';
+                contentEl.offsetHeight; // force reflow
+                contentEl.style.animation = '';
+                contentEl.innerHTML = scene.content;
+
+                // Add fact to clue tracker
+                if (scene.fact && !this.clues.includes(scene.fact)) {
+                    this.clues.push(scene.fact);
+                    const li = document.createElement('li');
+                    li.textContent = scene.fact;
+                    li.classList.add('new-clue');
+                    document.getElementById('clueList').appendChild(li);
+                    setTimeout(() => li.classList.remove('new-clue'), 2000);
+                }
+
+                // Render choices
+                const choicesEl = document.getElementById('choicesContainer');
+                choicesEl.innerHTML = '';
+                if (scene.choices) {
+                    scene.choices.forEach((choice, i) => {
+                        const btn = document.createElement('button');
+                        btn.className = 'choice-btn';
+                        btn.setAttribute('data-key', i + 1);
+                        btn.textContent = choice.text;
+                        btn.addEventListener('click', () => this.goTo(choice.next));
+                        choicesEl.appendChild(btn);
+                    });
+                }
+            }
+        };
+
+        engine.init();
+    </script>
+<script defer src="../../prompt-viewer.js"></script>
+</body>
+</html>
