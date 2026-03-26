@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#FFB3D9">
+    <title>Dress Up!</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --pink: #FFB3D9;
+            --blue: #A8D8EA;
+            --yellow: #FFE066;
+            --purple: #B07CC6;
+            --green: #66BB6A;
+            --red: #E53935;
+            --orange: #FF8F00;
+            --gold: #F5C542;
+            --sky: #87CEEB;
+            --sky-light: #E0F4FF;
+            --white: #FFFFFF;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        html, body {
+            width: 100%; height: 100%;
+            overflow: hidden;
+            overscroll-behavior: none;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-user-select: none;
+            user-select: none;
+            font-family: 'Fredoka', sans-serif;
+            touch-action: manipulation;
+        }
+
+        body {
+            background: linear-gradient(180deg, var(--sky-light) 0%, var(--sky) 50%, #c8e6c9 100%);
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Back button */
+        .back-btn {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            z-index: 100;
+            background: var(--pink);
+            color: #fff;
+            font-family: 'Lilita One', cursive;
+            font-size: 1.1rem;
+            padding: 8px 16px;
+            border: 3px solid #fff;
+            border-radius: 9999px;
+            text-decoration: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transition: transform 0.2s;
+        }
+        .back-btn:active { transform: scale(0.93); }
+
+        /* Top bar: character selectors + action buttons */
+        .top-bar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 10px 70px;
+            flex-shrink: 0;
+            flex-wrap: wrap;
+            z-index: 10;
+        }
+
+        .char-btn, .action-btn {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            border: 3px solid #fff;
+            font-size: 1.6rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.12);
+            transition: transform 0.2s, box-shadow 0.2s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .char-btn:active, .action-btn:active { transform: scale(0.9); }
+        .char-btn.active { box-shadow: 0 0 0 4px var(--gold), 0 4px 16px rgba(0,0,0,0.2); transform: scale(1.08); }
+
+        .char-btn-girl { background: #FFD6EC; }
+        .char-btn-boy { background: #B3E5FC; }
+        .char-btn-cat { background: #FFE0B2; }
+        .char-btn-bunny { background: #E1BEE7; }
+
+        .action-btn-random { background: var(--yellow); }
+        .action-btn-clear { background: #ef9a9a; }
+        .action-btn-theme { background: var(--green); color: #fff; }
+
+        /* Stage: where the character stands */
+        .stage {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        /* Sparkle effects */
+        .sparkle {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            pointer-events: none;
+            z-index: 50;
+            animation: sparklePop 0.7s ease-out forwards;
+        }
+        .sparkle::before, .sparkle::after {
+            content: '';
+            position: absolute;
+            background: var(--gold);
+            border-radius: 2px;
+        }
+        .sparkle::before {
+            width: 2px; height: 100%;
+            left: 50%; top: 0;
+            transform: translateX(-50%);
+        }
+        .sparkle::after {
+            width: 100%; height: 2px;
+            top: 50%; left: 0;
+            transform: translateY(-50%);
+        }
+        @keyframes sparklePop {
+            0% { opacity: 1; transform: scale(0.5) rotate(0deg); }
+            50% { opacity: 1; transform: scale(1.5) rotate(45deg); }
+            100% { opacity: 0; transform: scale(0.3) rotate(90deg); }
+        }
+
+        /* Character SVG container */
+        .character-container {
+            position: relative;
+            width: 220px;
+            height: 320px;
+        }
+        .character-container svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Clothing item tray */
+        .tray-wrapper {
+            flex-shrink: 0;
+            z-index: 10;
+        }
+
+        /* Theme tabs */
+        .theme-tabs {
+            display: flex;
+            gap: 6px;
+            padding: 6px 12px;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+        }
+        .theme-tabs::-webkit-scrollbar { display: none; }
+
+        .theme-tab {
+            flex-shrink: 0;
+            padding: 6px 14px;
+            border-radius: 9999px;
+            border: 2px solid #fff;
+            font-family: 'Lilita One', cursive;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: transform 0.2s, background 0.2s;
+            background: rgba(255,255,255,0.5);
+            color: #555;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .theme-tab:active { transform: scale(0.93); }
+        .theme-tab.active {
+            background: var(--gold);
+            color: #fff;
+            border-color: #e8a317;
+        }
+
+        /* Item tray */
+        .item-tray {
+            display: flex;
+            gap: 10px;
+            padding: 10px 16px 16px;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+            background: rgba(255,255,255,0.7);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border-top: 3px solid rgba(255,255,255,0.8);
+        }
+        .item-tray::-webkit-scrollbar { display: none; }
+
+        .tray-item {
+            flex-shrink: 0;
+            width: 72px;
+            height: 72px;
+            border-radius: 18px;
+            border: 3px solid #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+            -webkit-tap-highlight-color: transparent;
+            position: relative;
+        }
+        .tray-item:active { transform: scale(0.9); }
+        .tray-item.worn {
+            box-shadow: 0 0 0 3px var(--gold), 0 4px 16px rgba(0,0,0,0.15);
+        }
+        .tray-item.worn::after {
+            content: '\2714';
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--green);
+            color: #fff;
+            font-size: 0.7rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid #fff;
+        }
+
+        /* Responsive */
+        @media (max-height: 600px) {
+            .character-container { width: 160px; height: 240px; }
+            .tray-item { width: 60px; height: 60px; font-size: 1.6rem; }
+            .top-bar { padding: 6px 60px; gap: 6px; }
+            .char-btn, .action-btn { width: 46px; height: 46px; font-size: 1.3rem; }
+        }
+        @media (max-width: 400px) {
+            .character-container { width: 170px; height: 260px; }
+            .tray-item { width: 64px; height: 64px; }
+        }
+
+        @supports (padding: env(safe-area-inset-bottom)) {
+            .item-tray { padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
+        }
+    </style>
+</head>
+<body>
+
+<a href="../../" class="back-btn">&#8592;</a>
+
+<div class="top-bar">
+    <button class="char-btn char-btn-girl active" data-char="girl" aria-label="Girl">&#128119;</button>
+    <button class="char-btn char-btn-boy" data-char="boy" aria-label="Boy">&#128102;</button>
+    <button class="char-btn char-btn-cat" data-char="cat" aria-label="Cat">&#128049;</button>
+    <button class="char-btn char-btn-bunny" data-char="bunny" aria-label="Bunny">&#128048;</button>
+    <div style="width:16px"></div>
+    <button class="action-btn action-btn-random" data-action="random" aria-label="Random outfit">&#127922;</button>
+    <button class="action-btn action-btn-clear" data-action="clear" aria-label="Clear outfit">&#10060;</button>
+</div>
+
+<div class="stage" id="stage">
+    <div class="character-container" id="character-container"></div>
+</div>
+
+<div class="tray-wrapper">
+    <div class="theme-tabs" id="theme-tabs"></div>
+    <div class="item-tray" id="item-tray"></div>
+</div>
+
+<script>
+(function() {
+    'use strict';
+
+    // ── Audio Engine (Web Audio API) ──
+    var audioCtx = null;
+    function initAudio() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    function playSound(type) {
+        if (!audioCtx) return;
+        var now = audioCtx.currentTime;
+        var osc = audioCtx.createOscillator();
+        var gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        if (type === 'dress') {
+            // Happy ascending chime
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(523, now);
+            osc.frequency.linearRampToValueAtTime(784, now + 0.1);
+            osc.frequency.linearRampToValueAtTime(1047, now + 0.18);
+            gain.gain.setValueAtTime(0.25, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+            osc.start(now);
+            osc.stop(now + 0.35);
+        } else if (type === 'undress') {
+            // Gentle descending tone
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(660, now);
+            osc.frequency.linearRampToValueAtTime(330, now + 0.2);
+            gain.gain.setValueAtTime(0.2, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+            osc.start(now);
+            osc.stop(now + 0.25);
+        } else if (type === 'switch') {
+            // Quick blip
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(880, now);
+            osc.frequency.linearRampToValueAtTime(1100, now + 0.06);
+            gain.gain.setValueAtTime(0.15, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+            osc.start(now);
+            osc.stop(now + 0.12);
+        } else if (type === 'random') {
+            // Playful arpeggio
+            var notes = [523, 659, 784, 1047, 1319];
+            notes.forEach(function(freq, i) {
+                var o = audioCtx.createOscillator();
+                var g = audioCtx.createGain();
+                o.connect(g);
+                g.connect(audioCtx.destination);
+                o.type = 'sine';
+                o.frequency.setValueAtTime(freq, now + i * 0.06);
+                g.gain.setValueAtTime(0.18, now + i * 0.06);
+                g.gain.exponentialRampToValueAtTime(0.001, now + i * 0.06 + 0.15);
+                o.start(now + i * 0.06);
+                o.stop(now + i * 0.06 + 0.15);
+            });
+        } else if (type === 'clear') {
+            // Slide down
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(880, now);
+            osc.frequency.exponentialRampToValueAtTime(220, now + 0.3);
+            gain.gain.setValueAtTime(0.2, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+            osc.start(now);
+            osc.stop(now + 0.35);
+        }
+    }
+
+    // ── Sparkle Effect ──
+    function spawnSparkles(x, y, count) {
+        var stage = document.getElementById('stage');
+        for (var i = 0; i < (count || 5); i++) {
+            var s = document.createElement('div');
+            s.className = 'sparkle';
+            var ox = (Math.random() - 0.5) * 80;
+            var oy = (Math.random() - 0.5) * 80;
+            s.style.left = (x + ox) + 'px';
+            s.style.top = (y + oy) + 'px';
+            s.style.animationDelay = (Math.random() * 0.2) + 's';
+            stage.appendChild(s);
+            setTimeout(function(el) { el.remove(); }, 800, s);
+        }
+    }
+
+    // ── Character Definitions (SVG) ──
+    var characters = {
+        girl: function(worn) {
+            return buildCharSVG({
+                skinColor: '#FDDCB5',
+                hairColor: '#8B4513',
+                hairStyle: 'long',
+                eyeColor: '#4A6FA5',
+                cheekColor: '#FFB3D9',
+                bodyType: 'human',
+                outfit: worn
+            });
+        },
+        boy: function(worn) {
+            return buildCharSVG({
+                skinColor: '#F5CBA7',
+                hairColor: '#5B3A1A',
+                hairStyle: 'short',
+                eyeColor: '#2E7D32',
+                cheekColor: '#FFAB91',
+                bodyType: 'human',
+                outfit: worn
+            });
+        },
+        cat: function(worn) {
+            return buildCharSVG({
+                skinColor: '#FFE0B2',
+                hairColor: '#FF8A65',
+                hairStyle: 'none',
+                eyeColor: '#66BB6A',
+                cheekColor: '#FFB3D9',
+                bodyType: 'cat',
+                outfit: worn
+            });
+        },
+        bunny: function(worn) {
+            return buildCharSVG({
+                skinColor: '#F3E5F5',
+                hairColor: '#CE93D8',
+                hairStyle: 'none',
+                eyeColor: '#E91E63',
+                cheekColor: '#F8BBD0',
+                bodyType: 'bunny',
+                outfit: worn
+            });
+        }
+    };
+
+    function buildCharSVG(cfg) {
+        var s = '';
+        s += '<svg viewBox="0 0 220 320" xmlns="http://www.w3.org/2000/svg">';
+
+        if (cfg.bodyType === 'cat') {
+            // Cat body
+            // Tail
+            s += '<path d="M 155 230 Q 190 200 195 170 Q 200 150 185 145" stroke="' + cfg.skinColor + '" stroke-width="8" fill="none" stroke-linecap="round"/>';
+            // Ears
+            s += '<polygon points="72,62 85,25 100,58" fill="' + cfg.skinColor + '" stroke="' + cfg.hairColor + '" stroke-width="2"/>';
+            s += '<polygon points="120,58 135,25 148,62" fill="' + cfg.skinColor + '" stroke="' + cfg.hairColor + '" stroke-width="2"/>';
+            s += '<polygon points="78,56 85,35 94,54" fill="' + cfg.hairColor + '"/>';
+            s += '<polygon points="126,54 135,35 142,56" fill="' + cfg.hairColor + '"/>';
+            // Head
+            s += '<ellipse cx="110" cy="85" rx="45" ry="40" fill="' + cfg.skinColor + '" stroke="#D7CCC8" stroke-width="1.5"/>';
+            // Stripes on forehead
+            s += '<path d="M 95 60 L 98 72" stroke="' + cfg.hairColor + '" stroke-width="2" stroke-linecap="round"/>';
+            s += '<path d="M 110 57 L 110 70" stroke="' + cfg.hairColor + '" stroke-width="2" stroke-linecap="round"/>';
+            s += '<path d="M 125 60 L 122 72" stroke="' + cfg.hairColor + '" stroke-width="2" stroke-linecap="round"/>';
+            // Eyes
+            s += '<ellipse cx="93" cy="82" rx="8" ry="9" fill="white"/>';
+            s += '<ellipse cx="127" cy="82" rx="8" ry="9" fill="white"/>';
+            s += '<ellipse cx="93" cy="83" rx="5" ry="6" fill="' + cfg.eyeColor + '"/>';
+            s += '<ellipse cx="127" cy="83" rx="5" ry="6" fill="' + cfg.eyeColor + '"/>';
+            s += '<ellipse cx="94" cy="81" rx="2" ry="2.5" fill="white"/>';
+            s += '<ellipse cx="128" cy="81" rx="2" ry="2.5" fill="white"/>';
+            // Nose + mouth
+            s += '<ellipse cx="110" cy="93" rx="4" ry="3" fill="' + cfg.hairColor + '"/>';
+            s += '<path d="M 110 96 Q 104 102 100 99" stroke="#795548" stroke-width="1.5" fill="none" stroke-linecap="round"/>';
+            s += '<path d="M 110 96 Q 116 102 120 99" stroke="#795548" stroke-width="1.5" fill="none" stroke-linecap="round"/>';
+            // Whiskers
+            s += '<line x1="65" y1="88" x2="85" y2="92" stroke="#BCAAA4" stroke-width="1"/>';
+            s += '<line x1="65" y1="96" x2="85" y2="95" stroke="#BCAAA4" stroke-width="1"/>';
+            s += '<line x1="135" y1="92" x2="155" y2="88" stroke="#BCAAA4" stroke-width="1"/>';
+            s += '<line x1="135" y1="95" x2="155" y2="96" stroke="#BCAAA4" stroke-width="1"/>';
+            // Cheeks
+            s += '<ellipse cx="80" cy="95" rx="7" ry="4" fill="' + cfg.cheekColor + '" opacity="0.4"/>';
+            s += '<ellipse cx="140" cy="95" rx="7" ry="4" fill="' + cfg.cheekColor + '" opacity="0.4"/>';
+            // Body
+            s += '<ellipse cx="110" cy="180" rx="38" ry="55" fill="' + cfg.skinColor + '" stroke="#D7CCC8" stroke-width="1.5"/>';
+            // Arms
+            s += '<ellipse cx="65" cy="175" rx="12" ry="30" fill="' + cfg.skinColor + '" stroke="#D7CCC8" stroke-width="1" transform="rotate(-10 65 175)"/>';
+            s += '<ellipse cx="155" cy="175" rx="12" ry="30" fill="' + cfg.skinColor + '" stroke="#D7CCC8" stroke-width="1" transform="rotate(10 155 175)"/>';
+            // Legs
+            s += '<ellipse cx="92" cy="255" rx="14" ry="25" fill="' + cfg.skinColor + '" stroke="#D7CCC8" stroke-width="1"/>';
+            s += '<ellipse cx="128" cy="255" rx="14" ry="25" fill="' + cfg.skinColor + '" stroke="#D7CCC8" stroke-width="1"/>';
+            // Feet
+            s += '<ellipse cx="92" cy="282" rx="16" ry="8" fill="' + cfg.skinColor + '" stroke="#D7CCC8" stroke-width="1"/>';
+            s += '<ellipse cx="128" cy="282" rx="16" ry="8" fill="' + cfg.skinColor + '" stroke="#D7CCC8" stroke-width="1"/>';
+        } else if (cfg.bodyType === 'bunny') {
+            // Bunny ears (tall)
+            s += '<ellipse cx="90" cy="35" rx="14" ry="38" fill="' + cfg.skinColor + '" stroke="#CE93D8" stroke-width="1.5"/>';
+            s += '<ellipse cx="130" cy="35" rx="14" ry="38" fill="' + cfg.skinColor + '" stroke="#CE93D8" stroke-width="1.5"/>';
+            s += '<ellipse cx="90" cy="35" rx="7" ry="28" fill="' + cfg.cheekColor + '" opacity="0.5"/>';
+            s += '<ellipse cx="130" cy="35" rx="7" ry="28" fill="' + cfg.cheekColor + '" opacity="0.5"/>';
+            // Head
+            s += '<ellipse cx="110" cy="90" rx="42" ry="38" fill="' + cfg.skinColor + '" stroke="#CE93D8" stroke-width="1.5"/>';
+            // Eyes
+            s += '<ellipse cx="93" cy="85" rx="9" ry="10" fill="white"/>';
+            s += '<ellipse cx="127" cy="85" rx="9" ry="10" fill="white"/>';
+            s += '<ellipse cx="93" cy="87" rx="5.5" ry="6.5" fill="' + cfg.eyeColor + '"/>';
+            s += '<ellipse cx="127" cy="87" rx="5.5" ry="6.5" fill="' + cfg.eyeColor + '"/>';
+            s += '<ellipse cx="94" cy="84" rx="2.5" ry="3" fill="white"/>';
+            s += '<ellipse cx="128" cy="84" rx="2.5" ry="3" fill="white"/>';
+            // Nose
+            s += '<ellipse cx="110" cy="97" rx="4" ry="3" fill="#F48FB1"/>';
+            // Mouth
+            s += '<path d="M 105 102 Q 110 108 115 102" stroke="#CE93D8" stroke-width="1.5" fill="none" stroke-linecap="round"/>';
+            // Cheeks
+            s += '<ellipse cx="78" cy="97" rx="8" ry="5" fill="' + cfg.cheekColor + '" opacity="0.5"/>';
+            s += '<ellipse cx="142" cy="97" rx="8" ry="5" fill="' + cfg.cheekColor + '" opacity="0.5"/>';
+            // Teeth
+            s += '<rect x="106" y="101" width="4" height="5" rx="1" fill="white" stroke="#CE93D8" stroke-width="0.5"/>';
+            s += '<rect x="110" y="101" width="4" height="5" rx="1" fill="white" stroke="#CE93D8" stroke-width="0.5"/>';
+            // Body
+            s += '<ellipse cx="110" cy="180" rx="40" ry="55" fill="' + cfg.skinColor + '" stroke="#CE93D8" stroke-width="1.5"/>';
+            // Tummy
+            s += '<ellipse cx="110" cy="185" rx="25" ry="35" fill="white" opacity="0.4"/>';
+            // Arms
+            s += '<ellipse cx="62" cy="175" rx="14" ry="28" fill="' + cfg.skinColor + '" stroke="#CE93D8" stroke-width="1" transform="rotate(-8 62 175)"/>';
+            s += '<ellipse cx="158" cy="175" rx="14" ry="28" fill="' + cfg.skinColor + '" stroke="#CE93D8" stroke-width="1" transform="rotate(8 158 175)"/>';
+            // Legs
+            s += '<ellipse cx="90" cy="255" rx="16" ry="26" fill="' + cfg.skinColor + '" stroke="#CE93D8" stroke-width="1"/>';
+            s += '<ellipse cx="130" cy="255" rx="16" ry="26" fill="' + cfg.skinColor + '" stroke="#CE93D8" stroke-width="1"/>';
+            // Feet (big bunny feet)
+            s += '<ellipse cx="88" cy="284" rx="20" ry="9" fill="' + cfg.skinColor + '" stroke="#CE93D8" stroke-width="1"/>';
+            s += '<ellipse cx="132" cy="284" rx="20" ry="9" fill="' + cfg.skinColor + '" stroke="#CE93D8" stroke-width="1"/>';
+            // Tail
+            s += '<ellipse cx="148" cy="225" rx="12" ry="10" fill="white" stroke="#CE93D8" stroke-width="1"/>';
+        } else {
+            // Human body (girl / boy)
+            // Hair behind head
+            if (cfg.hairStyle === 'long') {
+                s += '<ellipse cx="110" cy="82" rx="50" ry="48" fill="' + cfg.hairColor + '"/>';
+                // Long hair sides
+                s += '<rect x="60" y="75" width="18" height="80" rx="9" fill="' + cfg.hairColor + '"/>';
+                s += '<rect x="142" y="75" width="18" height="80" rx="9" fill="' + cfg.hairColor + '"/>';
+            } else {
+                s += '<ellipse cx="110" cy="78" rx="46" ry="42" fill="' + cfg.hairColor + '"/>';
+            }
+            // Head
+            s += '<ellipse cx="110" cy="88" rx="40" ry="38" fill="' + cfg.skinColor + '" stroke="#E0C9A6" stroke-width="1"/>';
+            // Eyes
+            s += '<ellipse cx="95" cy="85" rx="8" ry="9" fill="white"/>';
+            s += '<ellipse cx="125" cy="85" rx="8" ry="9" fill="white"/>';
+            s += '<ellipse cx="95" cy="87" rx="5" ry="6" fill="' + cfg.eyeColor + '"/>';
+            s += '<ellipse cx="125" cy="87" rx="5" ry="6" fill="' + cfg.eyeColor + '"/>';
+            s += '<ellipse cx="96" cy="85" rx="2" ry="2.5" fill="white"/>';
+            s += '<ellipse cx="126" cy="85" rx="2" ry="2.5" fill="white"/>';
+            // Eyelashes for girl
+            if (cfg.hairStyle === 'long') {
+                s += '<line x1="86" y1="79" x2="89" y2="76" stroke="' + cfg.hairColor + '" stroke-width="1.5" stroke-linecap="round"/>';
+                s += '<line x1="103" y1="79" x2="100" y2="76" stroke="' + cfg.hairColor + '" stroke-width="1.5" stroke-linecap="round"/>';
+                s += '<line x1="116" y1="79" x2="119" y2="76" stroke="' + cfg.hairColor + '" stroke-width="1.5" stroke-linecap="round"/>';
+                s += '<line x1="133" y1="79" x2="130" y2="76" stroke="' + cfg.hairColor + '" stroke-width="1.5" stroke-linecap="round"/>';
+            }
+            // Nose
+            s += '<ellipse cx="110" cy="95" rx="3" ry="2.5" fill="' + cfg.skinColor + '" stroke="#D7B89C" stroke-width="1"/>';
+            // Smile
+            s += '<path d="M 100 103 Q 110 112 120 103" stroke="#C0392B" stroke-width="2" fill="none" stroke-linecap="round"/>';
+            // Cheeks
+            s += '<ellipse cx="82" cy="97" rx="7" ry="4" fill="' + cfg.cheekColor + '" opacity="0.5"/>';
+            s += '<ellipse cx="138" cy="97" rx="7" ry="4" fill="' + cfg.cheekColor + '" opacity="0.5"/>';
+            // Hair top
+            if (cfg.hairStyle === 'short') {
+                s += '<path d="M 65 80 Q 75 45 110 42 Q 145 45 155 80" fill="' + cfg.hairColor + '"/>';
+                // Spiky bits
+                s += '<path d="M 80 55 Q 85 42 95 50" fill="' + cfg.hairColor + '"/>';
+                s += '<path d="M 105 48 Q 112 35 120 48" fill="' + cfg.hairColor + '"/>';
+                s += '<path d="M 130 50 Q 138 40 142 55" fill="' + cfg.hairColor + '"/>';
+            } else {
+                // Bangs
+                s += '<path d="M 68 82 Q 75 50 110 46 Q 145 50 152 82" fill="' + cfg.hairColor + '"/>';
+                s += '<path d="M 72 82 Q 80 65 95 75" fill="' + cfg.hairColor + '"/>';
+                s += '<path d="M 148 82 Q 140 65 125 75" fill="' + cfg.hairColor + '"/>';
+            }
+            // Neck
+            s += '<rect x="100" y="122" width="20" height="16" rx="5" fill="' + cfg.skinColor + '"/>';
+            // Body
+            s += '<ellipse cx="110" cy="185" rx="35" ry="50" fill="' + cfg.skinColor + '" stroke="#E0C9A6" stroke-width="1"/>';
+            // Arms
+            s += '<rect x="55" y="145" width="20" height="55" rx="10" fill="' + cfg.skinColor + '" stroke="#E0C9A6" stroke-width="1" transform="rotate(-8 65 170)"/>';
+            s += '<rect x="145" y="145" width="20" height="55" rx="10" fill="' + cfg.skinColor + '" stroke="#E0C9A6" stroke-width="1" transform="rotate(8 155 170)"/>';
+            // Hands
+            s += '<ellipse cx="60" cy="202" rx="10" ry="9" fill="' + cfg.skinColor + '" stroke="#E0C9A6" stroke-width="1"/>';
+            s += '<ellipse cx="160" cy="202" rx="10" ry="9" fill="' + cfg.skinColor + '" stroke="#E0C9A6" stroke-width="1"/>';
+            // Legs
+            s += '<rect x="82" y="228" width="22" height="50" rx="11" fill="' + cfg.skinColor + '" stroke="#E0C9A6" stroke-width="1"/>';
+            s += '<rect x="116" y="228" width="22" height="50" rx="11" fill="' + cfg.skinColor + '" stroke="#E0C9A6" stroke-width="1"/>';
+            // Feet
+            s += '<ellipse cx="93" cy="282" rx="16" ry="8" fill="' + cfg.skinColor + '" stroke="#E0C9A6" stroke-width="1"/>';
+            s += '<ellipse cx="127" cy="282" rx="16" ry="8" fill="' + cfg.skinColor + '" stroke="#E0C9A6" stroke-width="1"/>';
+        }
+
+        // ── Draw worn clothing ──
+        var outfit = cfg.outfit || {};
+
+        // Shoes (drawn under pants)
+        if (outfit.shoes) drawClothing(outfit.shoes);
+        // Pants / skirt
+        if (outfit.bottom) drawClothing(outfit.bottom);
+        // Shirt
+        if (outfit.top) drawClothing(outfit.top);
+        // Glasses
+        if (outfit.glasses) drawClothing(outfit.glasses);
+        // Hat
+        if (outfit.hat) drawClothing(outfit.hat);
+        // Accessory
+        if (outfit.accessory) drawClothing(outfit.accessory);
+
+        function drawClothing(item) {
+            if (!item || !item.svg) return;
+            var svgFn = typeof item.svg === 'function' ? item.svg : null;
+            if (svgFn) {
+                s += svgFn(cfg.bodyType);
+            } else {
+                s += item.svg;
+            }
+        }
+
+        s += '</svg>';
+        return s;
+    }
+
+    // ── Clothing Items Database ──
+    var allItems = {
+        casual: {
+            label: 'Casual',
+            items: [
+                { id: 'cas-tshirt-red', slot: 'top', emoji: '&#128085;', bg: '#ef9a9a', svg: function(bt) {
+                    if (bt !== 'human') return '<ellipse cx="110" cy="175" rx="38" ry="42" fill="#E53935" opacity="0.85"/><ellipse cx="110" cy="175" rx="24" ry="28" fill="#EF5350" opacity="0.3"/>';
+                    return '<path d="M 72 140 Q 72 135 82 133 L 100 133 L 110 148 L 120 133 L 138 133 Q 148 135 148 140 L 155 165 L 148 168 L 142 155 L 142 220 L 78 220 L 78 155 L 72 168 L 65 165 Z" fill="#E53935" stroke="#C62828" stroke-width="1"/><path d="M 95 145 L 110 160 L 125 145" stroke="#EF5350" stroke-width="1.5" fill="none"/>';
+                }},
+                { id: 'cas-tshirt-blue', slot: 'top', emoji: '&#128085;', bg: '#90CAF9', svg: function(bt) {
+                    if (bt !== 'human') return '<ellipse cx="110" cy="175" rx="38" ry="42" fill="#42A5F5" opacity="0.85"/><text x="110" y="182" text-anchor="middle" font-size="18" fill="white" font-family="sans-serif">&#9734;</text>';
+                    return '<path d="M 72 140 Q 72 135 82 133 L 100 133 L 110 148 L 120 133 L 138 133 Q 148 135 148 140 L 155 165 L 148 168 L 142 155 L 142 220 L 78 220 L 78 155 L 72 168 L 65 165 Z" fill="#42A5F5" stroke="#1E88E5" stroke-width="1"/><text x="110" y="188" text-anchor="middle" font-size="22" fill="white" font-family="sans-serif">&#9734;</text>';
+                }},
+                { id: 'cas-jeans', slot: 'bottom', emoji: '&#128086;', bg: '#90CAF9', svg: function(bt) {
+                    if (bt !== 'human') return '<path d="M 78 215 L 142 215 L 145 280 L 118 280 L 110 260 L 102 280 L 75 280 Z" fill="#5C6BC0" opacity="0.85"/>';
+                    return '<path d="M 78 210 L 142 210 L 145 280 L 118 280 L 110 255 L 102 280 L 75 280 Z" fill="#5C6BC0" stroke="#3949AB" stroke-width="1"/><line x1="110" y1="210" x2="110" y2="252" stroke="#3949AB" stroke-width="1"/>';
+                }},
+                { id: 'cas-shorts-green', slot: 'bottom', emoji: '&#129523;', bg: '#A5D6A7', svg: function(bt) {
+                    if (bt !== 'human') return '<path d="M 78 215 L 142 215 L 140 250 L 110 245 L 80 250 Z" fill="#66BB6A" opacity="0.85"/>';
+                    return '<path d="M 78 210 L 142 210 L 140 252 L 118 252 L 110 245 L 102 252 L 80 252 Z" fill="#66BB6A" stroke="#43A047" stroke-width="1"/>';
+                }},
+                { id: 'cas-sneakers', slot: 'shoes', emoji: '&#128095;', bg: '#EEEEEE', svg: function(bt) {
+                    if (bt !== 'human') return '<ellipse cx="92" cy="282" rx="18" ry="10" fill="white" stroke="#BDBDBD" stroke-width="1.5"/><ellipse cx="128" cy="282" rx="18" ry="10" fill="white" stroke="#BDBDBD" stroke-width="1.5"/><line x1="84" y1="280" x2="100" y2="280" stroke="#E53935" stroke-width="1.5"/><line x1="120" y1="280" x2="136" y2="280" stroke="#E53935" stroke-width="1.5"/>';
+                    return '<ellipse cx="93" cy="283" rx="18" ry="10" fill="white" stroke="#BDBDBD" stroke-width="1.5"/><ellipse cx="127" cy="283" rx="18" ry="10" fill="white" stroke="#BDBDBD" stroke-width="1.5"/><line x1="85" y1="281" x2="101" y2="281" stroke="#E53935" stroke-width="1.5"/><line x1="119" y1="281" x2="135" y2="281" stroke="#E53935" stroke-width="1.5"/>';
+                }},
+                { id: 'cas-cap', slot: 'hat', emoji: '&#129506;', bg: '#EF5350', svg: function(bt) {
+                    var y = bt === 'human' ? 55 : (bt === 'cat' ? 50 : 55);
+                    return '<ellipse cx="110" cy="' + y + '" rx="45" ry="12" fill="#E53935"/><path d="M 65 ' + y + ' Q 65 ' + (y-20) + ' 110 ' + (y-22) + ' Q 155 ' + (y-20) + ' 155 ' + y + '" fill="#E53935" stroke="#C62828" stroke-width="1"/><rect x="135" y="' + (y-6) + '" width="30" height="8" rx="4" fill="#C62828"/>';
+                }},
+                { id: 'cas-glasses', slot: 'glasses', emoji: '&#128083;', bg: '#CFD8DC', svg: function(bt) {
+                    var y = bt === 'human' ? 84 : 82;
+                    return '<circle cx="93" cy="' + y + '" r="12" fill="none" stroke="#37474F" stroke-width="2.5"/><circle cx="127" cy="' + y + '" r="12" fill="none" stroke="#37474F" stroke-width="2.5"/><line x1="105" y1="' + y + '" x2="115" y2="' + y + '" stroke="#37474F" stroke-width="2.5"/><circle cx="93" cy="' + y + '" r="12" fill="#B3E5FC" opacity="0.2"/><circle cx="127" cy="' + y + '" r="12" fill="#B3E5FC" opacity="0.2"/>';
+                }},
+                { id: 'cas-backpack', slot: 'accessory', emoji: '&#127890;', bg: '#FF8A65', svg: function(bt) {
+                    var y = bt === 'human' ? 140 : 135;
+                    return '<rect x="130" y="' + y + '" width="30" height="40" rx="8" fill="#FF7043" stroke="#E64A19" stroke-width="1.5"/><rect x="136" y="' + (y+10) + '" width="18" height="12" rx="4" fill="#E64A19"/><line x1="140" y1="' + y + '" x2="140" y2="' + (y-8) + '" stroke="#BF360C" stroke-width="2"/><line x1="150" y1="' + y + '" x2="150" y2="' + (y-8) + '" stroke="#BF360C" stroke-width="2"/>';
+                }}
+            ]
+        },
+        fancy: {
+            label: 'Fancy',
+            items: [
+                { id: 'fan-dress-pink', slot: 'top', emoji: '&#128087;', bg: '#F8BBD0', svg: function(bt) {
+                    if (bt !== 'human') return '<ellipse cx="110" cy="180" rx="40" ry="50" fill="#EC407A" opacity="0.85"/><ellipse cx="110" cy="230" rx="50" ry="25" fill="#F48FB1" opacity="0.6"/>';
+                    return '<path d="M 82 133 Q 110 128 138 133 L 142 180 Q 142 235 165 260 L 55 260 Q 78 235 78 180 Z" fill="#EC407A" stroke="#C2185B" stroke-width="1"/><ellipse cx="110" cy="255" rx="56" ry="14" fill="#F48FB1" opacity="0.5"/><path d="M 100 133 L 110 145 L 120 133" stroke="#F8BBD0" stroke-width="1.5" fill="none"/>';
+                }},
+                { id: 'fan-suit', slot: 'top', emoji: '&#128084;', bg: '#455A64', svg: function(bt) {
+                    if (bt !== 'human') return '<ellipse cx="110" cy="175" rx="38" ry="42" fill="#37474F" opacity="0.85"/><rect x="106" y="148" width="8" height="45" fill="#E53935"/>';
+                    return '<path d="M 72 140 Q 72 135 82 133 L 100 133 L 110 148 L 120 133 L 138 133 Q 148 135 148 140 L 155 165 L 148 168 L 142 155 L 142 220 L 78 220 L 78 155 L 72 168 L 65 165 Z" fill="#37474F" stroke="#263238" stroke-width="1"/><path d="M 95 133 L 110 155 L 125 133" stroke="#455A64" stroke-width="1" fill="#263238"/><rect x="106" y="150" width="8" height="65" fill="#E53935"/>';
+                }},
+                { id: 'fan-skirt-gold', slot: 'bottom', emoji: '&#129523;', bg: '#FFE082', svg: function(bt) {
+                    if (bt !== 'human') return '<path d="M 72 215 L 148 215 Q 155 255 148 270 L 72 270 Q 65 255 72 215 Z" fill="#F5C542" opacity="0.85"/>';
+                    return '<path d="M 78 210 L 142 210 Q 160 250 150 270 L 70 270 Q 60 250 78 210 Z" fill="#F5C542" stroke="#E8A317" stroke-width="1"/><path d="M 88 210 Q 90 245 85 270" stroke="#E8A317" stroke-width="0.8" fill="none"/><path d="M 110 210 Q 110 245 110 270" stroke="#E8A317" stroke-width="0.8" fill="none"/><path d="M 132 210 Q 130 245 135 270" stroke="#E8A317" stroke-width="0.8" fill="none"/>';
+                }},
+                { id: 'fan-dress-shoes', slot: 'shoes', emoji: '&#128096;', bg: '#CE93D8', svg: function(bt) {
+                    if (bt !== 'human') return '<ellipse cx="92" cy="282" rx="16" ry="8" fill="#AB47BC" stroke="#7B1FA2" stroke-width="1.5"/><ellipse cx="128" cy="282" rx="16" ry="8" fill="#AB47BC" stroke="#7B1FA2" stroke-width="1.5"/>';
+                    return '<ellipse cx="93" cy="283" rx="17" ry="8" fill="#AB47BC" stroke="#7B1FA2" stroke-width="1.5"/><ellipse cx="127" cy="283" rx="17" ry="8" fill="#AB47BC" stroke="#7B1FA2" stroke-width="1.5"/><ellipse cx="93" cy="281" rx="5" ry="3" fill="#E1BEE7"/><ellipse cx="127" cy="281" rx="5" ry="3" fill="#E1BEE7"/>';
+                }},
+                { id: 'fan-tophat', slot: 'hat', emoji: '&#127913;', bg: '#37474F', svg: function(bt) {
+                    var y = bt === 'human' ? 52 : (bt === 'cat' ? 47 : 52);
+                    return '<ellipse cx="110" cy="' + y + '" rx="42" ry="10" fill="#263238"/><rect x="85" y="' + (y-42) + '" width="50" height="42" rx="4" fill="#37474F" stroke="#263238" stroke-width="1"/><rect x="85" y="' + (y-10) + '" width="50" height="4" fill="#F5C542"/>';
+                }},
+                { id: 'fan-bowtie', slot: 'accessory', emoji: '&#127808;', bg: '#EF5350', svg: function(bt) {
+                    var y = bt === 'human' ? 132 : 122;
+                    return '<path d="M 97 ' + y + ' L 85 ' + (y-10) + ' L 85 ' + (y+10) + ' Z" fill="#E53935"/><path d="M 123 ' + y + ' L 135 ' + (y-10) + ' L 135 ' + (y+10) + ' Z" fill="#E53935"/><circle cx="110" cy="' + y + '" r="4" fill="#C62828"/>';
+                }},
+                { id: 'fan-tiara', slot: 'hat', emoji: '&#128081;', bg: '#FFF176', svg: function(bt) {
+                    var y = bt === 'human' ? 52 : (bt === 'cat' ? 48 : 52);
+                    return '<path d="M 82 ' + (y+6) + ' L 86 ' + (y-10) + ' L 95 ' + y + ' L 102 ' + (y-16) + ' L 110 ' + (y-4) + ' L 118 ' + (y-16) + ' L 125 ' + y + ' L 134 ' + (y-10) + ' L 138 ' + (y+6) + ' Z" fill="#F5C542" stroke="#E8A317" stroke-width="1"/><circle cx="110" cy="' + (y-8) + '" r="3" fill="#E91E63"/><circle cx="97" cy="' + (y-4) + '" r="2" fill="#42A5F5"/><circle cx="123" cy="' + (y-4) + '" r="2" fill="#42A5F5"/>';
+                }},
+                { id: 'fan-sunglasses', slot: 'glasses', emoji: '&#128526;', bg: '#FFF176', svg: function(bt) {
+                    var y = bt === 'human' ? 84 : 82;
+                    return '<path d="M 78 ' + (y-4) + ' Q 93 ' + (y-8) + ' 105 ' + y + ' L 115 ' + y + ' Q 127 ' + (y-8) + ' 142 ' + (y-4) + ' L 140 ' + (y+6) + ' Q 127 ' + (y+12) + ' 115 ' + (y+4) + ' L 105 ' + (y+4) + ' Q 93 ' + (y+12) + ' 80 ' + (y+6) + ' Z" fill="#37474F" opacity="0.85"/><line x1="68" y1="' + y + '" x2="78" y2="' + (y-2) + '" stroke="#F5C542" stroke-width="2.5"/><line x1="142" y1="' + (y-2) + '" x2="152" y2="' + y + '" stroke="#F5C542" stroke-width="2.5"/>';
+                }}
+            ]
+        },
+        silly: {
+            label: 'Silly',
+            items: [
+                { id: 'sil-rainbow-shirt', slot: 'top', emoji: '&#127752;', bg: '#FFF9C4', svg: function(bt) {
+                    if (bt !== 'human') {
+                        var stripes = '';
+                        var colors = ['#E53935','#FF8F00','#F5C542','#66BB6A','#42A5F5','#B07CC6'];
+                        for (var i = 0; i < 6; i++) {
+                            stripes += '<rect x="72" y="' + (148 + i*14) + '" width="76" height="14" fill="' + colors[i] + '" opacity="0.8"/>';
+                        }
+                        return '<ellipse cx="110" cy="175" rx="38" ry="42" fill="#E53935" opacity="0"/>' + stripes;
+                    }
+                    var st = '';
+                    var cols = ['#E53935','#FF8F00','#F5C542','#66BB6A','#42A5F5','#B07CC6'];
+                    for (var j = 0; j < 6; j++) {
+                        st += '<rect x="78" y="' + (140 + j*14) + '" width="64" height="14" fill="' + cols[j] + '"/>';
+                    }
+                    return '<path d="M 72 140 Q 72 135 82 133 L 100 133 L 110 148 L 120 133 L 138 133 Q 148 135 148 140 L 155 165 L 148 168 L 142 155 L 142 224 L 78 224 L 78 155 L 72 168 L 65 165 Z" fill="#E53935" stroke="#C62828" stroke-width="1"/>' + st;
+                }},
+                { id: 'sil-polka-pants', slot: 'bottom', emoji: '&#128086;', bg: '#CE93D8', svg: function(bt) {
+                    if (bt !== 'human') {
+                        return '<path d="M 78 215 L 142 215 L 145 280 L 75 280 Z" fill="#AB47BC" opacity="0.85"/><circle cx="95" cy="235" r="5" fill="#F8BBD0" opacity="0.7"/><circle cx="125" cy="245" r="5" fill="#F8BBD0" opacity="0.7"/><circle cx="110" cy="265" r="5" fill="#F8BBD0" opacity="0.7"/>';
+                    }
+                    return '<path d="M 78 210 L 142 210 L 145 280 L 118 280 L 110 255 L 102 280 L 75 280 Z" fill="#AB47BC" stroke="#7B1FA2" stroke-width="1"/><circle cx="95" cy="230" r="5" fill="#F8BBD0" opacity="0.6"/><circle cx="125" cy="240" r="5" fill="#F8BBD0" opacity="0.6"/><circle cx="90" cy="260" r="5" fill="#F8BBD0" opacity="0.6"/><circle cx="130" cy="262" r="5" fill="#F8BBD0" opacity="0.6"/>';
+                }},
+                { id: 'sil-clown-shoes', slot: 'shoes', emoji: '&#129529;', bg: '#FFE082', svg: function(bt) {
+                    return '<ellipse cx="85" cy="283" rx="28" ry="11" fill="#E53935" stroke="#C62828" stroke-width="1.5"/><ellipse cx="135" cy="283" rx="28" ry="11" fill="#42A5F5" stroke="#1E88E5" stroke-width="1.5"/><circle cx="75" cy="280" r="5" fill="#F5C542"/><circle cx="145" cy="280" r="5" fill="#F5C542"/>';
+                }},
+                { id: 'sil-propeller-hat', slot: 'hat', emoji: '&#129530;', bg: '#90CAF9', svg: function(bt) {
+                    var y = bt === 'human' ? 50 : (bt === 'cat' ? 44 : 48);
+                    return '<ellipse cx="110" cy="' + (y+6) + '" rx="38" ry="10" fill="#42A5F5"/><path d="M 72 ' + (y+6) + ' Q 72 ' + (y-10) + ' 110 ' + (y-12) + ' Q 148 ' + (y-10) + ' 148 ' + (y+6) + '" fill="#42A5F5" stroke="#1E88E5" stroke-width="1"/><circle cx="110" cy="' + (y-14) + '" r="4" fill="#E53935"/><path d="M 96 ' + (y-18) + ' L 110 ' + (y-14) + ' L 96 ' + (y-10) + '" fill="#F5C542"/><path d="M 124 ' + (y-18) + ' L 110 ' + (y-14) + ' L 124 ' + (y-10) + '" fill="#66BB6A"/>';
+                }},
+                { id: 'sil-star-glasses', slot: 'glasses', emoji: '&#11088;', bg: '#FFF176', svg: function(bt) {
+                    var y = bt === 'human' ? 84 : 82;
+                    function star(cx, cy, r) {
+                        var pts = '';
+                        for (var i = 0; i < 5; i++) {
+                            var a1 = (i * 72 - 90) * Math.PI / 180;
+                            var a2 = ((i * 72 + 36) - 90) * Math.PI / 180;
+                            pts += (cx + r * Math.cos(a1)).toFixed(1) + ',' + (cy + r * Math.sin(a1)).toFixed(1) + ' ';
+                            pts += (cx + r * 0.45 * Math.cos(a2)).toFixed(1) + ',' + (cy + r * 0.45 * Math.sin(a2)).toFixed(1) + ' ';
+                        }
+                        return pts;
+                    }
+                    return '<polygon points="' + star(93, y, 14) + '" fill="#F5C542" stroke="#E8A317" stroke-width="1"/><polygon points="' + star(127, y, 14) + '" fill="#F5C542" stroke="#E8A317" stroke-width="1"/><line x1="105" y1="' + y + '" x2="115" y2="' + y + '" stroke="#E8A317" stroke-width="2"/><line x1="68" y1="' + y + '" x2="80" y2="' + y + '" stroke="#E8A317" stroke-width="2"/><line x1="140" y1="' + y + '" x2="152" y2="' + y + '" stroke="#E8A317" stroke-width="2"/>';
+                }},
+                { id: 'sil-clown-nose', slot: 'accessory', emoji: '&#128308;', bg: '#EF5350', svg: function(bt) {
+                    var y = bt === 'human' ? 95 : 93;
+                    return '<circle cx="110" cy="' + y + '" r="8" fill="#E53935" stroke="#C62828" stroke-width="1"/><ellipse cx="108" cy="' + (y-3) + '" rx="3" ry="2" fill="#EF9A9A" opacity="0.5"/>';
+                }},
+                { id: 'sil-tutu', slot: 'bottom', emoji: '&#128131;', bg: '#F8BBD0', svg: function(bt) {
+                    if (bt !== 'human') return '<path d="M 68 210 Q 80 200 110 200 Q 140 200 152 210 L 160 235 Q 130 250 110 250 Q 90 250 60 235 Z" fill="#F48FB1" opacity="0.8"/><path d="M 65 220 Q 90 215 110 215 Q 130 215 155 220 L 162 240 Q 130 255 110 255 Q 90 255 58 240 Z" fill="#EC407A" opacity="0.5"/>';
+                    return '<path d="M 65 210 Q 80 200 110 200 Q 140 200 155 210 L 165 240 Q 130 260 110 260 Q 90 260 55 240 Z" fill="#F48FB1" stroke="#EC407A" stroke-width="1"/><path d="M 60 218 Q 85 212 110 212 Q 135 212 160 218 L 168 245 Q 130 265 110 265 Q 90 265 52 245 Z" fill="#EC407A" opacity="0.4"/>';
+                }},
+                { id: 'sil-bowtie-big', slot: 'accessory', emoji: '&#127872;', bg: '#B07CC6', svg: function(bt) {
+                    var y = bt === 'human' ? 130 : 120;
+                    return '<path d="M 95 ' + y + ' L 75 ' + (y-14) + ' L 75 ' + (y+14) + ' Z" fill="#AB47BC"/><path d="M 125 ' + y + ' L 145 ' + (y-14) + ' L 145 ' + (y+14) + ' Z" fill="#AB47BC"/><circle cx="110" cy="' + y + '" r="6" fill="#7B1FA2"/><circle cx="110" cy="' + y + '" r="3" fill="#F5C542"/>';
+                }}
+            ]
+        },
+        superhero: {
+            label: 'Hero',
+            items: [
+                { id: 'hero-cape', slot: 'accessory', emoji: '&#129464;', bg: '#EF5350', svg: function(bt) {
+                    var y = bt === 'human' ? 130 : 120;
+                    return '<path d="M 80 ' + y + ' Q 50 200 45 280 L 110 260 L 175 280 Q 170 200 140 ' + y + '" fill="#E53935" opacity="0.75" stroke="#C62828" stroke-width="1"/>';
+                }},
+                { id: 'hero-suit', slot: 'top', emoji: '&#129464;', bg: '#42A5F5', svg: function(bt) {
+                    if (bt !== 'human') return '<ellipse cx="110" cy="175" rx="38" ry="42" fill="#1E88E5" opacity="0.85"/><path d="M 100 160 L 110 150 L 120 160 L 115 170 L 110 165 L 105 170 Z" fill="#F5C542"/>';
+                    return '<path d="M 72 140 Q 72 135 82 133 L 100 133 L 110 148 L 120 133 L 138 133 Q 148 135 148 140 L 155 165 L 148 168 L 142 155 L 142 220 L 78 220 L 78 155 L 72 168 L 65 165 Z" fill="#1E88E5" stroke="#1565C0" stroke-width="1"/><path d="M 98 158 L 110 145 L 122 158 L 116 172 L 110 165 L 104 172 Z" fill="#F5C542" stroke="#E8A317" stroke-width="0.8"/>';
+                }},
+                { id: 'hero-boots', slot: 'shoes', emoji: '&#129406;', bg: '#EF5350', svg: function(bt) {
+                    return '<path d="M 77 260 L 77 283 Q 77 293 93 293 Q 110 293 110 283 L 110 268" fill="#E53935" stroke="#C62828" stroke-width="1.5"/><path d="M 110 268 L 110 283 Q 110 293 127 293 Q 143 293 143 283 L 143 260" fill="#E53935" stroke="#C62828" stroke-width="1.5"/><line x1="77" y1="265" x2="110" y2="265" stroke="#F5C542" stroke-width="2"/><line x1="110" y1="265" x2="143" y2="265" stroke="#F5C542" stroke-width="2"/>';
+                }},
+                { id: 'hero-mask', slot: 'glasses', emoji: '&#127917;', bg: '#283593', svg: function(bt) {
+                    var y = bt === 'human' ? 83 : 81;
+                    return '<path d="M 70 ' + (y-3) + ' Q 90 ' + (y-10) + ' 105 ' + (y-2) + ' L 115 ' + (y-2) + ' Q 130 ' + (y-10) + ' 150 ' + (y-3) + ' L 148 ' + (y+6) + ' Q 130 ' + (y+12) + ' 115 ' + (y+5) + ' L 105 ' + (y+5) + ' Q 90 ' + (y+12) + ' 72 ' + (y+6) + ' Z" fill="#283593" opacity="0.85"/><ellipse cx="90" cy="' + y + '" rx="9" ry="7" fill="white" opacity="0.9"/><ellipse cx="130" cy="' + y + '" rx="9" ry="7" fill="white" opacity="0.9"/>';
+                }},
+                { id: 'hero-belt', slot: 'bottom', emoji: '&#129520;', bg: '#FFF176', svg: function(bt) {
+                    var y = bt === 'human' ? 215 : 215;
+                    return '<rect x="72" y="' + y + '" width="76" height="10" rx="3" fill="#F5C542" stroke="#E8A317" stroke-width="1"/><circle cx="110" cy="' + (y+5) + '" r="7" fill="#F5C542" stroke="#E8A317" stroke-width="1.5"/><text x="110" y="' + (y+9) + '" text-anchor="middle" font-size="10" fill="#E8A317" font-family="sans-serif" font-weight="bold">S</text>';
+                }},
+                { id: 'hero-gauntlets', slot: 'accessory', emoji: '&#129354;', bg: '#FFC107', svg: function(bt) {
+                    if (bt !== 'human') return '<rect x="50" y="185" width="28" height="15" rx="5" fill="#F5C542" stroke="#E8A317" stroke-width="1.5"/><rect x="142" y="185" width="28" height="15" rx="5" fill="#F5C542" stroke="#E8A317" stroke-width="1.5"/>';
+                    return '<rect x="48" y="190" width="26" height="16" rx="6" fill="#F5C542" stroke="#E8A317" stroke-width="1.5"/><rect x="146" y="190" width="26" height="16" rx="6" fill="#F5C542" stroke="#E8A317" stroke-width="1.5"/>';
+                }}
+            ]
+        },
+        princess: {
+            label: 'Princess',
+            items: [
+                { id: 'pri-gown', slot: 'top', emoji: '&#128087;', bg: '#CE93D8', svg: function(bt) {
+                    if (bt !== 'human') return '<ellipse cx="110" cy="180" rx="42" ry="55" fill="#AB47BC" opacity="0.85"/><ellipse cx="110" cy="235" rx="55" ry="30" fill="#CE93D8" opacity="0.6"/>';
+                    return '<path d="M 85 133 Q 110 128 135 133 L 140 180 Q 145 230 175 270 L 45 270 Q 75 230 80 180 Z" fill="#AB47BC" stroke="#7B1FA2" stroke-width="1"/><path d="M 100 133 L 110 142 L 120 133" stroke="#E1BEE7" stroke-width="1.5" fill="none"/><ellipse cx="110" cy="264" rx="66" ry="16" fill="#CE93D8" opacity="0.4"/><path d="M 55 265 Q 80 255 110 255 Q 140 255 165 265" stroke="#E1BEE7" stroke-width="1" fill="none"/>';
+                }},
+                { id: 'pri-gown-blue', slot: 'top', emoji: '&#128087;', bg: '#90CAF9', svg: function(bt) {
+                    if (bt !== 'human') return '<ellipse cx="110" cy="180" rx="42" ry="55" fill="#42A5F5" opacity="0.85"/><ellipse cx="110" cy="235" rx="55" ry="30" fill="#90CAF9" opacity="0.6"/>';
+                    return '<path d="M 85 133 Q 110 128 135 133 L 140 180 Q 145 230 175 270 L 45 270 Q 75 230 80 180 Z" fill="#42A5F5" stroke="#1E88E5" stroke-width="1"/><ellipse cx="110" cy="264" rx="66" ry="16" fill="#90CAF9" opacity="0.4"/><path d="M 88 148 Q 110 140 132 148" stroke="#BBDEFB" stroke-width="1" fill="none"/><circle cx="110" cy="145" r="3" fill="#FFF176"/>';
+                }},
+                { id: 'pri-crown', slot: 'hat', emoji: '&#128081;', bg: '#FFF176', svg: function(bt) {
+                    var y = bt === 'human' ? 48 : (bt === 'cat' ? 42 : 46);
+                    return '<path d="M 78 ' + (y+10) + ' L 82 ' + (y-10) + ' L 92 ' + (y+2) + ' L 102 ' + (y-18) + ' L 110 ' + (y-2) + ' L 118 ' + (y-18) + ' L 128 ' + (y+2) + ' L 138 ' + (y-10) + ' L 142 ' + (y+10) + ' Z" fill="#F5C542" stroke="#E8A317" stroke-width="1.5"/><circle cx="102" cy="' + (y-8) + '" r="3" fill="#E91E63"/><circle cx="110" cy="' + (y-2) + '" r="3" fill="#42A5F5"/><circle cx="118" cy="' + (y-8) + '" r="3" fill="#66BB6A"/><rect x="78" y="' + (y+6) + '" width="64" height="6" fill="#E8A317" rx="1"/>';
+                }},
+                { id: 'pri-glass-slippers', slot: 'shoes', emoji: '&#10024;', bg: '#E3F2FD', svg: function(bt) {
+                    return '<ellipse cx="93" cy="283" rx="17" ry="9" fill="#BBDEFB" stroke="#90CAF9" stroke-width="1.5" opacity="0.8"/><ellipse cx="127" cy="283" rx="17" ry="9" fill="#BBDEFB" stroke="#90CAF9" stroke-width="1.5" opacity="0.8"/><ellipse cx="93" cy="281" rx="4" ry="2" fill="white" opacity="0.6"/><ellipse cx="127" cy="281" rx="4" ry="2" fill="white" opacity="0.6"/>';
+                }},
+                { id: 'pri-wand', slot: 'accessory', emoji: '&#10024;', bg: '#FFF9C4', svg: function(bt) {
+                    var x = bt === 'human' ? 162 : 158;
+                    return '<line x1="' + x + '" y1="200" x2="' + (x+25) + '" y2="140" stroke="#E8A317" stroke-width="3" stroke-linecap="round"/><polygon points="' + (x+25) + ',130 ' + (x+20) + ',140 ' + (x+30) + ',140" fill="#F5C542"/><circle cx="' + (x+25) + '" cy="132" r="6" fill="#FFF176" stroke="#F5C542" stroke-width="1"/><circle cx="' + (x+25) + '" cy="132" r="3" fill="#FFEB3B"/>';
+                }},
+                { id: 'pri-necklace', slot: 'accessory', emoji: '&#128142;', bg: '#F8BBD0', svg: function(bt) {
+                    var y = bt === 'human' ? 126 : 118;
+                    return '<path d="M 88 ' + y + ' Q 110 ' + (y+18) + ' 132 ' + y + '" stroke="#F5C542" stroke-width="1.5" fill="none"/><circle cx="110" cy="' + (y+14) + '" r="5" fill="#E91E63" stroke="#C2185B" stroke-width="1"/><circle cx="110" cy="' + (y+14) + '" r="2" fill="#F48FB1"/>';
+                }}
+            ]
+        },
+        pirate: {
+            label: 'Pirate',
+            items: [
+                { id: 'pir-vest', slot: 'top', emoji: '&#129520;', bg: '#795548', svg: function(bt) {
+                    if (bt !== 'human') return '<ellipse cx="110" cy="175" rx="38" ry="42" fill="#5D4037" opacity="0.85"/><rect x="105" y="150" width="10" height="40" fill="#FFF8E1" opacity="0.5"/>';
+                    return '<path d="M 78 140 L 78 220 L 102 220 L 102 145 Q 110 150 118 145 L 118 220 L 142 220 L 142 140 Q 135 135 118 133 L 110 140 L 102 133 Q 85 135 78 140 Z" fill="#5D4037" stroke="#3E2723" stroke-width="1"/><rect x="102" y="140" width="16" height="80" fill="#FFF8E1" opacity="0.3"/>';
+                }},
+                { id: 'pir-pants', slot: 'bottom', emoji: '&#128086;', bg: '#37474F', svg: function(bt) {
+                    if (bt !== 'human') return '<path d="M 78 215 L 142 215 L 145 280 L 75 280 Z" fill="#37474F" opacity="0.85"/>';
+                    return '<path d="M 78 210 L 142 210 L 145 275 L 118 275 L 110 260 L 102 275 L 75 275 Z" fill="#37474F" stroke="#263238" stroke-width="1"/><line x1="110" y1="210" x2="110" y2="257" stroke="#263238" stroke-width="1"/>';
+                }},
+                { id: 'pir-hat', slot: 'hat', emoji: '&#129529;', bg: '#37474F', svg: function(bt) {
+                    var y = bt === 'human' ? 55 : (bt === 'cat' ? 50 : 55);
+                    return '<ellipse cx="110" cy="' + (y+5) + '" rx="48" ry="10" fill="#263238"/><path d="M 65 ' + (y+5) + ' Q 60 ' + (y-20) + ' 80 ' + (y-25) + ' Q 110 ' + (y-35) + ' 140 ' + (y-25) + ' Q 160 ' + (y-20) + ' 155 ' + (y+5) + '" fill="#37474F" stroke="#263238" stroke-width="1.5"/><text x="110" y="' + (y-8) + '" text-anchor="middle" font-size="16" fill="white">&#9760;</text>';
+                }},
+                { id: 'pir-boots', slot: 'shoes', emoji: '&#129406;', bg: '#4E342E', svg: function(bt) {
+                    return '<path d="M 77 258 L 77 283 Q 77 295 90 295 L 110 295 L 110 283 L 110 265" fill="#4E342E" stroke="#3E2723" stroke-width="1.5"/><path d="M 110 265 L 110 283 L 110 295 L 130 295 Q 143 295 143 283 L 143 258" fill="#4E342E" stroke="#3E2723" stroke-width="1.5"/><line x1="77" y1="262" x2="110" y2="262" stroke="#795548" stroke-width="2"/><line x1="110" y1="262" x2="143" y2="262" stroke="#795548" stroke-width="2"/>';
+                }},
+                { id: 'pir-eyepatch', slot: 'glasses', emoji: '&#128065;', bg: '#37474F', svg: function(bt) {
+                    var y = bt === 'human' ? 84 : 82;
+                    return '<ellipse cx="93" cy="' + y + '" rx="11" ry="10" fill="#37474F" stroke="#263238" stroke-width="1.5"/><line x1="80" y1="' + (y-6) + '" x2="140" y2="' + (y-10) + '" stroke="#263238" stroke-width="2"/>';
+                }},
+                { id: 'pir-hook', slot: 'accessory', emoji: '&#129693;', bg: '#CFD8DC', svg: function(bt) {
+                    var x = bt === 'human' ? 160 : 155;
+                    return '<circle cx="' + x + '" cy="200" r="8" fill="#B0BEC5" stroke="#78909C" stroke-width="1.5"/><path d="M ' + x + ' 192 Q ' + (x+12) + ' 185 ' + (x+8) + ' 178 Q ' + (x+4) + ' 172 ' + x + ' 178" stroke="#78909C" stroke-width="2.5" fill="none" stroke-linecap="round"/>';
+                }},
+                { id: 'pir-parrot', slot: 'accessory', emoji: '&#129417;', bg: '#66BB6A', svg: function(bt) {
+                    var y = bt === 'human' ? 110 : 100;
+                    return '<ellipse cx="150" cy="' + y + '" rx="10" ry="12" fill="#66BB6A" stroke="#43A047" stroke-width="1"/><ellipse cx="150" cy="' + (y-7) + '" rx="7" ry="7" fill="#4CAF50"/><circle cx="152" cy="' + (y-8) + '" r="2" fill="white"/><circle cx="152" cy="' + (y-8) + '" r="1" fill="#263238"/><path d="M 156 ' + (y-8) + ' L 162 ' + (y-10) + ' L 160 ' + (y-7) + '" fill="#FF8F00"/><path d="M 142 ' + (y+5) + ' Q 135 ' + (y+15) + ' 140 ' + (y+18) + '" stroke="#43A047" stroke-width="2" fill="none"/>';
+                }}
+            ]
+        }
+    };
+
+    // ── State ──
+    var currentChar = 'girl';
+    var currentTheme = 'casual';
+    var worn = {}; // { slot: itemObj }
+
+    // ── DOM refs ──
+    var container = document.getElementById('character-container');
+    var tray = document.getElementById('item-tray');
+    var themeTabs = document.getElementById('theme-tabs');
+    var stageEl = document.getElementById('stage');
+
+    // ── Init audio on first interaction ──
+    document.addEventListener('touchstart', initAudio, { once: true });
+    document.addEventListener('click', initAudio, { once: true });
+
+    // ── Render character ──
+    function renderCharacter() {
+        container.innerHTML = characters[currentChar](worn);
+    }
+
+    // ── Render theme tabs ──
+    function renderThemeTabs() {
+        themeTabs.innerHTML = '';
+        var themes = Object.keys(allItems);
+        themes.forEach(function(key) {
+            var tab = document.createElement('button');
+            tab.className = 'theme-tab' + (key === currentTheme ? ' active' : '');
+            tab.textContent = allItems[key].label;
+            tab.addEventListener('click', function() {
+                currentTheme = key;
+                playSound('switch');
+                renderThemeTabs();
+                renderTray();
+            });
+            themeTabs.appendChild(tab);
+        });
+    }
+
+    // ── Render item tray ──
+    function renderTray() {
+        tray.innerHTML = '';
+        var items = allItems[currentTheme].items;
+        var bgColors = ['#FFE0EC','#E0F4FF','#FFF8D6','#F3E8FF','#E8F8E8','#FFECE0','#E8E8FF','#FFF3E0'];
+        items.forEach(function(item, i) {
+            var el = document.createElement('div');
+            el.className = 'tray-item' + (worn[item.slot] && worn[item.slot].id === item.id ? ' worn' : '');
+            el.style.background = item.bg || bgColors[i % bgColors.length];
+            el.innerHTML = item.emoji;
+            el.addEventListener('click', function(e) {
+                var rect = el.getBoundingClientRect();
+                var cx = rect.left + rect.width / 2;
+                var cy = rect.top + rect.height / 2;
+
+                if (worn[item.slot] && worn[item.slot].id === item.id) {
+                    // Remove item
+                    delete worn[item.slot];
+                    playSound('undress');
+                } else {
+                    // Wear item
+                    worn[item.slot] = item;
+                    playSound('dress');
+                    spawnSparkles(cx - stageEl.getBoundingClientRect().left, cy - stageEl.getBoundingClientRect().top, 6);
+                }
+                renderCharacter();
+                renderTray();
+            });
+            tray.appendChild(el);
+        });
+    }
+
+    // ── Character selection ──
+    document.querySelectorAll('.char-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            currentChar = btn.dataset.char;
+            document.querySelectorAll('.char-btn').forEach(function(b) { b.classList.remove('active'); });
+            btn.classList.add('active');
+            playSound('switch');
+            renderCharacter();
+        });
+    });
+
+    // ── Action buttons ──
+    document.querySelectorAll('.action-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var action = btn.dataset.action;
+            if (action === 'clear') {
+                worn = {};
+                playSound('clear');
+                renderCharacter();
+                renderTray();
+            } else if (action === 'random') {
+                worn = {};
+                // Pick random items from random themes
+                var themeKeys = Object.keys(allItems);
+                var slots = ['top', 'bottom', 'shoes', 'hat', 'glasses', 'accessory'];
+                slots.forEach(function(slot) {
+                    // 70% chance to fill each slot
+                    if (Math.random() < 0.7) {
+                        var theme = themeKeys[Math.floor(Math.random() * themeKeys.length)];
+                        var candidates = allItems[theme].items.filter(function(it) { return it.slot === slot; });
+                        if (candidates.length > 0) {
+                            worn[slot] = candidates[Math.floor(Math.random() * candidates.length)];
+                        }
+                    }
+                });
+                playSound('random');
+                // Sparkle burst on character
+                var charRect = container.getBoundingClientRect();
+                var stageRect = stageEl.getBoundingClientRect();
+                spawnSparkles(charRect.left - stageRect.left + charRect.width / 2, charRect.top - stageRect.top + charRect.height / 2, 12);
+                renderCharacter();
+                renderTray();
+            }
+        });
+    });
+
+    // ── Initial render ──
+    renderThemeTabs();
+    renderTray();
+    renderCharacter();
+
+})();
+</script>
+<script defer src="../../../prompt-viewer.js"></script>
+</body>
+</html>
