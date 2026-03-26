@@ -1,0 +1,1721 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lichess Architecture Map — Architecture Guide</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* === Typography === */
+            --font-display: 'Orbitron', sans-serif;
+            --font-body: 'Rajdhani', sans-serif;
+            --font-mono: 'Share Tech Mono', monospace;
+
+            /* === Spacing === */
+            --space-xs: 4px;
+            --space-sm: 8px;
+            --space-md: 16px;
+            --space-lg: 24px;
+            --space-xl: 32px;
+            --space-2xl: 48px;
+            --space-3xl: 64px;
+
+            /* === Chess Board Palette === */
+            --board-dark: #1a1a2e;
+            --board-light: #16213e;
+            --board-accent: #0f3460;
+            --piece-white: #e2e8f0;
+            --piece-gold: #f0c040;
+            --piece-gold-dim: rgba(240, 192, 64, 0.15);
+
+            /* === Core Palette === */
+            --void: #0a0a14;
+            --void-light: #0e0e1c;
+            --panel: #121228;
+            --panel-light: #1a1a36;
+            --panel-lighter: #22224a;
+
+            /* === Mapped Vars === */
+            --bg-base: var(--void);
+            --bg-elevated: #0e0e1c;
+            --bg-card: var(--panel-light);
+            --bg-card-hover: var(--panel-lighter);
+            --bg-muted: #08080f;
+
+            /* === Text === */
+            --text-primary: #c4c8e0;
+            --text-bright: #e8ecf8;
+            --text-secondary: #9498b4;
+            --text-tertiary: #5c6080;
+            --text-link: #6390e0;
+            --text-link-hover: #7eaaff;
+
+            /* === Domain Colors === */
+            --domain-core: #e06363;
+            --domain-ws: #40c080;
+            --domain-db: #f0a040;
+            --domain-engine: #8060e0;
+            --domain-api: #40a0e0;
+            --domain-infra: #e06090;
+            --domain-search: #60c0c0;
+            --domain-social: #c080e0;
+
+            /* === Accents === */
+            --accent-red: #e06363;
+            --accent-green: #40c080;
+            --accent-amber: #f0a040;
+            --accent-purple: #8060e0;
+            --accent-blue: #40a0e0;
+            --accent-pink: #e06090;
+            --accent-teal: #60c0c0;
+
+            /* === Borders === */
+            --border-subtle: rgba(100, 120, 200, 0.1);
+            --border-default: rgba(100, 120, 200, 0.2);
+            --border-strong: rgba(100, 120, 200, 0.35);
+
+            /* === Radius === */
+            --radius-sm: 2px;
+            --radius-md: 4px;
+            --radius: 6px;
+            --radius-lg: 10px;
+
+            /* === Shadows === */
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5);
+            --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.6);
+            --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.7);
+
+            /* === Transitions === */
+            --transition-fast: 0.15s ease;
+            --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* === Reset === */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { font-size: 17px; scroll-behavior: smooth; scroll-padding-top: 52px; }
+
+        body {
+            font-family: var(--font-body);
+            font-size: 1rem;
+            line-height: 1.6;
+            color: var(--text-primary);
+            background: var(--bg-base);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* === Chessboard Background === */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            background:
+                repeating-conic-gradient(rgba(255,255,255,0.015) 0% 25%, transparent 0% 50%) 0 0 / 60px 60px;
+            pointer-events: none;
+        }
+
+        /* === Back Link === */
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-sm);
+            padding: var(--space-md) var(--space-xl);
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.85rem;
+            letter-spacing: 0.02em;
+            transition: color var(--transition-fast);
+            position: relative;
+            z-index: 1;
+        }
+        .back-link::before { content: '\2190'; }
+        .back-link:hover { color: var(--text-link); }
+
+        /* === Hero === */
+        .hero {
+            background: linear-gradient(135deg, var(--void) 0%, var(--board-dark) 30%, var(--board-accent) 60%, var(--panel) 100%);
+            padding: var(--space-3xl) var(--space-xl) var(--space-2xl);
+            border-bottom: 1px solid var(--border-default);
+            position: relative;
+            overflow: hidden;
+            z-index: 1;
+        }
+        .hero::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 600px 400px at 20% 50%, rgba(240, 192, 64, 0.06), transparent),
+                radial-gradient(ellipse 500px 300px at 80% 30%, rgba(64, 160, 224, 0.05), transparent);
+            pointer-events: none;
+        }
+        .hero-inner {
+            max-width: 1120px;
+            margin: 0 auto;
+            position: relative;
+        }
+        .hero h1 {
+            font-family: var(--font-display);
+            font-size: 2.4rem;
+            font-weight: 700;
+            line-height: 1.15;
+            margin-bottom: var(--space-md);
+            background: linear-gradient(135deg, var(--piece-white) 0%, var(--piece-gold) 50%, var(--accent-amber) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .hero .tagline {
+            font-size: 1.15rem;
+            color: var(--text-secondary);
+            max-width: 680px;
+            line-height: 1.5;
+        }
+        .hero .meta {
+            margin-top: var(--space-lg);
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-md);
+        }
+        .meta-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-xs);
+            padding: var(--space-xs) var(--space-sm);
+            background: rgba(240, 192, 64, 0.08);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-sm);
+            font-size: 0.78rem;
+            font-family: var(--font-mono);
+            color: var(--text-secondary);
+            letter-spacing: 0.02em;
+        }
+        .meta-badge .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        /* === Sticky Jump Nav === */
+        .jump-nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: var(--bg-muted);
+            border-bottom: 1px solid var(--border-default);
+        }
+        .jump-nav-inner {
+            max-width: 1120px;
+            margin: 0 auto;
+            padding: 0 var(--space-md);
+            display: flex;
+            gap: 0;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            white-space: nowrap;
+            scrollbar-width: thin;
+            scrollbar-color: var(--border-default) transparent;
+        }
+        .jump-nav-inner::-webkit-scrollbar { height: 4px; }
+        .jump-nav-inner::-webkit-scrollbar-track { background: transparent; }
+        .jump-nav-inner::-webkit-scrollbar-thumb { background: var(--border-default); border-radius: 2px; }
+        .jump-nav a {
+            display: inline-block;
+            padding: var(--space-sm) var(--space-md);
+            color: var(--text-tertiary);
+            text-decoration: none;
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+            border-bottom: 2px solid transparent;
+            transition: all var(--transition-fast);
+        }
+        .jump-nav a:hover {
+            color: var(--piece-gold);
+            border-bottom-color: var(--piece-gold);
+        }
+
+        /* === Container === */
+        .container {
+            max-width: 1120px;
+            margin: 0 auto;
+            padding: var(--space-2xl) var(--space-xl);
+            position: relative;
+            z-index: 1;
+        }
+
+        /* === Section === */
+        .section {
+            margin-bottom: var(--space-3xl);
+            scroll-margin-top: 52px;
+        }
+        .section-header {
+            display: flex;
+            align-items: baseline;
+            gap: var(--space-md);
+            margin-bottom: var(--space-xl);
+            padding-bottom: var(--space-md);
+            border-bottom: 1px solid var(--border-default);
+        }
+        .section-number {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--piece-gold);
+            font-weight: 500;
+        }
+        .section-title {
+            font-family: var(--font-display);
+            font-size: 1.6rem;
+            font-weight: 700;
+        }
+        .section-description {
+            color: var(--text-secondary);
+            margin-bottom: var(--space-xl);
+            max-width: 720px;
+            line-height: 1.65;
+        }
+
+        /* === Subsection === */
+        .subsection { margin-bottom: var(--space-xl); }
+        .subsection-title {
+            font-family: var(--font-display);
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: var(--space-md);
+            color: var(--text-bright);
+        }
+        .subsection p {
+            color: var(--text-secondary);
+            margin-bottom: var(--space-md);
+            line-height: 1.65;
+        }
+
+        /* === Interactive Architecture Canvas === */
+        .arch-canvas {
+            position: relative;
+            width: 100%;
+            min-height: 650px;
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            margin: var(--space-lg) 0;
+        }
+        .arch-canvas svg {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+        }
+        .arch-canvas svg line, .arch-canvas svg path {
+            pointer-events: none;
+        }
+
+        .arch-node {
+            position: absolute;
+            padding: var(--space-md) var(--space-lg);
+            background: var(--bg-card);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius);
+            cursor: pointer;
+            transition: all var(--transition);
+            z-index: 2;
+            min-width: 120px;
+            text-align: center;
+        }
+        .arch-node:hover {
+            transform: translateY(-3px) scale(1.04);
+            box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+            z-index: 10;
+        }
+        .arch-node.active {
+            border-color: var(--piece-gold);
+            box-shadow: 0 0 20px rgba(240, 192, 64, 0.2);
+            z-index: 10;
+        }
+        .arch-node .node-icon {
+            font-size: 1.6rem;
+            margin-bottom: var(--space-xs);
+            display: block;
+        }
+        .arch-node .node-label {
+            font-family: var(--font-display);
+            font-size: 0.78rem;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            color: var(--text-bright);
+        }
+        .arch-node .node-sub {
+            font-family: var(--font-mono);
+            font-size: 0.65rem;
+            color: var(--text-tertiary);
+            margin-top: 2px;
+        }
+
+        /* Node domain colors */
+        .arch-node[data-domain="core"] { border-left: 3px solid var(--domain-core); }
+        .arch-node[data-domain="core"]:hover,
+        .arch-node[data-domain="core"].active { border-color: var(--domain-core); }
+        .arch-node[data-domain="ws"] { border-left: 3px solid var(--domain-ws); }
+        .arch-node[data-domain="ws"]:hover,
+        .arch-node[data-domain="ws"].active { border-color: var(--domain-ws); }
+        .arch-node[data-domain="db"] { border-left: 3px solid var(--domain-db); }
+        .arch-node[data-domain="db"]:hover,
+        .arch-node[data-domain="db"].active { border-color: var(--domain-db); }
+        .arch-node[data-domain="engine"] { border-left: 3px solid var(--domain-engine); }
+        .arch-node[data-domain="engine"]:hover,
+        .arch-node[data-domain="engine"].active { border-color: var(--domain-engine); }
+        .arch-node[data-domain="api"] { border-left: 3px solid var(--domain-api); }
+        .arch-node[data-domain="api"]:hover,
+        .arch-node[data-domain="api"].active { border-color: var(--domain-api); }
+        .arch-node[data-domain="infra"] { border-left: 3px solid var(--domain-infra); }
+        .arch-node[data-domain="infra"]:hover,
+        .arch-node[data-domain="infra"].active { border-color: var(--domain-infra); }
+        .arch-node[data-domain="search"] { border-left: 3px solid var(--domain-search); }
+        .arch-node[data-domain="search"]:hover,
+        .arch-node[data-domain="search"].active { border-color: var(--domain-search); }
+        .arch-node[data-domain="social"] { border-left: 3px solid var(--domain-social); }
+        .arch-node[data-domain="social"]:hover,
+        .arch-node[data-domain="social"].active { border-color: var(--domain-social); }
+
+        /* Detail panel */
+        .detail-panel {
+            position: fixed;
+            top: 0;
+            right: -420px;
+            width: 400px;
+            height: 100vh;
+            background: var(--panel);
+            border-left: 1px solid var(--border-default);
+            z-index: 200;
+            transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow-y: auto;
+            padding: var(--space-xl);
+            box-shadow: -8px 0 30px rgba(0,0,0,0.5);
+        }
+        .detail-panel.open { right: 0; }
+        .detail-panel .close-btn {
+            position: absolute;
+            top: var(--space-md);
+            right: var(--space-md);
+            background: var(--bg-card);
+            border: 1px solid var(--border-default);
+            color: var(--text-secondary);
+            width: 32px;
+            height: 32px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all var(--transition-fast);
+        }
+        .detail-panel .close-btn:hover {
+            color: var(--accent-red);
+            border-color: var(--accent-red);
+        }
+        .detail-panel h3 {
+            font-family: var(--font-display);
+            font-size: 1.2rem;
+            font-weight: 700;
+            margin-bottom: var(--space-sm);
+            padding-right: var(--space-xl);
+        }
+        .detail-panel .detail-domain {
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-bottom: var(--space-lg);
+            padding: 2px var(--space-sm);
+            border-radius: var(--radius-sm);
+            display: inline-block;
+        }
+        .detail-panel .detail-desc {
+            color: var(--text-secondary);
+            line-height: 1.65;
+            margin-bottom: var(--space-lg);
+            font-size: 0.92rem;
+        }
+        .detail-panel .detail-tech {
+            margin-bottom: var(--space-lg);
+        }
+        .detail-panel .detail-tech h4 {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-tertiary);
+            margin-bottom: var(--space-sm);
+        }
+        .detail-panel .tech-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-xs);
+        }
+        .detail-panel .tech-tag {
+            padding: 2px 10px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-sm);
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            color: var(--text-secondary);
+        }
+        .detail-panel .detail-connections h4 {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-tertiary);
+            margin-bottom: var(--space-sm);
+        }
+        .detail-panel .conn-list {
+            list-style: none;
+        }
+        .detail-panel .conn-list li {
+            padding: var(--space-xs) 0;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        .detail-panel .conn-list li::before {
+            content: '\2192 ';
+            color: var(--piece-gold);
+        }
+        .detail-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.4);
+            z-index: 199;
+            display: none;
+            cursor: pointer;
+        }
+        .detail-overlay.open { display: block; }
+
+        /* === Domain Badges === */
+        .component-badge {
+            display: inline-block;
+            padding: 2px var(--space-sm);
+            border-radius: var(--radius-sm);
+            font-size: 0.72rem;
+            font-weight: 600;
+            font-family: var(--font-mono);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .badge-core { background: rgba(224, 99, 99, 0.15); color: var(--domain-core); border: 1px solid rgba(224, 99, 99, 0.3); }
+        .badge-ws { background: rgba(64, 192, 128, 0.15); color: var(--domain-ws); border: 1px solid rgba(64, 192, 128, 0.3); }
+        .badge-db { background: rgba(240, 160, 64, 0.15); color: var(--domain-db); border: 1px solid rgba(240, 160, 64, 0.3); }
+        .badge-engine { background: rgba(128, 96, 224, 0.15); color: var(--domain-engine); border: 1px solid rgba(128, 96, 224, 0.3); }
+        .badge-api { background: rgba(64, 160, 224, 0.15); color: var(--domain-api); border: 1px solid rgba(64, 160, 224, 0.3); }
+        .badge-infra { background: rgba(224, 96, 144, 0.15); color: var(--domain-infra); border: 1px solid rgba(224, 96, 144, 0.3); }
+        .badge-search { background: rgba(96, 192, 192, 0.15); color: var(--domain-search); border: 1px solid rgba(96, 192, 192, 0.3); }
+        .badge-social { background: rgba(192, 128, 224, 0.15); color: var(--domain-social); border: 1px solid rgba(192, 128, 224, 0.3); }
+
+        /* === Info Cards === */
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: var(--space-lg);
+            margin: var(--space-lg) 0;
+        }
+        .info-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius);
+            padding: var(--space-lg);
+            transition: all var(--transition);
+        }
+        .info-card:hover {
+            border-color: var(--border-strong);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+        .info-card h4 {
+            font-family: var(--font-display);
+            font-size: 0.95rem;
+            font-weight: 600;
+            margin-bottom: var(--space-sm);
+            color: var(--piece-gold);
+        }
+        .info-card p {
+            font-size: 0.88rem;
+            color: var(--text-secondary);
+            line-height: 1.55;
+        }
+        .info-card .card-meta {
+            margin-top: var(--space-md);
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+        }
+
+        /* === Stat Row === */
+        .stat-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: var(--space-lg);
+            margin: var(--space-xl) 0;
+        }
+        .stat-item {
+            text-align: center;
+            padding: var(--space-lg);
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius);
+        }
+        .stat-value {
+            font-family: var(--font-display);
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--piece-gold);
+        }
+        .stat-label {
+            font-size: 0.78rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-top: var(--space-xs);
+        }
+
+        /* === Tables === */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.88rem;
+            margin: var(--space-lg) 0;
+        }
+        .data-table th {
+            text-align: left;
+            padding: var(--space-sm) var(--space-md);
+            background: var(--bg-card);
+            border-bottom: 2px solid var(--border-strong);
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-tertiary);
+            font-weight: 500;
+        }
+        .data-table td {
+            padding: var(--space-sm) var(--space-md);
+            border-bottom: 1px solid var(--border-subtle);
+            vertical-align: top;
+        }
+        .data-table tr:hover td { background: var(--bg-card-hover); }
+
+        /* === Callout === */
+        .callout {
+            background: var(--bg-card);
+            border-left: 3px solid var(--piece-gold);
+            border-radius: 0 var(--radius) var(--radius) 0;
+            padding: var(--space-lg);
+            margin: var(--space-lg) 0;
+        }
+        .callout.callout-green { border-left-color: var(--accent-green); }
+        .callout.callout-blue { border-left-color: var(--accent-blue); }
+        .callout.callout-purple { border-left-color: var(--accent-purple); }
+        .callout .callout-title {
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--piece-gold);
+            margin-bottom: var(--space-sm);
+            font-weight: 500;
+        }
+        .callout.callout-green .callout-title { color: var(--accent-green); }
+        .callout.callout-blue .callout-title { color: var(--accent-blue); }
+        .callout.callout-purple .callout-title { color: var(--accent-purple); }
+        .callout p {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            line-height: 1.55;
+        }
+
+        /* === Diagram Container === */
+        .diagram-container {
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-lg);
+            padding: var(--space-xl);
+            margin: var(--space-lg) 0;
+            overflow-x: auto;
+            position: relative;
+        }
+        .diagram-label {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: var(--space-md);
+        }
+
+        /* === Flow Diagram (CSS-only) === */
+        .flow-diagram {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--space-md);
+            flex-wrap: wrap;
+            padding: var(--space-lg) 0;
+        }
+        .flow-box {
+            padding: var(--space-sm) var(--space-md);
+            background: var(--bg-card);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius);
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            color: var(--text-primary);
+            text-align: center;
+            min-width: 100px;
+        }
+        .flow-arrow {
+            color: var(--piece-gold);
+            font-size: 1.2rem;
+        }
+
+        /* === Legend === */
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-md);
+            margin: var(--space-lg) 0;
+            padding: var(--space-md);
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius);
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: var(--space-xs);
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+        }
+        .legend-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        /* === Footer === */
+        .site-footer {
+            border-top: 1px solid var(--border-default);
+            padding: var(--space-xl);
+            text-align: center;
+            color: var(--text-tertiary);
+            font-size: 0.82rem;
+            position: relative;
+            z-index: 1;
+        }
+        .site-footer a { color: var(--text-link); text-decoration: none; }
+
+        /* === Responsive === */
+        @media (max-width: 768px) {
+            html { font-size: 16px; }
+            .hero h1 { font-size: 1.8rem; }
+            .hero { padding: var(--space-2xl) var(--space-md) var(--space-xl); }
+            .section-title { font-size: 1.3rem; }
+            .card-grid { grid-template-columns: 1fr; }
+            .stat-row { grid-template-columns: repeat(2, 1fr); }
+            .container { padding: var(--space-xl) var(--space-md); }
+            .arch-canvas { min-height: 500px; }
+            .arch-node { padding: var(--space-sm) var(--space-md); min-width: 90px; }
+            .arch-node .node-label { font-size: 0.68rem; }
+            .arch-node .node-sub { font-size: 0.58rem; }
+            .arch-node .node-icon { font-size: 1.2rem; }
+            .detail-panel { width: 100%; right: -110%; }
+            .flow-diagram { flex-direction: column; }
+            .flow-arrow { transform: rotate(90deg); }
+            .diagram-container { padding: var(--space-md); margin-left: calc(-1 * var(--space-md)); margin-right: calc(-1 * var(--space-md)); border-radius: 0; border-left: 0; border-right: 0; }
+        }
+    </style>
+</head>
+<body>
+    <a href="../index.html" class="back-link">Architecture Maps</a>
+
+    <!-- Hero -->
+    <header class="hero">
+        <div class="hero-inner">
+            <h1>Lichess Internals</h1>
+            <p class="tagline">Interactive architecture map of Lichess &mdash; the free, open-source chess server. Covering Lila (Scala/Play core), real-time WebSockets via lila-ws, MongoDB storage, Redis caching, Stockfish analysis via fishnet, ElasticSearch, the tournament engine, puzzle generation, OAuth/API, and CDN/asset serving.</p>
+            <div class="meta">
+                <span class="meta-badge"><span class="dot" style="background:var(--accent-green)"></span> Open Source (AGPL-3.0)</span>
+                <span class="meta-badge">Since 2010</span>
+                <span class="meta-badge">Scala / Play Framework</span>
+                <span class="meta-badge">~5M Monthly Active Users</span>
+                <span class="meta-badge">150M+ Games Played</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Jump Nav -->
+    <nav class="jump-nav">
+        <div class="jump-nav-inner">
+            <a href="#overview">Overview</a>
+            <a href="#lila">Lila Core</a>
+            <a href="#websockets">WebSockets</a>
+            <a href="#data">Data Layer</a>
+            <a href="#engine">Engine</a>
+            <a href="#fishnet">Fishnet</a>
+            <a href="#tournaments">Tournaments</a>
+            <a href="#puzzles">Puzzles</a>
+            <a href="#api">API / OAuth</a>
+            <a href="#infra">Infrastructure</a>
+        </div>
+    </nav>
+
+    <div class="container">
+
+        <!-- ============ SECTION 1: OVERVIEW ============ -->
+        <section class="section" id="overview">
+            <div class="section-header">
+                <span class="section-number">01</span>
+                <h2 class="section-title">System Overview</h2>
+            </div>
+            <p class="section-description">Lichess is a free, open-source, community-driven chess server founded by Thibault Duplessis in 2010. It runs on a surprisingly modest infrastructure, serving millions of daily games with real-time play, analysis, tournaments, puzzles, and a comprehensive API &mdash; all without ads or premium tiers.</p>
+
+            <div class="stat-row">
+                <div class="stat-item">
+                    <div class="stat-value">~200K</div>
+                    <div class="stat-label">Concurrent Users</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">5M+</div>
+                    <div class="stat-label">Monthly Players</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">~10</div>
+                    <div class="stat-label">Physical Servers</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">150B+</div>
+                    <div class="stat-label">Moves Recorded</div>
+                </div>
+            </div>
+
+            <!-- Interactive Architecture Diagram -->
+            <div class="diagram-label">Interactive Architecture Diagram &mdash; Click nodes for details</div>
+            <div class="arch-canvas" id="archCanvas">
+                <svg id="archSvg"></svg>
+                <!-- Nodes will be created by JS -->
+            </div>
+
+            <div class="legend">
+                <div class="legend-item"><div class="legend-dot" style="background:var(--domain-core)"></div> Lila Core</div>
+                <div class="legend-item"><div class="legend-dot" style="background:var(--domain-ws)"></div> Real-Time / WS</div>
+                <div class="legend-item"><div class="legend-dot" style="background:var(--domain-db)"></div> Data Storage</div>
+                <div class="legend-item"><div class="legend-dot" style="background:var(--domain-engine)"></div> Chess Engine</div>
+                <div class="legend-item"><div class="legend-dot" style="background:var(--domain-api)"></div> API / Auth</div>
+                <div class="legend-item"><div class="legend-dot" style="background:var(--domain-infra)"></div> Infrastructure</div>
+                <div class="legend-item"><div class="legend-dot" style="background:var(--domain-search)"></div> Search</div>
+                <div class="legend-item"><div class="legend-dot" style="background:var(--domain-social)"></div> Social / Community</div>
+            </div>
+        </section>
+
+        <!-- ============ SECTION 2: LILA CORE ============ -->
+        <section class="section" id="lila">
+            <div class="section-header">
+                <span class="section-number">02</span>
+                <h2 class="section-title">Lila &mdash; The Scala Core</h2>
+            </div>
+            <p class="section-description">Lila (short for "li[chess in sca]la") is the monolithic backend application built with Scala and the Play Framework. It handles HTTP routing, game logic, user management, tournament scheduling, and coordinates all other services.</p>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Module Architecture</h3>
+                <p>Lila follows a modular monolith pattern. The codebase is organized into ~40 SBT modules, each encapsulating a domain &mdash; game, round, tournament, puzzle, user, forum, blog, etc. Modules communicate through Scala traits and an internal event bus, keeping concerns separated while avoiding the overhead of a microservice mesh.</p>
+            </div>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>Play Framework</h4>
+                    <p>Asynchronous HTTP server built on Pekko (previously Akka). Handles all web requests, template rendering (Scalatags, not Twirl), and reverse routing. Runs on the JVM with Netty as the underlying transport.</p>
+                    <div class="card-meta"><span class="component-badge badge-core">Core</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Game Module</h4>
+                    <p>Central domain model. A Game object tracks board state, clock, players, status, opening, and variant. Uses a compact binary encoding for move history (5 bits per move) and PGN export on demand.</p>
+                    <div class="card-meta"><span class="component-badge badge-core">Core</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Round Module</h4>
+                    <p>Manages the lifecycle of an active game round: accepting moves, enforcing clock rules, detecting checkmate/stalemate/draw, handling takebacks, and triggering game-over events. One actor per active game.</p>
+                    <div class="card-meta"><span class="component-badge badge-core">Core</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Scalatags Templates</h4>
+                    <p>Server-side HTML rendering uses Scalatags &mdash; a Scala DSL for type-safe HTML generation. No template engine; the HTML is pure Scala code, compiled and type-checked at build time.</p>
+                    <div class="card-meta"><span class="component-badge badge-core">Core</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Event Bus</h4>
+                    <p>Internal pub/sub system for decoupling modules. When a game finishes, the event bus notifies the tournament module, the puzzle generator, the rating system, and the activity tracker &mdash; all without direct coupling.</p>
+                    <div class="card-meta"><span class="component-badge badge-core">Core</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Scheduler / CRON</h4>
+                    <p>Background task scheduling for leaderboard recalculation, tournament pairing, cleanup of stale games, rating deflation adjustments, and periodic cache warming. Uses Pekko Scheduler internally.</p>
+                    <div class="card-meta"><span class="component-badge badge-core">Core</span></div>
+                </div>
+            </div>
+
+            <div class="callout">
+                <div class="callout-title">Design Philosophy</div>
+                <p>Lichess deliberately avoids microservices. Thibault has stated that a monolith is simpler to deploy, debug, and reason about. The ~10 supporting services (lila-ws, fishnet, search, etc.) exist only because they have genuinely different runtime requirements &mdash; not for organizational scaling.</p>
+            </div>
+        </section>
+
+        <!-- ============ SECTION 3: WEBSOCKETS ============ -->
+        <section class="section" id="websockets">
+            <div class="section-header">
+                <span class="section-number">03</span>
+                <h2 class="section-title">Real-Time Layer &mdash; lila-ws</h2>
+            </div>
+            <p class="section-description">lila-ws is a standalone Rust service that manages all WebSocket connections. It was rewritten from Scala to Rust in 2020 for lower memory usage and better concurrency, handling 100K+ simultaneous WebSocket connections per server.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">WebSocket Connection Flow</div>
+                <div class="flow-diagram">
+                    <div class="flow-box" style="border-color: var(--domain-social)">Browser<br><small>JS Client</small></div>
+                    <div class="flow-arrow">&rarr;</div>
+                    <div class="flow-box" style="border-color: var(--domain-infra)">nginx<br><small>TLS termination</small></div>
+                    <div class="flow-arrow">&rarr;</div>
+                    <div class="flow-box" style="border-color: var(--domain-ws)">lila-ws<br><small>Rust / Tokio</small></div>
+                    <div class="flow-arrow">&rarr;</div>
+                    <div class="flow-box" style="border-color: var(--domain-db)">Redis<br><small>Pub/Sub bridge</small></div>
+                    <div class="flow-arrow">&rarr;</div>
+                    <div class="flow-box" style="border-color: var(--domain-core)">Lila<br><small>Scala / Play</small></div>
+                </div>
+            </div>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>Connection Management</h4>
+                    <p>Each WebSocket connection is a Tokio task. lila-ws tracks which room (game, tournament, lobby) each connection belongs to and efficiently broadcasts state updates to relevant subscribers.</p>
+                    <div class="card-meta"><span class="component-badge badge-ws">Real-Time</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Redis Pub/Sub Bridge</h4>
+                    <p>Lila and lila-ws communicate through Redis pub/sub channels. When a player makes a move, Lila publishes to Redis; lila-ws picks it up and pushes to the opponent's WebSocket. Latency is typically under 5ms.</p>
+                    <div class="card-meta"><span class="component-badge badge-ws">Real-Time</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Room System</h4>
+                    <p>Connections are organized into rooms: game rooms (2 players + spectators), tournament rooms, lobby, TV channel, and user activity rooms. Each room type has specific message routing rules.</p>
+                    <div class="card-meta"><span class="component-badge badge-ws">Real-Time</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Client Protocol</h4>
+                    <p>JSON messages over WebSocket. The protocol includes move submission (SAN notation), clock sync, chat messages, draw/takeback offers, and spectator crowd counts. Ping/pong keepalive every 3 seconds.</p>
+                    <div class="card-meta"><span class="component-badge badge-ws">Real-Time</span></div>
+                </div>
+            </div>
+
+            <div class="callout callout-green">
+                <div class="callout-title">Rust Migration Impact</div>
+                <p>The 2020 rewrite from Scala to Rust reduced WebSocket memory usage by ~10x. A single lila-ws instance now handles 100K+ connections using ~2GB RAM, compared to the old Scala implementation which needed ~20GB for the same load.</p>
+            </div>
+        </section>
+
+        <!-- ============ SECTION 4: DATA LAYER ============ -->
+        <section class="section" id="data">
+            <div class="section-header">
+                <span class="section-number">04</span>
+                <h2 class="section-title">Data Layer</h2>
+            </div>
+            <p class="section-description">Lichess uses MongoDB as its primary data store and Redis for caching, pub/sub, and rate limiting. The choice of MongoDB over a relational database reflects the document-oriented nature of chess games and the schema flexibility needed for rapid feature development.</p>
+
+            <div class="subsection">
+                <h3 class="subsection-title">MongoDB Collections</h3>
+                <p>The MongoDB cluster stores all persistent data: games (with compact binary move encoding), users, puzzles, tournaments, teams, forums, studies, and more. Games are the largest collection at hundreds of millions of documents.</p>
+            </div>
+
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Collection</th>
+                        <th>Purpose</th>
+                        <th>Scale</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>game5</code></td>
+                        <td>All completed and in-progress games with binary-encoded moves</td>
+                        <td>~4B+ documents</td>
+                    </tr>
+                    <tr>
+                        <td><code>user4</code></td>
+                        <td>User profiles, ratings (Glicko-2), perfs, preferences</td>
+                        <td>~15M+ documents</td>
+                    </tr>
+                    <tr>
+                        <td><code>puzzle2</code></td>
+                        <td>Tactical puzzles with rating, themes, moves</td>
+                        <td>~4M+ documents</td>
+                    </tr>
+                    <tr>
+                        <td><code>tournament2</code></td>
+                        <td>Tournament metadata, standings, pairings</td>
+                        <td>~2M+ documents</td>
+                    </tr>
+                    <tr>
+                        <td><code>study</code></td>
+                        <td>Analysis boards, shared studies, chapters</td>
+                        <td>~10M+ documents</td>
+                    </tr>
+                    <tr>
+                        <td><code>team</code></td>
+                        <td>Team membership, forums, leaders</td>
+                        <td>~500K+ documents</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>Redis Roles</h4>
+                    <p>Redis serves multiple roles: pub/sub bridge to lila-ws, session storage, rate limiting, live game clocks, lobby seek pool, round socket state, and short-lived caches for leaderboards and tournament standings.</p>
+                    <div class="card-meta"><span class="component-badge badge-db">Data</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Binary Move Encoding</h4>
+                    <p>Games store moves as a compact binary blob (5 bits per move &mdash; from-square + to-square + promotion) rather than PGN text. This reduces storage by ~80% compared to plain SAN and allows the entire move history to fit in a single BSON field.</p>
+                    <div class="card-meta"><span class="component-badge badge-db">Data</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Glicko-2 Ratings</h4>
+                    <p>Ratings use the Glicko-2 system with separate ratings per variant and time control. Rating calculations happen in Scala, stored per user in the perfs subdocument. Rating deviation decays for inactive players.</p>
+                    <div class="card-meta"><span class="component-badge badge-db">Data</span></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============ SECTION 5: ENGINE ============ -->
+        <section class="section" id="engine">
+            <div class="section-header">
+                <span class="section-number">05</span>
+                <h2 class="section-title">Stockfish Integration</h2>
+            </div>
+            <p class="section-description">Lichess integrates Stockfish &mdash; the strongest open-source chess engine &mdash; for server-side analysis, game review, and puzzle validation. Client-side analysis uses Stockfish compiled to WebAssembly (WASM) running in a Web Worker for zero server load.</p>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>Server-Side Analysis</h4>
+                    <p>Deep analysis for game reviews, opening explorer data, and puzzle generation runs on dedicated server hardware. Requests are queued and distributed across analysis workers via the fishnet protocol.</p>
+                    <div class="card-meta"><span class="component-badge badge-engine">Engine</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Client-Side WASM</h4>
+                    <p>The analysis board runs Stockfish.js (compiled via Emscripten) in a SharedArrayBuffer Web Worker. Users get real-time engine evaluation locally &mdash; no server round-trip needed. Multi-threaded WASM is supported in modern browsers.</p>
+                    <div class="card-meta"><span class="component-badge badge-engine">Engine</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>NNUE Evaluation</h4>
+                    <p>Modern Stockfish uses NNUE (efficiently updatable neural network) evaluation. The NNUE net file (~40MB) is bundled with the WASM build. It provides grandmaster-level evaluation at depth 20+ in seconds on consumer hardware.</p>
+                    <div class="card-meta"><span class="component-badge badge-engine">Engine</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>UCI Protocol</h4>
+                    <p>Communication with Stockfish uses the Universal Chess Interface (UCI). Commands like <code>position fen ... moves ...</code> and <code>go depth 24</code> are sent; the engine returns <code>bestmove</code> and multi-PV evaluation lines.</p>
+                    <div class="card-meta"><span class="component-badge badge-engine">Engine</span></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============ SECTION 6: FISHNET ============ -->
+        <section class="section" id="fishnet">
+            <div class="section-header">
+                <span class="section-number">06</span>
+                <h2 class="section-title">Fishnet &mdash; Distributed Analysis</h2>
+            </div>
+            <p class="section-description">Fishnet is Lichess's distributed volunteer computing network. Community members donate CPU time to run Stockfish analysis on their machines, providing free deep analysis for every game played on the platform.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Fishnet Architecture</div>
+                <div class="flow-diagram">
+                    <div class="flow-box" style="border-color: var(--domain-core)">Lila<br><small>Analysis Request</small></div>
+                    <div class="flow-arrow">&rarr;</div>
+                    <div class="flow-box" style="border-color: var(--domain-api)">Fishnet API<br><small>Work Queue</small></div>
+                    <div class="flow-arrow">&rarr;</div>
+                    <div class="flow-box" style="border-color: var(--domain-engine)">Volunteer Client<br><small>Rust + Stockfish</small></div>
+                    <div class="flow-arrow">&rarr;</div>
+                    <div class="flow-box" style="border-color: var(--domain-api)">Fishnet API<br><small>Result</small></div>
+                    <div class="flow-arrow">&rarr;</div>
+                    <div class="flow-box" style="border-color: var(--domain-core)">Lila<br><small>Store Analysis</small></div>
+                </div>
+            </div>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>Client Architecture</h4>
+                    <p>The fishnet client is a Rust binary that polls the fishnet API for work, runs Stockfish locally, and reports results. Clients authenticate with API keys and can be configured for analysis depth, move generation, or both.</p>
+                    <div class="card-meta"><span class="component-badge badge-engine">Engine</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Work Types</h4>
+                    <p>Two main work types: <strong>analysis</strong> (deep evaluation of every position in a game, ~30 seconds per game) and <strong>move</strong> (finding the best move for bot accounts, ~1 second). Analysis has lower priority but is the bulk of work.</p>
+                    <div class="card-meta"><span class="component-badge badge-engine">Engine</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Volunteer Network</h4>
+                    <p>Hundreds of volunteers worldwide contribute computing power. The system dynamically distributes work based on client capability (thread count, hash size) and current queue depth. No centralized cluster needed.</p>
+                    <div class="card-meta"><span class="component-badge badge-engine">Engine</span></div>
+                </div>
+            </div>
+
+            <div class="callout callout-purple">
+                <div class="callout-title">Crowd-Sourced Infrastructure</div>
+                <p>Fishnet is one of the most elegant parts of Lichess's architecture. Instead of paying for hundreds of analysis servers, the community donates CPU cycles. This aligns perfectly with Lichess's non-profit, community-first philosophy and provides analysis capacity that would cost tens of thousands of dollars per month commercially.</p>
+            </div>
+        </section>
+
+        <!-- ============ SECTION 7: TOURNAMENTS ============ -->
+        <section class="section" id="tournaments">
+            <div class="section-header">
+                <span class="section-number">07</span>
+                <h2 class="section-title">Tournament System</h2>
+            </div>
+            <p class="section-description">Lichess runs multiple tournament formats simultaneously: Arena (continuous Swiss-like), Swiss, Simul (simultaneous exhibition), and custom team battles. The tournament scheduler creates Arena events around the clock automatically.</p>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>Arena Tournaments</h4>
+                    <p>The flagship format. Players join and leave freely during the tournament window. Pairing uses a Swiss-like algorithm with "berserk" (halve time for double points) and streak bonuses. Leaderboard updates in real-time via WebSocket.</p>
+                    <div class="card-meta"><span class="component-badge badge-core">Core</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Swiss Tournaments</h4>
+                    <p>Traditional Swiss-system events with fixed rounds. Pairing uses the Dutch FIDE system. Players must be present for each round. Used for serious OTB-style competitions and titled events.</p>
+                    <div class="card-meta"><span class="component-badge badge-core">Core</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Pairing Engine</h4>
+                    <p>Arena pairing considers rating, recent opponents, color history, and wait time. The algorithm runs every few seconds, matching available players instantly. Swiss pairing is computed per round using a dedicated solver.</p>
+                    <div class="card-meta"><span class="component-badge badge-core">Core</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Automatic Scheduling</h4>
+                    <p>A CRON-like scheduler creates hourly, daily, and weekly Arena events across all time controls and variants. The Lichess calendar is always populated with upcoming events, ensuring players always find a tournament to join.</p>
+                    <div class="card-meta"><span class="component-badge badge-core">Core</span></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============ SECTION 8: PUZZLES ============ -->
+        <section class="section" id="puzzles">
+            <div class="section-header">
+                <span class="section-number">08</span>
+                <h2 class="section-title">Puzzle Generation</h2>
+            </div>
+            <p class="section-description">Lichess hosts over 4 million tactical puzzles, all generated from real games. The pipeline identifies critical moments where one side has a forced winning sequence, validates with Stockfish, and assigns difficulty ratings using Glicko-2.</p>
+
+            <div class="diagram-container">
+                <div class="diagram-label">Puzzle Generation Pipeline</div>
+                <div class="flow-diagram">
+                    <div class="flow-box" style="border-color: var(--domain-db)">Game Archive<br><small>MongoDB</small></div>
+                    <div class="flow-arrow">&rarr;</div>
+                    <div class="flow-box" style="border-color: var(--domain-engine)">Position Scanner<br><small>Find Imbalances</small></div>
+                    <div class="flow-arrow">&rarr;</div>
+                    <div class="flow-box" style="border-color: var(--domain-engine)">Stockfish Validation<br><small>Verify Forced Win</small></div>
+                    <div class="flow-arrow">&rarr;</div>
+                    <div class="flow-box" style="border-color: var(--domain-core)">Theme Tagger<br><small>Fork, Pin, etc.</small></div>
+                    <div class="flow-arrow">&rarr;</div>
+                    <div class="flow-box" style="border-color: var(--domain-db)">puzzle2<br><small>MongoDB</small></div>
+                </div>
+            </div>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>Candidate Selection</h4>
+                    <p>The scanner looks for positions where Stockfish evaluation swings dramatically (e.g., from +0.3 to +3.0) &mdash; indicating a critical tactical moment. Only positions with a single clear best line survive filtering.</p>
+                    <div class="card-meta"><span class="component-badge badge-engine">Engine</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Theme Classification</h4>
+                    <p>Puzzles are automatically tagged with tactical themes: fork, pin, skewer, discovered attack, deflection, back-rank mate, etc. The classifier analyzes the solution moves to identify the underlying tactic. Users can train specific themes.</p>
+                    <div class="card-meta"><span class="component-badge badge-core">Core</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Puzzle Rating</h4>
+                    <p>Each puzzle has its own Glicko-2 rating, adjusted as users solve or fail it. New puzzles start at a provisional rating based on the game's player ratings and calibrate quickly through user attempts.</p>
+                    <div class="card-meta"><span class="component-badge badge-core">Core</span></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============ SECTION 9: API / OAUTH ============ -->
+        <section class="section" id="api">
+            <div class="section-header">
+                <span class="section-number">09</span>
+                <h2 class="section-title">API &amp; OAuth</h2>
+            </div>
+            <p class="section-description">Lichess provides one of the most comprehensive free chess APIs available. It uses OAuth 2.0 for authentication, supports both JSON and NDJSON streaming responses, and serves over 1 billion API requests per month.</p>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>REST API</h4>
+                    <p>Comprehensive endpoints for games, users, tournaments, puzzles, teams, studies, broadcasts, and more. Most endpoints work without authentication; write operations and private data require OAuth tokens.</p>
+                    <div class="card-meta"><span class="component-badge badge-api">API</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Streaming API</h4>
+                    <p>NDJSON streaming endpoints for real-time data: game events, board state changes, tournament updates. The Board API allows external applications to play games on Lichess &mdash; used by physical boards, bots, and custom UIs.</p>
+                    <div class="card-meta"><span class="component-badge badge-api">API</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>OAuth 2.0 (PKCE)</h4>
+                    <p>Standard OAuth 2.0 with PKCE flow for third-party apps. Scopes include game play, preferences, puzzle activity, team management, and engine analysis. Personal API tokens available for server-to-server use.</p>
+                    <div class="card-meta"><span class="component-badge badge-api">API</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Bot API</h4>
+                    <p>Dedicated protocol for chess bots. Bot accounts connect via the Board API, receive game challenges, stream board positions, and submit moves. Used by hundreds of community bots running various engines.</p>
+                    <div class="card-meta"><span class="component-badge badge-api">API</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Rate Limiting</h4>
+                    <p>Redis-backed rate limiting per IP and per user. Different limits for authenticated vs. anonymous requests. Streaming endpoints have separate connection limits. Abuse detection feeds into anti-cheat and ToS enforcement.</p>
+                    <div class="card-meta"><span class="component-badge badge-api">API</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Opening Explorer</h4>
+                    <p>The opening explorer API aggregates move statistics from millions of games (masters, Lichess, player-specific). Data is precomputed and served from dedicated infrastructure. Supports standard, Antichess, and other variants.</p>
+                    <div class="card-meta"><span class="component-badge badge-api">API</span></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============ SECTION 10: INFRASTRUCTURE ============ -->
+        <section class="section" id="infra">
+            <div class="section-header">
+                <span class="section-number">10</span>
+                <h2 class="section-title">Infrastructure &amp; Deployment</h2>
+            </div>
+            <p class="section-description">Lichess runs on a remarkably small fleet of bare-metal servers (not cloud), hosted at OVH in France. The entire operation is run by a tiny team with minimal infrastructure overhead, demonstrating that massive scale doesn't require massive infrastructure.</p>
+
+            <div class="card-grid">
+                <div class="info-card">
+                    <h4>Bare Metal Servers</h4>
+                    <p>No cloud provider. Lichess rents dedicated physical servers from OVH, giving full control over hardware and avoiding cloud markup. This is a deliberate cost-saving choice &mdash; cloud would cost 10-50x more at this scale.</p>
+                    <div class="card-meta"><span class="component-badge badge-infra">Infra</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>nginx + Reverse Proxy</h4>
+                    <p>nginx handles TLS termination, static asset serving, WebSocket upgrades, and reverse proxying to Lila and lila-ws. The configuration manages routing between HTTP and WebSocket traffic on the same domain.</p>
+                    <div class="card-meta"><span class="component-badge badge-infra">Infra</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>CDN / Asset Serving</h4>
+                    <p>Static assets (JS bundles, CSS, piece SVGs, board themes, sounds) are served from a CDN. The frontend is built with TypeScript (compiled with esbuild) and uses SCSS. Chess piece rendering uses inline SVG for crisp scaling.</p>
+                    <div class="card-meta"><span class="component-badge badge-infra">Infra</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>ElasticSearch</h4>
+                    <p>Powers full-text search across games (by player, opening, date range), forum posts, studies, and user profiles. The <code>lila-search</code> service bridges Lila to ElasticSearch with game indexing and query translation.</p>
+                    <div class="card-meta"><span class="component-badge badge-search">Search</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Monitoring</h4>
+                    <p>Prometheus metrics + Grafana dashboards track server health, game throughput, WebSocket connection counts, MongoDB query performance, and fishnet work queue depth. Critical for maintaining the lean infrastructure.</p>
+                    <div class="card-meta"><span class="component-badge badge-infra">Infra</span></div>
+                </div>
+                <div class="info-card">
+                    <h4>Deployment</h4>
+                    <p>Lila deploys via SBT build to a fat JAR, then rsync to production servers. No Kubernetes, no Docker in production. The deploy script compiles Scala, builds TypeScript, and restarts the JVM process. Downtime is typically under 30 seconds.</p>
+                    <div class="card-meta"><span class="component-badge badge-infra">Infra</span></div>
+                </div>
+            </div>
+
+            <div class="callout callout-blue">
+                <div class="callout-title">Anti-Cheat System</div>
+                <p>Lichess runs sophisticated cheat detection that compares player moves against Stockfish's top choices, analyzing move accuracy patterns, centipawn loss distributions, timing anomalies, and behavioral signals. Flagged accounts are reviewed by a moderation team. The system catches thousands of cheaters weekly while maintaining a low false-positive rate.</p>
+            </div>
+
+            <div class="subsection">
+                <h3 class="subsection-title">Service Map</h3>
+                <p>Summary of all services and their technology stack:</p>
+            </div>
+
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Service</th>
+                        <th>Language</th>
+                        <th>Role</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>lila</strong></td>
+                        <td>Scala (Play Framework)</td>
+                        <td>Core application server &mdash; HTTP, game logic, all features</td>
+                    </tr>
+                    <tr>
+                        <td><strong>lila-ws</strong></td>
+                        <td>Rust (Tokio)</td>
+                        <td>WebSocket server &mdash; real-time game play, chat, spectating</td>
+                    </tr>
+                    <tr>
+                        <td><strong>fishnet</strong></td>
+                        <td>Rust + Stockfish (C++)</td>
+                        <td>Distributed analysis client &mdash; volunteer computing</td>
+                    </tr>
+                    <tr>
+                        <td><strong>lila-search</strong></td>
+                        <td>Scala</td>
+                        <td>ElasticSearch bridge &mdash; game and forum search</td>
+                    </tr>
+                    <tr>
+                        <td><strong>lila-fishnet</strong></td>
+                        <td>Scala</td>
+                        <td>Fishnet API server &mdash; work queue management</td>
+                    </tr>
+                    <tr>
+                        <td><strong>lila-gif</strong></td>
+                        <td>Rust</td>
+                        <td>GIF/image rendering for game thumbnails and sharing</td>
+                    </tr>
+                    <tr>
+                        <td><strong>scalachess</strong></td>
+                        <td>Scala</td>
+                        <td>Chess rules library &mdash; move validation, all variants</td>
+                    </tr>
+                    <tr>
+                        <td><strong>chessground</strong></td>
+                        <td>TypeScript</td>
+                        <td>Interactive chessboard UI component</td>
+                    </tr>
+                    <tr>
+                        <td><strong>pgn-viewer</strong></td>
+                        <td>TypeScript</td>
+                        <td>Embeddable PGN viewer for blogs and forums</td>
+                    </tr>
+                    <tr>
+                        <td><strong>lila-tablebase</strong></td>
+                        <td>Rust</td>
+                        <td>Syzygy tablebase probing for endgame positions</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+    </div>
+
+    <!-- Detail Panel (for interactive diagram) -->
+    <div class="detail-overlay" id="detailOverlay"></div>
+    <div class="detail-panel" id="detailPanel">
+        <button class="close-btn" id="detailClose">&times;</button>
+        <h3 id="detailTitle"></h3>
+        <div class="detail-domain" id="detailDomain"></div>
+        <p class="detail-desc" id="detailDesc"></p>
+        <div class="detail-tech">
+            <h4>Technology</h4>
+            <div class="tech-tags" id="detailTech"></div>
+        </div>
+        <div class="detail-connections">
+            <h4>Connections</h4>
+            <ul class="conn-list" id="detailConns"></ul>
+        </div>
+    </div>
+
+    <footer class="site-footer">
+        <a href="../index.html">Architecture Maps</a> &middot; Part of <a href="../../index.html">GG Prompts</a>
+    </footer>
+
+    <script>
+    (() => {
+        // =============== ARCHITECTURE DATA ===============
+        const nodes = [
+            {
+                id: 'browser',
+                label: 'Browser Client',
+                sub: 'TypeScript / Chessground',
+                icon: '\u265A',
+                domain: 'social',
+                x: 50, y: 5,
+                desc: 'The Lichess web frontend, built with TypeScript and bundled by esbuild. The interactive chessboard uses Chessground (a standalone TS library). Client-side analysis runs Stockfish WASM in a Web Worker. The UI is server-rendered with Scalatags, then hydrated with TypeScript modules.',
+                tech: ['TypeScript', 'esbuild', 'Chessground', 'SCSS', 'Stockfish WASM'],
+                connections: ['Connects to lila-ws via WebSocket for real-time play', 'Sends HTTP requests to Lila for page loads and API calls', 'Runs Stockfish WASM locally for client-side analysis', 'Loads static assets from CDN']
+            },
+            {
+                id: 'nginx',
+                label: 'nginx',
+                sub: 'Reverse Proxy / TLS',
+                icon: '\u2699',
+                domain: 'infra',
+                x: 50, y: 20,
+                desc: 'nginx sits at the edge, handling TLS termination, HTTP/2, and routing. WebSocket upgrade requests are forwarded to lila-ws; regular HTTP goes to Lila. Also serves static assets and handles basic rate limiting at the connection level.',
+                tech: ['nginx', 'TLS 1.3', 'HTTP/2', 'WebSocket Upgrade'],
+                connections: ['Routes HTTP traffic to Lila', 'Routes WebSocket upgrades to lila-ws', 'Serves static assets from CDN origin', 'TLS termination for all incoming connections']
+            },
+            {
+                id: 'lila',
+                label: 'Lila',
+                sub: 'Scala / Play Framework',
+                icon: '\u265B',
+                domain: 'core',
+                x: 50, y: 40,
+                desc: 'The monolithic Scala application and heart of Lichess. Built on Play Framework with Pekko, it handles HTTP routing, game logic (via scalachess library), user management, tournament scheduling, puzzle serving, forum, studies, and coordinates all other services. Organized as ~40 SBT modules.',
+                tech: ['Scala 3', 'Play Framework', 'Pekko', 'SBT', 'Scalatags', 'JVM'],
+                connections: ['Publishes game events to Redis pub/sub', 'Reads/writes all data to MongoDB', 'Queues analysis work for fishnet', 'Sends search queries to lila-search / ElasticSearch', 'Pushes updates to lila-ws via Redis']
+            },
+            {
+                id: 'lilaws',
+                label: 'lila-ws',
+                sub: 'Rust / Tokio',
+                icon: '\u26A1',
+                domain: 'ws',
+                x: 15, y: 28,
+                desc: 'Standalone Rust WebSocket server, rewritten from Scala in 2020 for 10x memory reduction. Manages 100K+ concurrent WebSocket connections using Tokio async runtime. Handles room-based message routing for games, tournaments, lobby, and spectating.',
+                tech: ['Rust', 'Tokio', 'WebSocket', 'Redis Pub/Sub'],
+                connections: ['Receives messages from browsers via WebSocket', 'Subscribes to Redis pub/sub for game updates from Lila', 'Publishes player actions (moves, chat) to Redis for Lila', 'Manages room membership for broadcasting']
+            },
+            {
+                id: 'redis',
+                label: 'Redis',
+                sub: 'Cache / Pub-Sub / Sessions',
+                icon: '\u2756',
+                domain: 'db',
+                x: 20, y: 50,
+                desc: 'In-memory data store serving multiple roles: pub/sub bridge between Lila and lila-ws for real-time communication, session storage, rate limiting counters, live game clock state, lobby seek pool, tournament standings cache, and short-lived leaderboard caches.',
+                tech: ['Redis', 'Pub/Sub', 'Key-Value', 'TTL Caching'],
+                connections: ['Bridges real-time messages between Lila and lila-ws', 'Stores user sessions and rate limiting counters', 'Caches leaderboards, tournament standings', 'Holds live game clock data for active games']
+            },
+            {
+                id: 'mongodb',
+                label: 'MongoDB',
+                sub: 'Primary Data Store',
+                icon: '\u2BC6',
+                domain: 'db',
+                x: 50, y: 62,
+                desc: 'The primary persistent data store. Stores all games (billions, with binary-encoded moves), users (15M+), puzzles (4M+), tournaments, studies, teams, forum posts, and more. Runs as a replica set for high availability. Chosen for schema flexibility and document-oriented game data.',
+                tech: ['MongoDB', 'Replica Set', 'WiredTiger', 'Binary BSON'],
+                connections: ['Primary data store for all Lila modules', 'Game collection (game5) is the largest at ~4B documents', 'User ratings stored as Glicko-2 perfs subdocuments', 'Puzzle collection with ratings and theme tags']
+            },
+            {
+                id: 'elastic',
+                label: 'ElasticSearch',
+                sub: 'lila-search Bridge',
+                icon: '\uD83D\uDD0D',
+                domain: 'search',
+                x: 82, y: 62,
+                desc: 'Full-text search engine accessed through the lila-search Scala service. Powers game search (by player, opening, date, result), forum search, study search, and user profile lookup. The lila-search bridge handles query translation and index management.',
+                tech: ['ElasticSearch', 'lila-search (Scala)', 'Full-Text Index'],
+                connections: ['Receives search queries from Lila via lila-search', 'Indexes games, forum posts, studies, users', 'Returns ranked search results for the UI']
+            },
+            {
+                id: 'fishnet',
+                label: 'Fishnet',
+                sub: 'Distributed Analysis',
+                icon: '\u2658',
+                domain: 'engine',
+                x: 82, y: 28,
+                desc: 'Distributed volunteer computing network. The fishnet API (lila-fishnet, Scala) manages a work queue; volunteer fishnet clients (Rust) poll for analysis jobs, run Stockfish locally, and return results. Provides free deep analysis for every game on the platform.',
+                tech: ['Rust (client)', 'Scala (API)', 'Stockfish (C++)', 'HTTP Polling'],
+                connections: ['Fishnet clients poll lila-fishnet API for work', 'Clients run Stockfish analysis and return evaluations', 'lila-fishnet queues requests from Lila', 'Results are stored in MongoDB via Lila']
+            },
+            {
+                id: 'stockfish',
+                label: 'Stockfish',
+                sub: 'Chess Engine (NNUE)',
+                icon: '\u2659',
+                domain: 'engine',
+                x: 82, y: 45,
+                desc: 'The strongest open-source chess engine, used both server-side (via fishnet) and client-side (WASM). Server analysis runs native Stockfish on volunteer hardware at depth 24+. Client analysis compiles Stockfish to WebAssembly with NNUE for browser-local evaluation.',
+                tech: ['C++', 'NNUE', 'WebAssembly', 'UCI Protocol', 'SIMD'],
+                connections: ['Embedded in fishnet clients for server-side analysis', 'Compiled to WASM for client-side analysis board', 'Uses UCI protocol for position evaluation', 'NNUE neural network for modern evaluation']
+            },
+            {
+                id: 'tablebase',
+                label: 'Tablebase',
+                sub: 'lila-tablebase / Syzygy',
+                icon: '\u2654',
+                domain: 'engine',
+                x: 82, y: 8,
+                desc: 'Syzygy endgame tablebase probing service (lila-tablebase, Rust). Provides perfect play information for all endgame positions with 7 or fewer pieces. Used in analysis, puzzles, and game adjudication. Serves millions of probes daily via HTTP API.',
+                tech: ['Rust', 'Syzygy Tables', 'HTTP API', '~140TB Data'],
+                connections: ['Serves tablebase probes to Lila and the analysis UI', 'Provides DTZ (distance to zeroing) for endgames', 'Used for puzzle validation in endgame positions']
+            },
+            {
+                id: 'cdn',
+                label: 'CDN',
+                sub: 'Static Assets',
+                icon: '\u2601',
+                domain: 'infra',
+                x: 15, y: 8,
+                desc: 'Content delivery network for static assets: compiled TypeScript bundles, CSS, piece SVGs, board themes, sound effects, and Stockfish WASM binaries. Assets are cache-busted with content hashes. Reduces load on origin servers and improves global latency.',
+                tech: ['CDN', 'Cache-Busting', 'SVG Pieces', 'WASM Binaries'],
+                connections: ['Serves JS/CSS bundles to browser clients', 'Hosts Stockfish WASM + NNUE net file', 'Delivers piece SVGs and board theme assets', 'Origin is nginx on Lichess servers']
+            },
+            {
+                id: 'oauth',
+                label: 'OAuth / API',
+                sub: 'REST + Streaming',
+                icon: '\uD83D\uDD11',
+                domain: 'api',
+                x: 15, y: 65,
+                desc: 'OAuth 2.0 (PKCE) authentication and the comprehensive Lichess API. Supports REST (JSON) and NDJSON streaming for real-time data. The Board API enables external clients and bots. Serves 1B+ API requests per month. Rate limited via Redis.',
+                tech: ['OAuth 2.0 PKCE', 'REST API', 'NDJSON Streaming', 'Board API'],
+                connections: ['Authenticates third-party applications', 'Provides game, user, tournament data via REST', 'Streams real-time events via NDJSON', 'Enables bot and external board play']
+            }
+        ];
+
+        const edges = [
+            { from: 'browser', to: 'nginx', label: 'HTTP + WS', animated: true },
+            { from: 'nginx', to: 'lila', label: 'HTTP', animated: false },
+            { from: 'nginx', to: 'lilaws', label: 'WS Upgrade', animated: true },
+            { from: 'nginx', to: 'cdn', label: 'Static', animated: false },
+            { from: 'lilaws', to: 'redis', label: 'Pub/Sub', animated: true },
+            { from: 'lila', to: 'redis', label: 'Pub/Sub + Cache', animated: true },
+            { from: 'lila', to: 'mongodb', label: 'Read/Write', animated: false },
+            { from: 'lila', to: 'elastic', label: 'Search', animated: false },
+            { from: 'lila', to: 'fishnet', label: 'Analysis Queue', animated: true },
+            { from: 'fishnet', to: 'stockfish', label: 'UCI', animated: true },
+            { from: 'lila', to: 'oauth', label: 'Auth + API', animated: false },
+            { from: 'lila', to: 'tablebase', label: 'Endgame Probe', animated: false },
+            { from: 'browser', to: 'cdn', label: 'Assets', animated: false }
+        ];
+
+        // =============== RENDER NODES ===============
+        const canvas = document.getElementById('archCanvas');
+        const svg = document.getElementById('archSvg');
+        const nodeElements = {};
+
+        function renderNodes() {
+            const cw = canvas.offsetWidth;
+            const ch = canvas.offsetHeight;
+
+            nodes.forEach(n => {
+                const el = document.createElement('div');
+                el.className = 'arch-node';
+                el.setAttribute('data-domain', n.domain);
+                el.setAttribute('data-id', n.id);
+                el.innerHTML = `
+                    <span class="node-icon">${n.icon}</span>
+                    <span class="node-label">${n.label}</span>
+                    <span class="node-sub">${n.sub}</span>
+                `;
+                el.style.left = `${n.x}%`;
+                el.style.top = `${n.y}%`;
+                el.style.transform = 'translate(-50%, -50%)';
+                el.addEventListener('click', () => openDetail(n));
+                canvas.appendChild(el);
+                nodeElements[n.id] = el;
+            });
+        }
+
+        // =============== RENDER EDGES (SVG) ===============
+        function getNodeCenter(id) {
+            const el = nodeElements[id];
+            if (!el) return { x: 0, y: 0 };
+            const cr = el.getBoundingClientRect();
+            const pr = canvas.getBoundingClientRect();
+            return {
+                x: cr.left + cr.width / 2 - pr.left,
+                y: cr.top + cr.height / 2 - pr.top
+            };
+        }
+
+        function renderEdges() {
+            svg.innerHTML = '';
+            svg.setAttribute('width', canvas.offsetWidth);
+            svg.setAttribute('height', canvas.offsetHeight);
+
+            // Define arrow marker
+            const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+            const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+            marker.setAttribute('id', 'arrowhead');
+            marker.setAttribute('markerWidth', '8');
+            marker.setAttribute('markerHeight', '6');
+            marker.setAttribute('refX', '8');
+            marker.setAttribute('refY', '3');
+            marker.setAttribute('orient', 'auto');
+            const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+            polygon.setAttribute('points', '0 0, 8 3, 0 6');
+            polygon.setAttribute('fill', 'rgba(240, 192, 64, 0.5)');
+            marker.appendChild(polygon);
+            defs.appendChild(marker);
+            svg.appendChild(defs);
+
+            edges.forEach(e => {
+                const from = getNodeCenter(e.from);
+                const to = getNodeCenter(e.to);
+
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', from.x);
+                line.setAttribute('y1', from.y);
+                line.setAttribute('x2', to.x);
+                line.setAttribute('y2', to.y);
+                line.setAttribute('stroke', 'rgba(240, 192, 64, 0.2)');
+                line.setAttribute('stroke-width', '1.5');
+                line.setAttribute('marker-end', 'url(#arrowhead)');
+
+                if (e.animated) {
+                    line.setAttribute('stroke-dasharray', '6 4');
+                    line.innerHTML = `<animate attributeName="stroke-dashoffset" from="0" to="-20" dur="1.5s" repeatCount="indefinite"/>`;
+                }
+
+                svg.appendChild(line);
+
+                // Edge label
+                const mx = (from.x + to.x) / 2;
+                const my = (from.y + to.y) / 2;
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('x', mx);
+                text.setAttribute('y', my - 6);
+                text.setAttribute('text-anchor', 'middle');
+                text.setAttribute('fill', 'rgba(148, 152, 180, 0.6)');
+                text.setAttribute('font-size', '10');
+                text.setAttribute('font-family', "'Share Tech Mono', monospace");
+                text.textContent = e.label;
+                svg.appendChild(text);
+            });
+        }
+
+        // =============== DETAIL PANEL ===============
+        const detailPanel = document.getElementById('detailPanel');
+        const detailOverlay = document.getElementById('detailOverlay');
+        const detailTitle = document.getElementById('detailTitle');
+        const detailDomain = document.getElementById('detailDomain');
+        const detailDesc = document.getElementById('detailDesc');
+        const detailTech = document.getElementById('detailTech');
+        const detailConns = document.getElementById('detailConns');
+
+        const domainColors = {
+            core: 'var(--domain-core)', ws: 'var(--domain-ws)', db: 'var(--domain-db)',
+            engine: 'var(--domain-engine)', api: 'var(--domain-api)', infra: 'var(--domain-infra)',
+            search: 'var(--domain-search)', social: 'var(--domain-social)'
+        };
+        const domainNames = {
+            core: 'Lila Core', ws: 'Real-Time', db: 'Data Storage',
+            engine: 'Chess Engine', api: 'API / Auth', infra: 'Infrastructure',
+            search: 'Search', social: 'Client / Social'
+        };
+
+        function openDetail(node) {
+            // Deactivate all nodes
+            document.querySelectorAll('.arch-node').forEach(n => n.classList.remove('active'));
+            // Activate clicked node
+            const el = nodeElements[node.id];
+            if (el) el.classList.add('active');
+
+            detailTitle.textContent = node.label;
+            detailDomain.textContent = domainNames[node.domain] || node.domain;
+            detailDomain.style.background = `${domainColors[node.domain]}20`;
+            detailDomain.style.color = domainColors[node.domain];
+            detailDomain.style.border = `1px solid ${domainColors[node.domain]}50`;
+            detailDesc.textContent = node.desc;
+
+            detailTech.innerHTML = node.tech.map(t => `<span class="tech-tag">${t}</span>`).join('');
+            detailConns.innerHTML = node.connections.map(c => `<li>${c}</li>`).join('');
+
+            detailPanel.classList.add('open');
+            detailOverlay.classList.add('open');
+        }
+
+        function closeDetail() {
+            detailPanel.classList.remove('open');
+            detailOverlay.classList.remove('open');
+            document.querySelectorAll('.arch-node').forEach(n => n.classList.remove('active'));
+        }
+
+        document.getElementById('detailClose').addEventListener('click', closeDetail);
+        detailOverlay.addEventListener('click', closeDetail);
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDetail(); });
+
+        // =============== INIT ===============
+        renderNodes();
+
+        // Debounced resize handler
+        let resizeTimer;
+        function handleResize() {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => {
+                renderEdges();
+            }, 100);
+        }
+
+        // Initial edge render after layout settles
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                renderEdges();
+            });
+        });
+
+        window.addEventListener('resize', handleResize);
+
+        // Highlight connected edges on node hover
+        document.querySelectorAll('.arch-node').forEach(nodeEl => {
+            nodeEl.addEventListener('mouseenter', () => {
+                const id = nodeEl.getAttribute('data-id');
+                const connectedIds = new Set();
+                edges.forEach(e => {
+                    if (e.from === id) connectedIds.add(e.to);
+                    if (e.to === id) connectedIds.add(e.from);
+                });
+                document.querySelectorAll('.arch-node').forEach(n => {
+                    const nid = n.getAttribute('data-id');
+                    if (nid !== id && !connectedIds.has(nid)) {
+                        n.style.opacity = '0.3';
+                    }
+                });
+                // Highlight connected edges
+                const lines = svg.querySelectorAll('line');
+                const labels = svg.querySelectorAll('text');
+                let lineIdx = 0;
+                edges.forEach((e, i) => {
+                    if (e.from === id || e.to === id) {
+                        if (lines[i]) {
+                            lines[i].setAttribute('stroke', 'rgba(240, 192, 64, 0.6)');
+                            lines[i].setAttribute('stroke-width', '2.5');
+                        }
+                        if (labels[i]) {
+                            labels[i].setAttribute('fill', 'rgba(240, 192, 64, 0.9)');
+                        }
+                    } else {
+                        if (lines[i]) {
+                            lines[i].setAttribute('stroke', 'rgba(240, 192, 64, 0.08)');
+                        }
+                        if (labels[i]) {
+                            labels[i].setAttribute('fill', 'rgba(148, 152, 180, 0.2)');
+                        }
+                    }
+                });
+            });
+            nodeEl.addEventListener('mouseleave', () => {
+                document.querySelectorAll('.arch-node').forEach(n => {
+                    n.style.opacity = '1';
+                });
+                const lines = svg.querySelectorAll('line');
+                const labels = svg.querySelectorAll('text');
+                edges.forEach((e, i) => {
+                    if (lines[i]) {
+                        lines[i].setAttribute('stroke', 'rgba(240, 192, 64, 0.2)');
+                        lines[i].setAttribute('stroke-width', '1.5');
+                    }
+                    if (labels[i]) {
+                        labels[i].setAttribute('fill', 'rgba(148, 152, 180, 0.6)');
+                    }
+                });
+            });
+        });
+    })();
+    </script>
+<script defer src="../../prompt-viewer.js"></script>
+</body>
+</html>

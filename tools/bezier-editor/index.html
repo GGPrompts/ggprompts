@@ -1,0 +1,1182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bezier Curve Editor</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --font-sans: 'Inter', -apple-system, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+
+            --bg: #0e0e14;
+            --bg-panel: #15151e;
+            --bg-input: #1c1c2a;
+            --bg-hover: #252538;
+            --bg-active: #2e2e48;
+            --border: #2a2a3e;
+            --border-focus: #7c6df0;
+            --text: #e8e8f0;
+            --text-secondary: #9898ae;
+            --text-muted: #5e5e78;
+            --accent: #7c6df0;
+            --accent-hover: #9b8cf8;
+            --accent-dim: rgba(124, 109, 240, 0.15);
+            --accent2: #00d4ff;
+            --accent2-dim: rgba(0, 212, 255, 0.15);
+            --danger: #ef4444;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --curve-color: #7c6df0;
+            --handle-line: rgba(0, 212, 255, 0.5);
+            --point-fill: #00d4ff;
+            --point-stroke: #e8e8f0;
+            --grid-line: rgba(255, 255, 255, 0.05);
+            --grid-line-major: rgba(255, 255, 255, 0.1);
+
+            --radius: 8px;
+            --radius-sm: 4px;
+            --radius-lg: 12px;
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.4);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.5);
+            --transition: 150ms ease;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: var(--font-sans);
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* -- Header ---------------------------------------- */
+        .header {
+            background: var(--bg-panel);
+            border-bottom: 1px solid var(--border);
+            padding: 10px 20px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            position: sticky;
+            top: 0;
+            z-index: 200;
+            height: 48px;
+        }
+
+        .header-back {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            transition: color var(--transition);
+        }
+        .header-back:hover { color: var(--text); }
+
+        .header-title {
+            font-size: 15px;
+            font-weight: 600;
+            letter-spacing: -0.3px;
+        }
+
+        .header-sep {
+            width: 1px;
+            height: 20px;
+            background: var(--border);
+        }
+
+        /* -- Layout ---------------------------------------- */
+        .app {
+            display: grid;
+            grid-template-columns: 1fr 320px;
+            height: calc(100vh - 48px);
+        }
+
+        /* -- Canvas Area ----------------------------------- */
+        .canvas-area {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .canvas-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: var(--bg-panel);
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .canvas-toolbar .btn-group {
+            display: flex;
+            gap: 2px;
+            background: var(--bg-input);
+            border-radius: var(--radius);
+            padding: 2px;
+        }
+
+        .canvas-toolbar .btn-group button {
+            padding: 5px 14px;
+            font-size: 12px;
+            font-weight: 500;
+            background: transparent;
+            color: var(--text-secondary);
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all var(--transition);
+            font-family: var(--font-sans);
+        }
+
+        .canvas-toolbar .btn-group button.active {
+            background: var(--accent);
+            color: #fff;
+        }
+
+        .canvas-toolbar .btn-group button:hover:not(.active) {
+            color: var(--text);
+            background: var(--bg-hover);
+        }
+
+        .toolbar-spacer { flex: 1; }
+
+        .btn {
+            padding: 5px 14px;
+            font-size: 12px;
+            font-weight: 500;
+            background: var(--bg-input);
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            cursor: pointer;
+            transition: all var(--transition);
+            font-family: var(--font-sans);
+        }
+        .btn:hover {
+            color: var(--text);
+            background: var(--bg-hover);
+            border-color: var(--text-muted);
+        }
+        .btn-accent {
+            background: var(--accent-dim);
+            color: var(--accent-hover);
+            border-color: rgba(124, 109, 240, 0.3);
+        }
+        .btn-accent:hover {
+            background: var(--accent);
+            color: #fff;
+            border-color: var(--accent);
+        }
+
+        .canvas-wrap {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+
+        canvas#bezierCanvas {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            cursor: crosshair;
+            max-width: 100%;
+            max-height: 100%;
+        }
+
+        /* -- Side Panel ------------------------------------ */
+        .panel {
+            background: var(--bg-panel);
+            border-left: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        .panel-section {
+            padding: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .panel-section-title {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+        }
+
+        /* -- Presets --------------------------------------- */
+        .preset-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+        }
+
+        .preset-btn {
+            padding: 7px 10px;
+            font-size: 11px;
+            font-weight: 500;
+            background: var(--bg-input);
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: all var(--transition);
+            font-family: var(--font-sans);
+            text-align: left;
+        }
+        .preset-btn:hover {
+            color: var(--text);
+            background: var(--bg-hover);
+            border-color: var(--accent);
+        }
+
+        /* -- Point Coordinates ----------------------------- */
+        .point-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .point-row {
+            display: grid;
+            grid-template-columns: 40px 1fr 1fr;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .point-label {
+            font-size: 12px;
+            font-weight: 600;
+            font-family: var(--font-mono);
+        }
+        .point-label.p0 { color: #22c55e; }
+        .point-label.p1 { color: #00d4ff; }
+        .point-label.p2 { color: #f59e0b; }
+        .point-label.p3 { color: #ef4444; }
+
+        .point-input {
+            padding: 5px 8px;
+            font-size: 12px;
+            font-family: var(--font-mono);
+            background: var(--bg-input);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            width: 100%;
+            transition: border-color var(--transition);
+        }
+        .point-input:focus {
+            outline: none;
+            border-color: var(--border-focus);
+        }
+
+        /* -- Output Code ----------------------------------- */
+        .output-block {
+            margin-bottom: 12px;
+        }
+        .output-block:last-child { margin-bottom: 0; }
+
+        .output-label {
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+        }
+
+        .output-row {
+            display: flex;
+            gap: 4px;
+        }
+
+        .output-code {
+            flex: 1;
+            padding: 8px 10px;
+            font-size: 12px;
+            font-family: var(--font-mono);
+            background: var(--bg-input);
+            color: var(--accent-hover);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            white-space: nowrap;
+            overflow-x: auto;
+            line-height: 1.5;
+            user-select: all;
+        }
+
+        .copy-btn {
+            padding: 8px 10px;
+            font-size: 11px;
+            font-weight: 600;
+            background: var(--accent-dim);
+            color: var(--accent);
+            border: 1px solid rgba(124, 109, 240, 0.25);
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: all var(--transition);
+            font-family: var(--font-sans);
+            flex-shrink: 0;
+            white-space: nowrap;
+        }
+        .copy-btn:hover {
+            background: var(--accent);
+            color: #fff;
+        }
+        .copy-btn.copied {
+            background: var(--success);
+            color: #fff;
+            border-color: var(--success);
+        }
+
+        /* -- Animation Preview ----------------------------- */
+        .anim-preview {
+            position: relative;
+            height: 48px;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+        }
+
+        .anim-track {
+            position: absolute;
+            top: 50%;
+            left: 16px;
+            right: 16px;
+            height: 2px;
+            background: var(--border);
+            transform: translateY(-50%);
+        }
+
+        .anim-ball {
+            position: absolute;
+            top: 50%;
+            width: 18px;
+            height: 18px;
+            background: var(--accent);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 12px rgba(124, 109, 240, 0.6);
+            transition: none;
+        }
+
+        .anim-controls {
+            display: flex;
+            gap: 6px;
+            margin-top: 8px;
+        }
+
+        .anim-controls button {
+            flex: 1;
+        }
+
+        /* -- Duration slider ------------------------------- */
+        .duration-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .duration-row label {
+            font-size: 11px;
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+
+        .duration-row input[type="range"] {
+            flex: 1;
+            accent-color: var(--accent);
+            height: 4px;
+        }
+
+        .duration-row .dur-val {
+            font-size: 11px;
+            font-family: var(--font-mono);
+            color: var(--text-secondary);
+            min-width: 30px;
+            text-align: right;
+        }
+
+        /* -- Responsive ------------------------------------ */
+        @media (max-width: 768px) {
+            .app {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto 1fr;
+                height: auto;
+            }
+
+            .canvas-wrap {
+                padding: 12px;
+                min-height: 50vh;
+            }
+
+            .panel {
+                border-left: none;
+                border-top: 1px solid var(--border);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <a href="../index.html" class="header-back">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+            Tools
+        </a>
+        <div class="header-sep"></div>
+        <span class="header-title">Bezier Curve Editor</span>
+    </div>
+
+    <div class="app">
+        <div class="canvas-area">
+            <div class="canvas-toolbar">
+                <div class="btn-group" id="modeGroup">
+                    <button class="active" data-mode="cubic">Cubic</button>
+                    <button data-mode="quadratic">Quadratic</button>
+                </div>
+                <div class="toolbar-spacer"></div>
+                <button class="btn" id="resetBtn">Reset</button>
+            </div>
+            <div class="canvas-wrap">
+                <canvas id="bezierCanvas" width="500" height="500"></canvas>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-section">
+                <div class="panel-section-title">Presets</div>
+                <div class="preset-grid" id="presetGrid">
+                    <button class="preset-btn" data-preset="linear">Linear</button>
+                    <button class="preset-btn" data-preset="ease">Ease</button>
+                    <button class="preset-btn" data-preset="ease-in">Ease In</button>
+                    <button class="preset-btn" data-preset="ease-out">Ease Out</button>
+                    <button class="preset-btn" data-preset="ease-in-out">Ease In-Out</button>
+                    <button class="preset-btn" data-preset="bounce">Bounce</button>
+                    <button class="preset-btn" data-preset="snap">Snap</button>
+                    <button class="preset-btn" data-preset="overshoot">Overshoot</button>
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <div class="panel-section-title">Control Points</div>
+                <div class="point-list" id="pointList"></div>
+            </div>
+
+            <div class="panel-section">
+                <div class="panel-section-title">CSS Output</div>
+                <div class="output-block">
+                    <div class="output-label">cubic-bezier()</div>
+                    <div class="output-row">
+                        <div class="output-code" id="cssOutput">cubic-bezier(0.25, 0.10, 0.25, 1.00)</div>
+                        <button class="copy-btn" data-target="cssOutput">Copy</button>
+                    </div>
+                </div>
+                <div class="output-block">
+                    <div class="output-label">SVG Path d</div>
+                    <div class="output-row">
+                        <div class="output-code" id="svgOutput">M 0 1 C 0.25 0.9 0.25 0 1 0</div>
+                        <button class="copy-btn" data-target="svgOutput">Copy</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <div class="panel-section-title">Animation Preview</div>
+                <div class="anim-preview" id="animPreview">
+                    <div class="anim-track"></div>
+                    <div class="anim-ball" id="animBall"></div>
+                </div>
+                <div class="anim-controls">
+                    <button class="btn btn-accent" id="playBtn">Play</button>
+                    <button class="btn" id="loopBtn">Loop: Off</button>
+                </div>
+                <div class="duration-row">
+                    <label>Duration</label>
+                    <input type="range" id="durationSlider" min="200" max="3000" value="1000" step="100">
+                    <span class="dur-val" id="durationVal">1.0s</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+(function() {
+    'use strict';
+
+    /* ====================================================
+       State
+    ==================================================== */
+    const CANVAS_SIZE = 500;
+    const PAD = 40;           // padding inside canvas for the unit square
+    const DRAW_SIZE = CANVAS_SIZE - PAD * 2;
+
+    let mode = 'cubic';       // 'cubic' | 'quadratic'
+    let dragging = null;      // index of point being dragged
+    let animRunning = false;
+    let animLooping = false;
+    let animStart = 0;
+    let animDuration = 1000;
+    let animRaf = null;
+
+    // Points in unit-square space [0,1] x [0,1] where (0,0) is bottom-left
+    // For CSS cubic-bezier, P0 is always (0,0) and P3 is always (1,1)
+    let points = {
+        cubic: [
+            { x: 0, y: 0 },       // P0 (fixed)
+            { x: 0.25, y: 0.10 }, // P1
+            { x: 0.25, y: 1.00 }, // P2
+            { x: 1, y: 1 }        // P3 (fixed)
+        ],
+        quadratic: [
+            { x: 0, y: 0 },       // P0 (fixed)
+            { x: 0.50, y: 1.00 }, // P1
+            { x: 1, y: 1 }        // P2 (fixed)
+        ]
+    };
+
+    const presets = {
+        linear:      { p1: { x: 0, y: 0 }, p2: { x: 1, y: 1 } },
+        ease:        { p1: { x: 0.25, y: 0.1 }, p2: { x: 0.25, y: 1 } },
+        'ease-in':   { p1: { x: 0.42, y: 0 }, p2: { x: 1, y: 1 } },
+        'ease-out':  { p1: { x: 0, y: 0 }, p2: { x: 0.58, y: 1 } },
+        'ease-in-out': { p1: { x: 0.42, y: 0 }, p2: { x: 0.58, y: 1 } },
+        bounce:      { p1: { x: 0.68, y: -0.55 }, p2: { x: 0.27, y: 1.55 } },
+        snap:        { p1: { x: 0, y: 1 }, p2: { x: 0, y: 1 } },
+        overshoot:   { p1: { x: 0.34, y: 1.56 }, p2: { x: 0.64, y: 1 } }
+    };
+
+    const pointColors = ['#22c55e', '#00d4ff', '#f59e0b', '#ef4444'];
+    const pointLabels = ['P0', 'P1', 'P2', 'P3'];
+
+    /* ====================================================
+       DOM refs
+    ==================================================== */
+    const canvas = document.getElementById('bezierCanvas');
+    const ctx = canvas.getContext('2d');
+    const modeGroup = document.getElementById('modeGroup');
+    const resetBtn = document.getElementById('resetBtn');
+    const presetGrid = document.getElementById('presetGrid');
+    const pointList = document.getElementById('pointList');
+    const cssOutputEl = document.getElementById('cssOutput');
+    const svgOutputEl = document.getElementById('svgOutput');
+    const playBtn = document.getElementById('playBtn');
+    const loopBtn = document.getElementById('loopBtn');
+    const animBall = document.getElementById('animBall');
+    const durationSlider = document.getElementById('durationSlider');
+    const durationVal = document.getElementById('durationVal');
+
+    /* ====================================================
+       Coordinate conversion
+    ==================================================== */
+    function unitToCanvas(ux, uy) {
+        return {
+            cx: PAD + ux * DRAW_SIZE,
+            cy: PAD + (1 - uy) * DRAW_SIZE   // flip Y
+        };
+    }
+
+    function canvasToUnit(cx, cy) {
+        return {
+            ux: (cx - PAD) / DRAW_SIZE,
+            uy: 1 - (cy - PAD) / DRAW_SIZE    // flip Y
+        };
+    }
+
+    /* ====================================================
+       Get active points
+    ==================================================== */
+    function pts() {
+        return points[mode];
+    }
+
+    /* ====================================================
+       Drawing
+    ==================================================== */
+    function draw() {
+        const dpr = window.devicePixelRatio || 1;
+        const displaySize = Math.min(
+            canvas.parentElement.clientWidth - 48,
+            canvas.parentElement.clientHeight - 48,
+            600
+        );
+        const size = Math.max(300, displaySize);
+
+        if (canvas.width !== size * dpr || canvas.height !== size * dpr) {
+            canvas.width = size * dpr;
+            canvas.height = size * dpr;
+            canvas.style.width = size + 'px';
+            canvas.style.height = size + 'px';
+        }
+
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        const W = size;
+        const H = size;
+        const pad = PAD * (W / CANVAS_SIZE);
+        const drawW = W - pad * 2;
+        const drawH = H - pad * 2;
+
+        ctx.clearRect(0, 0, W, H);
+
+        // -- Grid ---
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+        ctx.lineWidth = 1;
+        for (let i = 0; i <= 10; i++) {
+            const x = pad + (drawW * i / 10);
+            const y = pad + (drawH * i / 10);
+            ctx.beginPath();
+            ctx.moveTo(x, pad);
+            ctx.lineTo(x, pad + drawH);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(pad, y);
+            ctx.lineTo(pad + drawW, y);
+            ctx.stroke();
+        }
+
+        // -- Major grid lines (quarters) ---
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.lineWidth = 1;
+        for (let i = 0; i <= 4; i++) {
+            const x = pad + (drawW * i / 4);
+            const y = pad + (drawH * i / 4);
+            ctx.beginPath();
+            ctx.moveTo(x, pad);
+            ctx.lineTo(x, pad + drawH);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(pad, y);
+            ctx.lineTo(pad + drawW, y);
+            ctx.stroke();
+        }
+
+        // -- Unit square border ---
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(pad, pad, drawW, drawH);
+
+        // -- Axis labels ---
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+        ctx.font = '10px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('0', pad, H - pad + 16);
+        ctx.fillText('1', pad + drawW, H - pad + 16);
+        ctx.textAlign = 'right';
+        ctx.fillText('0', pad - 8, pad + drawH);
+        ctx.fillText('1', pad - 8, pad + 4);
+
+        // -- Diagonal reference (linear) ---
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(pad, pad + drawH);
+        ctx.lineTo(pad + drawW, pad);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Convert points to canvas coords relative to this size
+        function toC(p) {
+            return {
+                x: pad + p.x * drawW,
+                y: pad + (1 - p.y) * drawH
+            };
+        }
+
+        const p = pts().map(toC);
+
+        // -- Handle lines ---
+        ctx.strokeStyle = 'rgba(0, 212, 255, 0.4)';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([6, 4]);
+        ctx.beginPath();
+        ctx.moveTo(p[0].x, p[0].y);
+        ctx.lineTo(p[1].x, p[1].y);
+        ctx.stroke();
+
+        if (mode === 'cubic') {
+            ctx.beginPath();
+            ctx.moveTo(p[2].x, p[2].y);
+            ctx.lineTo(p[3].x, p[3].y);
+            ctx.stroke();
+        } else {
+            ctx.beginPath();
+            ctx.moveTo(p[1].x, p[1].y);
+            ctx.lineTo(p[2].x, p[2].y);
+            ctx.stroke();
+        }
+        ctx.setLineDash([]);
+
+        // -- Bezier curve ---
+        ctx.strokeStyle = 'var(--curve-color)';
+        ctx.strokeStyle = '#7c6df0';
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(p[0].x, p[0].y);
+        if (mode === 'cubic') {
+            ctx.bezierCurveTo(p[1].x, p[1].y, p[2].x, p[2].y, p[3].x, p[3].y);
+        } else {
+            ctx.quadraticCurveTo(p[1].x, p[1].y, p[2].x, p[2].y);
+        }
+        ctx.stroke();
+
+        // -- Draw a subtle glow on curve ---
+        ctx.strokeStyle = 'rgba(124, 109, 240, 0.25)';
+        ctx.lineWidth = 8;
+        ctx.beginPath();
+        ctx.moveTo(p[0].x, p[0].y);
+        if (mode === 'cubic') {
+            ctx.bezierCurveTo(p[1].x, p[1].y, p[2].x, p[2].y, p[3].x, p[3].y);
+        } else {
+            ctx.quadraticCurveTo(p[1].x, p[1].y, p[2].x, p[2].y);
+        }
+        ctx.stroke();
+
+        // -- Control points ---
+        pts().forEach(function(pt, i) {
+            const c = toC(pt);
+            const isFixed = (i === 0) || (mode === 'cubic' && i === 3) || (mode === 'quadratic' && i === 2);
+            const r = isFixed ? 5 : 8;
+
+            // Glow
+            if (!isFixed) {
+                ctx.beginPath();
+                ctx.arc(c.x, c.y, r + 6, 0, Math.PI * 2);
+                ctx.fillStyle = pointColors[i].replace(')', ', 0.15)').replace('rgb', 'rgba').replace('#', '');
+                // Use hex alpha approach
+                ctx.fillStyle = hexToRgba(pointColors[i], 0.2);
+                ctx.fill();
+            }
+
+            // Point fill
+            ctx.beginPath();
+            ctx.arc(c.x, c.y, r, 0, Math.PI * 2);
+            ctx.fillStyle = isFixed ? '#555568' : pointColors[i];
+            ctx.fill();
+
+            // Point stroke
+            ctx.strokeStyle = isFixed ? '#777788' : '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Label
+            ctx.fillStyle = pointColors[i];
+            ctx.font = 'bold 11px JetBrains Mono, monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(pointLabels[i], c.x, c.y - r - 8);
+        });
+    }
+
+    function hexToRgba(hex, alpha) {
+        const r = parseInt(hex.slice(1, 3), 16);
+        const g = parseInt(hex.slice(3, 5), 16);
+        const b = parseInt(hex.slice(5, 7), 16);
+        return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+    }
+
+    /* ====================================================
+       Point Inputs
+    ==================================================== */
+    function buildPointInputs() {
+        const p = pts();
+        let html = '';
+        p.forEach(function(pt, i) {
+            const isFixed = (i === 0) || (mode === 'cubic' && i === 3) || (mode === 'quadratic' && i === 2);
+            const labelClass = ['p0', 'p1', 'p2', 'p3'][i];
+            html += '<div class="point-row">';
+            html += '<span class="point-label ' + labelClass + '">' + pointLabels[i] + '</span>';
+            html += '<input type="number" class="point-input" data-idx="' + i + '" data-axis="x" value="' + pt.x.toFixed(2) + '" step="0.01" min="-0.5" max="1.5"' + (isFixed ? ' disabled' : '') + '>';
+            html += '<input type="number" class="point-input" data-idx="' + i + '" data-axis="y" value="' + pt.y.toFixed(2) + '" step="0.01" min="-0.5" max="1.5"' + (isFixed ? ' disabled' : '') + '>';
+            html += '</div>';
+        });
+        pointList.innerHTML = html;
+
+        // Bind events
+        pointList.querySelectorAll('.point-input:not([disabled])').forEach(function(inp) {
+            inp.addEventListener('input', function() {
+                const idx = parseInt(this.dataset.idx);
+                const axis = this.dataset.axis;
+                const val = parseFloat(this.value);
+                if (!isNaN(val)) {
+                    pts()[idx][axis] = val;
+                    draw();
+                    updateOutputs();
+                }
+            });
+        });
+    }
+
+    function syncPointInputs() {
+        const inputs = pointList.querySelectorAll('.point-input');
+        const p = pts();
+        inputs.forEach(function(inp) {
+            const idx = parseInt(inp.dataset.idx);
+            const axis = inp.dataset.axis;
+            if (idx < p.length) {
+                inp.value = p[idx][axis].toFixed(2);
+            }
+        });
+    }
+
+    /* ====================================================
+       Outputs
+    ==================================================== */
+    function updateOutputs() {
+        const p = pts();
+        if (mode === 'cubic') {
+            const css = 'cubic-bezier(' +
+                p[1].x.toFixed(2) + ', ' + p[1].y.toFixed(2) + ', ' +
+                p[2].x.toFixed(2) + ', ' + p[2].y.toFixed(2) + ')';
+            cssOutputEl.textContent = css;
+
+            const svg = 'M 0 1 C ' +
+                p[1].x.toFixed(2) + ' ' + (1 - p[1].y).toFixed(2) + ' ' +
+                p[2].x.toFixed(2) + ' ' + (1 - p[2].y).toFixed(2) + ' 1 0';
+            svgOutputEl.textContent = svg;
+        } else {
+            cssOutputEl.textContent = '(quadratic - no CSS equivalent)';
+
+            const svg = 'M 0 1 Q ' +
+                p[1].x.toFixed(2) + ' ' + (1 - p[1].y).toFixed(2) + ' 1 0';
+            svgOutputEl.textContent = svg;
+        }
+        syncPointInputs();
+    }
+
+    /* ====================================================
+       Mouse / Touch interaction
+    ==================================================== */
+    function getCanvasCoords(e) {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / (window.devicePixelRatio || 1) / rect.width;
+        const scaleY = canvas.height / (window.devicePixelRatio || 1) / rect.height;
+        let clientX, clientY;
+        if (e.touches) {
+            clientX = e.touches[0].clientX;
+            clientY = e.touches[0].clientY;
+        } else {
+            clientX = e.clientX;
+            clientY = e.clientY;
+        }
+        return {
+            x: (clientX - rect.left) * scaleX,
+            y: (clientY - rect.top) * scaleY
+        };
+    }
+
+    function getCanvasSize() {
+        return canvas.width / (window.devicePixelRatio || 1);
+    }
+
+    function hitTest(cx, cy) {
+        const p = pts();
+        const W = getCanvasSize();
+        const pad = PAD * (W / CANVAS_SIZE);
+        const drawW = W - pad * 2;
+        const drawH = W - pad * 2;
+
+        let closest = -1;
+        let closestDist = 20; // hit radius in pixels
+
+        for (let i = p.length - 1; i >= 0; i--) {
+            const isFixed = (i === 0) || (mode === 'cubic' && i === 3) || (mode === 'quadratic' && i === 2);
+            if (isFixed) continue;
+
+            const px = pad + p[i].x * drawW;
+            const py = pad + (1 - p[i].y) * drawH;
+            const dist = Math.sqrt((cx - px) ** 2 + (cy - py) ** 2);
+            if (dist < closestDist) {
+                closest = i;
+                closestDist = dist;
+            }
+        }
+        return closest;
+    }
+
+    function onPointerDown(e) {
+        e.preventDefault();
+        const c = getCanvasCoords(e);
+        const idx = hitTest(c.x, c.y);
+        if (idx >= 0) {
+            dragging = idx;
+            canvas.style.cursor = 'grabbing';
+        }
+    }
+
+    function onPointerMove(e) {
+        if (dragging === null) {
+            const c = getCanvasCoords(e);
+            const idx = hitTest(c.x, c.y);
+            canvas.style.cursor = idx >= 0 ? 'grab' : 'crosshair';
+            return;
+        }
+        e.preventDefault();
+
+        const c = getCanvasCoords(e);
+        const W = getCanvasSize();
+        const pad = PAD * (W / CANVAS_SIZE);
+        const drawW = W - pad * 2;
+        const drawH = W - pad * 2;
+
+        let ux = (c.x - pad) / drawW;
+        let uy = 1 - (c.y - pad) / drawH;
+
+        // Allow control points to extend beyond 0-1 range for overshoot curves
+        ux = Math.max(-0.5, Math.min(1.5, ux));
+        uy = Math.max(-0.5, Math.min(1.5, uy));
+
+        pts()[dragging].x = ux;
+        pts()[dragging].y = uy;
+
+        draw();
+        updateOutputs();
+    }
+
+    function onPointerUp() {
+        dragging = null;
+        canvas.style.cursor = 'crosshair';
+    }
+
+    canvas.addEventListener('mousedown', onPointerDown);
+    window.addEventListener('mousemove', onPointerMove);
+    window.addEventListener('mouseup', onPointerUp);
+    canvas.addEventListener('touchstart', onPointerDown, { passive: false });
+    window.addEventListener('touchmove', onPointerMove, { passive: false });
+    window.addEventListener('touchend', onPointerUp);
+
+    /* ====================================================
+       Mode toggle
+    ==================================================== */
+    modeGroup.addEventListener('click', function(e) {
+        const btn = e.target.closest('[data-mode]');
+        if (!btn || btn.dataset.mode === mode) return;
+
+        modeGroup.querySelectorAll('button').forEach(function(b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        mode = btn.dataset.mode;
+
+        buildPointInputs();
+        draw();
+        updateOutputs();
+    });
+
+    /* ====================================================
+       Reset
+    ==================================================== */
+    resetBtn.addEventListener('click', function() {
+        if (mode === 'cubic') {
+            points.cubic = [
+                { x: 0, y: 0 },
+                { x: 0.25, y: 0.10 },
+                { x: 0.25, y: 1.00 },
+                { x: 1, y: 1 }
+            ];
+        } else {
+            points.quadratic = [
+                { x: 0, y: 0 },
+                { x: 0.50, y: 1.00 },
+                { x: 1, y: 1 }
+            ];
+        }
+        buildPointInputs();
+        draw();
+        updateOutputs();
+    });
+
+    /* ====================================================
+       Presets
+    ==================================================== */
+    presetGrid.addEventListener('click', function(e) {
+        const btn = e.target.closest('[data-preset]');
+        if (!btn) return;
+
+        const preset = presets[btn.dataset.preset];
+        if (!preset) return;
+
+        // Switch to cubic mode for presets
+        if (mode !== 'cubic') {
+            mode = 'cubic';
+            modeGroup.querySelectorAll('button').forEach(function(b) {
+                b.classList.toggle('active', b.dataset.mode === 'cubic');
+            });
+        }
+
+        points.cubic[1] = { x: preset.p1.x, y: preset.p1.y };
+        points.cubic[2] = { x: preset.p2.x, y: preset.p2.y };
+
+        buildPointInputs();
+        draw();
+        updateOutputs();
+    });
+
+    /* ====================================================
+       Copy buttons
+    ==================================================== */
+    document.querySelectorAll('.copy-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const target = document.getElementById(this.dataset.target);
+            if (!target) return;
+
+            navigator.clipboard.writeText(target.textContent).then(function() {
+                btn.textContent = 'Copied!';
+                btn.classList.add('copied');
+                setTimeout(function() {
+                    btn.textContent = 'Copy';
+                    btn.classList.remove('copied');
+                }, 1500);
+            });
+        });
+    });
+
+    /* ====================================================
+       Animation Preview
+    ==================================================== */
+    function cubicBezierValue(t, p1, p2) {
+        // Attempt to find x(t) = targetX using Newton's method on the parametric cubic
+        // For CSS cubic-bezier, we map time (0-1) to progress (0-1)
+        // The curve is: B(t) = 3(1-t)^2 t P1 + 3(1-t) t^2 P2 + t^3
+        // We need to find parameter s such that Bx(s) = t, then return By(s)
+
+        const x1 = p1.x, y1 = p1.y, x2 = p2.x, y2 = p2.y;
+
+        function sampleX(s) {
+            return 3 * (1 - s) * (1 - s) * s * x1 + 3 * (1 - s) * s * s * x2 + s * s * s;
+        }
+
+        function sampleY(s) {
+            return 3 * (1 - s) * (1 - s) * s * y1 + 3 * (1 - s) * s * s * y2 + s * s * s;
+        }
+
+        function sampleXDerivative(s) {
+            return 3 * (1 - s) * (1 - s) * x1 + 6 * (1 - s) * s * (x2 - x1) + 3 * s * s * (1 - x2);
+        }
+
+        // Newton's method to find s where sampleX(s) = t
+        let s = t;
+        for (let i = 0; i < 8; i++) {
+            const xDiff = sampleX(s) - t;
+            const dx = sampleXDerivative(s);
+            if (Math.abs(dx) < 1e-6) break;
+            s -= xDiff / dx;
+        }
+
+        // Clamp
+        s = Math.max(0, Math.min(1, s));
+        return sampleY(s);
+    }
+
+    function animateFrame(timestamp) {
+        if (!animRunning) return;
+
+        if (animStart === 0) animStart = timestamp;
+        let elapsed = timestamp - animStart;
+        let t = elapsed / animDuration;
+
+        if (t >= 1) {
+            if (animLooping) {
+                animStart = timestamp;
+                t = 0;
+            } else {
+                t = 1;
+                animRunning = false;
+                playBtn.textContent = 'Play';
+            }
+        }
+
+        // Get eased value
+        let progress;
+        const p = pts();
+        if (mode === 'cubic') {
+            progress = cubicBezierValue(t, p[1], p[2]);
+        } else {
+            // Quadratic: B(t) = (1-t)^2 P0 + 2(1-t)t P1 + t^2 P2
+            // Find s where Bx(s) = t, same Newton approach
+            const x1 = p[1].x, y1 = p[1].y;
+            function qSampleX(s) { return 2 * (1 - s) * s * x1 + s * s; }
+            function qSampleY(s) { return 2 * (1 - s) * s * y1 + s * s; }
+            function qDx(s) { return 2 * (1 - 2 * s) * x1 + 2 * s; }
+
+            let s = t;
+            for (let i = 0; i < 8; i++) {
+                const xDiff = qSampleX(s) - t;
+                const dx = qDx(s);
+                if (Math.abs(dx) < 1e-6) break;
+                s -= xDiff / dx;
+            }
+            s = Math.max(0, Math.min(1, s));
+            progress = qSampleY(s);
+        }
+
+        // Position ball
+        const preview = document.getElementById('animPreview');
+        const pw = preview.clientWidth - 32; // minus track padding
+        const x = 16 + progress * pw;
+        animBall.style.left = x + 'px';
+
+        if (animRunning) {
+            animRaf = requestAnimationFrame(animateFrame);
+        }
+    }
+
+    playBtn.addEventListener('click', function() {
+        if (animRunning) {
+            animRunning = false;
+            cancelAnimationFrame(animRaf);
+            playBtn.textContent = 'Play';
+            return;
+        }
+
+        animRunning = true;
+        animStart = 0;
+        playBtn.textContent = 'Stop';
+        animBall.style.left = '16px';
+        animRaf = requestAnimationFrame(animateFrame);
+    });
+
+    loopBtn.addEventListener('click', function() {
+        animLooping = !animLooping;
+        loopBtn.textContent = 'Loop: ' + (animLooping ? 'On' : 'Off');
+    });
+
+    durationSlider.addEventListener('input', function() {
+        animDuration = parseInt(this.value);
+        durationVal.textContent = (animDuration / 1000).toFixed(1) + 's';
+    });
+
+    /* ====================================================
+       Resize handling
+    ==================================================== */
+    let resizeTimer;
+    window.addEventListener('resize', function() {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(function() {
+            draw();
+        }, 50);
+    });
+
+    /* ====================================================
+       Init
+    ==================================================== */
+    buildPointInputs();
+    draw();
+    updateOutputs();
+
+})();
+</script>
+<script defer src="../../prompt-viewer.js"></script>
+</body>
+</html>

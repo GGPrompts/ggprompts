@@ -1,0 +1,1403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>FROGGER - Arcade Classic</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --neon-green: #39ff14;
+            --neon-yellow: #ffff00;
+            --neon-blue: #0088ff;
+            --neon-pink: #ff2d7b;
+            --neon-cyan: #00ffff;
+            --neon-orange: #ff8800;
+            --neon-red: #ff3333;
+            --cabinet-dark: #0a0a1a;
+            --cabinet-border: #1a1a3a;
+            --cabinet-accent: #222244;
+            --road-dark: #1a1a2a;
+            --water-deep: #0a1a3a;
+            --grass-dark: #0a2a0a;
+            --font-arcade: 'Press Start 2P', monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html, body {
+            height: 100%;
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        body {
+            font-family: var(--font-arcade);
+            background: var(--cabinet-dark);
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* Scanline overlay */
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 100;
+            background: repeating-linear-gradient(
+                0deg,
+                rgba(0, 0, 0, 0.06) 0px,
+                rgba(0, 0, 0, 0.06) 1px,
+                transparent 1px,
+                transparent 3px
+            );
+        }
+
+        .cabinet {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            max-width: 520px;
+            width: 100%;
+            padding: 8px;
+        }
+
+        .marquee {
+            font-size: 20px;
+            color: var(--neon-green);
+            text-shadow: 0 0 10px var(--neon-green), 0 0 20px var(--neon-green), 0 0 40px var(--neon-green);
+            letter-spacing: 6px;
+            margin-bottom: 6px;
+            text-align: center;
+        }
+
+        .hud {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            max-width: 480px;
+            padding: 4px 8px;
+            font-size: 10px;
+            color: var(--neon-yellow);
+            text-shadow: 0 0 6px var(--neon-yellow);
+        }
+
+        .hud-lives {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+        }
+
+        .hud-lives .frog-icon {
+            width: 14px;
+            height: 14px;
+            display: inline-block;
+        }
+
+        canvas {
+            display: block;
+            border: 2px solid var(--cabinet-border);
+            border-radius: 2px;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            max-width: 100%;
+            height: auto;
+        }
+
+        .time-bar-container {
+            width: 100%;
+            max-width: 480px;
+            height: 10px;
+            background: var(--cabinet-border);
+            border-radius: 2px;
+            margin-top: 4px;
+            overflow: hidden;
+        }
+
+        .time-bar {
+            height: 100%;
+            background: var(--neon-green);
+            box-shadow: 0 0 8px var(--neon-green);
+            transition: width 0.1s linear, background 0.3s;
+        }
+
+        .time-bar.warning {
+            background: var(--neon-orange);
+            box-shadow: 0 0 8px var(--neon-orange);
+        }
+
+        .time-bar.critical {
+            background: var(--neon-red);
+            box-shadow: 0 0 8px var(--neon-red);
+            animation: pulse-bar 0.5s infinite;
+        }
+
+        @keyframes pulse-bar {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 50;
+            text-align: center;
+            gap: 20px;
+        }
+
+        .overlay.hidden {
+            display: none;
+        }
+
+        .overlay h1 {
+            font-size: 28px;
+            color: var(--neon-green);
+            text-shadow: 0 0 10px var(--neon-green), 0 0 30px var(--neon-green);
+            letter-spacing: 4px;
+        }
+
+        .overlay h2 {
+            font-size: 16px;
+            color: var(--neon-yellow);
+            text-shadow: 0 0 8px var(--neon-yellow);
+        }
+
+        .overlay p {
+            font-size: 10px;
+            color: #aaa;
+            line-height: 1.8;
+        }
+
+        .overlay .score-display {
+            font-size: 18px;
+            color: var(--neon-cyan);
+            text-shadow: 0 0 8px var(--neon-cyan);
+        }
+
+        .overlay .high-score-display {
+            font-size: 12px;
+            color: var(--neon-pink);
+            text-shadow: 0 0 6px var(--neon-pink);
+        }
+
+        .start-btn {
+            font-family: var(--font-arcade);
+            font-size: 12px;
+            padding: 12px 24px;
+            background: transparent;
+            color: var(--neon-green);
+            border: 2px solid var(--neon-green);
+            cursor: pointer;
+            text-shadow: 0 0 6px var(--neon-green);
+            box-shadow: 0 0 10px rgba(57, 255, 20, 0.3);
+            transition: all 0.2s;
+        }
+
+        .start-btn:hover {
+            background: rgba(57, 255, 20, 0.15);
+            box-shadow: 0 0 20px rgba(57, 255, 20, 0.5);
+        }
+
+        .controls-hint {
+            font-size: 8px;
+            color: #666;
+            margin-top: 8px;
+        }
+
+        .mobile-controls {
+            display: none;
+            margin-top: 8px;
+            gap: 4px;
+        }
+
+        .mobile-controls button {
+            font-family: var(--font-arcade);
+            font-size: 18px;
+            width: 56px;
+            height: 56px;
+            background: var(--cabinet-accent);
+            color: var(--neon-green);
+            border: 2px solid var(--cabinet-border);
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-shadow: 0 0 4px var(--neon-green);
+        }
+
+        .mobile-controls button:active {
+            background: rgba(57, 255, 20, 0.15);
+            border-color: var(--neon-green);
+        }
+
+        .dpad {
+            display: grid;
+            grid-template-columns: 56px 56px 56px;
+            grid-template-rows: 56px 56px 56px;
+            gap: 4px;
+        }
+
+        .dpad button:nth-child(1) { grid-column: 2; grid-row: 1; }
+        .dpad button:nth-child(2) { grid-column: 1; grid-row: 2; }
+        .dpad button:nth-child(3) { grid-column: 3; grid-row: 2; }
+        .dpad button:nth-child(4) { grid-column: 2; grid-row: 3; }
+
+        @media (max-width: 768px) {
+            .marquee { font-size: 16px; letter-spacing: 4px; }
+            .hud { font-size: 8px; }
+            .mobile-controls { display: flex; justify-content: center; }
+            .controls-hint { display: none; }
+        }
+
+        @media (max-height: 700px) {
+            .marquee { font-size: 14px; margin-bottom: 2px; }
+            .hud { font-size: 8px; padding: 2px 8px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="cabinet">
+        <div class="marquee">FROGGER</div>
+        <div class="hud">
+            <div>SCORE <span id="score">0</span></div>
+            <div>HI <span id="hi-score">0</span></div>
+            <div>LEVEL <span id="level">1</span></div>
+            <div class="hud-lives" id="lives"></div>
+        </div>
+        <div style="position:relative; display:inline-block;">
+            <canvas id="game" width="480" height="544"></canvas>
+            <div class="overlay" id="start-screen">
+                <h1>FROGGER</h1>
+                <p>GUIDE THE FROG HOME<br>CROSS TRAFFIC AND RIVER<br>FILL ALL 5 HOME SLOTS</p>
+                <button class="start-btn" id="start-btn">START</button>
+                <p class="controls-hint">ARROW KEYS TO MOVE</p>
+            </div>
+            <div class="overlay hidden" id="game-over-screen">
+                <h2>GAME OVER</h2>
+                <div class="score-display" id="final-score">0</div>
+                <div class="high-score-display" id="final-hi">HI: 0</div>
+                <button class="start-btn" id="restart-btn">PLAY AGAIN</button>
+            </div>
+            <div class="overlay hidden" id="level-screen">
+                <h2 id="level-msg">LEVEL 2</h2>
+                <p>GET READY!</p>
+            </div>
+        </div>
+        <div class="time-bar-container">
+            <div class="time-bar" id="time-bar" style="width:100%"></div>
+        </div>
+        <div class="mobile-controls">
+            <div class="dpad">
+                <button id="btn-up">&#9650;</button>
+                <button id="btn-left">&#9664;</button>
+                <button id="btn-right">&#9654;</button>
+                <button id="btn-down">&#9660;</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        'use strict';
+
+        // ========== CONSTANTS ==========
+        const COLS = 15;
+        const ROWS = 17;
+        const TILE = 32;
+        const W = COLS * TILE;  // 480
+        const H = ROWS * TILE; // 544
+        const FROG_SIZE = 28;
+        const TIME_LIMIT = 30; // seconds per frog
+        const HOME_SLOTS = 5;
+
+        // Row layout (from top, row 0 = top):
+        // Row 0: Home row (lily pads)
+        // Row 1: Safe zone (grass)
+        // Rows 2-6: Water rows (river)
+        // Row 7: Safe zone (median grass)
+        // Rows 8-12: Road rows (traffic)
+        // Row 13: Safe zone (grass, start area)
+        // Row 14-16: Sidewalk/start
+
+        const ROW_TYPE = [];
+        ROW_TYPE[0] = 'home';
+        ROW_TYPE[1] = 'safe';
+        for (let i = 2; i <= 6; i++) ROW_TYPE[i] = 'water';
+        ROW_TYPE[7] = 'safe';
+        for (let i = 8; i <= 12; i++) ROW_TYPE[i] = 'road';
+        ROW_TYPE[13] = 'safe';
+        ROW_TYPE[14] = 'start';
+        ROW_TYPE[15] = 'start';
+        ROW_TYPE[16] = 'start';
+
+        // ========== CANVAS ==========
+        const canvas = document.getElementById('game');
+        const ctx = canvas.getContext('2d');
+        canvas.width = W;
+        canvas.height = H;
+
+        // ========== AUDIO ENGINE ==========
+        const Audio = (function() {
+            let actx = null;
+            function init() {
+                if (actx) return;
+                actx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            function play(type) {
+                if (!actx) return;
+                const now = actx.currentTime;
+                const osc = actx.createOscillator();
+                const gain = actx.createGain();
+                osc.connect(gain);
+                gain.connect(actx.destination);
+
+                switch(type) {
+                    case 'hop':
+                        osc.type = 'square';
+                        osc.frequency.setValueAtTime(200, now);
+                        osc.frequency.exponentialRampToValueAtTime(600, now + 0.06);
+                        gain.gain.setValueAtTime(0.15, now);
+                        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+                        osc.start(now);
+                        osc.stop(now + 0.1);
+                        break;
+                    case 'splash':
+                        osc.type = 'sawtooth';
+                        osc.frequency.setValueAtTime(400, now);
+                        osc.frequency.exponentialRampToValueAtTime(50, now + 0.3);
+                        gain.gain.setValueAtTime(0.2, now);
+                        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+                        osc.start(now);
+                        osc.stop(now + 0.3);
+                        // Noise burst
+                        const buf = actx.createBuffer(1, actx.sampleRate * 0.2, actx.sampleRate);
+                        const data = buf.getChannelData(0);
+                        for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (data.length * 0.3));
+                        const noise = actx.createBufferSource();
+                        noise.buffer = buf;
+                        const ng = actx.createGain();
+                        ng.gain.setValueAtTime(0.15, now);
+                        ng.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+                        noise.connect(ng);
+                        ng.connect(actx.destination);
+                        noise.start(now);
+                        break;
+                    case 'squash':
+                        osc.type = 'sawtooth';
+                        osc.frequency.setValueAtTime(300, now);
+                        osc.frequency.exponentialRampToValueAtTime(30, now + 0.15);
+                        gain.gain.setValueAtTime(0.2, now);
+                        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+                        osc.start(now);
+                        osc.stop(now + 0.2);
+                        break;
+                    case 'home':
+                        osc.type = 'square';
+                        osc.frequency.setValueAtTime(440, now);
+                        osc.frequency.setValueAtTime(554, now + 0.1);
+                        osc.frequency.setValueAtTime(659, now + 0.2);
+                        osc.frequency.setValueAtTime(880, now + 0.3);
+                        gain.gain.setValueAtTime(0.15, now);
+                        gain.gain.setValueAtTime(0.15, now + 0.35);
+                        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+                        osc.start(now);
+                        osc.stop(now + 0.5);
+                        break;
+                    case 'levelup':
+                        osc.type = 'square';
+                        [523, 659, 784, 1047].forEach((f, i) => {
+                            osc.frequency.setValueAtTime(f, now + i * 0.12);
+                        });
+                        gain.gain.setValueAtTime(0.15, now);
+                        gain.gain.setValueAtTime(0.15, now + 0.45);
+                        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+                        osc.start(now);
+                        osc.stop(now + 0.6);
+                        break;
+                    case 'gameover':
+                        osc.type = 'square';
+                        osc.frequency.setValueAtTime(440, now);
+                        osc.frequency.setValueAtTime(370, now + 0.2);
+                        osc.frequency.setValueAtTime(311, now + 0.4);
+                        osc.frequency.setValueAtTime(262, now + 0.6);
+                        gain.gain.setValueAtTime(0.15, now);
+                        gain.gain.setValueAtTime(0.12, now + 0.7);
+                        gain.gain.exponentialRampToValueAtTime(0.001, now + 1.0);
+                        osc.start(now);
+                        osc.stop(now + 1.0);
+                        break;
+                    case 'bonus':
+                        osc.type = 'triangle';
+                        osc.frequency.setValueAtTime(880, now);
+                        osc.frequency.setValueAtTime(1175, now + 0.05);
+                        osc.frequency.setValueAtTime(1760, now + 0.1);
+                        gain.gain.setValueAtTime(0.12, now);
+                        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+                        osc.start(now);
+                        osc.stop(now + 0.2);
+                        break;
+                }
+            }
+            return { init, play };
+        })();
+
+        // ========== PIXEL ART DRAWING ==========
+        function drawFrog(x, y, dir, alpha) {
+            ctx.save();
+            ctx.globalAlpha = alpha || 1;
+            ctx.translate(x + TILE / 2, y + TILE / 2);
+            if (dir === 'left') ctx.rotate(-Math.PI / 2);
+            else if (dir === 'right') ctx.rotate(Math.PI / 2);
+            else if (dir === 'down') ctx.rotate(Math.PI);
+            const s = FROG_SIZE / 2;
+            // Body
+            ctx.fillStyle = '#22cc22';
+            ctx.fillRect(-s * 0.45, -s * 0.6, s * 0.9, s * 1.1);
+            // Head
+            ctx.fillStyle = '#33dd33';
+            ctx.fillRect(-s * 0.4, -s * 0.85, s * 0.8, s * 0.35);
+            // Eyes
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(-s * 0.45, -s * 0.9, s * 0.25, s * 0.25);
+            ctx.fillRect(s * 0.2, -s * 0.9, s * 0.25, s * 0.25);
+            ctx.fillStyle = '#111111';
+            ctx.fillRect(-s * 0.38, -s * 0.83, s * 0.12, s * 0.12);
+            ctx.fillRect(s * 0.27, -s * 0.83, s * 0.12, s * 0.12);
+            // Front legs
+            ctx.fillStyle = '#22cc22';
+            ctx.fillRect(-s * 0.7, -s * 0.4, s * 0.3, s * 0.15);
+            ctx.fillRect(s * 0.4, -s * 0.4, s * 0.3, s * 0.15);
+            // Back legs
+            ctx.fillRect(-s * 0.75, s * 0.15, s * 0.35, s * 0.18);
+            ctx.fillRect(s * 0.4, s * 0.15, s * 0.35, s * 0.18);
+            // Feet
+            ctx.fillStyle = '#119911';
+            ctx.fillRect(-s * 0.8, s * 0.3, s * 0.25, s * 0.15);
+            ctx.fillRect(s * 0.55, s * 0.3, s * 0.25, s * 0.15);
+            ctx.restore();
+        }
+
+        function drawCar(x, y, w, color, dir) {
+            const h = TILE - 6;
+            const yy = y + 3;
+            // Body
+            ctx.fillStyle = color;
+            ctx.fillRect(x + 2, yy + 2, w - 4, h - 4);
+            // Darker top
+            ctx.fillStyle = shadeColor(color, -30);
+            ctx.fillRect(x + 4, yy + 2, w - 8, (h - 4) * 0.3);
+            // Headlights
+            ctx.fillStyle = '#ffff88';
+            if (dir > 0) {
+                ctx.fillRect(x + w - 6, yy + 5, 4, 4);
+                ctx.fillRect(x + w - 6, yy + h - 9, 4, 4);
+            } else {
+                ctx.fillRect(x + 2, yy + 5, 4, 4);
+                ctx.fillRect(x + 2, yy + h - 9, 4, 4);
+            }
+            // Taillights
+            ctx.fillStyle = '#ff3333';
+            if (dir > 0) {
+                ctx.fillRect(x + 2, yy + 5, 3, 3);
+                ctx.fillRect(x + 2, yy + h - 8, 3, 3);
+            } else {
+                ctx.fillRect(x + w - 5, yy + 5, 3, 3);
+                ctx.fillRect(x + w - 5, yy + h - 8, 3, 3);
+            }
+            // Wheels
+            ctx.fillStyle = '#222';
+            if (dir > 0) {
+                ctx.fillRect(x + 8, yy, 6, 3);
+                ctx.fillRect(x + 8, yy + h - 3, 6, 3);
+                ctx.fillRect(x + w - 14, yy, 6, 3);
+                ctx.fillRect(x + w - 14, yy + h - 3, 6, 3);
+            } else {
+                ctx.fillRect(x + 8, yy, 6, 3);
+                ctx.fillRect(x + 8, yy + h - 3, 6, 3);
+                ctx.fillRect(x + w - 14, yy, 6, 3);
+                ctx.fillRect(x + w - 14, yy + h - 3, 6, 3);
+            }
+        }
+
+        function drawTruck(x, y, w, color, dir) {
+            const h = TILE - 4;
+            const yy = y + 2;
+            // Trailer
+            ctx.fillStyle = color;
+            ctx.fillRect(x + 2, yy + 1, w - 4, h - 2);
+            // Cab
+            ctx.fillStyle = shadeColor(color, 20);
+            if (dir > 0) {
+                ctx.fillRect(x + w - 14, yy + 1, 12, h - 2);
+            } else {
+                ctx.fillRect(x + 2, yy + 1, 12, h - 2);
+            }
+            // Headlights
+            ctx.fillStyle = '#ffff88';
+            if (dir > 0) {
+                ctx.fillRect(x + w - 5, yy + 4, 3, 4);
+                ctx.fillRect(x + w - 5, yy + h - 8, 3, 4);
+            } else {
+                ctx.fillRect(x + 2, yy + 4, 3, 4);
+                ctx.fillRect(x + 2, yy + h - 8, 3, 4);
+            }
+            // Wheels
+            ctx.fillStyle = '#222';
+            ctx.fillRect(x + 6, yy - 1, 8, 3);
+            ctx.fillRect(x + 6, yy + h - 2, 8, 3);
+            ctx.fillRect(x + w - 14, yy - 1, 8, 3);
+            ctx.fillRect(x + w - 14, yy + h - 2, 8, 3);
+        }
+
+        function drawLog(x, y, w) {
+            const h = TILE - 8;
+            const yy = y + 4;
+            // Main log body
+            ctx.fillStyle = '#8B5E3C';
+            ctx.fillRect(x + 2, yy + 2, w - 4, h - 4);
+            // Bark texture
+            ctx.fillStyle = '#6B3E1C';
+            ctx.fillRect(x + 2, yy + 2, w - 4, 2);
+            ctx.fillRect(x + 2, yy + h - 4, w - 4, 2);
+            // End rings
+            ctx.fillStyle = '#A07050';
+            ctx.fillRect(x + 3, yy + 4, 3, h - 8);
+            ctx.fillRect(x + w - 6, yy + 4, 3, h - 8);
+            // Knots
+            ctx.fillStyle = '#5a3010';
+            for (let kx = x + 12; kx < x + w - 12; kx += 20) {
+                ctx.fillRect(kx, yy + (h / 2) - 2, 4, 4);
+            }
+        }
+
+        function drawTurtle(x, y, submerged) {
+            const s = TILE;
+            if (submerged) {
+                // Partially visible - just bubbles
+                ctx.fillStyle = 'rgba(100, 200, 255, 0.4)';
+                ctx.beginPath();
+                ctx.arc(x + s / 2 - 4, y + s / 2 - 2, 3, 0, Math.PI * 2);
+                ctx.arc(x + s / 2 + 5, y + s / 2 + 3, 2, 0, Math.PI * 2);
+                ctx.arc(x + s / 2 - 1, y + s / 2 + 5, 2.5, 0, Math.PI * 2);
+                ctx.fill();
+                return;
+            }
+            // Shell
+            ctx.fillStyle = '#2a8a2a';
+            ctx.fillRect(x + 6, y + 6, s - 12, s - 12);
+            // Shell pattern
+            ctx.fillStyle = '#1a6a1a';
+            ctx.fillRect(x + 8, y + 8, s - 16, 2);
+            ctx.fillRect(x + 8, y + s - 10, s - 16, 2);
+            ctx.fillRect(x + (s / 2) - 1, y + 8, 2, s - 16);
+            // Head
+            ctx.fillStyle = '#33aa33';
+            ctx.fillRect(x + (s / 2) - 3, y + 2, 6, 6);
+            // Flippers
+            ctx.fillStyle = '#228822';
+            ctx.fillRect(x + 2, y + 10, 5, 4);
+            ctx.fillRect(x + s - 7, y + 10, 5, 4);
+            ctx.fillRect(x + 2, y + s - 14, 5, 4);
+            ctx.fillRect(x + s - 7, y + s - 14, 5, 4);
+        }
+
+        function drawHomeFrog(x, y) {
+            ctx.fillStyle = '#22cc22';
+            const s = 10;
+            ctx.fillRect(x + TILE / 2 - s, y + TILE / 2 - s, s * 2, s * 2);
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(x + TILE / 2 - 6, y + TILE / 2 - 6, 4, 4);
+            ctx.fillRect(x + TILE / 2 + 2, y + TILE / 2 - 6, 4, 4);
+        }
+
+        function drawBonusInsect(x, y) {
+            ctx.fillStyle = '#ff44ff';
+            ctx.fillRect(x + TILE / 2 - 4, y + TILE / 2 - 4, 8, 8);
+            ctx.fillStyle = '#ffff00';
+            ctx.fillRect(x + TILE / 2 - 2, y + TILE / 2 - 2, 4, 4);
+            // Wings
+            ctx.fillStyle = 'rgba(255, 200, 255, 0.6)';
+            ctx.fillRect(x + TILE / 2 - 8, y + TILE / 2 - 6, 5, 4);
+            ctx.fillRect(x + TILE / 2 + 3, y + TILE / 2 - 6, 5, 4);
+        }
+
+        function drawDeathAnim(x, y, frame) {
+            ctx.save();
+            ctx.translate(x + TILE / 2, y + TILE / 2);
+            const t = frame / 20;
+            // Expanding X
+            ctx.strokeStyle = `rgba(255, 50, 50, ${1 - t})`;
+            ctx.lineWidth = 3;
+            const sz = 6 + t * 14;
+            ctx.beginPath();
+            ctx.moveTo(-sz, -sz); ctx.lineTo(sz, sz);
+            ctx.moveTo(sz, -sz); ctx.lineTo(-sz, sz);
+            ctx.stroke();
+            // Particles
+            for (let i = 0; i < 6; i++) {
+                const angle = (i / 6) * Math.PI * 2;
+                const dist = t * 20;
+                ctx.fillStyle = `rgba(255, ${100 + i * 20}, 50, ${1 - t})`;
+                ctx.fillRect(
+                    Math.cos(angle) * dist - 2,
+                    Math.sin(angle) * dist - 2,
+                    4, 4
+                );
+            }
+            ctx.restore();
+        }
+
+        function drawSplashAnim(x, y, frame) {
+            ctx.save();
+            ctx.translate(x + TILE / 2, y + TILE / 2);
+            const t = frame / 25;
+            // Ripples
+            for (let i = 0; i < 3; i++) {
+                const r = (t + i * 0.15) * 25;
+                const alpha = Math.max(0, 1 - (t + i * 0.15));
+                ctx.strokeStyle = `rgba(100, 200, 255, ${alpha * 0.7})`;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(0, 0, r, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+            // Droplets
+            for (let i = 0; i < 8; i++) {
+                const angle = (i / 8) * Math.PI * 2;
+                const dist = t * 25 + i * 2;
+                const dy = t * t * 15;
+                ctx.fillStyle = `rgba(100, 180, 255, ${Math.max(0, 1 - t)})`;
+                ctx.fillRect(
+                    Math.cos(angle) * dist - 1.5,
+                    Math.sin(angle) * dist - dy - 1.5,
+                    3, 3
+                );
+            }
+            ctx.restore();
+        }
+
+        function shadeColor(hex, amount) {
+            let r = parseInt(hex.slice(1, 3), 16) + amount;
+            let g = parseInt(hex.slice(3, 5), 16) + amount;
+            let b = parseInt(hex.slice(5, 7), 16) + amount;
+            r = Math.max(0, Math.min(255, r));
+            g = Math.max(0, Math.min(255, g));
+            b = Math.max(0, Math.min(255, b));
+            return `rgb(${r},${g},${b})`;
+        }
+
+        // ========== LANE DEFINITIONS ==========
+        function getLanes(level) {
+            const speedMul = 1 + (level - 1) * 0.15;
+            return [
+                // Road lanes (rows 8-12, bottom to top)
+                { row: 12, type: 'car',   dir: -1, speed: 1.0 * speedMul, color: '#cc3333', vw: TILE * 1.2, gap: TILE * 3.5, count: 4 },
+                { row: 11, type: 'truck', dir:  1, speed: 0.6 * speedMul, color: '#cccc44', vw: TILE * 2.2, gap: TILE * 3.0, count: 3 },
+                { row: 10, type: 'car',   dir: -1, speed: 1.5 * speedMul, color: '#33cccc', vw: TILE * 1.0, gap: TILE * 2.8, count: 4 },
+                { row:  9, type: 'car',   dir:  1, speed: 1.2 * speedMul, color: '#ff8833', vw: TILE * 1.3, gap: TILE * 3.2, count: 3 },
+                { row:  8, type: 'truck', dir: -1, speed: 0.8 * speedMul, color: '#cc33cc', vw: TILE * 2.5, gap: TILE * 4.0, count: 3 },
+                // Water lanes (rows 2-6, bottom to top)
+                { row:  6, type: 'log',    dir:  1, speed: 0.8 * speedMul, vw: TILE * 3, gap: TILE * 3,   count: 3 },
+                { row:  5, type: 'turtle', dir: -1, speed: 0.9 * speedMul, vw: TILE * 3, gap: TILE * 3.5, count: 3, dive: level >= 2 },
+                { row:  4, type: 'log',    dir:  1, speed: 1.1 * speedMul, vw: TILE * 4, gap: TILE * 3,   count: 2 },
+                { row:  3, type: 'turtle', dir: -1, speed: 0.7 * speedMul, vw: TILE * 3, gap: TILE * 2.5, count: 4, dive: level >= 3 },
+                { row:  2, type: 'log',    dir: -1, speed: 1.3 * speedMul, vw: TILE * 2.5, gap: TILE * 3.5, count: 3 },
+            ];
+        }
+
+        // ========== GAME STATE ==========
+        let state = 'title'; // title, playing, dying, levelup, gameover
+        let level = 1;
+        let score = 0;
+        let hiScore = parseInt(localStorage.getItem('frogger-hi') || '0');
+        let lives = 3;
+        let timeLeft = TIME_LIMIT;
+
+        let frog = { x: 0, y: 0, dir: 'up', targetX: 0, targetY: 0, moving: false, moveT: 0 };
+        let lanes = [];
+        let obstacles = []; // { laneIdx, x, y, w }
+        let homeSlots = [];
+        let bonusSlot = -1; // which home slot has a bonus insect
+        let bonusTimer = 0;
+        let maxRowReached = 0;
+        let deathFrame = 0;
+        let deathType = ''; // 'squash' or 'splash'
+        let deathX = 0, deathY = 0;
+        let levelTimer = 0;
+        let diveTimers = {}; // laneIdx -> timer
+        let diveStates = {}; // laneIdx -> 'up' | 'diving' | 'down' | 'rising'
+        const DIVE_CYCLE = 4; // seconds per dive cycle
+
+        // Animation
+        let lastTime = 0;
+        let animFrame = 0;
+        let waterOffset = 0;
+
+        // ========== HOME SLOTS ==========
+        function getHomeSlotPositions() {
+            const positions = [];
+            const slotWidth = TILE;
+            const totalWidth = W;
+            const spacing = totalWidth / (HOME_SLOTS + 1);
+            for (let i = 0; i < HOME_SLOTS; i++) {
+                positions.push({
+                    x: spacing * (i + 1) - slotWidth / 2,
+                    y: 0,
+                    filled: false
+                });
+            }
+            return positions;
+        }
+
+        // ========== INIT ==========
+        function resetFrog() {
+            frog.x = Math.floor(COLS / 2) * TILE;
+            frog.y = (ROWS - 2) * TILE;
+            frog.targetX = frog.x;
+            frog.targetY = frog.y;
+            frog.dir = 'up';
+            frog.moving = false;
+            frog.moveT = 0;
+            maxRowReached = ROWS - 2;
+            timeLeft = TIME_LIMIT;
+        }
+
+        function initLevel() {
+            lanes = getLanes(level);
+            obstacles = [];
+            diveTimers = {};
+            diveStates = {};
+
+            lanes.forEach((lane, idx) => {
+                const startOffset = Math.random() * W;
+                for (let i = 0; i < lane.count; i++) {
+                    obstacles.push({
+                        laneIdx: idx,
+                        x: (startOffset + i * (lane.vw + lane.gap)) % (W + lane.vw * 2) - lane.vw,
+                        y: lane.row * TILE,
+                        w: lane.vw
+                    });
+                }
+                if (lane.dive) {
+                    diveTimers[idx] = Math.random() * DIVE_CYCLE;
+                    diveStates[idx] = 'up';
+                }
+            });
+
+            homeSlots = getHomeSlotPositions();
+
+            // Random bonus insect
+            bonusSlot = -1;
+            bonusTimer = 5 + Math.random() * 10;
+        }
+
+        function startGame() {
+            Audio.init();
+            level = 1;
+            score = 0;
+            lives = 3;
+            initLevel();
+            resetFrog();
+            state = 'playing';
+            updateHUD();
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('game-over-screen').classList.add('hidden');
+        }
+
+        // ========== UPDATE ==========
+        function update(dt) {
+            if (state === 'playing') {
+                updateObstacles(dt);
+                updateDiving(dt);
+                updateFrog(dt);
+                updateBonus(dt);
+                checkCollisions();
+                updateTime(dt);
+            } else if (state === 'dying') {
+                deathFrame += dt * 60;
+                if (deathFrame >= 30) {
+                    lives--;
+                    updateHUD();
+                    if (lives <= 0) {
+                        state = 'gameover';
+                        Audio.play('gameover');
+                        if (score > hiScore) {
+                            hiScore = score;
+                            localStorage.setItem('frogger-hi', hiScore.toString());
+                        }
+                        document.getElementById('final-score').textContent = score;
+                        document.getElementById('final-hi').textContent = 'HI: ' + hiScore;
+                        document.getElementById('game-over-screen').classList.remove('hidden');
+                    } else {
+                        resetFrog();
+                        state = 'playing';
+                    }
+                }
+            } else if (state === 'levelup') {
+                levelTimer += dt;
+                if (levelTimer >= 2) {
+                    state = 'playing';
+                    document.getElementById('level-screen').classList.add('hidden');
+                }
+            }
+
+            waterOffset += dt * 30;
+            animFrame++;
+        }
+
+        function updateObstacles(dt) {
+            lanes.forEach((lane, idx) => {
+                const totalSpan = lane.count * (lane.vw + lane.gap);
+                obstacles.forEach(obs => {
+                    if (obs.laneIdx !== idx) return;
+                    obs.x += lane.speed * lane.dir * 60 * dt;
+
+                    // Wrap around
+                    if (lane.dir > 0 && obs.x > W + 10) {
+                        obs.x -= totalSpan;
+                    } else if (lane.dir < 0 && obs.x + obs.w < -10) {
+                        obs.x += totalSpan;
+                    }
+                });
+            });
+        }
+
+        function updateDiving(dt) {
+            for (const idx in diveTimers) {
+                diveTimers[idx] += dt;
+                const t = diveTimers[idx] % DIVE_CYCLE;
+                if (t < DIVE_CYCLE * 0.55) {
+                    diveStates[idx] = 'up';
+                } else if (t < DIVE_CYCLE * 0.65) {
+                    diveStates[idx] = 'diving';
+                } else if (t < DIVE_CYCLE * 0.85) {
+                    diveStates[idx] = 'down';
+                } else {
+                    diveStates[idx] = 'rising';
+                }
+            }
+        }
+
+        function updateFrog(dt) {
+            if (frog.moving) {
+                frog.moveT += dt * 8;
+                if (frog.moveT >= 1) {
+                    frog.moveT = 1;
+                    frog.x = frog.targetX;
+                    frog.y = frog.targetY;
+                    frog.moving = false;
+                } else {
+                    const startX = frog.x;
+                    const startY = frog.y;
+                    // Interpolation handled in draw using targetX/Y
+                }
+            }
+
+            // If on a water object, move with it
+            if (!frog.moving) {
+                const frogRow = Math.round(frog.y / TILE);
+                if (ROW_TYPE[frogRow] === 'water') {
+                    const laneIdx = lanes.findIndex(l => l.row === frogRow);
+                    if (laneIdx >= 0) {
+                        const lane = lanes[laneIdx];
+                        const drift = lane.speed * lane.dir * 60 * dt;
+                        frog.x += drift;
+                        frog.targetX = frog.x;
+                    }
+                }
+            }
+        }
+
+        function updateBonus(dt) {
+            if (bonusSlot === -1) {
+                bonusTimer -= dt;
+                if (bonusTimer <= 0) {
+                    // Pick an unfilled slot
+                    const unfilled = homeSlots.map((s, i) => s.filled ? -1 : i).filter(i => i >= 0);
+                    if (unfilled.length > 0) {
+                        bonusSlot = unfilled[Math.floor(Math.random() * unfilled.length)];
+                        bonusTimer = 5 + Math.random() * 5; // how long it stays
+                    }
+                }
+            } else {
+                bonusTimer -= dt;
+                if (bonusTimer <= 0) {
+                    bonusSlot = -1;
+                    bonusTimer = 8 + Math.random() * 10;
+                }
+            }
+        }
+
+        function updateTime(dt) {
+            timeLeft -= dt;
+            const pct = Math.max(0, timeLeft / TIME_LIMIT) * 100;
+            const bar = document.getElementById('time-bar');
+            bar.style.width = pct + '%';
+            bar.className = 'time-bar';
+            if (pct < 20) bar.classList.add('critical');
+            else if (pct < 40) bar.classList.add('warning');
+
+            if (timeLeft <= 0) {
+                killFrog('squash');
+            }
+        }
+
+        // ========== COLLISION ==========
+        function checkCollisions() {
+            if (frog.moving) return;
+
+            const fx = frog.x + 4;
+            const fy = frog.y + 4;
+            const fw = TILE - 8;
+            const fh = TILE - 8;
+            const frogRow = Math.round(frog.y / TILE);
+
+            // Out of bounds
+            if (frog.x < -TILE / 2 || frog.x > W - TILE / 2) {
+                killFrog('splash');
+                return;
+            }
+
+            // Home row check
+            if (frogRow === 0) {
+                let landed = false;
+                for (let i = 0; i < homeSlots.length; i++) {
+                    const slot = homeSlots[i];
+                    if (Math.abs(frog.x - slot.x) < TILE * 0.6) {
+                        if (slot.filled) {
+                            killFrog('squash');
+                            return;
+                        }
+                        slot.filled = true;
+                        score += 50;
+                        score += Math.floor(timeLeft) * 10; // Time bonus
+
+                        if (i === bonusSlot) {
+                            score += 200;
+                            bonusSlot = -1;
+                            Audio.play('bonus');
+                        }
+
+                        Audio.play('home');
+                        updateHUD();
+
+                        // Check if all home slots filled
+                        if (homeSlots.every(s => s.filled)) {
+                            nextLevel();
+                        } else {
+                            resetFrog();
+                        }
+                        landed = true;
+                        break;
+                    }
+                }
+                if (!landed) {
+                    // Missed the slot - into the bushes
+                    killFrog('squash');
+                }
+                return;
+            }
+
+            // Road collision
+            if (ROW_TYPE[frogRow] === 'road') {
+                for (const obs of obstacles) {
+                    if (obs.y !== frogRow * TILE) continue;
+                    if (rectsOverlap(fx, fy, fw, fh, obs.x + 3, obs.y + 3, obs.w - 6, TILE - 6)) {
+                        killFrog('squash');
+                        return;
+                    }
+                }
+            }
+
+            // Water check
+            if (ROW_TYPE[frogRow] === 'water') {
+                let onSomething = false;
+                const laneIdx = lanes.findIndex(l => l.row === frogRow);
+
+                for (const obs of obstacles) {
+                    if (obs.y !== frogRow * TILE) continue;
+                    const lane = lanes[obs.laneIdx];
+
+                    if (lane.type === 'turtle') {
+                        // Check dive state
+                        const ds = diveStates[obs.laneIdx];
+                        if (ds === 'down') continue; // Can't stand on submerged turtles
+
+                        // Turtles: check each turtle tile in the group
+                        const turtleCount = Math.floor(obs.w / TILE);
+                        for (let t = 0; t < turtleCount; t++) {
+                            const tx = obs.x + t * TILE;
+                            if (rectsOverlap(fx, fy, fw, fh, tx + 4, obs.y + 4, TILE - 8, TILE - 8)) {
+                                onSomething = true;
+                                break;
+                            }
+                        }
+                    } else {
+                        // Logs
+                        if (rectsOverlap(fx, fy, fw, fh, obs.x + 2, obs.y + 4, obs.w - 4, TILE - 8)) {
+                            onSomething = true;
+                        }
+                    }
+                    if (onSomething) break;
+                }
+
+                if (!onSomething) {
+                    killFrog('splash');
+                    return;
+                }
+            }
+        }
+
+        function rectsOverlap(x1, y1, w1, h1, x2, y2, w2, h2) {
+            return x1 < x2 + w2 && x1 + w1 > x2 && y1 < y2 + h2 && y1 + h1 > y2;
+        }
+
+        function killFrog(type) {
+            state = 'dying';
+            deathFrame = 0;
+            deathType = type;
+            deathX = frog.x;
+            deathY = frog.y;
+            if (type === 'splash') Audio.play('splash');
+            else Audio.play('squash');
+        }
+
+        function nextLevel() {
+            level++;
+            score += 1000; // Level completion bonus
+            initLevel();
+            resetFrog();
+            state = 'levelup';
+            levelTimer = 0;
+            Audio.play('levelup');
+            document.getElementById('level-msg').textContent = 'LEVEL ' + level;
+            document.getElementById('level-screen').classList.remove('hidden');
+            updateHUD();
+        }
+
+        // ========== INPUT ==========
+        function moveFrog(dir) {
+            if (state !== 'playing' || frog.moving) return;
+
+            let nx = frog.x;
+            let ny = frog.y;
+
+            switch (dir) {
+                case 'up':    ny -= TILE; break;
+                case 'down':  ny += TILE; break;
+                case 'left':  nx -= TILE; break;
+                case 'right': nx += TILE; break;
+            }
+
+            // Bounds
+            if (nx < 0) nx = 0;
+            if (nx > W - TILE) nx = W - TILE;
+            if (ny < 0) ny = 0;
+            if (ny > (ROWS - 2) * TILE) return; // Can't go below start
+
+            frog.dir = dir;
+            frog.targetX = nx;
+            frog.targetY = ny;
+            frog.moving = true;
+            frog.moveT = 0;
+
+            Audio.play('hop');
+
+            // Score for forward progress
+            const newRow = Math.round(ny / TILE);
+            if (newRow < maxRowReached) {
+                score += 10;
+                maxRowReached = newRow;
+                updateHUD();
+            }
+        }
+
+        // Keyboard
+        document.addEventListener('keydown', (e) => {
+            if (state === 'title') { startGame(); return; }
+            if (state === 'gameover') { startGame(); return; }
+
+            switch (e.key) {
+                case 'ArrowUp':    case 'w': case 'W': e.preventDefault(); moveFrog('up'); break;
+                case 'ArrowDown':  case 's': case 'S': e.preventDefault(); moveFrog('down'); break;
+                case 'ArrowLeft':  case 'a': case 'A': e.preventDefault(); moveFrog('left'); break;
+                case 'ArrowRight': case 'd': case 'D': e.preventDefault(); moveFrog('right'); break;
+            }
+        });
+
+        // Touch / Swipe
+        let touchStartX = 0, touchStartY = 0, touchStartTime = 0;
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            Audio.init();
+            if (state === 'title' || state === 'gameover') return;
+            const t = e.touches[0];
+            touchStartX = t.clientX;
+            touchStartY = t.clientY;
+            touchStartTime = Date.now();
+        }, { passive: false });
+
+        canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            if (state !== 'playing') return;
+            const t = e.changedTouches[0];
+            const dx = t.clientX - touchStartX;
+            const dy = t.clientY - touchStartY;
+            const dt = Date.now() - touchStartTime;
+
+            if (dt > 500) return; // Too slow
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < 15) {
+                // Tap = move up
+                moveFrog('up');
+                return;
+            }
+
+            if (Math.abs(dx) > Math.abs(dy)) {
+                moveFrog(dx > 0 ? 'right' : 'left');
+            } else {
+                moveFrog(dy > 0 ? 'down' : 'up');
+            }
+        }, { passive: false });
+
+        // Mobile D-pad buttons
+        document.getElementById('btn-up').addEventListener('touchstart', (e) => { e.preventDefault(); Audio.init(); moveFrog('up'); });
+        document.getElementById('btn-down').addEventListener('touchstart', (e) => { e.preventDefault(); Audio.init(); moveFrog('down'); });
+        document.getElementById('btn-left').addEventListener('touchstart', (e) => { e.preventDefault(); Audio.init(); moveFrog('left'); });
+        document.getElementById('btn-right').addEventListener('touchstart', (e) => { e.preventDefault(); Audio.init(); moveFrog('right'); });
+
+        // Click handlers for buttons
+        document.getElementById('start-btn').addEventListener('click', startGame);
+        document.getElementById('restart-btn').addEventListener('click', startGame);
+
+        // ========== HUD ==========
+        function updateHUD() {
+            document.getElementById('score').textContent = score;
+            document.getElementById('hi-score').textContent = hiScore;
+            document.getElementById('level').textContent = level;
+
+            const livesEl = document.getElementById('lives');
+            livesEl.innerHTML = '';
+            for (let i = 0; i < lives; i++) {
+                const icon = document.createElement('canvas');
+                icon.width = 14;
+                icon.height = 14;
+                icon.className = 'frog-icon';
+                const ictx = icon.getContext('2d');
+                ictx.fillStyle = '#22cc22';
+                ictx.fillRect(2, 2, 10, 10);
+                ictx.fillStyle = '#fff';
+                ictx.fillRect(3, 3, 3, 3);
+                ictx.fillRect(8, 3, 3, 3);
+                livesEl.appendChild(icon);
+            }
+        }
+
+        // ========== DRAW ==========
+        function draw() {
+            ctx.clearRect(0, 0, W, H);
+
+            // Background rows
+            for (let row = 0; row < ROWS; row++) {
+                const y = row * TILE;
+                switch (ROW_TYPE[row]) {
+                    case 'home':
+                        drawHomeRow(y);
+                        break;
+                    case 'water':
+                        drawWaterRow(y);
+                        break;
+                    case 'road':
+                        drawRoadRow(y, row);
+                        break;
+                    case 'safe':
+                        drawSafeRow(y, row);
+                        break;
+                    case 'start':
+                        drawStartRow(y);
+                        break;
+                }
+            }
+
+            // Road lane markings
+            for (let row = 8; row <= 12; row++) {
+                if (row === 8) continue;
+                const y = row * TILE;
+                ctx.strokeStyle = 'rgba(255, 255, 100, 0.3)';
+                ctx.lineWidth = 1;
+                ctx.setLineDash([12, 12]);
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(W, y);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            // Obstacles
+            obstacles.forEach(obs => {
+                const lane = lanes[obs.laneIdx];
+                if (lane.type === 'car') {
+                    drawCar(obs.x, obs.y, obs.w, lane.color, lane.dir);
+                } else if (lane.type === 'truck') {
+                    drawTruck(obs.x, obs.y, obs.w, lane.color, lane.dir);
+                } else if (lane.type === 'log') {
+                    drawLog(obs.x, obs.y, obs.w);
+                } else if (lane.type === 'turtle') {
+                    const ds = diveStates[obs.laneIdx] || 'up';
+                    const submerged = ds === 'down';
+                    const diving = ds === 'diving' || ds === 'rising';
+                    const turtleCount = Math.floor(obs.w / TILE);
+                    for (let t = 0; t < turtleCount; t++) {
+                        ctx.save();
+                        if (diving) ctx.globalAlpha = 0.5;
+                        drawTurtle(obs.x + t * TILE, obs.y, submerged);
+                        ctx.restore();
+                    }
+                }
+            });
+
+            // Home slots
+            homeSlots.forEach((slot, i) => {
+                if (slot.filled) {
+                    drawHomeFrog(slot.x, slot.y);
+                } else if (i === bonusSlot) {
+                    drawBonusInsect(slot.x, slot.y);
+                }
+            });
+
+            // Frog
+            if (state === 'playing' || state === 'levelup') {
+                let fx, fy;
+                if (frog.moving) {
+                    const t = frog.moveT;
+                    const easeT = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+                    fx = frog.x + (frog.targetX - frog.x) * easeT;
+                    fy = frog.y + (frog.targetY - frog.y) * easeT;
+                    // Hop arc
+                    const hopHeight = -8 * Math.sin(t * Math.PI);
+                    fy += hopHeight;
+                } else {
+                    fx = frog.x;
+                    fy = frog.y;
+                }
+                drawFrog(fx, fy, frog.dir, 1);
+            } else if (state === 'dying') {
+                if (deathType === 'splash') {
+                    drawSplashAnim(deathX, deathY, deathFrame);
+                } else {
+                    drawDeathAnim(deathX, deathY, deathFrame);
+                }
+            }
+        }
+
+        function drawHomeRow(y) {
+            // Dark green with openings for home slots
+            ctx.fillStyle = '#0a3a0a';
+            ctx.fillRect(0, y, W, TILE);
+
+            // Bush pattern
+            ctx.fillStyle = '#0d4d0d';
+            for (let x = 0; x < W; x += 8) {
+                if ((x / 8) % 3 === 0) ctx.fillRect(x, y + 2, 6, TILE - 4);
+            }
+
+            // Home slot openings (darker water behind)
+            homeSlots.forEach(slot => {
+                ctx.fillStyle = '#0a1a3a';
+                ctx.fillRect(slot.x + 2, y + 2, TILE - 4, TILE - 4);
+                // Lily pad hints
+                ctx.fillStyle = '#1a4a1a';
+                ctx.fillRect(slot.x + 6, y + TILE - 8, TILE - 12, 4);
+            });
+        }
+
+        function drawWaterRow(y) {
+            ctx.fillStyle = '#0a1a3a';
+            ctx.fillRect(0, y, W, TILE);
+            // Water shimmer
+            ctx.fillStyle = 'rgba(50, 100, 200, 0.15)';
+            for (let x = 0; x < W; x += 16) {
+                const wx = (x + waterOffset) % (W + 32) - 16;
+                ctx.fillRect(wx, y + 8, 10, 2);
+                ctx.fillRect(wx + 6, y + 20, 8, 2);
+            }
+        }
+
+        function drawRoadRow(y, row) {
+            ctx.fillStyle = '#1a1a2a';
+            ctx.fillRect(0, y, W, TILE);
+        }
+
+        function drawSafeRow(y, row) {
+            ctx.fillStyle = '#0a2a0a';
+            ctx.fillRect(0, y, W, TILE);
+            // Grass texture
+            ctx.fillStyle = '#0d3d0d';
+            for (let x = 0; x < W; x += 10) {
+                const h = 3 + ((x * 7 + row * 13) % 5);
+                ctx.fillRect(x, y + TILE - h - 1, 2, h);
+            }
+            // Sidewalk edge for row 7 and 13
+            if (row === 7 || row === 13) {
+                ctx.fillStyle = '#2a2a1a';
+                ctx.fillRect(0, y, W, 3);
+                ctx.fillRect(0, y + TILE - 3, W, 3);
+            }
+        }
+
+        function drawStartRow(y) {
+            ctx.fillStyle = '#0d0d1a';
+            ctx.fillRect(0, y, W, TILE);
+            // Pavement texture
+            ctx.fillStyle = '#151525';
+            for (let x = 0; x < W; x += TILE) {
+                ctx.fillRect(x + 1, y + 1, TILE - 2, TILE - 2);
+            }
+        }
+
+        // ========== GAME LOOP ==========
+        function gameLoop(timestamp) {
+            const dt = Math.min((timestamp - lastTime) / 1000, 0.05);
+            lastTime = timestamp;
+
+            update(dt);
+            draw();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // ========== START ==========
+        updateHUD();
+        lastTime = performance.now();
+        requestAnimationFrame(gameLoop);
+
+    })();
+    </script>
+    <script defer src="../../prompt-viewer.js"></script>
+</body>
+</html>

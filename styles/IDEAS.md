@@ -74,7 +74,7 @@ Ideas for content across the site (stories, tech guides, architecture maps, game
 - [ ] Coral Reef — The Bleaching
 - [ ] Origami — The Thousand Cranes
 - [ ] Gothic Cathedral — The Master Builder
-- [ ] Art Nouveau — The Metro Entrances
+- [x] Art Nouveau — The Metro Entrances
 
 ## Tech Guides
 - [ ] Zed Editor
