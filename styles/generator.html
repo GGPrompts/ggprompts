@@ -424,7 +424,10 @@ const CSSVariableParser = {
             }
         }
 
-        return { raw, colors, spacing, fonts, shadows, borders, gradients, transitions, radii, other, fontLinks };
+        // Extract body styles to determine actual bg/color/font variable mappings
+        const bodyStyles = this.parseBodyStyles(html);
+
+        return { raw, colors, spacing, fonts, shadows, borders, gradients, transitions, radii, other, fontLinks, bodyStyles };
     },
 
     isSpacing(name) {
@@ -467,6 +470,38 @@ const CSSVariableParser = {
     },
 
     /**
+     * Parse body {} CSS rules to extract actual variable mappings for
+     * background, color, and font-family. Works regardless of naming convention.
+     */
+    parseBodyStyles(html) {
+        const result = { background: null, color: null, fontFamily: null };
+        const bodyRegex = /body\s*\{([^}]+)\}/g;
+        let match;
+        while ((match = bodyRegex.exec(html)) !== null) {
+            const block = match[1];
+            // Extract background or background-color
+            const bgMatch = block.match(/background(?:-color)?\s*:\s*([^;]+)/);
+            if (bgMatch) {
+                const varMatch = bgMatch[1].match(/var\((--[\w-]+)\)/);
+                if (varMatch) result.background = varMatch[1];
+            }
+            // Extract color (but not background-color)
+            const colorMatch = block.match(/(?<![\w-])color\s*:\s*([^;]+)/);
+            if (colorMatch) {
+                const varMatch = colorMatch[1].match(/var\((--[\w-]+)\)/);
+                if (varMatch) result.color = varMatch[1];
+            }
+            // Extract font-family
+            const fontMatch = block.match(/font-family\s*:\s*([^;]+)/);
+            if (fontMatch) {
+                const varMatch = fontMatch[1].match(/var\((--[\w-]+)\)/);
+                if (varMatch) result.fontFamily = varMatch[1];
+            }
+        }
+        return result;
+    },
+
+    /**
      * Resolve a var() reference to its computed value (one level deep).
      */
     resolveVar(value, raw, visited = new Set()) {
@@ -498,14 +533,16 @@ const ComponentTemplates = {
             .map(([name, value]) => `            ${name}: ${sanitizeCSS(value)};`)
             .join('\n');
 
-        // Detect bg brightness for body text
-        const bgPrimary = this.findToken(tokens, 'bg-primary', 'bg', 'bg-void', 'black');
-        const textPrimary = this.findToken(tokens, 'text-primary', 'text', 'cream', 'ivory', 'white');
-        const accent = this.findToken(tokens, 'accent', 'primary', 'neon-cyan', 'gold', 'red');
-        const bgSecondary = this.findToken(tokens, 'bg-secondary', 'bg-elevated', 'bg-surface', 'charcoal');
-        const textSecondary = this.findToken(tokens, 'text-secondary', 'text-muted', 'ink-light', 'ink-muted');
+        // Use actual body styles parsed from the style guide HTML as primary source,
+        // falling back to findToken name-guessing for style guides that set body styles differently
+        const bodyStyles = tokens.bodyStyles || {};
+        const bgPrimary = bodyStyles.background || this.findToken(tokens, 'bg-primary', 'bg', 'bg-void', 'bg-base', 'bg-dark', 'bg-deep', 'void', 'canvas', 'paper', 'midnight', 'black');
+        const textPrimary = bodyStyles.color || this.findToken(tokens, 'text-primary', 'text', 'text-body', 'cream', 'ivory', 'white');
+        const accent = this.findToken(tokens, 'accent', 'primary', 'gold', 'neon-cyan', 'brand', 'red');
+        const bgSecondary = this.findToken(tokens, 'bg-secondary', 'bg-elevated', 'bg-surface', 'bg-panel', 'surface', 'surface-raised', 'panel', 'charcoal', 'bg-card');
+        const textSecondary = this.findToken(tokens, 'text-secondary', 'text-muted', 'text-body', 'ink-light', 'ink-muted');
         const fontDisplay = this.findToken(tokens, 'font-display', 'font-heading', 'font-sans');
-        const fontBody = this.findToken(tokens, 'font-body', 'font-sans');
+        const fontBody = bodyStyles.fontFamily || this.findToken(tokens, 'font-body', 'font-sans');
 
         return `<!DOCTYPE html>
 <html lang="en">
