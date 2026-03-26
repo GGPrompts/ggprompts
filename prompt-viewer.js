@@ -12,14 +12,14 @@
   var scriptEl = document.currentScript;
   var scriptSrc = scriptEl ? scriptEl.src : '';
   var SITE_BASE = scriptSrc.substring(0, scriptSrc.lastIndexOf('/') + 1);
-  var REPO = 'https://github.com/GGPrompts/htmlstyleguides';
+  var REPO = 'https://github.com/GGPrompts/ggprompts';
 
   // ── Helpers ──────────────────────────────────────────────
 
   function getPagePath() {
     var url = window.location.href.split('?')[0].split('#')[0];
     if (url.startsWith(SITE_BASE)) return url.slice(SITE_BASE.length) || 'index.html';
-    var p = window.location.pathname.replace(/^\/htmlstyleguides\//, '/').replace(/^\//, '');
+    var p = window.location.pathname.replace(/^\/ggprompts\//, '/').replace(/^\//, '');
     return p || 'index.html';
   }
 

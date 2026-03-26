@@ -123,8 +123,8 @@ Every HTML page loads `prompt-viewer.js` via `<script defer>`. It adds a floatin
 ### TODO (GGPrompts rebrand) — tracked in hsg-jn3r
 - ~~Add slash command / skill info to section index pages~~ ✓ (section skills in manifest `_sections`)
 - ~~Update page titles / meta tags for rebrand~~ ✓ (all "HTML Style Guide(s)" → "GG Prompts")
-- Point `ggprompts.com` DNS to GitHub Pages + CNAME file
-- Rename GitHub repo `htmlstyleguides` → `ggprompts` + update all GitHub URLs
+- ~~Point `ggprompts.com` DNS to GitHub Pages + CNAME file~~ ✓
+- ~~Rename GitHub repo `htmlstyleguides` → `ggprompts` + update all GitHub URLs~~ ✓
 
 ## Shared Modules
 

@@ -43,7 +43,7 @@ A newspaper-themed daily AI news publication with self-contained broadsheet edit
 
 Every style guide in this repo is a ready-made design system that AI tools can read directly. To apply any style to your own project, just tell Claude (or any LLM):
 
-> **"Look at https://github.com/GGPrompts/htmlstyleguides/blob/main/styles/cherry-blossom.html and apply that design system to my project"**
+> **"Look at https://github.com/GGPrompts/ggprompts/blob/main/styles/cherry-blossom.html and apply that design system to my project"**
 
 That's it. The AI will read the CSS variables, typography, color palette, and component patterns — then apply them to whatever you're building.
 
