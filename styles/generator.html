@@ -469,12 +469,13 @@ const CSSVariableParser = {
     /**
      * Resolve a var() reference to its computed value (one level deep).
      */
-    resolveVar(value, raw) {
+    resolveVar(value, raw, visited = new Set()) {
         const varRef = value.match(/^var\(--([\w-]+)\)$/);
-        if (varRef && raw['--' + varRef[1]]) {
-            return raw['--' + varRef[1]];
-        }
-        return value;
+        if (!varRef) return value;
+        const refName = '--' + varRef[1];
+        if (visited.has(refName) || !raw[refName]) return value;
+        visited.add(refName);
+        return this.resolveVar(raw[refName], raw, visited);
     }
 };
 
@@ -492,8 +493,9 @@ const ComponentTemplates = {
             .join('\n');
 
         // Build CSS variables string
+        const sanitizeCSS = (v) => v.replace(/[<>{}]/g, '');
         const varsCSS = Object.entries(tokens.raw)
-            .map(([name, value]) => `            ${name}: ${value};`)
+            .map(([name, value]) => `            ${name}: ${sanitizeCSS(value)};`)
             .join('\n');
 
         // Detect bg brightness for body text
@@ -1006,6 +1008,10 @@ function buildTokensJSON(tokens, styleName) {
 // Displays the parsed token map in the sidebar.
 // ================================================================
 
+function htmlEscape(str) {
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#x27;');
+}
+
 function renderSidebar(tokens) {
     const sidebar = document.getElementById('sidebar');
 
@@ -1032,15 +1038,16 @@ function renderSidebar(tokens) {
             const resolved = CSSVariableParser.resolveVar(value, tokens.raw);
             if (section.type === 'color') {
                 const displayColor = resolved.startsWith('var(') ? '#888' : resolved;
+                const safeColor = /^(#[\da-fA-F]{3,8}|rgba?\([\d\s,.%]+\)|hsla?\([\d\s,.%deg]+\)|[a-zA-Z]{3,20})$/.test(displayColor) ? displayColor : '#888';
                 html += `<li class="token-item">
-                    <span class="token-swatch" style="background:${displayColor}"></span>
-                    <span class="token-name">${name}</span>
-                    <span class="token-value">${truncate(value, 16)}</span>
+                    <span class="token-swatch" style="background:${safeColor}"></span>
+                    <span class="token-name">${htmlEscape(name)}</span>
+                    <span class="token-value">${htmlEscape(truncate(value, 16))}</span>
                 </li>`;
             } else {
                 html += `<li class="token-item">
-                    <span class="token-name">${name}</span>
-                    <span class="token-value">${truncate(value, 20)}</span>
+                    <span class="token-name">${htmlEscape(name)}</span>
+                    <span class="token-value">${htmlEscape(truncate(value, 20))}</span>
                 </li>`;
             }
         }
