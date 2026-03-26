@@ -67,48 +67,48 @@ Suggested themes/styles not yet in the collection. Organized by category.
 Ideas for content across the site (stories, tech guides, architecture maps, games, tools, kids).
 
 ## Stories
-- [ ] Day of the Dead — The Ofrenda
-- [ ] Chalkboard — The Proof
-- [ ] Circuit Board — The First Chip
-- [ ] Soviet Space — The Hidden Cosmonaut
-- [ ] Coral Reef — The Bleaching
-- [ ] Origami — The Thousand Cranes
-- [ ] Gothic Cathedral — The Master Builder
+- [x] Day of the Dead — The Ofrenda
+- [x] Chalkboard — The Proof
+- [x] Circuit Board — The First Chip
+- [x] Soviet Space — The Hidden Cosmonaut
+- [x] Coral Reef — The Bleaching
+- [x] Origami — The Thousand Cranes
+- [x] Gothic Cathedral — The Master Builder
 - [x] Art Nouveau — The Metro Entrances
 
 ## Tech Guides
-- [ ] Zed Editor
-- [ ] WebAssembly (WASM)
-- [ ] Playwright / Cypress
-- [ ] Pandas / Polars
-- [ ] Lua
-- [ ] AWS CLI
-- [ ] Tailwind CSS
-- [ ] Svelte
-- [ ] Nix / NixOS
+- [x] Zed Editor
+- [x] WebAssembly (WASM)
+- [x] Playwright / Cypress
+- [x] Pandas / Polars
+- [x] Lua
+- [x] AWS CLI
+- [x] Tailwind CSS
+- [x] Svelte
+- [x] Nix / NixOS
 
 ## Architecture Maps
-- [ ] Lichess
-- [ ] Bluesky / AT Protocol
-- [ ] Home Assistant
-- [ ] Obsidian
-- [ ] Tailscale
-- [ ] React
+- [x] Lichess
+- [x] Bluesky / AT Protocol
+- [x] Home Assistant
+- [x] Obsidian
+- [x] Tailscale
+- [x] React
 
 ## Games
-- [ ] Frogger
-- [ ] Space Invaders (Classic)
+- [x] Frogger
+- [x] Space Invaders (Classic)
 
 ## Tools
-- [ ] Bezier Curve Editor
-- [ ] Diff Viewer
-- [ ] Favicon Generator
-- [ ] Music Theory Visualizer
-- [ ] CSS Battle Arena
+- [x] Bezier Curve Editor
+- [x] Diff Viewer
+- [x] Favicon Generator
+- [x] Music Theory Visualizer
+- [x] CSS Battle Arena
 
 ## Kids
-- [ ] Sticker Scene Builder
-- [ ] Alphabet Tracing
-- [ ] Counting Game
-- [ ] Jigsaw Puzzle
-- [ ] Dress-Up / Paper Dolls
+- [x] Sticker Scene Builder
+- [x] Alphabet Tracing
+- [x] Counting Game
+- [x] Jigsaw Puzzle
+- [x] Dress-Up / Paper Dolls
