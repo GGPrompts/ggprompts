@@ -1,0 +1,1277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Component Generator - HTML Style Guides</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        /* ================================================================
+           COMPONENT GENERATOR
+           Reads CSS variables from style guides, generates reusable
+           component sets with live preview and ZIP download.
+        ================================================================ */
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background: #08080c;
+            color: #e0e0e8;
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        /* --- LAYOUT --- */
+        .top-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem 2rem;
+            background: #101018;
+            border-bottom: 1px solid #1e1e2a;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .top-bar .home-link {
+            color: #888;
+            text-decoration: none;
+            font-size: 0.85rem;
+            transition: color 0.2s;
+        }
+        .top-bar .home-link:hover { color: #fff; }
+
+        .top-bar h1 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            letter-spacing: -0.3px;
+        }
+
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1.25rem 2rem;
+            background: #0e0e16;
+            border-bottom: 1px solid #1e1e2a;
+        }
+
+        .controls label {
+            font-size: 0.85rem;
+            color: #aaa;
+            font-weight: 500;
+        }
+
+        .controls select {
+            background: #181822;
+            color: #e0e0e8;
+            border: 1px solid #2a2a3a;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 0.9rem;
+            min-width: 260px;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+        .controls select:hover { border-color: #4a4a6a; }
+        .controls select:focus { outline: none; border-color: #6c6cff; }
+
+        .btn-generate {
+            background: linear-gradient(135deg, #6c6cff, #8b5cf6);
+            color: #fff;
+            border: none;
+            padding: 0.5rem 1.5rem;
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s, transform 0.1s;
+        }
+        .btn-generate:hover { opacity: 0.9; }
+        .btn-generate:active { transform: scale(0.97); }
+        .btn-generate:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .btn-download {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: #fff;
+            border: none;
+            padding: 0.5rem 1.5rem;
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s, transform 0.1s;
+            display: none;
+        }
+        .btn-download:hover { opacity: 0.9; }
+        .btn-download:active { transform: scale(0.97); }
+
+        .controls .status {
+            font-size: 0.8rem;
+            color: #666;
+            margin-left: auto;
+        }
+        .controls .status.success { color: #10b981; }
+        .controls .status.error { color: #ef4444; }
+
+        /* --- MAIN CONTENT --- */
+        .main {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            min-height: calc(100vh - 120px);
+        }
+
+        /* --- SIDEBAR: TOKENS --- */
+        .sidebar {
+            background: #0c0c14;
+            border-right: 1px solid #1e1e2a;
+            padding: 1.25rem;
+            overflow-y: auto;
+            max-height: calc(100vh - 120px);
+            position: sticky;
+            top: 120px;
+        }
+
+        .sidebar h3 {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: #555;
+            margin-bottom: 0.75rem;
+            margin-top: 1.25rem;
+        }
+        .sidebar h3:first-child { margin-top: 0; }
+
+        .token-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .token-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.75rem;
+            font-family: 'JetBrains Mono', monospace;
+            color: #aaa;
+            padding: 4px 6px;
+            border-radius: 4px;
+            transition: background 0.15s;
+        }
+        .token-item:hover { background: #1a1a28; }
+
+        .token-swatch {
+            width: 14px;
+            height: 14px;
+            border-radius: 3px;
+            border: 1px solid rgba(255,255,255,0.1);
+            flex-shrink: 0;
+        }
+
+        .token-name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            flex: 1;
+        }
+
+        .token-value {
+            color: #666;
+            font-size: 0.65rem;
+            flex-shrink: 0;
+        }
+
+        .sidebar .empty-state {
+            color: #444;
+            font-size: 0.8rem;
+            font-style: italic;
+            padding: 2rem 0;
+            text-align: center;
+        }
+
+        /* --- PREVIEW AREA --- */
+        .preview-area {
+            padding: 2rem;
+            overflow-y: auto;
+        }
+
+        .preview-area .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 60vh;
+            color: #444;
+            text-align: center;
+        }
+        .preview-area .empty-state .icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            opacity: 0.3;
+        }
+        .preview-area .empty-state p {
+            font-size: 1rem;
+            max-width: 400px;
+        }
+        .preview-area .empty-state p.hint {
+            font-size: 0.8rem;
+            margin-top: 0.5rem;
+            color: #333;
+        }
+
+        /* --- COMPONENT PREVIEW FRAME --- */
+        .preview-frame {
+            background: #fff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 40px rgba(0,0,0,0.4);
+        }
+
+        .preview-frame-header {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 16px;
+            background: #1a1a24;
+            border-bottom: 1px solid #2a2a3a;
+        }
+        .preview-frame-header .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+        .preview-frame-header .dot-red { background: #ff5f57; }
+        .preview-frame-header .dot-yellow { background: #ffbd2e; }
+        .preview-frame-header .dot-green { background: #28c840; }
+        .preview-frame-header .title {
+            margin-left: 8px;
+            font-size: 0.75rem;
+            color: #888;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .preview-content {
+            padding: 0;
+            min-height: 400px;
+        }
+
+        .preview-content iframe {
+            width: 100%;
+            min-height: 2000px;
+            border: none;
+            display: block;
+        }
+
+        /* --- RESPONSIVE --- */
+        @media (max-width: 900px) {
+            .main {
+                grid-template-columns: 1fr;
+            }
+            .sidebar {
+                position: static;
+                max-height: 300px;
+                border-right: none;
+                border-bottom: 1px solid #1e1e2a;
+            }
+            .controls {
+                flex-wrap: wrap;
+            }
+            .controls select {
+                min-width: 200px;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .top-bar { padding: 0.75rem 1rem; }
+            .controls { padding: 1rem; gap: 0.75rem; }
+            .preview-area { padding: 1rem; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="top-bar">
+    <a href="index.html" class="home-link">&larr; Back to Gallery</a>
+    <h1>Component Generator</h1>
+    <span></span>
+</div>
+
+<div class="controls">
+    <label for="style-select">Style Guide:</label>
+    <select id="style-select">
+        <option value="">-- Select a style guide --</option>
+    </select>
+    <button class="btn-generate" id="btn-generate" disabled>Generate Components</button>
+    <button class="btn-download" id="btn-download">Download ZIP</button>
+    <span class="status" id="status"></span>
+</div>
+
+<div class="main">
+    <aside class="sidebar" id="sidebar">
+        <div class="empty-state">Select a style guide to view its design tokens</div>
+    </aside>
+
+    <div class="preview-area" id="preview-area">
+        <div class="empty-state">
+            <div class="icon">&#9881;</div>
+            <p>Select a style guide and click "Generate Components" to see a live preview of reusable components styled with that guide's design tokens.</p>
+            <p class="hint">You can then download the components as a ZIP archive.</p>
+        </div>
+    </div>
+</div>
+
+<script>
+// ================================================================
+// CSS VARIABLE PARSER
+// Fetches a style guide HTML file, extracts :root {} variables
+// into a structured token map.
+// ================================================================
+
+const CSSVariableParser = {
+    /**
+     * Fetch and parse CSS variables from a style guide file.
+     * @param {string} url - URL of the style guide HTML file
+     * @returns {Promise<{raw: Object, colors: Object, spacing: Object, fonts: Object, shadows: Object, borders: Object, gradients: Object, transitions: Object, radii: Object, other: Object, fontLinks: string[]}>}
+     */
+    async parse(url) {
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error(`Failed to fetch ${url}: ${resp.status}`);
+        const html = await resp.text();
+        return this.parseHTML(html);
+    },
+
+    parseHTML(html) {
+        // Extract all :root blocks using brace counting for robustness
+        // (handles nested parens in values like polygon(), linear-gradient())
+        const rootBlocks = [];
+        const rootStartRegex = /:root\s*\{/g;
+        let startMatch;
+        while ((startMatch = rootStartRegex.exec(html)) !== null) {
+            const startIdx = startMatch.index + startMatch[0].length;
+            let depth = 1;
+            let i = startIdx;
+            while (i < html.length && depth > 0) {
+                if (html[i] === '{') depth++;
+                else if (html[i] === '}') depth--;
+                i++;
+            }
+            if (depth === 0) {
+                rootBlocks.push(html.substring(startIdx, i - 1));
+            }
+        }
+
+        const raw = {};
+        for (const block of rootBlocks) {
+            // Match CSS custom properties ([\s\S]+? handles multiline values like gradients)
+            const propRegex = /--([\w-]+)\s*:\s*([\s\S]+?)\s*;/g;
+            let m;
+            while ((m = propRegex.exec(block)) !== null) {
+                raw['--' + m[1]] = m[2].trim();
+            }
+        }
+
+        // Extract Google Fonts links
+        const fontLinks = [];
+        const fontLinkRegex = /href="(https:\/\/fonts\.googleapis\.com\/css2[^"]+)"/g;
+        let fl;
+        while ((fl = fontLinkRegex.exec(html)) !== null) {
+            fontLinks.push(fl[1]);
+        }
+
+        // Categorize tokens
+        const colors = {};
+        const spacing = {};
+        const fonts = {};
+        const shadows = {};
+        const borders = {};
+        const gradients = {};
+        const transitions = {};
+        const radii = {};
+        const other = {};
+
+        for (const [name, value] of Object.entries(raw)) {
+            if (this.isSpacing(name)) {
+                spacing[name] = value;
+            } else if (this.isFont(name, value)) {
+                fonts[name] = value;
+            } else if (this.isShadow(name, value)) {
+                shadows[name] = value;
+            } else if (this.isBorder(name, value)) {
+                borders[name] = value;
+            } else if (this.isGradient(name, value)) {
+                gradients[name] = value;
+            } else if (this.isTransition(name, value)) {
+                transitions[name] = value;
+            } else if (this.isRadius(name, value)) {
+                radii[name] = value;
+            } else if (this.isColor(name, value)) {
+                colors[name] = value;
+            } else {
+                other[name] = value;
+            }
+        }
+
+        return { raw, colors, spacing, fonts, shadows, borders, gradients, transitions, radii, other, fontLinks };
+    },
+
+    isSpacing(name) {
+        return /--space-/.test(name);
+    },
+
+    isFont(name, value) {
+        return /font/.test(name) || /font-family|serif|sans-serif|monospace|cursive/.test(value);
+    },
+
+    isShadow(name, value) {
+        return /shadow|glow|elevation/.test(name) || /\d+px\s+\d+px\s+\d+px/.test(value);
+    },
+
+    isBorder(name, value) {
+        return /border/.test(name) && !/radius/.test(name);
+    },
+
+    isGradient(name, value) {
+        return /gradient/.test(name) || /linear-gradient|radial-gradient|conic-gradient/.test(value);
+    },
+
+    isTransition(name, value) {
+        return /transition|duration|ease|timing/.test(name);
+    },
+
+    isRadius(name, value) {
+        return /radius|clip|corner/.test(name);
+    },
+
+    isColor(name, value) {
+        // Check if value looks like a color
+        if (/^#[0-9a-fA-F]{3,8}$/.test(value)) return true;
+        if (/^rgba?\(/.test(value)) return true;
+        if (/^hsla?\(/.test(value)) return true;
+        if (/^var\(--/.test(value)) return true;
+        // Named colors used as semantic tokens
+        if (/color|primary|secondary|accent|bg|text|muted|ink|surface|elevated|void/.test(name)) return true;
+        return false;
+    },
+
+    /**
+     * Resolve a var() reference to its computed value (one level deep).
+     */
+    resolveVar(value, raw) {
+        const varRef = value.match(/^var\(--([\w-]+)\)$/);
+        if (varRef && raw['--' + varRef[1]]) {
+            return raw['--' + varRef[1]];
+        }
+        return value;
+    }
+};
+
+
+// ================================================================
+// COMPONENT TEMPLATES
+// HTML skeleton templates that reference CSS variables.
+// ================================================================
+
+const ComponentTemplates = {
+    generateHTML(tokens, styleName) {
+        const fontLinksHTML = tokens.fontLinks
+            .map(url => `    <link rel="preconnect" href="https://fonts.googleapis.com">\n    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n    <link href="${url}" rel="stylesheet">`)
+            .filter((v, i, a) => a.indexOf(v) === i) // dedupe
+            .join('\n');
+
+        // Build CSS variables string
+        const varsCSS = Object.entries(tokens.raw)
+            .map(([name, value]) => `            ${name}: ${value};`)
+            .join('\n');
+
+        // Detect bg brightness for body text
+        const bgPrimary = this.findToken(tokens, 'bg-primary', 'bg', 'bg-void', 'black');
+        const textPrimary = this.findToken(tokens, 'text-primary', 'text', 'cream', 'ivory', 'white');
+        const accent = this.findToken(tokens, 'accent', 'primary', 'neon-cyan', 'gold', 'red');
+        const bgSecondary = this.findToken(tokens, 'bg-secondary', 'bg-elevated', 'bg-surface', 'charcoal');
+        const textSecondary = this.findToken(tokens, 'text-secondary', 'text-muted', 'ink-light', 'ink-muted');
+        const fontDisplay = this.findToken(tokens, 'font-display', 'font-heading', 'font-sans');
+        const fontBody = this.findToken(tokens, 'font-body', 'font-sans');
+
+        return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${styleName} - Component Library</title>
+${fontLinksHTML}
+    <style>
+        :root {
+${varsCSS}
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: ${fontBody ? `var(${fontBody})` : 'system-ui, sans-serif'};
+            background: ${bgPrimary ? `var(${bgPrimary})` : '#fff'};
+            color: ${textPrimary ? `var(${textPrimary})` : '#1a1a1a'};
+            line-height: 1.6;
+            padding: var(--space-7, 48px) var(--space-5, 24px);
+        }
+
+        .component-library {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .component-library h1 {
+            font-family: ${fontDisplay ? `var(${fontDisplay})` : 'inherit'};
+            font-size: 2.5rem;
+            margin-bottom: var(--space-3, 12px);
+        }
+
+        .component-library .subtitle {
+            opacity: 0.6;
+            margin-bottom: var(--space-8, 64px);
+            font-size: 1.1rem;
+        }
+
+        .component-section {
+            margin-bottom: var(--space-8, 64px);
+        }
+
+        .component-section h2 {
+            font-family: ${fontDisplay ? `var(${fontDisplay})` : 'inherit'};
+            font-size: 1.5rem;
+            margin-bottom: var(--space-5, 24px);
+            padding-bottom: var(--space-2, 8px);
+            border-bottom: 1px solid ${accent ? `var(${accent})` : 'currentColor'};
+            opacity: 0.9;
+        }
+
+        .component-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-4, 16px);
+            align-items: flex-start;
+            margin-bottom: var(--space-5, 24px);
+        }
+
+        /* ---- BUTTONS ---- */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: var(--space-3, 12px) var(--space-5, 24px);
+            font-family: ${fontBody ? `var(${fontBody})` : 'inherit'};
+            font-size: 0.9rem;
+            font-weight: 600;
+            border: 2px solid transparent;
+            border-radius: var(--radius-md, 6px);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            line-height: 1;
+        }
+
+        .btn-primary {
+            background: ${accent ? `var(${accent})` : '#333'};
+            color: ${bgPrimary ? `var(${bgPrimary})` : '#fff'};
+            border-color: ${accent ? `var(${accent})` : '#333'};
+        }
+        .btn-primary:hover { opacity: 0.85; transform: translateY(-1px); }
+
+        .btn-secondary {
+            background: ${bgSecondary ? `var(${bgSecondary})` : '#eee'};
+            color: ${textPrimary ? `var(${textPrimary})` : '#333'};
+            border-color: ${bgSecondary ? `var(${bgSecondary})` : '#ddd'};
+        }
+        .btn-secondary:hover { opacity: 0.85; }
+
+        .btn-outline {
+            background: transparent;
+            color: ${accent ? `var(${accent})` : '#333'};
+            border-color: ${accent ? `var(${accent})` : '#333'};
+        }
+        .btn-outline:hover {
+            background: ${accent ? `var(${accent})` : '#333'};
+            color: ${bgPrimary ? `var(${bgPrimary})` : '#fff'};
+        }
+
+        .btn:disabled, .btn.disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-sm { padding: var(--space-2, 8px) var(--space-4, 16px); font-size: 0.8rem; }
+        .btn-lg { padding: var(--space-4, 16px) var(--space-7, 48px); font-size: 1.05rem; }
+
+        /* ---- CARDS ---- */
+        .card {
+            background: ${bgSecondary ? `var(${bgSecondary})` : '#f5f5f5'};
+            border-radius: var(--radius-lg, 10px);
+            padding: var(--space-5, 24px);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .card:hover { transform: translateY(-2px); }
+
+        .card h3 {
+            font-family: ${fontDisplay ? `var(${fontDisplay})` : 'inherit'};
+            font-size: 1.15rem;
+            margin-bottom: var(--space-3, 12px);
+        }
+
+        .card p {
+            opacity: 0.75;
+            font-size: 0.9rem;
+            line-height: 1.65;
+        }
+
+        .card-media {
+            overflow: hidden;
+        }
+        .card-media .card-image {
+            width: 100%;
+            height: 160px;
+            background: ${accent ? `var(${accent})` : '#ddd'};
+            opacity: 0.15;
+            margin: calc(var(--space-5, 24px) * -1);
+            margin-bottom: var(--space-5, 24px);
+            width: calc(100% + var(--space-5, 24px) * 2);
+        }
+
+        .card-action {
+            display: flex;
+            flex-direction: column;
+        }
+        .card-action .card-footer {
+            margin-top: var(--space-5, 24px);
+            padding-top: var(--space-4, 16px);
+            border-top: 1px solid ${textSecondary ? `var(${textSecondary})` : 'rgba(128,128,128,0.2)'};
+            display: flex;
+            gap: var(--space-3, 12px);
+        }
+
+        /* ---- FORMS ---- */
+        .form-group {
+            margin-bottom: var(--space-5, 24px);
+            max-width: 420px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-bottom: var(--space-2, 8px);
+            opacity: 0.8;
+        }
+
+        .form-input, .form-select, .form-textarea {
+            width: 100%;
+            padding: var(--space-3, 12px) var(--space-4, 16px);
+            font-family: ${fontBody ? `var(${fontBody})` : 'inherit'};
+            font-size: 0.9rem;
+            color: ${textPrimary ? `var(${textPrimary})` : 'inherit'};
+            background: ${bgPrimary ? `var(${bgPrimary})` : '#fff'};
+            border: 1px solid ${textSecondary ? `var(${textSecondary})` : 'rgba(128,128,128,0.3)'};
+            border-radius: var(--radius-md, 6px);
+            transition: border-color 0.2s ease;
+            line-height: 1.5;
+        }
+        .form-input:focus, .form-select:focus, .form-textarea:focus {
+            outline: none;
+            border-color: ${accent ? `var(${accent})` : '#333'};
+        }
+
+        .form-textarea { min-height: 100px; resize: vertical; }
+
+        .form-select {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' fill='none' stroke='%23888' stroke-width='1.5'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            padding-right: 36px;
+        }
+
+        .form-checkbox {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3, 12px);
+            cursor: pointer;
+        }
+        .form-checkbox input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: ${accent ? `var(${accent})` : '#333'};
+            cursor: pointer;
+        }
+
+        /* ---- BADGES ---- */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: var(--space-1, 4px) var(--space-3, 12px);
+            font-size: 0.75rem;
+            font-weight: 600;
+            border-radius: 999px;
+            letter-spacing: 0.3px;
+        }
+
+        .badge-primary {
+            background: ${accent ? `var(${accent})` : '#333'};
+            color: ${bgPrimary ? `var(${bgPrimary})` : '#fff'};
+        }
+
+        .badge-secondary {
+            background: ${bgSecondary ? `var(${bgSecondary})` : '#eee'};
+            color: ${textPrimary ? `var(${textPrimary})` : '#333'};
+        }
+
+        .badge-outline {
+            background: transparent;
+            border: 1px solid ${accent ? `var(${accent})` : '#333'};
+            color: ${accent ? `var(${accent})` : '#333'};
+        }
+
+        /* ---- ALERTS ---- */
+        .alert {
+            padding: var(--space-4, 16px) var(--space-5, 24px);
+            border-radius: var(--radius-md, 6px);
+            font-size: 0.9rem;
+            margin-bottom: var(--space-4, 16px);
+            border-left: 4px solid;
+        }
+
+        .alert-info {
+            background: ${bgSecondary ? `var(${bgSecondary})` : '#e8f4f8'};
+            border-color: ${accent ? `var(${accent})` : '#3b82f6'};
+        }
+
+        .alert-success {
+            background: ${bgSecondary ? `var(${bgSecondary})` : '#ecfdf5'};
+            border-color: #10b981;
+        }
+
+        .alert-warning {
+            background: ${bgSecondary ? `var(${bgSecondary})` : '#fffbeb'};
+            border-color: #f59e0b;
+        }
+
+        .alert-danger {
+            background: ${bgSecondary ? `var(${bgSecondary})` : '#fef2f2'};
+            border-color: #ef4444;
+        }
+
+        .alert strong {
+            display: block;
+            margin-bottom: var(--space-1, 4px);
+        }
+
+        /* ---- NAVIGATION BAR ---- */
+        .navbar {
+            display: flex;
+            align-items: center;
+            padding: var(--space-4, 16px) var(--space-5, 24px);
+            background: ${bgSecondary ? `var(${bgSecondary})` : '#f5f5f5'};
+            border-radius: var(--radius-lg, 10px);
+            gap: var(--space-5, 24px);
+        }
+
+        .navbar .nav-brand {
+            font-family: ${fontDisplay ? `var(${fontDisplay})` : 'inherit'};
+            font-weight: 700;
+            font-size: 1.15rem;
+            color: ${accent ? `var(${accent})` : 'inherit'};
+            text-decoration: none;
+        }
+
+        .navbar .nav-links {
+            display: flex;
+            gap: var(--space-4, 16px);
+            list-style: none;
+            margin-left: auto;
+        }
+
+        .navbar .nav-links a {
+            color: ${textPrimary ? `var(${textPrimary})` : 'inherit'};
+            text-decoration: none;
+            font-size: 0.9rem;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+        .navbar .nav-links a:hover { opacity: 1; }
+        .navbar .nav-links a.active {
+            opacity: 1;
+            color: ${accent ? `var(${accent})` : 'inherit'};
+        }
+
+        /* ---- RESPONSIVE ---- */
+        @media (max-width: 768px) {
+            body { padding: var(--space-5, 24px) var(--space-4, 16px); }
+            .component-library h1 { font-size: 1.75rem; }
+            .component-row { flex-direction: column; }
+            .card { width: 100%; }
+            .navbar { flex-direction: column; align-items: flex-start; }
+            .navbar .nav-links { margin-left: 0; flex-wrap: wrap; }
+        }
+    </style>
+</head>
+<body>
+    <div class="component-library">
+        <h1>${styleName} Components</h1>
+        <p class="subtitle">Reusable component library generated from the ${styleName} design system tokens.</p>
+
+        <!-- NAVIGATION BAR -->
+        <section class="component-section">
+            <h2>Navigation Bar</h2>
+            <nav class="navbar">
+                <a href="#" class="nav-brand">${styleName}</a>
+                <ul class="nav-links">
+                    <li><a href="#" class="active">Home</a></li>
+                    <li><a href="#">About</a></li>
+                    <li><a href="#">Services</a></li>
+                    <li><a href="#">Contact</a></li>
+                </ul>
+            </nav>
+        </section>
+
+        <!-- BUTTONS -->
+        <section class="component-section">
+            <h2>Buttons</h2>
+            <div class="component-row">
+                <button class="btn btn-primary">Primary</button>
+                <button class="btn btn-secondary">Secondary</button>
+                <button class="btn btn-outline">Outline</button>
+                <button class="btn btn-primary disabled" disabled>Disabled</button>
+            </div>
+            <div class="component-row">
+                <button class="btn btn-primary btn-sm">Small</button>
+                <button class="btn btn-primary">Medium</button>
+                <button class="btn btn-primary btn-lg">Large</button>
+            </div>
+        </section>
+
+        <!-- BADGES -->
+        <section class="component-section">
+            <h2>Badges</h2>
+            <div class="component-row">
+                <span class="badge badge-primary">Primary</span>
+                <span class="badge badge-secondary">Secondary</span>
+                <span class="badge badge-outline">Outline</span>
+            </div>
+        </section>
+
+        <!-- CARDS -->
+        <section class="component-section">
+            <h2>Cards</h2>
+            <div class="component-row">
+                <div class="card" style="flex:1; min-width:250px;">
+                    <h3>Basic Card</h3>
+                    <p>A simple card component for grouping related content with consistent spacing and visual hierarchy.</p>
+                </div>
+                <div class="card card-media" style="flex:1; min-width:250px;">
+                    <div class="card-image"></div>
+                    <h3>Media Card</h3>
+                    <p>Card with an image area for visual content like thumbnails, covers, or hero images.</p>
+                </div>
+            </div>
+            <div class="component-row">
+                <div class="card card-action" style="flex:1; min-width:250px;">
+                    <h3>Action Card</h3>
+                    <p>Card with a footer area containing action buttons for interactive use cases.</p>
+                    <div class="card-footer">
+                        <button class="btn btn-primary btn-sm">Accept</button>
+                        <button class="btn btn-outline btn-sm">Decline</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- FORMS -->
+        <section class="component-section">
+            <h2>Forms</h2>
+            <div class="form-group">
+                <label for="text-input">Text Input</label>
+                <input type="text" id="text-input" class="form-input" placeholder="Enter text...">
+            </div>
+            <div class="form-group">
+                <label for="email-input">Email Input</label>
+                <input type="email" id="email-input" class="form-input" placeholder="you@example.com">
+            </div>
+            <div class="form-group">
+                <label for="select-input">Select</label>
+                <select id="select-input" class="form-select">
+                    <option>Option One</option>
+                    <option>Option Two</option>
+                    <option>Option Three</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="textarea-input">Textarea</label>
+                <textarea id="textarea-input" class="form-textarea" placeholder="Enter longer text..."></textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-checkbox">
+                    <input type="checkbox" checked>
+                    <span>Checkbox option enabled</span>
+                </label>
+            </div>
+            <div class="form-group">
+                <label class="form-checkbox">
+                    <input type="checkbox">
+                    <span>Checkbox option disabled</span>
+                </label>
+            </div>
+        </section>
+
+        <!-- ALERTS -->
+        <section class="component-section">
+            <h2>Alerts</h2>
+            <div class="alert alert-info">
+                <strong>Information</strong>
+                This is an informational alert for general notices and tips.
+            </div>
+            <div class="alert alert-success">
+                <strong>Success</strong>
+                Operation completed successfully. Your changes have been saved.
+            </div>
+            <div class="alert alert-warning">
+                <strong>Warning</strong>
+                Please review this section before proceeding further.
+            </div>
+            <div class="alert alert-danger">
+                <strong>Error</strong>
+                Something went wrong. Please try again or contact support.
+            </div>
+        </section>
+    </div>
+</body>
+</html>`;
+    },
+
+    /**
+     * Find the best matching CSS variable name from the token map.
+     */
+    findToken(tokens, ...candidates) {
+        const allNames = Object.keys(tokens.raw);
+        for (const candidate of candidates) {
+            const exact = '--' + candidate;
+            if (allNames.includes(exact)) return exact;
+        }
+        // Partial match
+        for (const candidate of candidates) {
+            const found = allNames.find(n => n.includes(candidate));
+            if (found) return found;
+        }
+        return null;
+    }
+};
+
+
+// ================================================================
+// TOKEN MAP BUILDER
+// Transforms parsed tokens into a JSON export format.
+// ================================================================
+
+function buildTokensJSON(tokens, styleName) {
+    return {
+        name: styleName,
+        generated: new Date().toISOString(),
+        tokens: {
+            colors: tokens.colors,
+            spacing: tokens.spacing,
+            fonts: tokens.fonts,
+            shadows: tokens.shadows,
+            borders: tokens.borders,
+            gradients: tokens.gradients,
+            transitions: tokens.transitions,
+            radii: tokens.radii,
+            other: tokens.other
+        }
+    };
+}
+
+
+// ================================================================
+// SIDEBAR RENDERING
+// Displays the parsed token map in the sidebar.
+// ================================================================
+
+function renderSidebar(tokens) {
+    const sidebar = document.getElementById('sidebar');
+
+    const sections = [
+        { title: 'Colors', data: tokens.colors, type: 'color' },
+        { title: 'Spacing', data: tokens.spacing, type: 'value' },
+        { title: 'Fonts', data: tokens.fonts, type: 'value' },
+        { title: 'Shadows', data: tokens.shadows, type: 'value' },
+        { title: 'Borders', data: tokens.borders, type: 'value' },
+        { title: 'Gradients', data: tokens.gradients, type: 'value' },
+        { title: 'Transitions', data: tokens.transitions, type: 'value' },
+        { title: 'Border Radii', data: tokens.radii, type: 'value' },
+        { title: 'Other', data: tokens.other, type: 'value' },
+    ];
+
+    let html = '';
+    for (const section of sections) {
+        const entries = Object.entries(section.data);
+        if (entries.length === 0) continue;
+
+        html += `<h3>${section.title} (${entries.length})</h3>`;
+        html += '<ul class="token-list">';
+        for (const [name, value] of entries) {
+            const resolved = CSSVariableParser.resolveVar(value, tokens.raw);
+            if (section.type === 'color') {
+                const displayColor = resolved.startsWith('var(') ? '#888' : resolved;
+                html += `<li class="token-item">
+                    <span class="token-swatch" style="background:${displayColor}"></span>
+                    <span class="token-name">${name}</span>
+                    <span class="token-value">${truncate(value, 16)}</span>
+                </li>`;
+            } else {
+                html += `<li class="token-item">
+                    <span class="token-name">${name}</span>
+                    <span class="token-value">${truncate(value, 20)}</span>
+                </li>`;
+            }
+        }
+        html += '</ul>';
+    }
+
+    if (!html) {
+        html = '<div class="empty-state">No CSS variables found in this style guide</div>';
+    }
+
+    sidebar.innerHTML = html;
+}
+
+function truncate(str, max) {
+    return str.length > max ? str.slice(0, max) + '...' : str;
+}
+
+
+// ================================================================
+// PREVIEW RENDERING
+// Shows generated components in an iframe for isolation.
+// ================================================================
+
+function renderPreview(html) {
+    const previewArea = document.getElementById('preview-area');
+    previewArea.innerHTML = `
+        <div class="preview-frame">
+            <div class="preview-frame-header">
+                <span class="dot dot-red"></span>
+                <span class="dot dot-yellow"></span>
+                <span class="dot dot-green"></span>
+                <span class="title">components.html</span>
+            </div>
+            <div class="preview-content">
+                <iframe id="preview-iframe" sandbox="allow-same-origin"></iframe>
+            </div>
+        </div>`;
+
+    const iframe = document.getElementById('preview-iframe');
+    iframe.addEventListener('load', () => {
+        // Auto-resize iframe to content height
+        try {
+            const body = iframe.contentDocument.body;
+            const height = body.scrollHeight + 40;
+            iframe.style.minHeight = height + 'px';
+        } catch(e) {}
+    });
+
+    // Write content into iframe
+    const blob = new Blob([html], { type: 'text/html' });
+    iframe.src = URL.createObjectURL(blob);
+}
+
+
+// ================================================================
+// ZIP DOWNLOAD
+// Bundles components.html + tokens.json using JSZip.
+// ================================================================
+
+async function downloadZip(componentHTML, tokensJSON, styleName) {
+    const zip = new JSZip();
+    const folderName = styleName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '');
+    const folder = zip.folder(folderName + '-components');
+
+    folder.file('components.html', componentHTML);
+    folder.file('tokens.json', JSON.stringify(tokensJSON, null, 2));
+
+    const blob = await zip.generateAsync({ type: 'blob' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = folderName + '-components.zip';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+
+// ================================================================
+// MAIN APP LOGIC
+// Wire up controls, populate style list, handle generation.
+// ================================================================
+
+(async function main() {
+    const select = document.getElementById('style-select');
+    const btnGenerate = document.getElementById('btn-generate');
+    const btnDownload = document.getElementById('btn-download');
+    const status = document.getElementById('status');
+
+    let currentTokens = null;
+    let currentHTML = null;
+    let currentJSON = null;
+    let currentStyleName = '';
+
+    // Populate style guide list by fetching the directory index
+    // We'll list all .html files in the same directory except index.html and generator.html
+    await populateStyleList();
+
+    async function populateStyleList() {
+        try {
+            // Fetch the index page and extract style guide links
+            const resp = await fetch('index.html');
+            const html = await resp.text();
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            const links = doc.querySelectorAll('a.card[href]');
+
+            const styles = [];
+            links.forEach(link => {
+                const href = link.getAttribute('href');
+                if (href && href.endsWith('.html') && href !== 'index.html' && href !== 'generator.html') {
+                    const name = link.querySelector('h2')?.textContent?.trim() || href.replace('.html', '');
+                    styles.push({ href, name });
+                }
+            });
+
+            // Sort alphabetically
+            styles.sort((a, b) => a.name.localeCompare(b.name));
+
+            for (const style of styles) {
+                const opt = document.createElement('option');
+                opt.value = style.href;
+                opt.textContent = style.name;
+                select.appendChild(opt);
+            }
+
+            status.textContent = `${styles.length} styles available`;
+            status.className = 'status';
+        } catch (err) {
+            status.textContent = 'Failed to load style list';
+            status.className = 'status error';
+            console.error(err);
+        }
+    }
+
+    select.addEventListener('change', () => {
+        btnGenerate.disabled = !select.value;
+        btnDownload.style.display = 'none';
+        currentTokens = null;
+        currentHTML = null;
+        currentJSON = null;
+
+        if (select.value) {
+            // Parse tokens immediately for sidebar preview
+            parseAndShowTokens(select.value);
+        } else {
+            document.getElementById('sidebar').innerHTML =
+                '<div class="empty-state">Select a style guide to view its design tokens</div>';
+            document.getElementById('preview-area').innerHTML = `
+                <div class="empty-state">
+                    <div class="icon">&#9881;</div>
+                    <p>Select a style guide and click "Generate Components" to see a live preview.</p>
+                    <p class="hint">You can then download the components as a ZIP archive.</p>
+                </div>`;
+        }
+    });
+
+    async function parseAndShowTokens(href) {
+        try {
+            status.textContent = 'Parsing tokens...';
+            status.className = 'status';
+            currentTokens = await CSSVariableParser.parse(href);
+            const totalTokens = Object.keys(currentTokens.raw).length;
+            renderSidebar(currentTokens);
+            status.textContent = `${totalTokens} tokens found`;
+            status.className = 'status success';
+        } catch (err) {
+            status.textContent = 'Failed to parse: ' + err.message;
+            status.className = 'status error';
+            console.error(err);
+        }
+    }
+
+    btnGenerate.addEventListener('click', async () => {
+        if (!select.value) return;
+
+        const selectedOption = select.options[select.selectedIndex];
+        currentStyleName = selectedOption.textContent;
+
+        try {
+            btnGenerate.disabled = true;
+            status.textContent = 'Generating components...';
+            status.className = 'status';
+
+            // Parse tokens if not already done
+            if (!currentTokens) {
+                currentTokens = await CSSVariableParser.parse(select.value);
+                renderSidebar(currentTokens);
+            }
+
+            // Generate component HTML
+            currentHTML = ComponentTemplates.generateHTML(currentTokens, currentStyleName);
+
+            // Build tokens JSON
+            currentJSON = buildTokensJSON(currentTokens, currentStyleName);
+
+            // Show preview
+            renderPreview(currentHTML);
+
+            // Show download button
+            btnDownload.style.display = 'inline-flex';
+
+            status.textContent = 'Components generated successfully';
+            status.className = 'status success';
+        } catch (err) {
+            status.textContent = 'Generation failed: ' + err.message;
+            status.className = 'status error';
+            console.error(err);
+        } finally {
+            btnGenerate.disabled = false;
+        }
+    });
+
+    btnDownload.addEventListener('click', async () => {
+        if (!currentHTML || !currentJSON) return;
+
+        try {
+            status.textContent = 'Building ZIP...';
+            status.className = 'status';
+            await downloadZip(currentHTML, currentJSON, currentStyleName);
+            status.textContent = 'ZIP downloaded!';
+            status.className = 'status success';
+        } catch (err) {
+            status.textContent = 'Download failed: ' + err.message;
+            status.className = 'status error';
+            console.error(err);
+        }
+    });
+})();
+</script>
+
+</body>
+</html>
