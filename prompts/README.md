@@ -1,6 +1,6 @@
 # Build Prompts Archive
 
-Archived worker prompts and retros from building [HTML Style Guides](https://github.com/GGPrompts/htmlstyleguides). Each file contains the issue metadata, description, worker prompt, and/or post-execution retro notes. These are the actual AI prompts that built the pages in this project.
+Archived worker prompts and retros from building [GG Prompts](https://github.com/GGPrompts/htmlstyleguides). Each file contains the issue metadata, description, worker prompt, and/or post-execution retro notes. These are the actual AI prompts that built the pages in this project.
 
 ---
 

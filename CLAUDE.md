@@ -1,4 +1,4 @@
-# HTML Style Guides Project
+# GG Prompts
 
 A collection of CSS design system showcases, interactive educational stories, styled tech reference guides, CSS architecture maps, a chiptune music studio, browser games, creative tools, a daily AI newspaper, and a live API widget bazaar. Everything runs on GitHub Pages with zero build tools or frameworks.
 
@@ -120,10 +120,11 @@ Every HTML page loads `prompt-viewer.js` via `<script defer>`. It adds a floatin
 1. Add `<script defer src="RELATIVE_PATH/prompt-viewer.js"></script>` before `</body>`
 2. If the page has a build prompt, add the mapping to `prompts/manifest.json`
 
-### TODO (GGPrompts rebrand)
-- Add slash command / skill info to section index pages (for pages without individual prompts)
-- Point `ggprompts.com` DNS to GitHub Pages
-- Update page titles / meta tags for rebrand
+### TODO (GGPrompts rebrand) — tracked in hsg-jn3r
+- ~~Add slash command / skill info to section index pages~~ ✓ (section skills in manifest `_sections`)
+- ~~Update page titles / meta tags for rebrand~~ ✓ (all "HTML Style Guide(s)" → "GG Prompts")
+- Point `ggprompts.com` DNS to GitHub Pages + CNAME file
+- Rename GitHub repo `htmlstyleguides` → `ggprompts` + update all GitHub URLs
 
 ## Shared Modules
 
