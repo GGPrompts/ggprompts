@@ -186,13 +186,16 @@
     var btns = document.createElement('div');
     btns.className = 'ggp-btns';
 
-    // GitHub button — always shown
-    var gh = document.createElement('button');
-    gh.className = 'ggp-btn';
-    gh.innerHTML = ICON_GH;
-    gh.title = 'View source on GitHub';
-    gh.onclick = function () { window.open(REPO + '/blob/main/' + path, '_blank'); };
-    btns.appendChild(gh);
+    // GitHub button — skip on news pages (overlaps TTS audio button, source less useful there)
+    var isNews = /^news\/\d/.test(path);
+    if (!isNews) {
+      var gh = document.createElement('button');
+      gh.className = 'ggp-btn';
+      gh.innerHTML = ICON_GH;
+      gh.title = 'View source on GitHub';
+      gh.onclick = function () { window.open(REPO + '/blob/main/' + path, '_blank'); };
+      btns.appendChild(gh);
+    }
 
     // Prompt button — only if a prompt mapping exists
     var promptPath = manifest[path] || null;
@@ -204,6 +207,9 @@
       pb.onclick = function () { showPromptModal(promptPath); };
       btns.appendChild(pb);
     }
+
+    // Don't render anything if no buttons to show
+    if (!btns.children.length) return;
 
     wrap.appendChild(dot);
     wrap.appendChild(btns);
