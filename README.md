@@ -137,6 +137,7 @@ Every style has a unique aesthetic. Some are paired with tech guides and stories
 | federal-night | Rationalization & Decommissioning | |
 | film-grain | FFmpeg | The First Reel |
 | fire-and-heat | Redis | |
+| flow-diagram | | |
 | frutiger-aero | VS Code | |
 | futurism | CI/CD Pipelines | |
 | gaming-esports | | |
