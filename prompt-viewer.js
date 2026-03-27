@@ -14,6 +14,15 @@
   var SITE_BASE = scriptSrc.substring(0, scriptSrc.lastIndexOf('/') + 1);
   var REPO = 'https://github.com/GGPrompts/ggprompts';
 
+  // ── Analytics (GoatCounter) ────────────────────────────
+  (function () {
+    var gc = document.createElement('script');
+    gc.async = true;
+    gc.src = '//gc.zgo.at/count.js';
+    gc.dataset.goatcounter = 'https://ggprompts.goatcounter.com/count';
+    document.head.appendChild(gc);
+  })();
+
   // ── Helpers ──────────────────────────────────────────────
 
   function getPagePath() {
