@@ -999,10 +999,10 @@
 
     <main class="widget-grid">
 
-        <!-- ── WIDGET 1: Global Vehicle Ownership (World Bank) ───── -->
+        <!-- ── WIDGET 1: Air Transport Passengers (World Bank) ───── -->
         <section class="widget col-8" id="widget-vehicles">
             <div class="connections-bar">
-                <span>&#128664; WORLD_BANK</span>
+                <span>&#9992; WORLD_BANK</span>
                 <span class="conn-sep">&middot;</span>
                 <span class="conn-item">api.worldbank.org</span>
                 <span class="conn-sep">&middot;</span>
@@ -1011,10 +1011,10 @@
                 <span class="conn-item" id="veh-ts">--:--</span>
             </div>
             <div class="widget-head">
-                <span class="widget-icon">&#128664;</span>
+                <span class="widget-icon">&#9992;</span>
                 <div class="widget-head-text">
-                    <div class="widget-title">Global Vehicle Ownership -- World Bank</div>
-                    <div class="widget-meta"><a href="https://data.worldbank.org/indicator/IS.VEH.NVEH.P3" target="_blank" rel="noopener">World Bank Open Data</a> &middot; Vehicles per 1,000 people by country</div>
+                    <div class="widget-title">Air Transport Passengers -- World Bank</div>
+                    <div class="widget-meta"><a href="https://data.worldbank.org/indicator/IS.AIR.PSGR" target="_blank" rel="noopener">World Bank Open Data</a> &middot; Annual air passengers carried by country</div>
                 </div>
                 <span class="widget-status status-loading" id="veh-status">LOADING</span>
             </div>
@@ -1039,34 +1039,34 @@
                     </div>
                     <div class="stat-cell">
                         <span class="stat-value green" id="veh-highest">&mdash;</span>
-                        <span class="stat-label">highest (per 1k)</span>
+                        <span class="stat-label">highest (M)</span>
                     </div>
                     <div class="stat-cell">
                         <span class="stat-value amber" id="veh-avg">&mdash;</span>
-                        <span class="stat-label">region avg</span>
+                        <span class="stat-label">region avg (M)</span>
                     </div>
                 </div>
                 <div id="veh-loading" class="loading-state">
                     <div class="loading-spinner"></div>
-                    Fetching vehicle ownership data...
+                    Fetching air transport data...
                 </div>
                 <div id="veh-error" class="error-state" style="display:none">
-                    <span class="err-icon">&#128664;</span>
+                    <span class="err-icon">&#9992;</span>
                     <div class="err-msg">
                         World Bank API offline -- data not available.
                         <span class="err-sub" id="veh-err-detail"></span>
                     </div>
                 </div>
                 <div id="veh-table" style="display:none">
-                    <div class="section-label">Vehicles per 1,000 people by country</div>
+                    <div class="section-label">Annual air passengers carried by country</div>
                     <div class="scrollable">
                         <table class="board">
                             <thead>
                                 <tr>
                                     <th>Country</th>
-                                    <th>Vehicles / 1k</th>
+                                    <th>Passengers</th>
                                     <th>Year</th>
-                                    <th>Density</th>
+                                    <th>Volume</th>
                                 </tr>
                             </thead>
                             <tbody id="veh-tbody"></tbody>
@@ -1536,7 +1536,7 @@ setInterval(updateClock, 1000);
 updateClock();
 
 /* ══════════════════════════════════════════════════════════════
-   WIDGET 1 -- Global Vehicle Ownership (World Bank)
+   WIDGET 1 -- Air Transport Passengers (World Bank)
    ══════════════════════════════════════════════════════════════ */
 async function loadVehicles() {
     showLoading('veh');
@@ -1544,7 +1544,6 @@ async function loadVehicles() {
     setWidgetStatus('veh-status', 'loading');
 
     const region = document.getElementById('veh-region').value;
-    // Fetch countries in region, then get vehicle ownership indicator
     const countriesUrl = `https://api.worldbank.org/v2/country?region=${region}&per_page=50&format=json`;
 
     try {
@@ -1553,17 +1552,14 @@ async function loadVehicles() {
         if (!cData || !cData[1] || !cData[1].length) throw new Error('No country data for region');
 
         const countryCodes = cData[1].map(c => c.id).slice(0, 30).join(';');
-        const countryNames = {};
-        cData[1].forEach(c => { countryNames[c.id] = c.name; });
 
-        // IS.VEH.NVEH.P3 = Motor vehicles per 1,000 people
-        const indUrl = `https://api.worldbank.org/v2/country/${countryCodes}/indicator/IS.VEH.NVEH.P3?date=2005:2023&per_page=500&format=json&mrnev=1`;
+        // IS.AIR.PSGR = Air transport, passengers carried
+        const indUrl = `https://api.worldbank.org/v2/country/${countryCodes}/indicator/IS.AIR.PSGR?date=2010:2023&per_page=500&format=json&mrnev=1`;
         const iResp = await fetchWithTimeout(indUrl, { timeout: 10000 });
         const iData = await iResp.json();
 
-        if (!iData || !iData[1]) throw new Error('No vehicle data available');
+        if (!iData || !iData[1]) throw new Error('No air transport data available');
 
-        // Filter to entries with actual values, keep most recent per country
         const byCountry = {};
         iData[1].forEach(d => {
             if (d.value != null && !byCountry[d.countryiso3code]) {
@@ -1577,30 +1573,31 @@ async function loadVehicles() {
         });
 
         const rows = Object.values(byCountry).sort((a, b) => b.value - a.value);
-        if (rows.length === 0) throw new Error('No vehicle ownership data for this region');
+        if (rows.length === 0) throw new Error('No air transport data for this region');
 
         const highest = rows[0].value;
         const avg = Math.round(rows.reduce((s, r) => s + r.value, 0) / rows.length);
 
+        function fmtM(n) { return n >= 1e9 ? (n / 1e9).toFixed(1) + 'B' : n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(0) + 'K' : String(n); }
+
         document.getElementById('veh-countries').textContent = rows.length;
-        document.getElementById('veh-highest').textContent = highest;
-        document.getElementById('veh-avg').textContent = avg;
+        document.getElementById('veh-highest').textContent = fmtM(highest);
+        document.getElementById('veh-avg').textContent = fmtM(avg);
 
         const tbody = document.getElementById('veh-tbody');
         tbody.innerHTML = rows.map(r => {
-            // Bar visualization: width relative to highest
             const pct = Math.round((r.value / highest) * 100);
-            const barCls = r.value >= 500 ? 'delay-major' : r.value >= 200 ? 'delay-minor' : 'delay-ok';
+            const barCls = r.value >= 100e6 ? 'delay-major' : r.value >= 10e6 ? 'delay-minor' : 'delay-ok';
             return `<tr>
                 <td class="highlight">${r.name}</td>
-                <td class="mono">${r.value}</td>
+                <td class="mono">${fmtM(r.value)}</td>
                 <td class="mono">${r.year}</td>
                 <td><div style="background:var(--ink-dim);height:8px;border-radius:2px;width:100%;position:relative"><div class="${barCls}" style="position:absolute;top:0;left:0;height:100%;width:${pct}%;border-radius:2px;background:currentColor;opacity:0.7"></div></div></td>
             </tr>`;
         }).join('') || '<tr><td colspan="4" class="empty-note">No data available</td></tr>';
 
         document.getElementById('veh-note').textContent =
-            `Showing ${rows.length} countries. Motor vehicles per 1,000 people. Source: World Bank Open Data.`;
+            `Showing ${rows.length} countries. Annual air passengers carried. Source: World Bank Open Data.`;
 
         document.getElementById('veh-loading').style.display = 'none';
         document.getElementById('veh-table').style.display = 'block';

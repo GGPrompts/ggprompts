@@ -708,18 +708,44 @@
         const body = $('climate-body');
         body.innerHTML = '<div class="loading"><div class="spinner"></div>Loading climate models&hellip;</div>';
         try {
-            // Fetch decade-averaged temperature projections for Berlin: historical (1960s-2010s) + future (2020s-2040s)
-            const url = `https://climate-api.open-meteo.com/v1/climate?latitude=52.52&longitude=13.41&start_date=1960-01-01&end_date=2050-12-31&daily=temperature_2m_mean&models=EC_Earth3P_HR,MPI_ESM1_2_XR,NICAM16_8S&temporal_resolution=decadal_average`;
-            const res = await fetchWithTimeout(url, 8000);
+            // Fetch daily temperature projections for Berlin, then compute decadal averages client-side
+            const url = `https://climate-api.open-meteo.com/v1/climate?latitude=52.52&longitude=13.41&start_date=1960-01-01&end_date=2050-12-31&daily=temperature_2m_mean&models=EC_Earth3P_HR,MPI_ESM1_2_XR,NICAM16_8S`;
+            const res = await fetchWithTimeout(url, 15000);
             const data = await res.json();
 
-            const models = [
+            const modelDefs = [
                 { key: 'temperature_2m_mean_EC_Earth3P_HR', name: 'EC-Earth3P-HR', color: '#22c55e' },
                 { key: 'temperature_2m_mean_MPI_ESM1_2_XR', name: 'MPI-ESM1-2-XR', color: '#38bdf8' },
                 { key: 'temperature_2m_mean_NICAM16_8S', name: 'NICAM16-8S', color: '#f59e0b' },
             ];
 
-            const dates = data.daily?.time || [];
+            const rawDates = data.daily?.time || [];
+            if (!rawDates.length) {
+                body.innerHTML = `<div class="error-state"><span class="error-icon">\u{1F321}\u{FE0F}</span>
+                    <p class="error-message">No climate projection data returned.</p></div>`;
+                return;
+            }
+
+            // Compute decadal averages per model
+            function decadalAvg(vals, times) {
+                const byDecade = {};
+                times.forEach((t, i) => {
+                    if (vals[i] == null) return;
+                    const decade = t.substring(0, 3) + '0';
+                    if (!byDecade[decade]) byDecade[decade] = [];
+                    byDecade[decade].push(vals[i]);
+                });
+                const decades = Object.keys(byDecade).sort();
+                return { dates: decades, vals: decades.map(d => byDecade[d].reduce((a,b) => a+b, 0) / byDecade[d].length) };
+            }
+
+            const models = modelDefs.map(m => {
+                const raw = data.daily?.[m.key] || [];
+                const agg = decadalAvg(raw, rawDates);
+                return { ...m, dates: agg.dates, vals: agg.vals };
+            });
+
+            const dates = models[0].dates;
             if (!dates.length) {
                 body.innerHTML = `<div class="error-state"><span class="error-icon">\u{1F321}\u{FE0F}</span>
                     <p class="error-message">No climate projection data returned.</p></div>`;
@@ -729,8 +755,7 @@
             // Gather all valid values to compute Y range
             let allVals = [];
             models.forEach(m => {
-                const vals = data.daily?.[m.key] || [];
-                vals.forEach(v => { if (v != null) allVals.push(v); });
+                m.vals.forEach(v => { if (v != null) allVals.push(v); });
             });
             if (!allVals.length) {
                 body.innerHTML = `<div class="error-state"><span class="error-icon">\u{1F321}\u{FE0F}</span>
@@ -760,19 +785,15 @@
             // X-axis: show decade labels
             let xLabels = '';
             dates.forEach((d, i) => {
-                const year = d.substring(0, 4);
-                if (parseInt(year) % 10 === 0 || i === 0 || i === dates.length - 1) {
-                    const x = toX(i);
-                    xLabels += `<text x="${x}" y="${svgH - 6}" text-anchor="middle" fill="#4a6a4a" font-family="var(--font-data)" font-size="9">${year}</text>`;
-                }
+                const x = toX(i);
+                xLabels += `<text x="${x}" y="${svgH - 6}" text-anchor="middle" fill="#4a6a4a" font-family="var(--font-data)" font-size="9">${d}s</text>`;
             });
 
             // Draw lines for each model
             let paths = '';
             models.forEach(m => {
-                const vals = data.daily?.[m.key] || [];
                 const pts = [];
-                vals.forEach((v, i) => { if (v != null) pts.push({ x: toX(i), y: toY(v) }); });
+                m.vals.forEach((v, i) => { if (v != null) pts.push({ x: toX(i), y: toY(v) }); });
                 if (pts.length > 1) {
                     const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
                     paths += `<path d="${d}" fill="none" stroke="${m.color}" stroke-width="2.5" stroke-linecap="round"/>`;
@@ -783,7 +804,7 @@
             });
 
             // 2020 divider line (approximate)
-            const idx2020 = dates.findIndex(d => d.startsWith('2020'));
+            const idx2020 = dates.findIndex(d => d === '2020');
             let dividerLine = '';
             if (idx2020 >= 0) {
                 const dx = toX(idx2020);
