@@ -1817,18 +1817,24 @@ async function loadMCPRegistry() {
 
     try {
         var t0 = performance.now();
-        var r = await fetchWithTimeout('https://registry.modelcontextprotocol.io/v0.1/servers');
+        var r = await fetchWithTimeout('https://registry.modelcontextprotocol.io/v0.1/servers?limit=50');
         if (!r.ok) throw new Error('HTTP ' + r.status);
         var data = await r.json();
         var elapsed = Math.round(performance.now() - t0);
 
-        var servers = data.servers || data.items || data;
-        if (!Array.isArray(servers)) {
-            // Try to extract from different response shapes
-            if (data.data && Array.isArray(data.data)) servers = data.data;
-            else if (typeof data === 'object' && !Array.isArray(data)) servers = Object.values(data).flat().filter(function(s) { return s && s.name; });
-            else servers = [];
+        var raw = data.servers || data.items || data;
+        if (!Array.isArray(raw)) {
+            if (data.data && Array.isArray(data.data)) raw = data.data;
+            else raw = [];
         }
+
+        // The registry wraps each entry as { server: {...}, _meta: {...} }.
+        // Older shapes were flat; handle both. Filter to latest versions only.
+        var servers = raw.map(function(entry) {
+            var server = entry && entry.server ? entry.server : entry;
+            var meta = entry && entry._meta && entry._meta['io.modelcontextprotocol.registry/official'];
+            return { s: server || {}, isLatest: meta ? meta.isLatest : true };
+        }).filter(function(x) { return x.s && (x.s.name || x.s.title) && x.isLatest !== false; });
 
         if (!servers.length) {
             output.innerHTML = '<div style="padding:var(--s4);font-family:var(--font-mono);color:var(--ink-muted)">Registry returned no servers \u2014 API may have changed shape</div>';
@@ -1836,13 +1842,21 @@ async function loadMCPRegistry() {
             return;
         }
 
-        var display = servers.slice(0, 10);
+        var display = servers.slice(0, 12);
 
         var html = '<div class="scroll-terminal" style="max-height:340px">';
-        display.forEach(function(s) {
-            var name = s.name || s.id || 'Unknown Server';
+        display.forEach(function(entry) {
+            var s = entry.s;
+            var name = s.title || s.name || s.id || 'Unknown Server';
             var desc = s.description || s.summary || '';
-            var repo = s.repository || s.repo_url || s.url || '';
+            var repoObj = s.repository;
+            var repo = '';
+            if (typeof repoObj === 'string') repo = repoObj;
+            else if (repoObj && repoObj.url) repo = repoObj.url;
+            if (!repo) repo = s.websiteUrl || s.repo_url || s.url || '';
+            var transport = '';
+            if (Array.isArray(s.remotes) && s.remotes.length) transport = s.remotes[0].type || '';
+            else if (Array.isArray(s.packages) && s.packages.length) transport = s.packages[0].registryType || 'package';
 
             html += '<div class="mcp-card">' +
                 '<div class="mcp-card-title">' +
@@ -1850,9 +1864,8 @@ async function loadMCPRegistry() {
                 '</div>' +
                 (desc ? '<div class="mcp-card-desc">' + escHtml(desc.length > 120 ? desc.substring(0, 120) + '\u2026' : desc) + '</div>' : '') +
                 '<div class="mcp-card-meta">' +
-                    (s.vendor ? '<span class="mcp-tag">' + escHtml(s.vendor) + '</span>' : '') +
-                    (s.category ? '<span class="mcp-tag">' + escHtml(s.category) + '</span>' : '') +
-                    (s.version_detail && s.version_detail.version ? '<span style="color:var(--cyan)">v' + escHtml(s.version_detail.version) + '</span>' : '') +
+                    (transport ? '<span class="mcp-tag">' + escHtml(transport) + '</span>' : '') +
+                    (s.version ? '<span style="color:var(--cyan)">v' + escHtml(s.version) + '</span>' : '') +
                 '</div>' +
             '</div>';
         });
