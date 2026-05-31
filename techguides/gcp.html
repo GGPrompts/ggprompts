@@ -1,0 +1,2546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="A Google Cloud Platform field guide for building HIPAA-compliant systems — covered products under Google's BAA, configuration patterns for PHI, and the controls that turn coverage into compliance. Material Design 3 dark.">
+    <title>Google Cloud Platform — Tech Guide</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Roboto+Flex:wght@400;500;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        /* ============================================================
+           DESIGN TOKENS — Material Design 3 (dark), retinted to
+           Google Cloud brand (blue primary instead of M3 purple).
+           ============================================================ */
+        :root {
+            /* GCP-retinted M3 dark core */
+            --md-primary:#A8C7FA; --md-on-primary:#062E6F; --md-primary-container:#0842A0; --md-on-primary-container:#D3E3FD;
+            --md-secondary:#6DD58C; --md-on-secondary:#0A3818; --md-secondary-container:#0B5223; --md-on-secondary-container:#C4EED0;
+            --md-tertiary:#FCD571; --md-on-tertiary:#3E2E00; --md-tertiary-container:#594400; --md-on-tertiary-container:#FFE08B;
+            --md-error:#F2B8B5; --md-on-error:#601410; --md-error-container:#8C1D18; --md-on-error-container:#F9DEDC;
+            --gcp-blue:#4285F4; --gcp-red:#EA4335; --gcp-yellow:#FBBC05; --gcp-green:#34A853;
+            /* surfaces (neutral dark) */
+            --md-background:#131316; --md-on-background:#E6E1E5; --md-surface:#131316; --md-on-surface:#E6E1E5; --md-on-surface-variant:#CAC4D0;
+            --md-surface-container-lowest:#0E0E11; --md-surface-container-low:#1A1A1E; --md-surface-container:#1E1E22; --md-surface-container-high:#282830; --md-surface-container-highest:#33333B;
+            --md-outline:#938F99; --md-outline-variant:#444048;
+            --md-inverse-surface:#E6E1E5; --md-inverse-on-surface:#2E2E33; --md-inverse-primary:#0B57D0;
+            /* shape */
+            --r-xs:4px; --r-sm:8px; --r-md:12px; --r-lg:16px; --r-xl:28px; --r-full:9999px;
+            /* spacing 4px grid */
+            --space-xs:4px; --space-sm:8px; --space-md:16px; --space-lg:24px; --space-xl:32px; --space-2xl:48px; --space-3xl:64px;
+            /* fonts */
+            --font-brand:'Roboto Flex','Roboto',sans-serif; --font-plain:'Roboto',sans-serif; --font-mono:'Roboto Mono','Consolas',monospace;
+            /* elevation */
+            --elev-1:0 1px 2px rgba(0,0,0,.3),0 1px 3px 1px rgba(0,0,0,.15);
+            --elev-2:0 1px 2px rgba(0,0,0,.3),0 2px 6px 2px rgba(0,0,0,.15);
+            --elev-3:0 4px 8px 3px rgba(0,0,0,.15),0 1px 3px rgba(0,0,0,.3);
+        }
+
+        /* ============================================================
+           RESET + BASE
+           ============================================================ */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html {
+            font-size: 16px;
+            scroll-behavior: smooth;
+            scroll-padding-top: 56px;
+            -webkit-font-smoothing: antialiased;
+        }
+        body {
+            font-family: var(--font-plain);
+            font-size: 16px;
+            line-height: 1.6;
+            color: var(--md-on-background);
+            background: var(--md-background);
+        }
+        a { color: var(--md-primary); }
+
+        .container {
+            max-width: 1080px;
+            margin: 0 auto;
+            padding: var(--space-xl) var(--space-lg);
+        }
+
+        /* ============================================================
+           BACK LINK
+           ============================================================ */
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-xs);
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--md-primary);
+            text-decoration: none;
+            padding: 6px 14px;
+            border-radius: var(--r-full);
+            transition: background .15s ease;
+            margin-bottom: var(--space-lg);
+        }
+        .back-link:hover { background: rgba(168,199,250,.08); }
+
+        /* ============================================================
+           HEADER
+           ============================================================ */
+        header {
+            position: relative;
+            overflow: hidden;
+            background: var(--md-surface-container);
+            border: 1px solid var(--md-outline-variant);
+            border-radius: var(--r-xl);
+            padding: var(--space-2xl) var(--space-xl);
+            margin-bottom: var(--space-xl);
+        }
+        header::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(circle at 12% 15%, rgba(66,133,244,.20), transparent 42%),
+                radial-gradient(circle at 88% 85%, rgba(52,168,83,.16), transparent 45%);
+            pointer-events: none;
+        }
+        header > * { position: relative; z-index: 1; }
+        header h1 {
+            font-family: var(--font-brand);
+            font-weight: 700;
+            font-size: clamp(2rem, 5vw, 42px);
+            line-height: 1.1;
+            color: var(--md-primary);
+            letter-spacing: -.5px;
+        }
+        .tagline {
+            margin-top: var(--space-md);
+            max-width: 760px;
+            font-size: 1.05rem;
+            color: var(--md-on-surface-variant);
+        }
+        .chip-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-sm);
+            margin-top: var(--space-lg);
+        }
+        .chip {
+            display: inline-flex;
+            align-items: center;
+            font-size: 12.5px;
+            font-weight: 500;
+            color: var(--md-on-surface-variant);
+            background: var(--md-surface-container-high);
+            border: 1px solid var(--md-outline-variant);
+            padding: 5px 14px;
+            border-radius: var(--r-full);
+        }
+
+        /* ============================================================
+           STICKY JUMP NAV
+           ============================================================ */
+        .jump-nav-wrapper {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            margin: 0 0 var(--space-xl);
+            background: rgba(30,30,34,.86);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--md-outline-variant);
+            border-radius: var(--r-sm);
+        }
+        .jump-nav {
+            display: flex;
+            gap: var(--space-xs);
+            overflow-x: auto;
+            white-space: nowrap;
+            padding: var(--space-sm);
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: thin;
+            scrollbar-color: var(--md-outline-variant) transparent;
+        }
+        .jump-nav::-webkit-scrollbar { height: 6px; }
+        .jump-nav::-webkit-scrollbar-track { background: transparent; }
+        .jump-nav::-webkit-scrollbar-thumb { background: var(--md-outline-variant); border-radius: var(--r-full); }
+        .jump-nav a {
+            flex: 0 0 auto;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--md-on-surface-variant);
+            text-decoration: none;
+            padding: 6px 14px;
+            border-radius: var(--r-full);
+            transition: background .15s ease, color .15s ease;
+        }
+        .jump-nav a:hover {
+            background: var(--md-surface-container-highest);
+            color: var(--md-primary);
+        }
+
+        /* ============================================================
+           SECTIONS
+           ============================================================ */
+        .section {
+            margin-bottom: var(--space-2xl);
+            padding: var(--space-xl);
+            background: var(--md-surface-container-low);
+            border: 1px solid var(--md-outline-variant);
+            border-radius: var(--r-lg);
+        }
+        .section-header { margin-bottom: var(--space-lg); }
+        .section-number {
+            display: inline-block;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            font-weight: 500;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--md-primary);
+            margin-bottom: var(--space-sm);
+        }
+        .section-title {
+            font-family: var(--font-brand);
+            font-weight: 700;
+            font-size: 28px;
+            line-height: 1.15;
+            color: var(--md-on-surface);
+        }
+        .section-description {
+            margin-top: var(--space-sm);
+            max-width: 720px;
+            color: var(--md-on-surface-variant);
+        }
+        .section-content > p { margin-bottom: var(--space-md); }
+        .section-content > p:last-child { margin-bottom: 0; }
+
+        .subsection { margin-top: var(--space-lg); }
+        .subsection-title {
+            font-family: var(--font-brand);
+            font-size: 18px;
+            font-weight: 500;
+            color: var(--md-on-surface);
+            padding-bottom: var(--space-xs);
+            border-bottom: 1px solid var(--md-outline-variant);
+            margin-bottom: var(--space-md);
+        }
+        .subsection-title::before {
+            content: "";
+            display: inline-block;
+            width: 3px;
+            height: 16px;
+            background: var(--md-primary);
+            border-radius: var(--r-full);
+            margin-right: 10px;
+            vertical-align: -2px;
+        }
+        .subsection p { margin-bottom: var(--space-md); }
+        .subsection ul, .subsection ol { margin: 0 0 var(--space-md) var(--space-lg); }
+        .subsection li { margin-bottom: var(--space-xs); color: var(--md-on-surface-variant); }
+        .subsection li strong { color: var(--md-on-surface); }
+
+        /* ============================================================
+           CODE BLOCKS
+           ============================================================ */
+        pre {
+            background: var(--md-surface-container-highest);
+            border: 1px solid var(--md-outline-variant);
+            border-radius: var(--r-md);
+            padding: var(--space-md);
+            overflow-x: auto;
+            margin: var(--space-md) 0;
+        }
+        pre code {
+            font-family: var(--font-mono);
+            font-size: 13.5px;
+            line-height: 1.7;
+            color: #E6E1E5;
+            background: transparent;
+            padding: 0;
+            white-space: pre;
+        }
+        code {
+            font-family: var(--font-mono);
+            font-size: .9em;
+            background: var(--md-surface-container-high);
+            color: var(--md-primary);
+            padding: 2px 6px;
+            border-radius: var(--r-xs);
+        }
+        .code-label {
+            display: block;
+            font-family: var(--font-mono);
+            font-size: 11px;
+            font-weight: 500;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: var(--md-outline);
+            margin: var(--space-md) 0 calc(-1 * var(--space-xs));
+        }
+
+        /* ============================================================
+           TABLES
+           ============================================================ */
+        .table-wrap {
+            overflow-x: auto;
+            border: 1px solid var(--md-outline-variant);
+            border-radius: var(--r-md);
+            margin: var(--space-md) 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        th {
+            text-align: left;
+            background: var(--md-surface-container-high);
+            color: var(--md-primary);
+            font-weight: 500;
+            padding: 10px 12px;
+            border-bottom: 2px solid var(--md-outline-variant);
+        }
+        td {
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--md-outline-variant);
+            color: var(--md-on-surface-variant);
+            vertical-align: top;
+        }
+        tr:last-child td { border-bottom: none; }
+        td strong { color: var(--md-on-surface); }
+
+        /* ============================================================
+           COMMAND GRID
+           ============================================================ */
+        .command-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: var(--space-md);
+            margin: var(--space-md) 0;
+        }
+        .command-card {
+            background: var(--md-surface-container);
+            border: 1px solid var(--md-outline-variant);
+            border-radius: var(--r-md);
+            padding: var(--space-md);
+        }
+        .command-card h4 {
+            font-family: var(--font-brand);
+            font-size: 15px;
+            font-weight: 500;
+            color: var(--md-primary);
+            margin-bottom: var(--space-sm);
+        }
+        .command-card p {
+            font-size: 13px;
+            color: var(--md-on-surface-variant);
+            margin-top: var(--space-xs);
+        }
+        .command-card pre { margin: var(--space-xs) 0 0; }
+
+        /* ============================================================
+           ALERTS / CALLOUTS
+           ============================================================ */
+        .alert {
+            border-radius: var(--r-md);
+            padding: var(--space-md);
+            margin: var(--space-md) 0;
+            background: var(--md-surface-container);
+            border: 1px solid var(--md-outline-variant);
+        }
+        .alert-title {
+            font-weight: 700;
+            font-size: 14px;
+            margin-bottom: var(--space-xs);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .alert p { font-size: 14px; color: var(--md-on-surface-variant); margin: 0; }
+        .alert p + p { margin-top: var(--space-sm); }
+        .alert-info { border-left: 3px solid var(--md-primary); }
+        .alert-info .alert-title { color: var(--md-primary); }
+        .alert-success { border-left: 3px solid var(--md-secondary); }
+        .alert-success .alert-title { color: var(--md-secondary); }
+        .alert-warning { border-left: 3px solid var(--md-tertiary); }
+        .alert-warning .alert-title { color: var(--md-tertiary); }
+        .alert-error, .alert-danger { border-left: 3px solid var(--md-error); }
+        .alert-error .alert-title, .alert-danger .alert-title { color: var(--md-error); }
+        .alert-hipaa {
+            border: 1px solid var(--md-secondary-container);
+            border-left: 3px solid var(--md-secondary);
+            background: linear-gradient(135deg, rgba(11,82,35,.30), rgba(8,66,160,.18));
+        }
+        .alert-hipaa .alert-title { color: var(--md-secondary); }
+        .alert-hipaa .alert-title::before { content: "⚕"; font-size: 16px; }
+
+        /* ============================================================
+           BADGES  (reused across all sections by later agents)
+           ============================================================ */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            font-size: 11px;
+            font-weight: 500;
+            letter-spacing: .3px;
+            padding: 2px 9px;
+            border-radius: var(--r-full);
+            line-height: 1.5;
+            vertical-align: middle;
+            white-space: nowrap;
+        }
+        .badge-covered      { background: var(--md-secondary-container); color: var(--md-on-secondary-container); }
+        .badge-verify       { background: var(--md-tertiary-container);  color: var(--md-on-tertiary-container); }
+        .badge-infra        { background: transparent; border: 1px solid var(--md-primary); color: var(--md-primary); }
+        .badge-mcp-remote   { background: var(--md-primary); color: var(--md-on-primary); }
+        .badge-mcp-oss      { background: transparent; border: 1px solid var(--md-outline); color: var(--md-on-surface-variant); }
+        .badge-cli          { background: var(--md-surface-container-highest); color: var(--md-on-surface-variant); }
+
+        /* product name + badge cluster helper */
+        .product-head {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: var(--space-sm);
+        }
+
+        /* checklist styling */
+        .checklist { list-style: none; margin-left: 0; }
+        .checklist li {
+            position: relative;
+            padding-left: 28px;
+            margin-bottom: var(--space-sm);
+        }
+        .checklist li::before {
+            content: "☐";
+            position: absolute;
+            left: 0;
+            top: -1px;
+            color: var(--md-primary);
+            font-size: 16px;
+        }
+
+        /* ============================================================
+           FOOTER
+           ============================================================ */
+        .footer {
+            margin-top: var(--space-2xl);
+            padding: var(--space-2xl) var(--space-xl);
+            background: var(--md-surface-container);
+            border: 1px solid var(--md-outline-variant);
+            border-radius: var(--r-xl);
+            text-align: center;
+        }
+        .footer-title {
+            font-family: var(--font-brand);
+            font-weight: 700;
+            font-size: 22px;
+            color: var(--md-primary);
+            margin-bottom: var(--space-sm);
+        }
+        .footer p {
+            font-size: 14px;
+            color: var(--md-on-surface-variant);
+            max-width: 640px;
+            margin: 0 auto var(--space-md);
+        }
+        .footer p:last-child { margin-bottom: 0; }
+        .footer-chips {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: var(--space-sm);
+            margin: var(--space-md) 0;
+        }
+        .footer-chip {
+            display: inline-flex;
+            align-items: center;
+            font-size: 12.5px;
+            font-weight: 500;
+            color: var(--md-on-surface-variant);
+            background: var(--md-surface-container-high);
+            border: 1px solid var(--md-outline-variant);
+            padding: 5px 14px;
+            border-radius: var(--r-full);
+        }
+        .footer a {
+            font-weight: 500;
+            text-decoration: none;
+        }
+        .footer a:hover { text-decoration: underline; }
+
+        /* ============================================================
+           RESPONSIVE
+           ============================================================ */
+        @media (max-width: 768px) {
+            .container { padding: var(--space-lg) var(--space-md); }
+            header { padding: var(--space-xl) var(--space-lg); }
+            .section { padding: var(--space-lg) var(--space-md); }
+            .section-title { font-size: 23px; }
+            .command-grid { grid-template-columns: 1fr; }
+            table { display: block; overflow-x: auto; white-space: nowrap; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+
+        <!-- Back Link -->
+        <a href="index.html" class="back-link">&larr; Tech Guides</a>
+
+        <!-- ==========================================
+             HEADER
+             ========================================== -->
+        <header>
+            <h1>Google Cloud Platform</h1>
+            <p class="tagline">A field guide to building on GCP &mdash; with a hard focus on the products covered by Google's HIPAA Business Associate Agreement and how to keep PHI compliant.</p>
+            <div class="chip-row">
+                <span class="chip">Google Cloud</span>
+                <span class="chip">HIPAA / BAA</span>
+                <span class="chip">Material You</span>
+                <span class="chip">Covered list &mdash; 2026-05-15</span>
+            </div>
+        </header>
+
+        <!-- ==========================================
+             STICKY JUMP NAV
+             ========================================== -->
+        <div class="jump-nav-wrapper">
+            <nav class="jump-nav">
+                <a href="#cheatsheet">Cheat Sheet</a>
+                <a href="#setup">Setup &amp; Foundations</a>
+                <a href="#compute">Compute</a>
+                <a href="#storage-db">Storage &amp; DBs</a>
+                <a href="#networking">Networking</a>
+                <a href="#security">Security &amp; Identity</a>
+                <a href="#data-ai">Data &amp; AI/ML</a>
+                <a href="#hipaa">HIPAA &amp; BAA</a>
+                <a href="#healthcare">Healthcare API</a>
+                <a href="#architecture">Compliant Arch</a>
+                <a href="#terraform">Terraform / IaC</a>
+                <a href="#ops">Ops &amp; Cost</a>
+            </nav>
+        </div>
+
+        <!-- ============================================
+             SECTION 01 — CHEAT SHEET
+             ============================================ -->
+        <section class="section" id="cheatsheet">
+            <div class="section-header">
+                <span class="section-number">01</span>
+                <h2 class="section-title">gcloud Cheat Sheet</h2>
+                <p class="section-description">The commands you reach for daily, grouped by task. Everything here works against a project where you have already signed the BAA and scoped IAM correctly &mdash; see the next two sections for that groundwork.</p>
+            </div>
+            <div class="section-content">
+
+                <div class="alert alert-hipaa">
+                    <div class="alert-title">PHI never goes on the command line</div>
+                    <p>Command arguments, resource names, labels, descriptions, and metadata all end up in shell history, Cloud Audit Logs, and billing exports &mdash; places visible to anyone with the right IAM role. Keep PHI out of every <code>gcloud</code>/<code>bq</code>/<code>kubectl</code> argument. Identify resources by opaque IDs, never by patient name, MRN, or any other identifier.</p>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Auth &amp; config</h3>
+                    <pre><code># Interactive user login (browser)
+gcloud auth login
+
+# Application Default Credentials for local SDK/code
+gcloud auth application-default login
+
+# Pin the active project for all subsequent commands
+gcloud config set project PROJECT_ID
+
+# Inspect current config (account, project, region)
+gcloud config list
+
+# What am I, and what can I see?
+gcloud auth list
+gcloud projects list</code></pre>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Projects &amp; billing</h3>
+                    <pre><code># Create a new project (use a non-PHI, non-identifying name)
+gcloud projects create prod-phi-app-01 --name="Prod PHI App"
+
+# Find your billing account, then link the project to it
+gcloud billing accounts list
+gcloud billing projects link prod-phi-app-01 \
+    --billing-account=0X0X0X-0X0X0X-0X0X0X</code></pre>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Compute / Run / GKE quickies</h3>
+                    <pre><code># Deploy a container to Cloud Run (private by default below)
+gcloud run deploy intake-api \
+    --image us-docker.pkg.dev/PROJECT_ID/app/intake-api:latest \
+    --region us-central1 --no-allow-unauthenticated
+
+# List VMs
+gcloud compute instances list
+
+# Wire kubectl to a GKE cluster, then look around
+gcloud container clusters get-credentials phi-cluster --region us-central1
+kubectl get pods</code></pre>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Storage &amp; data</h3>
+                    <p><code>gcloud storage</code> is the modern, faster replacement for <code>gsutil</code> &mdash; prefer it for new scripts.</p>
+                    <pre><code># Object storage
+gcloud storage ls
+gcloud storage cp report.pdf gs://BUCKET/intake/        # filename only, no PHI in the name
+
+# BigQuery (standard SQL)
+bq ls
+bq query --use_legacy_sql=false 'SELECT COUNT(*) FROM `PROJECT.dataset.encounters`'</code></pre>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">IAM &amp; secrets</h3>
+                    <pre><code># Grant a role at the project level (least privilege!)
+gcloud projects add-iam-policy-binding PROJECT_ID \
+    --member="serviceAccount:intake-api@PROJECT_ID.iam.gserviceaccount.com" \
+    --role="roles/datastore.user"
+
+# Create a dedicated service account for one workload
+gcloud iam service-accounts create intake-api \
+    --display-name="Intake API runtime"
+
+# Secret Manager: create then read a secret version
+gcloud secrets create db-password --replication-policy="automatic"
+gcloud secrets versions access latest --secret="db-password"</code></pre>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Logging</h3>
+                    <pre><code># Read recent audit/admin activity (no resource CONTENTS appear here)
+gcloud logging read 'logName:"cloudaudit.googleapis.com"' --limit=20 --freshness=1h
+
+# Route logs to long-term storage / analysis sinks
+gcloud logging sinks create audit-archive \
+    storage.googleapis.com/AUDIT_BUCKET \
+    --log-filter='logName:"cloudaudit.googleapis.com"'</code></pre>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">At-a-glance</h3>
+                    <div class="command-grid">
+                        <div class="command-card">
+                            <h4>Switch project fast</h4>
+                            <pre><code>gcloud config set \
+  project OTHER_ID</code></pre>
+                        </div>
+                        <div class="command-card">
+                            <h4>Who has access?</h4>
+                            <pre><code>gcloud projects \
+  get-iam-policy PROJECT_ID</code></pre>
+                        </div>
+                        <div class="command-card">
+                            <h4>Enable an API</h4>
+                            <pre><code>gcloud services enable \
+  healthcare.googleapis.com</code></pre>
+                        </div>
+                        <div class="command-card">
+                            <h4>Tail Cloud Run logs</h4>
+                            <pre><code>gcloud run services \
+  logs read intake-api \
+  --region us-central1</code></pre>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- ============================================
+             SECTION 02 — SETUP & PROJECT FOUNDATIONS
+             ============================================ -->
+        <section class="section" id="setup">
+            <div class="section-header">
+                <span class="section-number">02</span>
+                <h2 class="section-title">Setup &amp; Project Foundations</h2>
+                <p class="section-description">Install the tooling, lay out a clean, auditable resource hierarchy, and &mdash; before any PHI touches GCP &mdash; sign the BAA. Get these foundations right and every downstream compliance decision becomes easier.</p>
+            </div>
+            <div class="section-content">
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Install the SDK</h3>
+                    <p>Install the Google Cloud CLI (search "Install the Google Cloud CLI" in Google's docs), then initialize it and add the components you need.</p>
+                    <pre><code># First-run setup: pick account, project, default region
+gcloud init
+
+# Keep the CLI current
+gcloud components update
+
+# Add the components a HIPAA web app typically needs
+gcloud components install kubectl gke-gcloud-auth-plugin</code></pre>
+                    <div class="alert alert-info">
+                        <div class="alert-title">Zero-install option: Cloud Shell</div>
+                        <p>Cloud Shell gives you a browser terminal with <code>gcloud</code>, <code>kubectl</code>, <code>bq</code>, and editors pre-installed &mdash; nothing to set up on your laptop. Cloud Shell is itself a <span class="badge badge-covered">Covered</span> product, so it is safe to operate against PHI resources (though, as always, never type PHI into a command).</p>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Resource hierarchy</h3>
+                    <p>GCP resources live in a tree: <strong>Organization &rarr; Folders &rarr; Projects &rarr; Resources</strong>. IAM bindings and Organization Policies set high in the tree <em>inherit downward</em>. A deliberate hierarchy &mdash; with PHI workloads isolated in their own project(s) and separated from dev/test by folder &mdash; is the foundation of an auditable HIPAA environment. It lets you apply a tight org policy and VPC Service Controls perimeter to exactly the projects that touch PHI, and nowhere else.</p>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr><th>Level</th><th>What it's for</th><th>Controls that attach here</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td><strong>Organization</strong></td><td>Root node for your company's GCP footprint.</td><td>Org-wide IAM, Org Policies, the BAA acceptance, central audit log sinks.</td></tr>
+                                <tr><td><strong>Folder</strong></td><td>Group projects by environment or domain (e.g. <code>prod-phi</code> vs <code>dev</code>).</td><td>Inherited IAM, Org Policy overrides, environment-scoped guardrails.</td></tr>
+                                <tr><td><strong>Project</strong></td><td>The unit of isolation, billing, and quota. Put PHI workloads in dedicated projects.</td><td>API enablement, project-level IAM, VPC Service Controls perimeter, CMEK keyrings.</td></tr>
+                                <tr><td><strong>Resource</strong></td><td>The actual service instance (a bucket, a Cloud Run service, a dataset).</td><td>Resource-level IAM, encryption config, labels (no PHI!).</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="alert alert-success">
+                        <div class="alert-title">Pattern: isolate PHI by project</div>
+                        <p>Keep a separate project (or set of projects) for PHI-handling workloads, under a dedicated <code>prod-phi</code> folder. Dev/test projects then carry de-identified or synthetic data only, and your tightest policies wrap just the PHI projects.</p>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Sign the BAA (step zero for HIPAA)</h3>
+                    <div class="alert alert-hipaa">
+                        <div class="alert-title">Nothing is HIPAA-compliant until the BAA is signed</div>
+                        <p>Your organization must execute Google Cloud's <strong>Business Associate Agreement</strong>, accepted through <em>Privacy compliance and records for Google Cloud</em> in the Cloud console. The BAA covers <strong>all of Google Cloud's infrastructure</strong> (every region, zone, network path, and point of presence) <strong>plus the specific products on the covered list</strong>.</p>
+                        <p>It does <strong>not</strong> cover products absent from that list, and it does <strong>not</strong> cover Pre-GA / preview offerings unless the offering explicitly says so. There is no HHS "HIPAA certification" &mdash; compliance is <strong>signed BAA + correct configuration + your own controls</strong>. This is the shared-responsibility model: Google secures the infrastructure; you secure what you build on top.</p>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Billing guardrails</h3>
+                    <p>Set budgets and alerts early so a runaway pipeline or misconfigured autoscaler doesn't surprise you, and export billing data to BigQuery for analysis.</p>
+                    <pre><code># Create a budget with alert thresholds
+gcloud billing budgets create \
+    --billing-account=0X0X0X-0X0X0X-0X0X0X \
+    --display-name="Prod PHI monthly" \
+    --budget-amount=5000USD \
+    --threshold-rule=percent=0.5 \
+    --threshold-rule=percent=0.9 \
+    --threshold-rule=percent=1.0
+
+# Then enable Billing export to BigQuery in the console:
+#   Billing -> Billing export -> BigQuery export</code></pre>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">First-project IAM basics</h3>
+                    <p>Grant the <strong>least privilege</strong> that gets the job done. Prefer <strong>predefined roles</strong> over the broad basic roles (Owner/Editor/Viewer); reach for <strong>custom roles</strong> only when predefined ones don't fit. Give each workload its own <strong>service account</strong> &mdash; and treat SA keys as high-value secrets, because they can reach PHI.</p>
+                    <pre><code># A dedicated, least-privilege service account per workload
+gcloud iam service-accounts create intake-api \
+    --display-name="Intake API runtime"
+
+# Grant only the specific roles the workload needs
+gcloud projects add-iam-policy-binding PROJECT_ID \
+    --member="serviceAccount:intake-api@PROJECT_ID.iam.gserviceaccount.com" \
+    --role="roles/healthcare.fhirResourceEditor"</code></pre>
+                    <div class="alert alert-warning">
+                        <div class="alert-title">Avoid downloaded SA key files</div>
+                        <p>A long-lived JSON key that can touch PHI is a breach waiting to happen. Prefer attaching a service account directly to the runtime (Cloud Run, GKE Workload Identity) so no key ever leaves Google. If you must create keys, rotate them and store them only in Secret Manager.</p>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Pre-flight checklist for any new PHI-handling service</h3>
+                    <p>Run through this before pointing real PHI at any new service:</p>
+                    <ul class="checklist">
+                        <li><strong>BAA signed and current.</strong></li>
+                        <li><strong>Every product in the data path is on the covered list</strong> &mdash; no preview/Pre-GA surfaces.</li>
+                        <li><strong>IAM scoped to least privilege</strong>; service account keys controlled (ideally none).</li>
+                        <li><strong>Encryption decision made</strong> &mdash; default Google-managed keys vs CMEK/Cloud HSM.</li>
+                        <li><strong>Audit logging on, exported</strong> (Cloud Storage for archive, BigQuery for analysis), and access-controlled.</li>
+                        <li><strong>No PHI in names, labels, metadata, headers, or logs.</strong></li>
+                        <li><strong>VPC Service Controls considered</strong> for a perimeter around PHI services.</li>
+                        <li><strong>Sensitive Data Protection (DLP) considered</strong> for discovery and de-identification.</li>
+                    </ul>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- ============================================
+             SECTION 03 — COMPUTE
+             ============================================ -->
+        <section class="section" id="compute">
+            <div class="section-header">
+                <span class="section-number">03</span>
+                <h2 class="section-title">Compute</h2>
+                <p class="section-description">Where your code actually runs. For most new PHI workloads, start at Cloud Run and only move down to GKE or Compute Engine when you have a specific reason. Every option below is on the HIPAA covered list.</p>
+            </div>
+            <div class="section-content">
+
+                <div class="alert alert-info">
+                    <div class="alert-title">Rule of thumb</div>
+                    <p>New stateless web app, API, or microservice? <strong>Cloud Run</strong>. Single event-triggered task? <strong>Cloud Run functions</strong>. Only graduate to GKE (Kubernetes control) or Compute Engine (raw VMs) when a concrete requirement forces it.</p>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Cloud Run</h3>
+                    <div class="product-head">
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-mcp-oss">MCP · OSS</span>
+                    </div>
+                    <p><strong>What it is.</strong> Fully managed serverless container hosting. Hand it a container image (or source); it runs and autoscales it, down to zero. No servers to patch.</p>
+                    <p><strong>Reach for it when.</strong> You're building a web app, API, or microservice and don't want to manage infrastructure; you want pay-per-use with scale-to-zero for spiky or low-traffic intake workloads; you're deploying a stateless service &mdash; <em>or even hosting your own MCP server.</em></p>
+                    <p><strong>Claude / MCP.</strong> An official open-source Cloud Run MCP server (Gemini CLI extension) lets an agent deploy and manage apps; it's also drivable via the <code>gcloud</code> MCP server.</p>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Cloud Run functions</h3>
+                    <div class="product-head">
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p><strong>What it is.</strong> Event-driven functions (the evolution of Cloud Functions). Run a snippet of code in response to an HTTP call, a Pub/Sub message, or a file landing in a bucket.</p>
+                    <p><strong>Reach for it when.</strong> You need glue logic between services (e.g. "when a document uploads, kick off de-identification"), or want the smallest possible unit of deploy for a single task.</p>
+                    <p><strong>Claude / MCP.</strong> Deploy and manage via the <code>gcloud</code> MCP or the Cloud Run MCP server.</p>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Google Kubernetes Engine (GKE)</h3>
+                    <div class="product-head">
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-mcp-remote">MCP · remote</span>
+                        <span class="badge badge-mcp-oss">MCP · OSS</span>
+                    </div>
+                    <p><strong>What it is.</strong> Managed Kubernetes &mdash; full control over containerized workloads, networking, and scaling, at the cost of more operational complexity than Cloud Run.</p>
+                    <p><strong>Reach for it when.</strong> You have many interdependent services, need fine-grained control, are migrating an existing Kubernetes setup, or need advanced networking, stateful workloads, or specific scheduling that Cloud Run's request/response, stateless model can't accommodate.</p>
+                    <p><strong>HIPAA.</strong> Covered &mdash; along with <em>Backup for GKE</em>, <em>GKE Enterprise Config Management</em>, and <em>GKE Hub</em>.</p>
+                    <p><strong>Claude / MCP.</strong> Has <em>both</em> a Google-managed remote MCP server and an open-source one. The MCP server exposes a structured interface so an agent can diagnose issues, remediate failures, and optimize costs without parsing brittle CLI output &mdash; a strong fit for ops/SRE assistance.</p>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Compute Engine (GCE)</h3>
+                    <div class="product-head">
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-mcp-remote">MCP · remote</span>
+                    </div>
+                    <p><strong>What it is.</strong> Raw virtual machines in Google's data centers. Maximum control, maximum responsibility &mdash; you patch the OS.</p>
+                    <p><strong>Reach for it when.</strong> You're lifting-and-shifting a legacy app that expects a VM; you need a specific OS, GPU, or machine type that containers don't cleanly support; or you have licensing/compliance reasons to run on dedicated or sole-tenant hardware.</p>
+                    <p><strong>HIPAA.</strong> Covered &mdash; along with <em>Persistent Disk</em> and <em>Sole-Tenant Nodes</em>.</p>
+                    <p><strong>Claude / MCP.</strong> Google-managed remote MCP server for Compute Engine &mdash; provision and manage instances through an agent.</p>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">App Engine</h3>
+                    <div class="product-head">
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p><strong>What it is.</strong> The original GCP platform-as-a-service: push code, it runs and scales. Largely superseded by Cloud Run for new work, but still solid.</p>
+                    <p><strong>Reach for it when.</strong> You're maintaining an existing App Engine app, or want PaaS simplicity and your app fits the standard/flex runtimes. (For new builds, prefer Cloud Run.)</p>
+                    <p><strong>Claude / MCP.</strong> Via the <code>gcloud</code> MCP.</p>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Batch</h3>
+                    <div class="product-head">
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p><strong>What it is.</strong> Managed scheduling and running of batch jobs across pools of VMs.</p>
+                    <p><strong>Reach for it when.</strong> You have large, parallelizable, finite jobs &mdash; bulk document processing, data transformation, or ML preprocessing over a corpus of records.</p>
+                    <p><strong>Claude / MCP.</strong> Via the <code>gcloud</code> MCP.</p>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Deploying to Cloud Run (the safe defaults)</h3>
+                    <p>A PHI-appropriate deploy is <strong>private by default</strong>, runs as a <strong>dedicated least-privilege service account</strong>, pulls secrets from Secret Manager rather than baking them into the image, and routes egress through your VPC.</p>
+                    <pre><code>gcloud run deploy intake-api \
+    --image us-docker.pkg.dev/PROJECT_ID/app/intake-api:latest \
+    --region us-central1 \
+    --no-allow-unauthenticated \
+    --service-account intake-api@PROJECT_ID.iam.gserviceaccount.com \
+    --set-secrets "DB_PASSWORD=db-password:latest" \
+    --network projects/PROJECT_ID/global/networks/phi-vpc \
+    --subnet phi-subnet-uscentral1 \
+    --vpc-egress all-traffic</code></pre>
+                    <ul>
+                        <li><code>--no-allow-unauthenticated</code> &mdash; require IAM auth; put a load balancer / IAP or API gateway in front for external users.</li>
+                        <li><code>--service-account</code> &mdash; run as a scoped identity, not the default compute SA.</li>
+                        <li><code>--set-secrets</code> &mdash; mount Secret Manager values at runtime; nothing lands in the image.</li>
+                        <li><code>--network</code> / <code>--subnet</code> / <code>--vpc-egress</code> &mdash; send outbound traffic through your VPC so it stays inside a VPC Service Controls perimeter.</li>
+                    </ul>
+                    <p>Because Cloud Run hosts any container, it's also a clean place to <strong>run your own MCP server</strong> &mdash; deploy it private, front it with auth, and keep it inside the perimeter alongside your other PHI services.</p>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Which compute should I pick?</h3>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr><th>Workload</th><th>Recommended compute</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>Stateless web app / API / new build</td><td><strong>Cloud Run</strong></td></tr>
+                                <tr><td>Single event-triggered function (upload &rarr; process)</td><td><strong>Cloud Run functions</strong></td></tr>
+                                <tr><td>Complex multi-service system needing Kubernetes control</td><td><strong>GKE</strong></td></tr>
+                                <tr><td>Full VM / legacy lift-and-shift / special OS or GPU</td><td><strong>Compute Engine</strong></td></tr>
+                                <tr><td>Large parallel, finite batch jobs</td><td><strong>Batch</strong></td></tr>
+                                <tr><td>Maintaining an existing PaaS app</td><td><strong>App Engine</strong></td></tr>
+                                <tr><td>Hosting your own MCP server</td><td><strong>Cloud Run</strong> (private + behind auth)</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="alert alert-hipaa">
+                        <div class="alert-title">Keep PHI out of the build and runtime metadata</div>
+                        <p>Container image names, tags, environment-variable <em>names</em> visible in service metadata, and anything in Cloud Build source/configs are all readable by anyone with the right role &mdash; never encode PHI there. Always deploy with a dedicated, least-privilege service account so a compromised service can't reach beyond its own data.</p>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- ============================================
+             SECTION 04 — STORAGE & DATABASES
+             ============================================ -->
+        <section class="section" id="storage-db">
+            <div class="section-header">
+                <span class="section-number">04</span>
+                <h2 class="section-title">Storage &amp; Databases</h2>
+                <p class="section-description">Where PHI actually lives at rest. <strong>Databases</strong> hold structured records you query (encounters, accounts, audit trails); <strong>storage</strong> holds objects, files, and blocks (uploaded documents, medical images, exports, log archives). Pick the database by data shape and consistency needs; pick storage by access pattern. Everything below is on the HIPAA covered list.</p>
+            </div>
+            <div class="section-content">
+
+                <div class="alert alert-info">
+                    <div class="alert-title">Databases is the most Claude-connected category on GCP</div>
+                    <p>Nearly every managed database has a Google-hosted <strong>remote MCP server</strong>, so an agent can provision instances, apply schemas, and migrate data via natural language. The same databases are also fronted by the open-source <strong>MCP Toolbox for Databases</strong> if you'd rather self-host a single endpoint.</p>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Databases</h3>
+
+                    <div class="product-head">
+                        <strong>Cloud SQL</strong>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-mcp-remote">MCP · remote</span>
+                    </div>
+                    <p><strong>What it is.</strong> Fully managed relational database for <strong>MySQL, PostgreSQL, and SQL Server</strong> &mdash; the default relational choice for most apps.</p>
+                    <p><strong>Reach for it when.</strong> You want standard SQL without managing the engine, backups, or patching; your data is relational and fits comfortably on a single primary (with read replicas); or you're migrating an existing MySQL/Postgres/SQL Server app.</p>
+                    <p><strong>Claude / MCP.</strong> Google-managed remote MCP servers for <em>all three engines</em>. Also fronted by the OSS MCP Toolbox for Databases.</p>
+
+                    <div class="product-head" style="margin-top:var(--space-lg)">
+                        <strong>AlloyDB for PostgreSQL</strong>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-mcp-remote">MCP · remote</span>
+                    </div>
+                    <p><strong>What it is.</strong> PostgreSQL-compatible database tuned for demanding enterprise workloads &mdash; faster than standard Postgres on mixed transactional/analytical loads, with built-in AI/vector features.</p>
+                    <p><strong>Reach for it when.</strong> You've outgrown Cloud SQL Postgres on performance, or you want Postgres compatibility plus heavy analytical queries or vector search in the same database.</p>
+                    <p><strong>Claude / MCP.</strong> Google-managed remote MCP server, plus the OSS MCP Toolbox.</p>
+
+                    <div class="product-head" style="margin-top:var(--space-lg)">
+                        <strong>Firestore</strong>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-mcp-remote">MCP · remote</span>
+                    </div>
+                    <p><strong>What it is.</strong> Serverless NoSQL document database with real-time sync and MongoDB compatibility. Scales automatically; flexible schemas.</p>
+                    <p><strong>Reach for it when.</strong> You're building mobile/web apps that need real-time updates and offline sync, your data is document-shaped, and you don't want to manage capacity.</p>
+                    <div class="alert alert-hipaa">
+                        <div class="alert-title">Firestore is covered &mdash; the broader Firebase platform is a separate surface</div>
+                        <p>Firestore itself is on the covered list, but the wider Firebase platform (Firebase <strong>Auth</strong>, Hosting) is a distinct surface. For end-user authentication in a PHI app, use <strong>Identity Platform</strong> (the enterprise sibling of Firebase Auth, covered in Security &amp; Identity) rather than Firebase Auth.</p>
+                    </div>
+                    <p><strong>Claude / MCP.</strong> Google-managed remote MCP server, plus the OSS MCP Toolbox.</p>
+
+                    <div class="product-head" style="margin-top:var(--space-lg)">
+                        <strong>Spanner</strong>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-mcp-remote">MCP · remote</span>
+                    </div>
+                    <p><strong>What it is.</strong> Cloud-native relational database with effectively unlimited horizontal scale and 99.999% availability &mdash; globally distributed and strongly consistent. The "Google-scale" relational option.</p>
+                    <p><strong>Reach for it when.</strong> You need relational semantics <em>and</em> massive scale / global distribution, you can't accept the single-primary ceiling of Cloud SQL, or financial-grade availability matters.</p>
+                    <p><strong>Claude / MCP.</strong> Google-managed remote MCP server, plus the OSS MCP Toolbox.</p>
+
+                    <div class="product-head" style="margin-top:var(--space-lg)">
+                        <strong>Bigtable</strong>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-mcp-remote">MCP · remote</span>
+                    </div>
+                    <p><strong>What it is.</strong> Cloud-native wide-column NoSQL database for huge-scale, low-latency workloads (the database behind many Google products).</p>
+                    <p><strong>Reach for it when.</strong> You have enormous volumes of time-series, IoT, or analytical key-value data; you need single-digit-millisecond reads/writes at scale; and your access pattern is key-based, not relational.</p>
+                    <p><strong>Claude / MCP.</strong> Google-managed remote MCP server, plus the OSS MCP Toolbox.</p>
+
+                    <div class="product-head" style="margin-top:var(--space-lg)">
+                        <strong>Memorystore</strong>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p><strong>What it is.</strong> Fully managed <strong>Redis and Memcached</strong> for sub-millisecond in-memory data access.</p>
+                    <p><strong>Reach for it when.</strong> You need a cache in front of a database, fast session storage, rate limiting, or ephemeral state.</p>
+                    <p><strong>Claude / MCP.</strong> Via the <code>gcloud</code> MCP (no dedicated database MCP server).</p>
+
+                    <div class="product-head" style="margin-top:var(--space-lg)">
+                        <strong>Datastore</strong>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p><strong>What it is.</strong> The older NoSQL document database (Firestore in Datastore mode is the modern path). Still covered and supported.</p>
+                    <p><strong>Reach for it when.</strong> You're maintaining an existing Datastore app. For new builds, prefer Firestore.</p>
+                    <p><strong>Claude / MCP.</strong> Via the <code>gcloud</code> MCP.</p>
+                    <div class="alert alert-hipaa">
+                        <div class="alert-title">Encrypt PHI before using it as a Datastore index key or value</div>
+                        <p>Datastore index keys and values surface in metadata and query paths. If a property could hold PHI and you intend to index or key on it, encrypt it first so the protected data never appears in plaintext in the index.</p>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Database decision table</h3>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr><th>Data shape / need</th><th>Recommended database</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>Standard relational, single app</td><td><strong>Cloud SQL</strong> (MySQL / Postgres / SQL Server)</td></tr>
+                                <tr><td>Postgres, but need more performance / vector / analytics</td><td><strong>AlloyDB for PostgreSQL</strong></td></tr>
+                                <tr><td>Relational at global scale, strong consistency</td><td><strong>Spanner</strong></td></tr>
+                                <tr><td>Real-time documents, mobile/web, flexible schema</td><td><strong>Firestore</strong></td></tr>
+                                <tr><td>Massive key-value / time-series at low latency</td><td><strong>Bigtable</strong></td></tr>
+                                <tr><td>Cache / in-memory / ephemeral state</td><td><strong>Memorystore</strong> (Redis / Memcached)</td></tr>
+                                <tr><td>Maintaining an existing NoSQL app</td><td><strong>Datastore</strong> (new builds &rarr; Firestore)</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="alert alert-info">
+                        <div class="alert-title">One MCP endpoint for many databases</div>
+                        <p>The open-source <strong>MCP Toolbox for Databases</strong> (<code>googleapis/genai-toolbox</code>) is a single self-hosted MCP server that fronts BigQuery, Cloud SQL, AlloyDB, Spanner, Firestore, and more. Use it when you want one endpoint covering several databases instead of wiring each remote server separately.</p>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Creating a PHI-safe Cloud SQL instance</h3>
+                    <p>A PHI database should have <strong>no public IP</strong>, require <strong>SSL</strong>, keep <strong>automated backups</strong>, and be reachable only over <strong>Private IP / Private Service Connect</strong> &mdash; never the public internet.</p>
+                    <pre><code>gcloud sql instances create phi-pg-01 \
+    --database-version=POSTGRES_15 \
+    --region=us-central1 \
+    --tier=db-custom-2-7680 \
+    --no-assign-ip \
+    --network=projects/PROJECT_ID/global/networks/phi-vpc \
+    --enable-google-private-path \
+    --ssl-mode=ENCRYPTED_ONLY \
+    --require-ssl \
+    --backup \
+    --backup-start-time=03:00 \
+    --retained-backups-count=30 \
+    --availability-type=REGIONAL</code></pre>
+                    <ul>
+                        <li><code>--no-assign-ip</code> &mdash; Private IP only; the instance is never given a public address.</li>
+                        <li><code>--network</code> / <code>--enable-google-private-path</code> &mdash; reachable only from inside your VPC.</li>
+                        <li><code>--ssl-mode=ENCRYPTED_ONLY</code> / <code>--require-ssl</code> &mdash; reject unencrypted connections.</li>
+                        <li><code>--backup</code> / <code>--retained-backups-count</code> &mdash; automated, retained backups for recovery.</li>
+                        <li><code>--availability-type=REGIONAL</code> &mdash; high-availability failover across zones.</li>
+                    </ul>
+                    <div class="alert alert-hipaa">
+                        <div class="alert-title">Connect over Private IP / Private Service Connect &mdash; including for migrations</div>
+                        <p>Always reach a PHI database over <strong>Private IP</strong> or <strong>Private Service Connect</strong> so it's never exposed to the internet. This applies doubly to <strong>Database Migration Service</strong>: configure it for Private IP connectivity so PHI never traverses a public path during a migration. Layer <strong>CMEK</strong> (Cloud KMS) on the instance when your compliance posture requires holding your own keys.</p>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Storage</h3>
+
+                    <div class="product-head">
+                        <strong>Cloud Storage</strong>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-mcp-oss">MCP · OSS</span>
+                    </div>
+                    <p><strong>What it is.</strong> Object storage &mdash; secure, durable, scalable buckets for files of any kind. The default home for uploaded documents, medical images, data exports, ML training data, and long-term audit-log archives.</p>
+                    <p><strong>Reach for it when.</strong> You need to store and serve files (uploads, reports, images, exports), stage data for BigQuery or ML pipelines, or archive audit logs for long-term retention.</p>
+                    <p><strong>Two standing recommendations.</strong> Enable <strong>Object Versioning</strong> to recover from accidental deletion, and <strong>never request caching of PHI via Cloud CDN</strong> &mdash; CDN caches are not a place for protected data.</p>
+                    <p><strong>Claude / MCP.</strong> Open-source Cloud Storage MCP server (<code>googleapis/gcloud-mcp</code>) &mdash; read/write objects and provide buckets as agent context for unstructured data.</p>
+
+                    <div class="product-head" style="margin-top:var(--space-lg)">
+                        <strong>Filestore</strong>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p><strong>What it is.</strong> Managed, scalable network file storage (NFS) that VMs and GKE clusters can mount like a shared drive.</p>
+                    <p><strong>Reach for it when.</strong> An application expects a POSIX file system / shared mount, or your GKE / Compute Engine workloads need shared file access. Use <strong>IP-based access control</strong> to restrict which clients can mount it, and enable <strong>backups</strong>.</p>
+
+                    <div class="product-head" style="margin-top:var(--space-lg)">
+                        <strong>Persistent Disk</strong>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p><strong>What it is.</strong> Block storage attached to Compute Engine VMs &mdash; the durable disks behind your instances, surviving restarts.</p>
+
+                    <div class="product-head" style="margin-top:var(--space-lg)">
+                        <strong>NetApp Volumes</strong>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p><strong>What it is.</strong> Managed file storage for NFS, SMB, and multi-protocol environments &mdash; enterprise NAS in the cloud, for migrating workloads that need SMB or multi-protocol shares.</p>
+
+                    <div class="product-head" style="margin-top:var(--space-lg)">
+                        <strong>Backup and DR Service</strong>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p><strong>What it is.</strong> Centralized, application-consistent backup and disaster recovery across your GCP resources. For PHI, a managed backup/restore and DR strategy is not optional.</p>
+
+                    <div class="product-head" style="margin-top:var(--space-lg)">
+                        <strong>Storage Transfer Service / Transfer Appliance</strong>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p><strong>What it is.</strong> Move large volumes of data into Cloud Storage &mdash; online (Storage Transfer Service) or via shipped hardware (Transfer Appliance) for very large datasets migrating from on-prem or another cloud.</p>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Storage decision table</h3>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr><th>Need</th><th>Recommended storage</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>Files / blobs / unstructured data, exports, images, log archive</td><td><strong>Cloud Storage</strong></td></tr>
+                                <tr><td>Shared file-system mount (NFS) for VMs / GKE</td><td><strong>Filestore</strong></td></tr>
+                                <tr><td>Durable block disk for a VM</td><td><strong>Persistent Disk</strong></td></tr>
+                                <tr><td>Enterprise SMB / multi-protocol NAS</td><td><strong>NetApp Volumes</strong></td></tr>
+                                <tr><td>Backup &amp; disaster recovery</td><td><strong>Backup and DR Service</strong></td></tr>
+                                <tr><td>Bulk data migration in (online / offline)</td><td><strong>Storage Transfer Service</strong> / <strong>Transfer Appliance</strong></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Creating a PHI-safe bucket</h3>
+                    <p>Lock the bucket to <strong>uniform bucket-level access</strong> (IAM only, no per-object ACLs), turn on <strong>versioning</strong>, and add a <strong>lifecycle / retention</strong> policy. Layer <strong>CMEK</strong> when you need key custody.</p>
+                    <pre><code># Create with uniform access + CMEK at creation time
+gcloud storage buckets create gs://phi-app-intake-01 \
+    --location=us-central1 \
+    --uniform-bucket-level-access \
+    --public-access-prevention \
+    --default-encryption-key=projects/PROJECT_ID/locations/us-central1/keyRings/phi-kr/cryptoKeys/phi-key
+
+# Turn on Object Versioning (recover from accidental deletes)
+gcloud storage buckets update gs://phi-app-intake-01 --versioning
+
+# Upload an object — filename only, NEVER PHI in the object name
+gcloud storage cp report.pdf gs://phi-app-intake-01/intake/</code></pre>
+                    <ul>
+                        <li><code>--uniform-bucket-level-access</code> &mdash; access governed solely by IAM, no surprise per-object ACLs.</li>
+                        <li><code>--public-access-prevention</code> &mdash; the bucket can never be made public.</li>
+                        <li><code>--default-encryption-key</code> &mdash; CMEK so you hold the key (default encryption-at-rest is always on; this adds key custody).</li>
+                        <li>For retention, attach a <strong>lifecycle</strong> rule (e.g. transition to Archive class, set a retention period for the audit-log archive).</li>
+                    </ul>
+                </div>
+
+                <div class="alert alert-hipaa">
+                    <div class="alert-title">Resource names are metadata &mdash; keep PHI out of them</div>
+                    <p>Object names, bucket names, and database instance / table / index names all surface in Cloud Audit Logs, billing exports, and consoles visible to anyone with the right role. Treat them as metadata: never encode patient names, MRNs, or any identifier in them. Encryption-at-rest is on by default for every product here; layer <strong>CMEK</strong> (Cloud KMS / Cloud HSM) whenever your posture requires holding the keys yourself.</p>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- ============================================
+             SECTION 05 — NETWORKING & EDGE
+             ============================================ -->
+        <section class="section" id="networking">
+            <div class="section-header">
+                <span class="section-number">05</span>
+                <h2 class="section-title">Networking &amp; Edge</h2>
+                <p class="section-description">How traffic moves and stays protected. Much of this is plumbing the engineer setting up your environment will own &mdash; but it's worth knowing what each piece does and the PHI gotchas. Everything below is covered; the design goal is to keep the data tier private and wrap a perimeter around PHI services.</p>
+            </div>
+            <div class="section-content">
+
+                <div class="subsection">
+                    <h3 class="subsection-title">The pieces</h3>
+
+                    <div class="product-head">
+                        <strong>Virtual Private Cloud (VPC)</strong>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p><strong>What it is.</strong> Your private, isolated network in Google Cloud &mdash; subnets, routing, and firewall rules for every resource.</p>
+                    <p><strong>Reach for it when.</strong> Always &mdash; every resource lives in a VPC. Design subnets and firewall rules to <strong>isolate PHI-handling services</strong>, and pair it with VPC Service Controls (Security &amp; Identity) for an exfiltration perimeter.</p>
+
+                    <div class="product-head" style="margin-top:var(--space-lg)">
+                        <strong>Cloud Load Balancing</strong>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p><strong>What it is.</strong> Distribute traffic across instances and regions &mdash; global or regional, HTTP(S) or TCP/UDP &mdash; for services that need to scale or stay highly available.</p>
+
+                    <div class="product-head" style="margin-top:var(--space-lg)">
+                        <strong>Google Cloud Armor</strong>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p><strong>What it is.</strong> Web application firewall and DDoS protection &mdash; security policies (including OWASP rules) that sit in front of your load balancers. Reach for it whenever you expose a public endpoint and need protection against web attacks and volumetric DDoS.</p>
+
+                    <div class="product-head" style="margin-top:var(--space-lg)">
+                        <strong>Cloud DNS</strong>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p><strong>What it is.</strong> Managed, low-latency DNS for your domains.</p>
+
+                    <div class="product-head" style="margin-top:var(--space-lg)">
+                        <strong>Cloud NAT</strong>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p><strong>What it is.</strong> Gives private instances <strong>outbound</strong> internet access without exposing them with public IPs. Reach for it when private VMs/containers need to reach the internet (e.g. pull packages) but must stay unreachable from outside &mdash; the standard egress path for a private data tier.</p>
+
+                    <div class="product-head" style="margin-top:var(--space-lg)">
+                        <strong>Cloud CDN</strong>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p><strong>What it is.</strong> Content delivery network &mdash; cache and serve static web/video content close to users.</p>
+                    <div class="alert alert-warning">
+                        <div class="alert-title">Never cache PHI in Cloud CDN</div>
+                        <p>CDN caches are edge nodes outside your perimeter and are not a place for protected data. Cache only static, non-sensitive assets; route every PHI-bearing response around the CDN.</p>
+                    </div>
+
+                    <div class="product-head" style="margin-top:var(--space-lg)">
+                        <strong>Cloud VPN / Cloud Interconnect / Cloud Router / Network Connectivity Center / Private Service Connect / Service Directory</strong>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p><strong>What it is.</strong> Hybrid connectivity &mdash; connect your on-prem network to GCP over the internet (VPN) or via dedicated physical links (Interconnect), with Cloud Router, Network Connectivity Center, Private Service Connect, and Service Directory rounding out the toolkit.</p>
+                    <p><strong>Reach for it when.</strong> You're hybrid &mdash; on-prem systems need private connectivity to GCP (common for existing health systems with their own data centers). Prefer <strong>Private IP</strong> for database connectivity so a PHI database is never exposed to the internet.</p>
+                    <p><strong>Claude / MCP.</strong> All of the above are driven via the <code>gcloud</code> MCP.</p>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Reference topology for a PHI web app</h3>
+                    <p>A defensible layout pushes all the sensitive work behind a private boundary:</p>
+                    <ul>
+                        <li><strong>Edge:</strong> external HTTPS Load Balancer with <strong>Cloud Armor</strong> (OWASP + DDoS) in front.</li>
+                        <li><strong>App tier:</strong> <strong>Cloud Run / GKE deployed privately</strong> (no public ingress; reachable only through the LB / IAP).</li>
+                        <li><strong>Data tier:</strong> Cloud SQL reached over <strong>Private IP</strong> &mdash; no public address on the database.</li>
+                        <li><strong>Egress:</strong> <strong>Cloud NAT</strong> for outbound from private instances; <strong>no public IPs</strong> anywhere on the data tier.</li>
+                        <li><strong>Perimeter:</strong> a <strong>VPC Service Controls</strong> boundary around the PHI services (see Security &amp; Identity).</li>
+                    </ul>
+                    <pre><code># A custom VPC with one private subnet
+gcloud compute networks create phi-vpc --subnet-mode=custom
+
+gcloud compute networks subnets create phi-subnet-uscentral1 \
+    --network=phi-vpc \
+    --region=us-central1 \
+    --range=10.10.0.0/20 \
+    --enable-private-ip-google-access
+
+# Default-deny posture: allow internal traffic only, no broad ingress
+gcloud compute firewall-rules create phi-allow-internal \
+    --network=phi-vpc \
+    --direction=INGRESS \
+    --action=ALLOW \
+    --rules=tcp:443,tcp:5432 \
+    --source-ranges=10.10.0.0/20</code></pre>
+                    <p><code>--enable-private-ip-google-access</code> lets private instances reach Google APIs without a public IP; the firewall rule restricts ingress to in-VPC source ranges only.</p>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Networking decision table</h3>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr><th>Need</th><th>Product</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>Your private network</td><td><strong>VPC</strong></td></tr>
+                                <tr><td>Spread / scale traffic, high availability</td><td><strong>Cloud Load Balancing</strong></td></tr>
+                                <tr><td>WAF + DDoS protection on a public endpoint</td><td><strong>Cloud Armor</strong></td></tr>
+                                <tr><td>DNS for your domains</td><td><strong>Cloud DNS</strong></td></tr>
+                                <tr><td>Outbound internet for private instances</td><td><strong>Cloud NAT</strong></td></tr>
+                                <tr><td>Cache static content (never PHI)</td><td><strong>Cloud CDN</strong></td></tr>
+                                <tr><td>Connect on-prem to GCP</td><td><strong>Cloud VPN</strong> (internet) / <strong>Interconnect</strong> (dedicated)</td></tr>
+                                <tr><td>Private access to a managed service / API</td><td><strong>Private Service Connect</strong></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="alert alert-hipaa">
+                    <div class="alert-title">PHI reminders for networking</div>
+                    <p>Keep PHI out of anything that gets logged or cached: <strong>no PHI in CDN caches, API / Apigee headers, or URIs</strong> (reCAPTCHA Enterprise actions too). Use <strong>Private IP</strong> for database connectivity, especially Database Migration Service. And wrap a <strong>VPC Service Controls</strong> perimeter (covered in Security &amp; Identity) around your PHI services so data can't exfiltrate even from a misconfigured component.</p>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- ============================================
+             SECTION 06 — SECURITY & IDENTITY
+             ============================================ -->
+        <section class="section" id="security">
+            <div class="section-header">
+                <span class="section-number">06</span>
+                <h2 class="section-title">Security &amp; Identity</h2>
+                <p class="section-description">The controls that turn a "covered product" into <strong>actually compliant</strong>. For a HIPAA team these aren't optional add-ons &mdash; <strong>IAM, key management, and audit are the core of the HIPAA Security Rule</strong>. Everything below is on the covered list.</p>
+            </div>
+            <div class="section-content">
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Identity &amp; Access Management (IAM)</h3>
+                    <div class="product-head">
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-mcp-remote">MCP · remote</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p><strong>What it is.</strong> The permission system for all of Google Cloud &mdash; who can do what to which resource.</p>
+                    <p><strong>Reach for it when.</strong> Always. Every project needs <strong>least privilege from day one</strong>. Prefer <strong>predefined roles</strong> over broad basic roles; use <strong>custom roles</strong> only when predefined ones don't fit. Tightly control <strong>service accounts and their keys</strong> &mdash; they can reach PHI. IAM is the single biggest lever on Security Rule compliance.</p>
+                    <p><strong>Claude / MCP.</strong> Via the <code>gcloud</code> MCP; <strong>Cloud Resource Manager</strong> (project/org/folder management) has its own Google-managed remote MCP server.</p>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Cloud KMS / Cloud HSM / Key Access Justifications</h3>
+                    <div class="product-head">
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p><strong>What it is.</strong> Manage encryption keys (KMS), optionally hardware-backed (HSM). Enables <strong>CMEK</strong> so you hold the keys rather than relying solely on Google's default encryption. <strong>Key Access Justifications (KAJ)</strong> requires a stated reason before a key is used.</p>
+                    <p><strong>Reach for it when.</strong> Your posture requires customer-managed keys, hardware key custody (HSM), or an auditable justification on every key access (KAJ).</p>
+                    <pre><code># A keyring + key for PHI workloads (then reference it as CMEK)
+gcloud kms keyrings create phi-kr --location=us-central1
+
+gcloud kms keys create phi-key \
+    --location=us-central1 \
+    --keyring=phi-kr \
+    --purpose=encryption \
+    --rotation-period=90d \
+    --next-rotation-time=$(date -u -d '+90 days' +%Y-%m-%dT%H:%M:%SZ)</code></pre>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Secret Manager</h3>
+                    <div class="product-head">
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p><strong>What it is.</strong> Secure, versioned, IAM-gated storage for API keys, passwords, certificates, and other credentials &mdash; so they never live in code or config.</p>
+                    <pre><code># Create a secret, add a version, then read it back (IAM-gated)
+gcloud secrets create db-password --replication-policy="automatic"
+
+printf '%s' "$DB_PASSWORD" | \
+    gcloud secrets versions add db-password --data-file=-
+
+gcloud secrets versions access latest --secret="db-password"</code></pre>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Sensitive Data Protection (Cloud DLP)</h3>
+                    <div class="product-head">
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p><strong>What it is.</strong> The de-identification engine &mdash; discover, classify, and de-identify PHI/PII across BigQuery, Cloud Storage, and databases (redact, mask, or tokenize).</p>
+                    <p><strong>Reach for it when.</strong> You need to scan for PHI/PII across your data stores, de-identify data before analytics or sharing, or verify PHI hasn't leaked somewhere it shouldn't be. <strong>Write DLP output only to targets inside your secure environment.</strong> This is the same de-identification engine referenced again in the Healthcare API section.</p>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Security Command Center</h3>
+                    <div class="product-head">
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-mcp-oss">MCP · OSS</span>
+                    </div>
+                    <p><strong>What it is.</strong> The central posture / misconfiguration / threat dashboard &mdash; a single pane for security findings across your GCP estate, and useful evidence when demonstrating monitoring for compliance.</p>
+                    <p><strong>Claude / MCP.</strong> Part of the open-source <strong>Google Cloud Security MCP</strong> (<code>google/mcp-security</code>), which bundles SCC, Chronicle, and more so an agent can investigate findings.</p>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Google Security Operations (Chronicle)</h3>
+                    <div class="product-head">
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-mcp-remote">MCP · remote</span>
+                        <span class="badge badge-mcp-oss">MCP · OSS</span>
+                    </div>
+                    <p><strong>What it is.</strong> SIEM/SOAR &mdash; detect, investigate, and respond to threats across security telemetry at scale.</p>
+                    <p><strong>Reach for it when.</strong> You're running a security operations function and want threat detection/response or incident log analysis.</p>
+                    <p><strong>Claude / MCP.</strong> <em>Both</em> a Google-managed remote MCP server <em>and</em> coverage in the OSS Google Cloud Security MCP &mdash; a strong fit for agent-assisted security investigation.</p>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Model Armor</h3>
+                    <div class="product-head">
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p><strong>What it is.</strong> A guardrail layer that defends AI agents/applications against threats like indirect <strong>prompt injection</strong>.</p>
+                    <p><strong>Reach for it when.</strong> You're wiring agents (including ones that call MCP servers) into PHI-handling systems and need protection against prompt-injection and agentic threats. Conceptually it wraps <em>around</em> your agent stack.</p>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">VPC Service Controls</h3>
+                    <div class="product-head">
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p><strong>What it is.</strong> Draw a <strong>security perimeter</strong> around GCP services so data can't exfiltrate outside it &mdash; even with valid credentials. A high-value control for HIPAA architectures and the perimeter referenced throughout the networking and storage sections.</p>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Assured Workloads</h3>
+                    <div class="product-head">
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p><strong>What it is.</strong> Programmatic enforcement of compliance controls &mdash; data residency and personnel controls &mdash; across sensitive workloads, so the guardrails are enforced rather than merely documented.</p>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Identity Platform</h3>
+                    <div class="product-head">
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p><strong>What it is.</strong> End-user authentication for your app &mdash; sign-in, identity federation, and user management. The <strong>enterprise sibling of Firebase Auth</strong>.</p>
+                    <p><strong>Reach for it when.</strong> You need end-user auth in a PHI product. <strong>Prefer Identity Platform over Firebase Auth</strong> &mdash; it's on the covered list; follow its specific HIPAA practices.</p>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Also covered, reach for as needed</h3>
+                    <p>All <span class="badge badge-covered">Covered</span> and driven via the <code>gcloud</code> MCP: <strong>Access Approval</strong>, <strong>Access Transparency</strong>, <strong>Access Context Manager</strong>, <strong>Binary Authorization</strong>, <strong>Identity-Aware Proxy (IAP)</strong>, <strong>Certificate Authority Service</strong>, <strong>reCAPTCHA Enterprise</strong> (keep PHI out of URIs/actions), and <strong>Managed Service for Microsoft Active Directory</strong>.</p>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Security decision table</h3>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr><th>Need</th><th>Control</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>Who can access what</td><td><strong>IAM</strong> (always)</td></tr>
+                                <tr><td>Hold your own encryption keys</td><td><strong>Cloud KMS / Cloud HSM</strong> (CMEK), <strong>KAJ</strong> for justified access</td></tr>
+                                <tr><td>Store credentials out of code/config</td><td><strong>Secret Manager</strong></td></tr>
+                                <tr><td>Find / redact / de-identify PHI in data</td><td><strong>Sensitive Data Protection (DLP)</strong></td></tr>
+                                <tr><td>Posture &amp; misconfiguration dashboard</td><td><strong>Security Command Center</strong></td></tr>
+                                <tr><td>Threat detection / response (SIEM/SOAR)</td><td><strong>Google Security Operations (Chronicle)</strong></td></tr>
+                                <tr><td>Protect agents from prompt injection</td><td><strong>Model Armor</strong></td></tr>
+                                <tr><td>Perimeter against data exfiltration</td><td><strong>VPC Service Controls</strong></td></tr>
+                                <tr><td>Enforce residency / personnel controls</td><td><strong>Assured Workloads</strong></td></tr>
+                                <tr><td>End-user authentication</td><td><strong>Identity Platform</strong></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Least-privilege IAM binding</h3>
+                    <p>Bind a <strong>specific predefined role</strong> to a <strong>dedicated service account</strong> &mdash; never a broad basic role on a PHI project.</p>
+                    <pre><code>gcloud projects add-iam-policy-binding PROJECT_ID \
+    --member="serviceAccount:intake-api@PROJECT_ID.iam.gserviceaccount.com" \
+    --role="roles/cloudsql.client" \
+    --condition=None</code></pre>
+                    <div class="alert alert-warning">
+                        <div class="alert-title">Never grant Owner / Editor on a PHI project</div>
+                        <p>The basic roles (<code>roles/owner</code>, <code>roles/editor</code>, <code>roles/viewer</code>) are coarse and span thousands of permissions. On a PHI project, bind narrow predefined roles to per-workload service accounts instead, and audit bindings regularly with <code>gcloud projects get-iam-policy</code>.</p>
+                    </div>
+                </div>
+
+                <div class="alert alert-hipaa">
+                    <div class="alert-title">IAM + CMEK + audit logging are the spine of the Security Rule</div>
+                    <p>Lock down <strong>service-account keys</strong> (ideally none &mdash; attach SAs directly to the runtime), hold your own keys with <strong>CMEK</strong> where required, and keep audit logging on and exported. Add <strong>VPC Service Controls</strong> for a perimeter and <strong>DLP</strong> for de-identification, and you have defense in depth: least privilege, key custody, an exfiltration boundary, and a record of every access.</p>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- ============================================
+             SECTION 07 — DATA, ANALYTICS & AI/ML
+             ============================================ -->
+        <section class="section" id="data-ai">
+            <div class="section-header">
+                <span class="section-number">07</span>
+                <h2 class="section-title">Data, Analytics &amp; AI/ML</h2>
+                <p class="section-description">Turning raw records into insight, and wiring intelligence into your app. BigQuery is the analytics anchor (and where you analyze the audit logs you exported in Security &amp; Identity); the enterprise AI surfaces digitize intake, transcribe audio, and power patient-facing bots. The healthcare-standard products (FHIR/HL7v2/DICOM) live in section 09. Everything below is on the HIPAA covered list &mdash; but the covered-vs-consumer line matters more here than anywhere else.</p>
+            </div>
+            <div class="section-content">
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Data &amp; analytics</h3>
+
+                    <div class="product-head">
+                        <strong>BigQuery</strong>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-mcp-remote">MCP · remote</span>
+                    </div>
+                    <p><strong>What it is.</strong> Serverless data warehouse and analytics platform &mdash; query petabytes with standard SQL, no infrastructure to manage. It's also <strong>where you analyze the audit logs you export for HIPAA</strong>: Google recommends routing Cloud Audit Logs to BigQuery for long-term, queryable security/compliance analysis (the log sink set up in section 02 / 06 lands here).</p>
+                    <p><strong>Reach for it when.</strong> You need analytics over large datasets, you're building reporting / dashboards / ML feature pipelines, or you're doing large-scale audit-log analysis for security and compliance.</p>
+                    <p><strong>HIPAA.</strong> Covered &mdash; along with <em>BigQuery Data Transfer Service</em>, <em>BigQuery Omni</em>, and <em>Gemini in BigQuery</em>. Keep PHI out of dataset/table/column <em>names</em> (they're metadata); de-identify before any analytics that doesn't strictly need identified PHI (see section 09).</p>
+                    <p><strong>Claude / MCP.</strong> One of the first GCP MCP servers Google shipped &mdash; a Google-managed remote server lets an agent run queries and pull structured results directly. Also fronted by the OSS MCP Toolbox for Databases.</p>
+
+                    <p class="code-label">Query exported audit logs (standard SQL)</p>
+                    <pre><code>-- Who accessed PHI resources in the last 7 days?
+SELECT
+  protopayload_auditlog.authenticationInfo.principalEmail AS actor,
+  protopayload_auditlog.methodName              AS method,
+  resource.type                                 AS resource_type,
+  COUNT(*)                                       AS events
+FROM `PROJECT.audit_dataset.cloudaudit_googleapis_com_data_access`
+WHERE timestamp &gt; TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY)
+GROUP BY actor, method, resource_type
+ORDER BY events DESC;</code></pre>
+
+                    <p class="code-label">Same idea from the CLI</p>
+                    <pre><code># Run against an analytics dataset (de-identified, no PHI in the query text)
+bq query --use_legacy_sql=false \
+    'SELECT COUNT(*) AS encounters
+     FROM `PROJECT.deid_analytics.encounters`
+     WHERE service_month = "2026-05"'</code></pre>
+
+                    <div class="product-head" style="margin-top:var(--space-lg)">
+                        <strong>Looker (Google Cloud core)</strong>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-mcp-remote">MCP · remote</span>
+                    </div>
+                    <p><strong>What it is.</strong> Business-intelligence and data-application platform &mdash; define metrics once in LookML, build governed dashboards, embed analytics into a product.</p>
+                    <p><strong>Reach for it when.</strong> You need governed, consistent BI on top of your warehouse, or you're embedding analytics into your app.</p>
+                    <p><strong>HIPAA.</strong> Covered when governed under your Google Cloud Agreement. <strong>Keep PHI out of LookML / query business logic</strong> &mdash; the model definitions are metadata, not a data store. A Looker-managed MCP server exists but is in <strong>preview</strong>; treat preview as <span class="badge badge-verify">Verify</span> for PHI until it goes GA.</p>
+
+                    <div class="product-head" style="margin-top:var(--space-lg)">
+                        <strong>Dataflow</strong>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p><strong>What it is.</strong> Managed stream and batch processing on Apache Beam &mdash; the workhorse for ETL/ELT, enrichment, and real-time analytics pipelines.</p>
+
+                    <div class="product-head" style="margin-top:var(--space-lg)">
+                        <strong>Pub/Sub</strong>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p><strong>What it is.</strong> The event backbone &mdash; asynchronous messaging for event ingestion and delivery. Reach for it to <strong>decouple services</strong>, fan out a single event to multiple consumers (a new record triggers several downstream jobs), or ingest high-volume streams.</p>
+
+                    <div class="product-head" style="margin-top:var(--space-lg)">
+                        <strong>Dataform</strong>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p><strong>What it is.</strong> Manage your BigQuery SQL transformations as version-controlled code &mdash; testing, dependencies, and CI like software.</p>
+
+                    <div class="product-head" style="margin-top:var(--space-lg)">
+                        <strong>Data Catalog / Knowledge Catalog</strong>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-mcp-oss">MCP · OSS</span>
+                    </div>
+                    <p><strong>What it is.</strong> Metadata catalog for discovering and governing data assets; <strong>Knowledge Catalog</strong> is the AI-era evolution that gives agents structured + unstructured data context. <strong>Keep PHI/PII out of lineage <code>Process.attributes</code> and <code>Run.attributes</code></strong> &mdash; lineage metadata is widely readable. A Knowledge Catalog MCP server exists for agent data context.</p>
+
+                    <div class="product-head" style="margin-top:var(--space-lg)">
+                        <strong>Cloud Data Fusion</strong>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p><strong>What it is.</strong> Visual, no-code data integration for building and managing pipelines without writing Beam code.</p>
+
+                    <div class="product-head" style="margin-top:var(--space-lg)">
+                        <strong>Managed Service for Apache Kafka / Spark / Airflow</strong>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p><strong>What it is.</strong> Managed versions of the popular OSS tools &mdash; Kafka (streaming), Spark (processing), Airflow (orchestration). Reach for them when your team already knows the tool and wants it managed.</p>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Data-stack decision table</h3>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr><th>Need</th><th>Product</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>Warehouse / SQL analytics / audit-log analysis</td><td><strong>BigQuery</strong></td></tr>
+                                <tr><td>Governed BI &amp; dashboards (PHI out of LookML)</td><td><strong>Looker</strong></td></tr>
+                                <tr><td>ETL / streaming pipelines (code)</td><td><strong>Dataflow</strong></td></tr>
+                                <tr><td>No-code pipelines</td><td><strong>Cloud Data Fusion</strong></td></tr>
+                                <tr><td>Async messaging / event fan-out</td><td><strong>Pub/Sub</strong></td></tr>
+                                <tr><td>BigQuery transforms as code</td><td><strong>Dataform</strong></td></tr>
+                                <tr><td>Data discovery &amp; governance</td><td><strong>Data / Knowledge Catalog</strong></td></tr>
+                                <tr><td>Bring your own Kafka / Spark / Airflow</td><td><strong>Managed Service for that tool</strong></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Enterprise AI / ML</h3>
+                    <p>Google renamed much of its AI stack to the <strong>Gemini Enterprise / Gemini Enterprise Agent Platform</strong> branding (formerly Vertex AI). The covered-products list uses the newer names; older names are given in parentheses where useful. The healthcare-specific Cloud Healthcare API is <strong>not</strong> here &mdash; it's section 09.</p>
+
+                    <div class="product-head">
+                        <strong>Gemini Enterprise Agent Platform</strong> <span style="color:var(--md-on-surface-variant)">(formerly Vertex AI)</span>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p><strong>What it is.</strong> The unified platform to train, tune, deploy, and serve models and to build agents &mdash; with <strong>Model Garden</strong> access to 200+ models from Google and partners.</p>
+                    <p><strong>Reach for it when.</strong> You're serving or fine-tuning models inside your own product, or building AI agents that need enterprise governance.</p>
+                    <p><strong>HIPAA.</strong> Covered &mdash; including <em>Generative AI on the Agent Platform</em>, <em>Agent Search</em>, <em>Gemini Enterprise</em>, <em>Colab Enterprise</em>, <em>Vertex AI Workbench instances</em>, <em>NotebookLM Enterprise</em>, and <em>AI Platform Training and Prediction</em>. <strong>For PHI, use regional APIs and resource locations</strong> &mdash; especially with Agent Search.</p>
+
+                    <div class="product-head" style="margin-top:var(--space-lg)">
+                        <strong>Document AI</strong>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p><strong>What it is.</strong> OCR plus form/entity parsing &mdash; turn paper and PDFs into structured data. Reach for it to <strong>digitize intake forms, insurance documents, and lab reports</strong> into queryable fields. Covered along with <em>Document AI Warehouse</em>.</p>
+
+                    <div class="product-head" style="margin-top:var(--space-lg)">
+                        <strong>Speech-to-Text</strong>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p><strong>What it is.</strong> Transcribe audio to text across 125+ languages &mdash; clinical dictation, telehealth audio, or call-center recordings.</p>
+                    <div class="alert alert-hipaa">
+                        <div class="alert-title">Do NOT opt into the data-logging program with PHI</div>
+                        <p>Speech-to-Text offers an optional data-logging program that retains audio/transcripts to improve models. When the audio contains PHI, <strong>never enable it</strong> &mdash; leave data logging off for every PHI-handling request.</p>
+                    </div>
+
+                    <div class="product-head" style="margin-top:var(--space-lg)">
+                        <strong>Text-to-Speech</strong>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p><strong>What it is.</strong> Synthesize natural speech in 220+ voices and 40+ languages &mdash; IVR, accessibility, and patient reminders.</p>
+
+                    <div class="product-head" style="margin-top:var(--space-lg)">
+                        <strong>Cloud Vision / Video Intelligence</strong>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p><strong>What it is.</strong> Analyze images (Vision) and video (Video Intelligence) &mdash; detect objects and text, classify media, OCR scanned images. Both covered, along with the <em>AutoML</em> variants (Vision, Video, Natural Language, Tables, Translation).</p>
+
+                    <div class="product-head" style="margin-top:var(--space-lg)">
+                        <strong>Cloud Translation / Natural Language API</strong>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p><strong>What it is.</strong> Translate patient-facing content (Translation) and run entity / sentiment / syntax analysis on unstructured clinical text (Natural Language API). Both covered.</p>
+
+                    <div class="product-head" style="margin-top:var(--space-lg)">
+                        <strong>Conversational Agents / Contact Center AI</strong> <span style="color:var(--md-on-surface-variant)">(formerly Dialogflow; Agent Assist, CCAI Platform)</span>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p><strong>What it is.</strong> Build conversational chat/voice bots and AI-augmented contact-center solutions &mdash; patient-facing bots, IVR, and agent assist. <strong>Keep PHI out of intents, training phrases, and entities</strong> (these are model configuration, not a PHI store).</p>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">AI / media decision table</h3>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr><th>Need</th><th>Product</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>Serve / tune your own models, build agents</td><td><strong>Gemini Enterprise Agent Platform</strong></td></tr>
+                                <tr><td>Documents &rarr; structured data</td><td><strong>Document AI</strong></td></tr>
+                                <tr><td>Audio &rarr; text (no data logging for PHI)</td><td><strong>Speech-to-Text</strong></td></tr>
+                                <tr><td>Text &rarr; audio</td><td><strong>Text-to-Speech</strong></td></tr>
+                                <tr><td>Image / video analysis</td><td><strong>Cloud Vision / Video Intelligence</strong></td></tr>
+                                <tr><td>Translate / analyze text</td><td><strong>Cloud Translation / Natural Language API</strong></td></tr>
+                                <tr><td>Conversational bot / contact center</td><td><strong>Conversational Agents / CCAI</strong></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="alert alert-warning">
+                    <div class="alert-title">The coverage trap</div>
+                    <p>The enterprise AI surfaces above &mdash; <strong>Gemini Enterprise</strong> and <strong>Generative AI on the Agent Platform</strong> &mdash; are fine for PHI under a signed BAA. <strong>Consumer-grade surfaces are not.</strong> Plain <strong>AI Studio</strong>, the <strong>consumer Gemini app</strong>, and any <strong>preview-only</strong> AI feature cannot carry PHI. If a teammate prototypes against a consumer endpoint, that path is out of bounds for protected data &mdash; rebuild it on the covered enterprise surface before it touches PHI.</p>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- ============================================
+             SECTION 08 — HIPAA FOUNDATIONS, THE BAA & COVERED PRODUCTS
+             ============================================ -->
+        <section class="section" id="hipaa">
+            <div class="section-header">
+                <span class="section-number">08</span>
+                <h2 class="section-title">HIPAA Foundations, the BAA &amp; Covered Products</h2>
+                <p class="section-description">The centerpiece. This is the material that decides whether your build is actually compliant, regardless of which products you picked above. Read it before pointing real PHI at anything &mdash; and remember that <strong>coverage is necessary but not sufficient</strong>: a covered product, misconfigured, still leaks.</p>
+            </div>
+            <div class="section-content">
+
+                <div class="subsection">
+                    <h3 class="subsection-title">The badge legend</h3>
+                    <p>Every product in this guide carries badges. Here's exactly what they mean &mdash; rendered with the real badge styles so you recognize them throughout:</p>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr><th>Badge</th><th>Meaning</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td><span class="badge badge-covered">Covered</span></td><td>On Google Cloud's BAA covered-products list as of <strong>2026-05-15</strong>. Safe for PHI <em>once the BAA is signed AND the product is configured correctly</em>.</td></tr>
+                                <tr><td><span class="badge badge-verify">Verify</span></td><td>Commonly used but <strong>not on the list</strong> (or only conditionally / in preview). Don't put PHI in it without confirming current coverage first.</td></tr>
+                                <tr><td><span class="badge badge-infra">Infra</span></td><td>Part of covered <strong>infrastructure</strong> (all regions, zones, network paths) rather than a discrete named product.</td></tr>
+                                <tr><td><span class="badge badge-mcp-remote">MCP · remote</span></td><td>Has a Google-managed <strong>remote MCP server</strong> &mdash; an agent can drive it directly.</td></tr>
+                                <tr><td><span class="badge badge-mcp-oss">MCP · OSS</span></td><td>Covered by an <strong>open-source MCP server</strong> you self-host.</td></tr>
+                                <tr><td><span class="badge badge-cli">gcloud CLI</span></td><td>No dedicated MCP server &mdash; drive it through the <code>gcloud</code> MCP / CLI.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">The shared-responsibility model</h3>
+                    <p><strong>Google secures the infrastructure</strong> &mdash; data centers, hardware, network, and default encryption at rest. <strong>You secure what you build on top</strong> &mdash; access control, application logic, and not leaking PHI where it doesn't belong. HIPAA compliance is a split job: Google can't make you compliant, and you can't be compliant without Google's BAA.</p>
+                    <div class="alert alert-warning">
+                        <div class="alert-title">There is no "HIPAA certification"</div>
+                        <p>HHS issues no HIPAA certification. Anyone calling a product "HIPAA certified" is using marketing shorthand. What actually exists is a <strong>signed BAA + correct configuration + your own administrative, physical, and technical controls</strong>. Coverage on the list does not equal compliance.</p>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Step zero &mdash; sign the BAA</h3>
+                    <div class="alert alert-hipaa">
+                        <div class="alert-title">Nothing matters until the BAA is executed</div>
+                        <p>Accept Google Cloud's <strong>Business Associate Agreement</strong> through <em>Privacy compliance and records for Google Cloud</em> in the Cloud console. The BAA covers <strong>all of Google Cloud's infrastructure</strong> (every region, zone, network path, and point of presence) <strong>plus the specific products on the covered list</strong>.</p>
+                        <p>It does <strong>not</strong> cover products absent from the list, and it does <strong>not</strong> cover Pre-GA / preview offerings unless the offering explicitly says so.</p>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">The three HIPAA rules</h3>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr><th>Rule</th><th>What it requires</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td><strong>Security Rule</strong></td><td>Safeguard PHI &mdash; access controls, encryption, audit. <em>Your GCP configuration is mostly about this rule.</em></td></tr>
+                                <tr><td><strong>Privacy Rule</strong></td><td>Limit the use and disclosure of PHI.</td></tr>
+                                <tr><td><strong>Breach Notification Rule</strong></td><td>Notify affected parties if PHI is exposed.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">The gotchas that bite HIPAA teams</h3>
+                    <p>From Google's own guidance: <strong>most leaks happen not in the data itself but in metadata, logs, and labels.</strong> These are the recurring "you configured it wrong" failure modes.</p>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr><th>Surface</th><th>The rule</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td><strong>Metadata &amp; labels</strong></td><td>No PHI in resource names, metric/VM labels, GKE annotations, dashboard titles, or alert names &mdash; all of it can land in logs visible to anyone with the right IAM role.</td></tr>
+                                <tr><td><strong>Logs</strong></td><td>Audit logs capture resource <em>metadata</em>, not contents &mdash; but control log access (Logs Viewer / Private Logs Viewer roles) and export to Cloud Storage (archive) + BigQuery (analysis).</td></tr>
+                                <tr><td><strong>Service accounts &amp; keys</strong></td><td>SAs and their keys can reach PHI &mdash; lock down who holds them (ideally no downloaded keys at all).</td></tr>
+                                <tr><td><strong>Speech-to-Text</strong></td><td>Do not opt into the data-logging program when handling PHI.</td></tr>
+                                <tr><td><strong>Cloud CDN</strong></td><td>Never cache PHI &mdash; caches are edge nodes outside your perimeter.</td></tr>
+                                <tr><td><strong>Conversational Agents / Dialogflow</strong></td><td>Keep PHI out of intents, training phrases, and entities.</td></tr>
+                                <tr><td><strong>Cloud Build</strong></td><td>Keep PHI out of build configs, source, and artifacts.</td></tr>
+                                <tr><td><strong>Looker</strong></td><td>Keep PHI out of the business logic / query structure (LookML).</td></tr>
+                                <tr><td><strong>API Gateway / Apigee</strong></td><td>Keep PHI and PII out of headers.</td></tr>
+                                <tr><td><strong>Integration Connectors / Application Integration</strong></td><td>Keep PHI out of connection names, parameters, and configs (they get logged); some connectors store data transiently &mdash; use CMEK.</td></tr>
+                                <tr><td><strong>Datastore</strong></td><td>Encrypt PHI before using it as an index key or value.</td></tr>
+                                <tr><td><strong>Knowledge Catalog</strong></td><td>Keep PHI/PII out of lineage <code>Process.attributes</code> / <code>Run.attributes</code>.</td></tr>
+                                <tr><td><strong>Agent Search</strong></td><td>Use regional APIs and resource locations for PHI.</td></tr>
+                                <tr><td><strong>Filestore</strong></td><td>Use IP-based access control; enable backups.</td></tr>
+                                <tr><td><strong>Distributed Cloud connected</strong></td><td>You own the physical security of the edge hardware.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Encryption options</h3>
+                    <p>All customer content is <strong>encrypted at rest by default</strong> on Google Cloud &mdash; always on, nothing to configure. If your org needs to hold the keys, layer on the options below.</p>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr><th>Option</th><th>What it adds</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td><strong>Default encryption at rest</strong></td><td>Always on. Google manages the keys.</td></tr>
+                                <tr><td><strong>Cloud KMS</strong></td><td>Managed encryption keys you control.</td></tr>
+                                <tr><td><strong>Cloud HSM</strong></td><td>Hardware-backed keys.</td></tr>
+                                <tr><td><strong>CMEK</strong></td><td>Customer-managed (bring-your-own) keys on supported services.</td></tr>
+                                <tr><td><strong>Key Access Justifications (KAJ)</strong></td><td>Require a stated reason before a key is used.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="alert alert-warning">
+                        <div class="alert-title">Decide CMEK early</div>
+                        <p>Choose whether default encryption is enough or whether you need CMEK / HSM <strong>before</strong> you build &mdash; retrofitting key management onto live PHI stores is painful.</p>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">NOT on the covered list &mdash; verify before PHI</h3>
+                    <p>Being popular on GCP does not make a product covered. The default assumption for anything not explicitly named is <strong>not covered &mdash; check first</strong>. Notable traps:</p>
+                    <ul>
+                        <li><strong>Firebase platform features beyond Firestore / Cloud Storage.</strong> Firestore and Cloud Storage are covered; <strong>Firebase Auth</strong> and <strong>Firebase Hosting</strong> are a separate surface. For end-user auth, use <strong>Identity Platform</strong> (the enterprise sibling of Firebase Auth) &mdash; it <em>is</em> covered.</li>
+                        <li><strong>Pre-GA / preview features</strong> of any product, including new MCP servers in preview. Preview &ne; covered unless the offering says so.</li>
+                        <li><strong>Consumer Gemini / AI Studio</strong> surfaces (as opposed to the covered enterprise Gemini products).</li>
+                        <li><strong>Anything not explicitly named</strong> on the covered-products list below.</li>
+                    </ul>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">The covered-products reference list</h3>
+                    <p>The complete BAA covered-products list as published by Google, <strong>last updated 2026-05-15</strong>. The BAA also covers Google Cloud's entire infrastructure (all regions, zones, network paths, and points of presence) in addition to these.</p>
+                    <div class="table-wrap">
+                        <table>
+                            <tbody>
+                                <tr>
+                                    <td>
+                                        Access Approval<br>
+                                        Access Context Manager<br>
+                                        Access Transparency<br>
+                                        Agent Search (Gemini Enterprise Agent Platform)<br>
+                                        AI Platform Training and Prediction<br>
+                                        AlloyDB for PostgreSQL<br>
+                                        API Gateway<br>
+                                        Apigee<br>
+                                        App Engine<br>
+                                        Application Integration<br>
+                                        Artifact Registry<br>
+                                        Assured Workloads<br>
+                                        AutoML Natural Language<br>
+                                        AutoML Tables<br>
+                                        AutoML Translation<br>
+                                        AutoML Video<br>
+                                        AutoML Vision<br>
+                                        Backup and DR Service<br>
+                                        Backup for GKE<br>
+                                        Bare Metal Solution<br>
+                                        Batch<br>
+                                        BigQuery<br>
+                                        BigQuery Data Transfer Service<br>
+                                        BigQuery Omni<br>
+                                        Bigtable<br>
+                                        Binary Authorization<br>
+                                        Certificate Authority Service<br>
+                                        Certificate Manager<br>
+                                        Cloud Asset Inventory<br>
+                                        Cloud Build<br>
+                                        Cloud CDN<br>
+                                        Cloud Data Fusion<br>
+                                        Cloud Deploy<br>
+                                        Cloud Deployment Manager<br>
+                                        Cloud DNS<br>
+                                        Cloud Endpoints<br>
+                                        Cloud Healthcare API<br>
+                                        Cloud HSM<br>
+                                        Cloud Identity<br>
+                                        Cloud IDS<br>
+                                        Cloud Interconnect<br>
+                                        Cloud KMS<br>
+                                        Cloud Life Sciences<br>
+                                        Cloud Load Balancing<br>
+                                        Cloud Logging<br>
+                                        Cloud Monitoring<br>
+                                        Cloud NAT
+                                    </td>
+                                    <td>
+                                        Cloud Natural Language API<br>
+                                        Cloud Profiler<br>
+                                        Cloud Router<br>
+                                        Cloud Run<br>
+                                        Cloud Run functions<br>
+                                        Cloud Scheduler<br>
+                                        Cloud Shell<br>
+                                        Cloud Source Repositories<br>
+                                        Cloud SQL<br>
+                                        Cloud Storage<br>
+                                        Cloud Tasks<br>
+                                        Cloud Trace<br>
+                                        Cloud Translation<br>
+                                        Cloud Vision<br>
+                                        Cloud VPN<br>
+                                        Colab Enterprise<br>
+                                        Compute Engine<br>
+                                        Connect<br>
+                                        Contact Center AI Agent Assist<br>
+                                        Contact Center AI Platform<br>
+                                        Container Registry<br>
+                                        Conversational Agents<br>
+                                        Customer Experience Agent Studio<br>
+                                        CX Insights<br>
+                                        Cyber Insurance Hub<br>
+                                        Data Catalog<br>
+                                        Data Studio*<br>
+                                        Database Migration Service<br>
+                                        Dataflow<br>
+                                        Dataform<br>
+                                        Datastore<br>
+                                        Datastream<br>
+                                        Document AI<br>
+                                        Document AI Warehouse<br>
+                                        Eventarc<br>
+                                        Filestore<br>
+                                        Firestore<br>
+                                        Gemini Code Assist<br>
+                                        Gemini Enterprise<br>
+                                        Gemini Enterprise Agent Platform<br>
+                                        Gemini Enterprise for CX (GECX)<br>
+                                        Gemini in BigQuery<br>
+                                        Gemini in Colab Enterprise<br>
+                                        Generative AI on the Agent Platform<br>
+                                        GKE Enterprise Config Management<br>
+                                        GKE Hub<br>
+                                        Google Cloud Armor
+                                    </td>
+                                    <td>
+                                        Google Cloud console<br>
+                                        Identity-Aware Proxy (IAP)<br>
+                                        Managed Service for Apache Kafka<br>
+                                        NetApp Volumes<br>
+                                        VMware Engine (GCVE)<br>
+                                        Distributed Cloud connected<br>
+                                        Google Kubernetes Engine<br>
+                                        Healthcare Data Engine<br>
+                                        Looker (Google Cloud core)<br>
+                                        Identity &amp; Access Management (IAM)<br>
+                                        Identity Platform<br>
+                                        Integration Connectors<br>
+                                        Key Access Justifications (KAJ)<br>
+                                        Knative serving<br>
+                                        Knowledge Catalog<br>
+                                        Managed Service for Apache Airflow<br>
+                                        Managed Service for Apache Spark<br>
+                                        Managed Service for Microsoft AD<br>
+                                        Memorystore<br>
+                                        Model Armor<br>
+                                        Network Connectivity Center<br>
+                                        Network Service Tiers<br>
+                                        NotebookLM Enterprise<br>
+                                        Persistent Disk<br>
+                                        Pub/Sub<br>
+                                        reCAPTCHA Enterprise<br>
+                                        Resource Manager API<br>
+                                        Secret Manager<br>
+                                        Secure Source Manager<br>
+                                        Security Command Center<br>
+                                        Sensitive Data Protection<br>
+                                        Service Directory<br>
+                                        Service Mesh<br>
+                                        Spanner<br>
+                                        Speech-to-Text<br>
+                                        Storage Transfer Service<br>
+                                        Text-to-Speech<br>
+                                        Traffic Director<br>
+                                        Transfer Appliance<br>
+                                        Video Intelligence API<br>
+                                        Virtual Private Cloud<br>
+                                        VPC Service Controls<br>
+                                        Web Security Scanner<br>
+                                        Vertex AI Workbench instances<br>
+                                        Workflows
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p style="font-size:14px;color:var(--md-on-surface-variant)"><strong>*</strong> <strong>Data Studio</strong> is covered <em>only if</em> you have opted to have it governed under your Google Cloud Agreement.</p>
+                    <p style="font-size:14px;color:var(--md-on-surface-variant)">Google updates this list as products join the program &mdash; treat the live page (<code>cloud.google.com/security/compliance/hipaa</code>) as the source of truth and re-check periodically.</p>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Pre-flight checklist (canonical)</h3>
+                    <p>The compliance checklist for any new PHI-handling service &mdash; the canonical version of the list introduced in section 02:</p>
+                    <ul class="checklist">
+                        <li><strong>BAA signed and current.</strong></li>
+                        <li><strong>Every product in the data path is on the covered list</strong> &mdash; no preview / Pre-GA surfaces.</li>
+                        <li><strong>IAM scoped to least privilege</strong>; service-account keys controlled (ideally none).</li>
+                        <li><strong>Encryption decision made</strong> &mdash; default Google-managed keys vs CMEK / Cloud HSM.</li>
+                        <li><strong>Audit logging on, exported</strong> (Cloud Storage for archive, BigQuery for analysis), and access-controlled.</li>
+                        <li><strong>No PHI in names, labels, metadata, headers, or logs.</strong></li>
+                        <li><strong>VPC Service Controls perimeter considered</strong> around PHI services.</li>
+                        <li><strong>Sensitive Data Protection (DLP) considered</strong> for discovery and de-identification.</li>
+                    </ul>
+                </div>
+
+                <div class="alert alert-info">
+                    <div class="alert-title">Informational, not legal advice</div>
+                    <p>This guide is informational and is not legal advice. Coverage on the list is necessary but <strong>not sufficient</strong> for HIPAA compliance &mdash; you still must execute the BAA, configure each product correctly, control IAM and encryption, keep PHI out of metadata/logs/labels, and maintain your own administrative and physical safeguards. Confirm current coverage on Google's live page and consult your compliance / legal counsel.</p>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- ============================================
+             SECTION 09 — CLOUD HEALTHCARE API & HEALTH DATA
+             ============================================ -->
+        <section class="section" id="healthcare">
+            <div class="section-header">
+                <span class="section-number">09</span>
+                <h2 class="section-title">Cloud Healthcare API &amp; Health Data</h2>
+                <p class="section-description">The purpose-built bridge between healthcare data standards and GCP. This is where clinical records, legacy hospital feeds, and medical imaging land &mdash; and where you de-identify before any analytics or ML that doesn't strictly need identified PHI. Purpose-built doesn't mean automatically compliant: IAM, de-identification, regional locations, and audit are still yours to configure.</p>
+            </div>
+            <div class="section-content">
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Cloud Healthcare API</h3>
+                    <div class="product-head">
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p><strong>What it is.</strong> Native support for the three health-data lingua francas &mdash; <strong>FHIR</strong>, <strong>HL7v2</strong>, and <strong>DICOM</strong> &mdash; each in its own store type:</p>
+                    <ul>
+                        <li><strong>FHIR stores</strong> &mdash; interoperable, structured patient and clinical data. The modern standard for EHR-style records and data exchange.</li>
+                        <li><strong>HL7v2 stores</strong> &mdash; the legacy messaging feeds (ADT, ORM, ORU, etc.) emitted by existing hospital systems.</li>
+                        <li><strong>DICOM stores</strong> &mdash; medical imaging (radiology, etc.).</li>
+                    </ul>
+                    <p><strong>Reach for it when.</strong> You're ingesting or exchanging clinical data &mdash; EHR records, lab results, imaging, or HL7v2 feeds from upstream systems &mdash; and need interoperable storage that speaks the standards.</p>
+                    <p><strong>HIPAA.</strong> Covered &mdash; a purpose-built PHI product. It is still <strong>your job</strong> to configure IAM least-privilege on datasets/stores, de-identification, regional locations, and access. <strong>Use a regional location for PHI.</strong></p>
+                    <p><strong>Claude / MCP.</strong> No dedicated healthcare MCP server today &mdash; drive it via the <code>gcloud</code> CLI / its REST API, or wrap your own MCP server (deployable private on Cloud Run, inside the perimeter).</p>
+
+                    <p class="code-label">Enable the API, create a dataset + FHIR store</p>
+                    <pre><code># Enable the Healthcare API
+gcloud services enable healthcare.googleapis.com
+
+# A dataset is a regional container — pick a region for PHI
+gcloud healthcare datasets create clinical-ds \
+    --location=us-central1
+
+# A FHIR store inside the dataset (R4)
+gcloud healthcare fhir-stores create patient-fhir \
+    --dataset=clinical-ds \
+    --location=us-central1 \
+    --version=R4</code></pre>
+
+                    <p class="code-label">POST a FHIR resource to the store's REST endpoint</p>
+                    <pre><code>curl -X POST \
+  -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+  -H "Content-Type: application/fhir+json" \
+  --data '{"resourceType":"Patient","active":true}' \
+  "https://healthcare.googleapis.com/v1/projects/PROJECT_ID/locations/us-central1/datasets/clinical-ds/fhirStores/patient-fhir/fhir/Patient"</code></pre>
+                    <p>For analytics, the Healthcare API can <strong>export FHIR resources to BigQuery</strong> (<code>gcloud healthcare fhir-stores export bq</code>) &mdash; ideally a <em>de-identified</em> copy (below), so the analytics dataset never holds identified PHI.</p>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">De-identification</h3>
+                    <p>The pattern: keep an <strong>identified PHI dataset locked down</strong> in a dedicated PHI project, and produce a <strong>de-identified copy</strong> for analytics, ML, and sharing. Two complementary tools:</p>
+                    <ul>
+                        <li><strong>Healthcare API built-in de-identification</strong> &mdash; redacts/transforms PHI in <strong>FHIR and DICOM</strong> stores (e.g. <code>gcloud healthcare fhir-stores deidentify</code> produces a de-identified destination store).</li>
+                        <li><strong>Sensitive Data Protection (DLP)</strong> (from section 06) &mdash; complements it for <strong>free-text</strong> and other stores: discover, classify, redact, mask, or tokenize. Write DLP output only to targets inside your secure environment.</li>
+                    </ul>
+                    <pre><code># De-identify a FHIR store into a new destination store
+gcloud healthcare fhir-stores deidentify patient-fhir \
+    --dataset=clinical-ds \
+    --location=us-central1 \
+    --destination-store=projects/PROJECT_ID/locations/us-central1/datasets/deid-ds/fhirStores/patient-deid</code></pre>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Related health-data products</h3>
+                    <div class="product-head">
+                        <strong>Healthcare Data Engine</strong>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p><strong>What it is.</strong> Harmonizes data from multiple healthcare sources into a <strong>longitudinal patient record</strong> for analytics and AI &mdash; unifying fragmented clinical data into a single patient view.</p>
+
+                    <div class="product-head" style="margin-top:var(--space-lg)">
+                        <strong>Cloud Life Sciences</strong>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p><strong>What it is.</strong> Run large-scale genomics and life-sciences research pipelines at scale.</p>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Reference clinical-data flow</h3>
+                    <p>A defensible pipeline keeps identified PHI in a locked project and only ever exposes a de-identified copy downstream:</p>
+                    <ol>
+                        <li><strong>Ingest</strong> &mdash; HL7v2 feeds, FHIR resources, and DICOM imaging arrive from upstream systems.</li>
+                        <li><strong>Store (identified)</strong> &mdash; land in <strong>Cloud Healthcare API</strong> FHIR / HL7v2 / DICOM stores, in a regional location, inside a locked-down PHI project.</li>
+                        <li><strong>De-identify</strong> &mdash; produce a de-identified copy with the <strong>Healthcare API</strong> (FHIR/DICOM) and <strong>DLP</strong> (free-text and other stores).</li>
+                        <li><strong>Analyze / model</strong> &mdash; export the de-identified copy to <strong>BigQuery</strong> for analytics, or to <strong>Vertex AI / the Agent Platform</strong> for ML.</li>
+                        <li><strong>Results</strong> &mdash; dashboards, models, and insights, built without exposing identified PHI.</li>
+                    </ol>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Data type &rarr; store / standard</h3>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr><th>Data type</th><th>Store / standard</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>Structured clinical / patient records</td><td><strong>FHIR</strong> store</td></tr>
+                                <tr><td>Legacy hospital messaging feeds</td><td><strong>HL7v2</strong> store</td></tr>
+                                <tr><td>Medical imaging</td><td><strong>DICOM</strong> store</td></tr>
+                                <tr><td>Free-text / unstructured</td><td><strong>DLP</strong> + <strong>Document AI</strong> / <strong>Natural Language API</strong></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="alert alert-hipaa">
+                    <div class="alert-title">A purpose-built PHI product still needs your controls</div>
+                    <p>The Cloud Healthcare API being covered does not make you compliant on its own. You still own: <strong>IAM least-privilege</strong> on datasets and individual stores, <strong>audit logging</strong>, <strong>regional locations</strong> for PHI, <strong>CMEK</strong> if your posture requires holding the keys, and <strong>de-identification before any analytics or AI</strong> that doesn't strictly need identified PHI.</p>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- ============================================
+             SECTION 10 — BUILDING A HIPAA-COMPLIANT ARCHITECTURE
+             ============================================ -->
+        <section class="section" id="architecture">
+            <div class="section-header">
+                <span class="section-number">10</span>
+                <h2 class="section-title">Building a HIPAA-Compliant Architecture</h2>
+                <p class="section-description">How everything in this guide fits together. This is an opinionated reference stack for a PHI-handling web application &mdash; form and document intake, structured records, some voice/telephony &mdash; assembled from covered products and wrapped in the right guardrails.</p>
+            </div>
+            <div class="section-content">
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Reference architecture for a PHI web app</h3>
+                    <p>Read this top-to-bottom as the path a request takes &mdash; from the public edge, through your app tier, down to PHI at rest &mdash; with crosscutting controls wrapping the whole PHI project.</p>
+                    <ol>
+                        <li><strong>Edge / ingress.</strong> External HTTPS Load Balancing terminates TLS at the edge; <strong>Cloud Armor</strong> sits in front as WAF + DDoS protection. End-user authentication is handled by <strong>Identity-Aware Proxy</strong> (for internal/employee apps) and/or <strong>Identity Platform</strong> (for patient/consumer sign-in) &mdash; never roll your own.</li>
+                        <li><strong>App tier.</strong> <strong>Cloud Run</strong> services, deployed private (<code>--no-allow-unauthenticated</code>), each running as a <strong>dedicated least-privilege service account</strong>. Secrets come from <strong>Secret Manager</strong> at runtime; outbound traffic leaves through <strong>Cloud NAT</strong> over a VPC connector; no public IPs on the services themselves.</li>
+                        <li><strong>Data tier.</strong> <strong>Cloud SQL (Private IP)</strong> for transactional records; <strong>Cloud Storage</strong> (uniform bucket-level access, object versioning, CMEK) for uploaded documents and exports; <strong>Cloud Healthcare API</strong> FHIR / HL7v2 / DICOM stores for clinical data. All of it lives inside one locked-down PHI project.</li>
+                        <li><strong>Analytics.</strong> Never analytics-query identified PHI you don't need. De-identify first &mdash; <strong>Healthcare API</strong> (FHIR/DICOM) and <strong>Sensitive Data Protection / DLP</strong> (free text) &mdash; then land the de-identified copy in <strong>BigQuery</strong> for dashboards and modeling.</li>
+                        <li><strong>Crosscutting.</strong> <strong>CMEK</strong> via <strong>Cloud KMS</strong>; a <strong>VPC Service Controls</strong> perimeter around the PHI services; <strong>Cloud Logging</strong> audit logs exported to Cloud Storage (archive) and BigQuery (analysis); <strong>Security Command Center</strong> + <strong>Chronicle</strong> for posture and threat detection; <strong>Assured Workloads</strong> if you need residency or personnel controls.</li>
+                    </ol>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Layered controls</h3>
+                    <p>The same stack, sliced by the layer of defense each control provides:</p>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr><th>Layer</th><th>GCP product(s)</th><th>HIPAA purpose</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td><strong>Identity</strong></td><td>Cloud IAM, Identity Platform, Identity-Aware Proxy</td><td>Authenticate users/services; enforce least-privilege access to PHI.</td></tr>
+                                <tr><td><strong>Network</strong></td><td>VPC (Private IP), Cloud Load Balancing, Cloud Armor, Cloud NAT</td><td>Keep the data tier off the public internet; filter and rate-limit ingress.</td></tr>
+                                <tr><td><strong>Data</strong></td><td>Cloud SQL, Cloud Storage, Cloud Healthcare API, BigQuery</td><td>Store PHI in covered services with encryption at rest and access controls.</td></tr>
+                                <tr><td><strong>Key management</strong></td><td>Cloud KMS / Cloud HSM (CMEK)</td><td>Hold your own encryption keys where your posture requires it.</td></tr>
+                                <tr><td><strong>Audit</strong></td><td>Cloud Logging + log sinks &rarr; Storage / BigQuery</td><td>Tamper-evident record of who accessed what, retained and analyzable.</td></tr>
+                                <tr><td><strong>Posture / threat</strong></td><td>Security Command Center, Chronicle, DLP</td><td>Continuous misconfiguration detection, threat hunting, PHI discovery.</td></tr>
+                                <tr><td><strong>Compliance enforcement</strong></td><td>Org Policies, VPC Service Controls, Assured Workloads</td><td>Make non-compliant configurations impossible, not just discouraged.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Project &amp; environment isolation</h3>
+                    <p>Put PHI workloads in dedicated <strong>prod-PHI</strong> projects under their own folder, separated from dev/test (which carry only synthetic or de-identified data). Then constrain those projects with <strong>Organization Policies</strong> so guardrails are enforced by the platform rather than relying on reviewer discipline. A few representative constraints:</p>
+                    <ul>
+                        <li><code>gcp.resourceLocations</code> &mdash; restrict resources to your approved region(s), so PHI never lands outside your residency boundary.</li>
+                        <li><code>iam.disableServiceAccountKeyCreation</code> &mdash; block downloaded SA keys (the most common PHI-reachable credential leak).</li>
+                        <li><code>storage.uniformBucketLevelAccess</code> &mdash; force uniform bucket-level access on every new bucket.</li>
+                        <li><code>gcp.restrictNonCmekServices</code> &mdash; require CMEK on the services where your posture demands customer-managed keys.</li>
+                    </ul>
+                    <div class="alert alert-success">
+                        <div class="alert-title">Inheritance works for you</div>
+                        <p>Set the policy on the <code>prod-phi</code> folder and every project beneath it inherits the guardrail. New PHI projects are born compliant instead of being retrofitted after a review catches the gap.</p>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Audit logging done right</h3>
+                    <p><strong>Admin Activity</strong> logs are always on, but <strong>Data Access</strong> logs (Data Read / Data Write) are <em>not</em> enabled by default for most services &mdash; and those are exactly the ones that prove who touched PHI. Turn them on for your PHI services in the project IAM policy's audit config, then aggregate every log into a locked archive bucket and a BigQuery dataset for analysis.</p>
+                    <pre><code># Enable Data Access audit logs in the project IAM policy
+# (auditConfigs block; apply via: gcloud projects set-iam-policy)
+auditConfigs:
+- service: healthcare.googleapis.com
+  auditLogConfigs:
+  - logType: DATA_READ
+  - logType: DATA_WRITE
+- service: storage.googleapis.com
+  auditLogConfigs:
+  - logType: DATA_READ
+  - logType: DATA_WRITE</code></pre>
+                    <p>Create an aggregated sink at the folder/org level so logs flow even if a project's own config drifts:</p>
+                    <pre><code># Sink to a locked Cloud Storage archive bucket
+gcloud logging sinks create audit-archive \
+    storage.googleapis.com/AUDIT_ARCHIVE_BUCKET \
+    --log-filter='logName:"cloudaudit.googleapis.com"'
+
+# (Repeat with a bigquery.googleapis.com/... destination for analysis)</code></pre>
+                    <p>Control access tightly: <strong>Logs Viewer</strong> (<code>roles/logging.viewer</code>) sees Admin Activity logs; reading <strong>Data Access</strong> logs requires <strong>Private Logs Viewer</strong> (<code>roles/logging.privateLogViewer</code>). Grant the latter to a small audit group only.</p>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Consolidated HIPAA controls checklist</h3>
+                    <p>The whole guide, distilled to a pre-launch gate for the PHI environment:</p>
+                    <ul class="checklist">
+                        <li><strong>BAA signed and current</strong>, covering every product in the data path.</li>
+                        <li><strong>PHI workloads isolated</strong> in dedicated prod-PHI projects under their own folder.</li>
+                        <li><strong>Least-privilege IAM</strong>; <strong>no basic/primitive roles</strong> (Owner/Editor/Viewer) granted on PHI projects.</li>
+                        <li><strong>Service-account key creation disabled</strong> (or tightly controlled and Secret-Manager-only).</li>
+                        <li><strong>CMEK</strong> applied where your posture requires customer-held keys.</li>
+                        <li><strong>VPC Service Controls perimeter</strong> around the PHI services.</li>
+                        <li><strong>Private IP data tier</strong> &mdash; no public IPs on databases or services.</li>
+                        <li><strong>Audit logging enabled</strong> (incl. Data Access), <strong>exported</strong>, and <strong>access-controlled</strong>.</li>
+                        <li><strong>De-identification (DLP / Healthcare API)</strong> before any analytics or AI that doesn't need identified PHI.</li>
+                        <li><strong>No PHI in names, labels, metadata, logs, headers, or CDN caches.</strong></li>
+                        <li><strong>Backups and a tested DR plan</strong> in place.</li>
+                        <li><strong>Security Command Center monitoring</strong> active and reviewed.</li>
+                    </ul>
+                </div>
+
+                <div class="alert alert-hipaa">
+                    <div class="alert-title">Architecture is necessary, not sufficient</div>
+                    <p>Every control above is a <em>technical</em> safeguard. HIPAA also requires <strong>administrative safeguards</strong> that live outside GCP: workforce security training, periodic access reviews and recertification, a documented incident-response plan, sanction policies, and business-associate management. A perfectly configured cloud with no access reviews and no IR plan is still non-compliant.</p>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- ============================================
+             SECTION 11 — PROVISIONING WITH TERRAFORM / IAC
+             ============================================ -->
+        <section class="section" id="terraform">
+            <div class="section-header">
+                <span class="section-number">11</span>
+                <h2 class="section-title">Provisioning with Terraform / IaC</h2>
+                <p class="section-description">Reproducible, version-controlled, peer-reviewed infrastructure is strongly recommended for an auditable HIPAA environment. This section shows the GCP IaC options, the covered CI/CD products that ship your code, and real Terraform for the controls from section 10.</p>
+            </div>
+            <div class="section-content">
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Why IaC for HIPAA</h3>
+                    <p>When your entire environment is declared in code, every change is a reviewable diff, every state is reproducible, and "who changed this and when" is answered by Git history plus audit logs &mdash; exactly the evidence a compliance program wants. Your options on GCP:</p>
+                    <ul>
+                        <li><strong>Terraform</strong> &mdash; the de facto standard, via the <code>google</code> / <code>google-beta</code> providers. Terraform itself is <em>tooling, not a PHI data path</em>; it provisions resources but should never carry protected data.</li>
+                        <li><strong>Infrastructure Manager</strong> <span class="badge badge-covered">Covered</span> &mdash; Google-managed Terraform: Google runs the apply for you, integrated with IAM and audit logging.</li>
+                        <li><strong>Cloud Deployment Manager</strong> <span class="badge badge-covered">Covered</span> &mdash; the native, template-based predecessor (largely legacy; prefer Terraform / Infra Manager for new work).</li>
+                    </ul>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">HIPAA-relevant CI/CD products</h3>
+                    <div class="product-head">
+                        <strong>Cloud Build</strong>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p>Managed build/test/deploy in containers. <strong>Keep PHI out of build configs, source control, and build artifacts</strong> &mdash; the pipeline is not a place for protected data.</p>
+
+                    <div class="product-head" style="margin-top:var(--space-lg)">
+                        <strong>Artifact Registry</strong>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p>Stores container images and packages, with a CMEK option. <strong>Never encode PHI in artifact names</strong> &mdash; metadata is visible to anyone with Reader/Viewer roles and shows up in logs. (Prefer it over the legacy Container Registry for new work.)</p>
+
+                    <div class="product-head" style="margin-top:var(--space-lg)">
+                        <strong>Cloud Deploy</strong>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p>Governed continuous delivery to Cloud Run / GKE with promotion through dev &rarr; staging &rarr; prod and <strong>approval gates</strong> &mdash; a clean fit for change control on PHI environments.</p>
+
+                    <div class="product-head" style="margin-top:var(--space-lg)">
+                        <strong>Secure Source Manager</strong>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p>Managed, private Git hosting inside your GCP perimeter, governed by GCP IAM &mdash; an alternative to external SaaS source control when you want the repo inside your security boundary.</p>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Terraform examples</h3>
+                    <p>All HCL below targets the <code>google</code> provider. Wire these together and you've codified most of section 10.</p>
+
+                    <span class="code-label">1 · Provider + CMEK-encrypted bucket</span>
+                    <pre><code>provider "google" {
+  project = var.project_id
+  region  = "us-central1"
+}
+
+resource "google_storage_bucket" "phi_uploads" {
+  name     = "phi-uploads-${var.project_id}"   # no PHI in the name
+  location = "US-CENTRAL1"
+
+  uniform_bucket_level_access = true
+
+  versioning { enabled = true }
+
+  encryption {
+    default_kms_key_name = google_kms_crypto_key.phi.id
+  }
+}</code></pre>
+
+                    <span class="code-label">2 · KMS key ring, key, and the storage agent IAM binding</span>
+                    <pre><code>resource "google_kms_key_ring" "phi" {
+  name     = "phi-keyring"
+  location = "us-central1"
+}
+
+resource "google_kms_crypto_key" "phi" {
+  name            = "phi-bucket-key"
+  key_ring        = google_kms_key_ring.phi.id
+  rotation_period = "7776000s"   # 90 days
+}
+
+# Let the Cloud Storage service agent use the key
+data "google_storage_project_service_account" "gcs" {}
+
+resource "google_kms_crypto_key_iam_member" "gcs_cmek" {
+  crypto_key_id = google_kms_crypto_key.phi.id
+  role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
+  member        = "serviceAccount:${data.google_storage_project_service_account.gcs.email_address}"
+}</code></pre>
+
+                    <span class="code-label">3 · Least-privilege SA + private Cloud Run service with a mounted secret</span>
+                    <pre><code>resource "google_service_account" "intake_api" {
+  account_id   = "intake-api"
+  display_name = "Intake API runtime"
+}
+
+# Grant only what the workload needs — never roles/editor
+resource "google_project_iam_member" "intake_api_sql" {
+  project = var.project_id
+  role    = "roles/cloudsql.client"
+  member  = "serviceAccount:${google_service_account.intake_api.email}"
+}
+
+resource "google_cloud_run_v2_service" "intake_api" {
+  name     = "intake-api"
+  location = "us-central1"
+  ingress  = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
+
+  template {
+    service_account = google_service_account.intake_api.email
+
+    containers {
+      image = "us-docker.pkg.dev/${var.project_id}/app/intake-api:latest"
+
+      env {
+        name = "DB_PASSWORD"
+        value_source {
+          secret_key_ref {
+            secret  = "db-password"   # Secret Manager reference, not a literal
+            version = "latest"
+          }
+        }
+      }
+    }
+  }
+}</code></pre>
+
+                    <span class="code-label">4 · Aggregated audit log sink to BigQuery</span>
+                    <pre><code>resource "google_logging_project_sink" "audit_bq" {
+  name                   = "audit-to-bq"
+  destination            = "bigquery.googleapis.com/projects/${var.project_id}/datasets/audit_logs"
+  filter                 = "logName:\"cloudaudit.googleapis.com\""
+  unique_writer_identity = true   # creates a dedicated sink SA to grant on the dataset
+}</code></pre>
+
+                    <span class="code-label">5 · Org Policy: disable SA key creation on the PHI project</span>
+                    <pre><code>resource "google_org_policy_policy" "no_sa_keys" {
+  name   = "projects/${var.project_id}/policies/iam.disableServiceAccountKeyCreation"
+  parent = "projects/${var.project_id}"
+
+  spec {
+    rules { enforce = "TRUE" }
+  }
+}</code></pre>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">A note on remote state</h3>
+                    <p>Store Terraform state in a dedicated GCS bucket with <strong>CMEK encryption, object versioning, and locking</strong>. State can contain sensitive values (generated passwords, connection strings, IAM members), so treat the state bucket as sensitive infrastructure: lock its IAM to the CI service account and your platform team, and turn on Data Access audit logs for it. The goal is still to keep <em>actual</em> PHI out of variables and state entirely &mdash; the state bucket protects secrets, not patient data.</p>
+                    <pre><code>terraform {
+  backend "gcs" {
+    bucket = "tfstate-prod-phi"     # versioned + CMEK + locked IAM
+    prefix = "infra/prod-phi"
+  }
+}</code></pre>
+                </div>
+
+                <div class="alert alert-hipaa">
+                    <div class="alert-title">Keep PHI and real secrets out of your IaC</div>
+                    <p>No PHI and no plaintext secrets in <code>.tf</code> files, <code>terraform.tfvars</code>, or state. Reference <strong>Secret Manager</strong> for secret values and inject any remaining sensitive inputs via CI variables. And always <strong>review the plan before <code>apply</code></strong> on a PHI project &mdash; a diff is your last chance to catch a guardrail being weakened.</p>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- ============================================
+             SECTION 12 — OPERATIONS, COST & TROUBLESHOOTING
+             ============================================ -->
+        <section class="section" id="ops">
+            <div class="section-header">
+                <span class="section-number">12</span>
+                <h2 class="section-title">Operations, Cost &amp; Troubleshooting</h2>
+                <p class="section-description">Day-2 reality: watching the system without leaking PHI, keeping the bill sane for spiky healthcare traffic, and the short list of errors you'll actually hit. Closes the guide.</p>
+            </div>
+            <div class="section-content">
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Observability</h3>
+                    <p>The GCP observability suite &mdash; all on the covered list:</p>
+                    <div class="product-head">
+                        <strong>Cloud Logging</strong>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-mcp-oss">MCP · OSS</span>
+                    </div>
+                    <p>Centralized audit, platform, and application logs. Export to Storage + BigQuery (section 10).</p>
+
+                    <div class="product-head" style="margin-top:var(--space-md)">
+                        <strong>Cloud Monitoring</strong>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-mcp-oss">MCP · OSS</span>
+                    </div>
+                    <p>Metrics, dashboards, uptime checks, and alerting for infra and app health.</p>
+
+                    <div class="product-head" style="margin-top:var(--space-md)">
+                        <strong>Cloud Trace</strong>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-mcp-oss">MCP · OSS</span>
+                    </div>
+                    <p>Distributed tracing for request flow and latency across microservices.</p>
+
+                    <div class="product-head" style="margin-top:var(--space-md)">
+                        <strong>Cloud Profiler</strong>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p>Continuous CPU/heap profiling to find production hotspots.</p>
+
+                    <div class="product-head" style="margin-top:var(--space-md)">
+                        <strong>Managed Service for Prometheus</strong>
+                        <span class="badge badge-covered">Covered</span>
+                        <span class="badge badge-cli">gcloud CLI</span>
+                    </div>
+                    <p>Managed, Prometheus-compatible metrics for teams already on Prometheus/Grafana.</p>
+
+                    <div class="alert alert-hipaa" style="margin-top:var(--space-md)">
+                        <div class="alert-title">The one observability rule, repeated</div>
+                        <p><strong>No PHI in names, labels, metadata, dashboard titles, alert names, or alert documentation.</strong> Audit logs capture metadata and never the <em>contents</em> of your data &mdash; but everything you <em>name and label</em> is fair game for logs, dashboards, and alert notifications sent to recipients. Keep PHI in the protected stores; keep the telemetry <em>about</em> it free of PHI.</p>
+                    </div>
+
+                    <p>Reading logs with a filter, and a reminder that the durable copy lives in your export sinks:</p>
+                    <pre><code># Recent errors from a specific Cloud Run service
+gcloud logging read \
+  'resource.type="cloud_run_revision"
+   AND resource.labels.service_name="intake-api"
+   AND severity&gt;=ERROR' \
+  --limit=50 --freshness=1h
+
+# Long-term retention/analysis comes from the sinks in section 10
+# (Cloud Storage archive + BigQuery dataset), not the live log buffer.</code></pre>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Cost management</h3>
+                    <p>Set guardrails, then tune the big levers. Export billing to BigQuery for analysis and create budgets with threshold alerts:</p>
+                    <pre><code># Budget with alert thresholds (enable BigQuery billing export in the console)
+gcloud billing budgets create \
+    --billing-account=0X0X0X-0X0X0X-0X0X0X \
+    --display-name="Prod PHI monthly" \
+    --budget-amount=5000USD \
+    --threshold-rule=percent=0.5 \
+    --threshold-rule=percent=0.9 \
+    --threshold-rule=percent=1.0</code></pre>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr><th>Lever</th><th>When it pays off</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td><strong>Scale-to-zero (Cloud Run)</strong> vs always-on (GKE/GCE)</td><td>Spiky or low-traffic intake workloads &mdash; you pay per request instead of for idle VMs.</td></tr>
+                                <tr><td><strong>Committed-use / sustained-use discounts</strong></td><td>Steady, predictable baseline load on Compute Engine / GKE.</td></tr>
+                                <tr><td><strong>BigQuery on-demand vs capacity (slots)</strong></td><td>On-demand for sporadic analytics; capacity reservations once query volume is steady and large.</td></tr>
+                                <tr><td><strong>Cloud Storage classes + lifecycle rules</strong></td><td>Age audit-log archives to Nearline/Coldline/Archive to cheapen long-term retention.</td></tr>
+                                <tr><td><strong>Budgets + billing export</strong></td><td>Always &mdash; catch a runaway autoscaler or pipeline before it surprises you.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Troubleshooting</h3>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr><th>Symptom</th><th>Likely cause &amp; fix</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td><code>PERMISSION_DENIED</code></td><td>Missing IAM role, wrong active project, or an SA without the needed binding. Check <code>gcloud config list</code> and the resource's IAM policy; grant the specific predefined role.</td></tr>
+                                <tr><td><code>API [x] not enabled</code></td><td>The service API isn't turned on for the project. Run <code>gcloud services enable SERVICE.googleapis.com</code>.</td></tr>
+                                <tr><td><code>Quota exceeded</code> / <code>RESOURCE_EXHAUSTED</code></td><td>Hit a per-project/region quota. Check <code>gcloud compute regions describe REGION</code> for limits and request an increase in the console quotas page.</td></tr>
+                                <tr><td>Auth / ADC errors locally</td><td>Application Default Credentials missing or stale. Run <code>gcloud auth application-default login</code> (and <code>gcloud auth login</code> for the CLI itself).</td></tr>
+                                <tr><td>Changes hit the wrong project</td><td>Active project not set. Run <code>gcloud config set project PROJECT_ID</code> and confirm with <code>gcloud config list</code>.</td></tr>
+                                <tr><td>Cloud Run can't read a secret</td><td>The runtime SA lacks <code>roles/secretmanager.secretAccessor</code>. Grant it on the specific secret.</td></tr>
+                                <tr><td>Cloud SQL connection fails over Private IP</td><td>Missing VPC peering / Private Service Access range, or the client isn't on the VPC. Verify the peering and that the service egresses through the VPC connector.</td></tr>
+                                <tr><td>Call blocked by VPC Service Controls</td><td>A request crossed the perimeter. Look for the <strong>request-violation</strong> entry in the audit logs and add an ingress/egress rule or access level for the legitimate caller.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Day-2 ops commands</h3>
+                    <div class="command-grid">
+                        <div class="command-card">
+                            <h4>Describe a service</h4>
+                            <pre><code>gcloud run services \
+  describe intake-api \
+  --region us-central1</code></pre>
+                            <p>Inspect config, SA, traffic split, and revisions.</p>
+                        </div>
+                        <div class="command-card">
+                            <h4>List instances</h4>
+                            <pre><code>gcloud compute \
+  instances list</code></pre>
+                            <p>See running VMs across the project.</p>
+                        </div>
+                        <div class="command-card">
+                            <h4>Tail service logs</h4>
+                            <pre><code>gcloud run services \
+  logs read intake-api \
+  --region us-central1</code></pre>
+                            <p>Recent application logs for a Cloud Run service.</p>
+                        </div>
+                        <div class="command-card">
+                            <h4>SSH via IAP (no public IP)</h4>
+                            <pre><code>gcloud compute ssh VM \
+  --tunnel-through-iap \
+  --zone us-central1-a</code></pre>
+                            <p>Reach a private VM through Identity-Aware Proxy.</p>
+                        </div>
+                        <div class="command-card">
+                            <h4>Shift traffic</h4>
+                            <pre><code>gcloud run services \
+  update-traffic intake-api \
+  --to-revisions LATEST=100 \
+  --region us-central1</code></pre>
+                            <p>Roll a deploy forward or back by revision.</p>
+                        </div>
+                        <div class="command-card">
+                            <h4>Who has access?</h4>
+                            <pre><code>gcloud projects \
+  get-iam-policy PROJECT_ID</code></pre>
+                            <p>Audit the project-level IAM bindings.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="alert alert-info">
+                    <div class="alert-title">Verify the live covered-products list</div>
+                    <p>The authoritative, always-current list of HIPAA-covered Google Cloud products lives at <strong>cloud.google.com/security/compliance/hipaa</strong>. The coverage status throughout this guide reflects <strong>2026-05-15</strong> &mdash; re-check periodically, since products move on and off the list and Pre-GA surfaces are generally not covered. This guide is informational and is <strong>not legal advice</strong>; confirm your specific configuration with your compliance and legal teams.</p>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- ==========================================
+             FOOTER
+             ========================================== -->
+        <footer class="footer">
+            <h2 class="footer-title">Google Cloud Platform &mdash; Tech Guide</h2>
+            <p>Styled with Dark Mode Material (Material Design 3). HIPAA covered-products list current as of 2026-05-15 &mdash; informational, not legal advice.</p>
+            <div class="footer-chips">
+                <span class="footer-chip">Google Cloud</span>
+                <span class="footer-chip">HIPAA / BAA</span>
+                <span class="footer-chip">Material You</span>
+            </div>
+            <p><a href="index.html">&larr; Back to Tech Guides</a></p>
+        </footer>
+
+    </div><!-- /.container -->
+    <script defer src="../prompt-viewer.js"></script>
+</body>
+</html>

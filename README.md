@@ -53,7 +53,7 @@ Browse the [live site](https://ggprompts.github.io/htmlstyleguides/) to find a s
 
 ## Style Guide Catalog
 
-Every style has a unique aesthetic. Some are paired with tech guides and stories that use their design system. **76 paired** / **128 available** for new content.
+Every style has a unique aesthetic. Some are paired with tech guides and stories that use their design system. **77 paired** / **127 available** for new content.
 
 | Style | Tech Guide | Story |
 |-------|-----------|-------|
@@ -117,7 +117,7 @@ Every style has a unique aesthetic. Some are paired with tech guides and stories
 | dadaism | | |
 | dark-academia | | The Forbidden Library |
 | dark-folio | Claude Code | |
-| dark-mode-material | | |
+| dark-mode-material | Google Cloud Platform | |
 | darkroom | | The Decisive Moment |
 | data-bento | | |
 | data-visualization | DuckDB | |
